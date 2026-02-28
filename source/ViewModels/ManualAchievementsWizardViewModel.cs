@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,6 +32,7 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// Unified ViewModel for the manual achievements wizard.
     /// Manages the flow through Search -> Refreshing -> Editing stages.
+    /// All functionality is consolidated directly into this ViewModel.
     /// </summary>
     public sealed class ManualAchievementsWizardViewModel : Common.ObservableObject
     {
@@ -43,15 +46,27 @@ namespace PlayniteAchievements.ViewModels
         private readonly bool _startAtEditingStage;
         private readonly ManualAchievementLink _existingLink;
         private CancellationTokenSource _refreshCts;
+        private CancellationTokenSource _searchCts;
 
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
         private string _progressMessage = string.Empty;
         private bool _canCancelRefresh = true;
         private string _errorMessage = string.Empty;
-        private ManualAchievementsEditViewModel _editVm;
+
+        // Search stage properties
+        private string _searchText = string.Empty;
+        private bool _isSearching;
+        private ManualGameSearchResult _selectedResult;
+        private string _searchStatusMessage = string.Empty;
+
+        // Edit stage properties
+        private string _editSearchFilter = string.Empty;
+        private string _sourceGameName = string.Empty;
 
         public event EventHandler RequestClose;
+
+        #region Stage Properties
 
         public WizardStage CurrentStage
         {
@@ -75,9 +90,99 @@ namespace PlayniteAchievements.ViewModels
         public bool IsEditingStage => CurrentStage == WizardStage.Editing;
         public bool IsCompletedStage => CurrentStage == WizardStage.Completed;
 
+        #endregion
+
+        #region Common Properties
+
         public string PlayniteGameName => _playniteGame?.Name ?? string.Empty;
 
-        public ManualAchievementsSearchViewModel SearchVm { get; }
+        public string WindowTitle =>
+            ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Wizard_Title");
+
+        public string ErrorMessage
+        {
+            get => _errorMessage;
+            private set
+            {
+                if (_errorMessage != value)
+                {
+                    _errorMessage = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasError));
+                }
+            }
+        }
+
+        public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
+        public bool? DialogResult { get; private set; }
+
+        #endregion
+
+        #region Search Stage Properties
+
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (_searchText != value)
+                {
+                    _searchText = value ?? string.Empty;
+                    OnPropertyChanged();
+                    SearchCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public bool IsSearching
+        {
+            get => _isSearching;
+            private set
+            {
+                if (_isSearching != value)
+                {
+                    _isSearching = value;
+                    OnPropertyChanged();
+                    SearchCommand.RaiseCanExecuteChanged();
+                    NextCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public ObservableCollection<ManualGameSearchResult> SearchResults { get; } =
+            new ObservableCollection<ManualGameSearchResult>();
+
+        public ManualGameSearchResult SelectedResult
+        {
+            get => _selectedResult;
+            set
+            {
+                if (_selectedResult != value)
+                {
+                    _selectedResult = value;
+                    OnPropertyChanged();
+                    NextCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public string SearchStatusMessage
+        {
+            get => _searchStatusMessage;
+            private set
+            {
+                if (_searchStatusMessage != value)
+                {
+                    _searchStatusMessage = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        #endregion
+
+        #region Refresh Stage Properties
 
         public double ProgressPercent
         {
@@ -97,48 +202,61 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _canCancelRefresh, value);
         }
 
-        public string ErrorMessage
+        #endregion
+
+        #region Edit Stage Properties
+
+        public string SourceGameName
         {
-            get => _errorMessage;
-            private set
+            get => _sourceGameName;
+            private set => SetValue(ref _sourceGameName, value);
+        }
+
+        public string SourceGameId { get; private set; }
+
+        public string EditSearchFilter
+        {
+            get => _editSearchFilter;
+            set
             {
-                if (_errorMessage != value)
+                if (_editSearchFilter != value)
                 {
-                    _errorMessage = value;
+                    _editSearchFilter = value ?? string.Empty;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(HasError));
+                    FilterAchievements();
                 }
             }
         }
 
-        public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+        public ObservableCollection<ManualAchievementEditItem> AllAchievements { get; } =
+            new ObservableCollection<ManualAchievementEditItem>();
 
-        public ManualAchievementsEditViewModel EditVm
-        {
-            get => _editVm;
-            private set
-            {
-                if (_editVm != value)
-                {
-                    _editVm = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(HasEditVm));
-                }
-            }
-        }
+        public ObservableCollection<ManualAchievementEditItem> FilteredAchievements { get; } =
+            new ObservableCollection<ManualAchievementEditItem>();
 
-        public bool HasEditVm => EditVm != null;
+        public int TotalCount => AllAchievements.Count;
 
-        public string WindowTitle =>
-            ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Wizard_Title");
+        public int UnlockedCount => AllAchievements.Count(a => a.IsUnlocked);
 
+        public double CompletionPercent =>
+            AllAchievements.Count > 0
+                ? (double)UnlockedCount / TotalCount * 100.0
+                : 0;
+
+        #endregion
+
+        #region Commands
+
+        public RelayCommand SearchCommand { get; }
         public ICommand NextCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
         public ICommand CancelRefreshCommand { get; }
         public ICommand RetryCommand { get; }
+        public RelayCommand UnlockAllCommand { get; }
+        public RelayCommand LockAllCommand { get; }
 
-        public bool? DialogResult { get; private set; }
+        #endregion
 
         public ManualAchievementsWizardViewModel(
             Game playniteGame,
@@ -166,46 +284,126 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            SearchVm = new ManualAchievementsSearchViewModel(
-                source,
-                playniteGame.Name,
-                _language,
-                logger,
-                startAtEditingStage ? null : playniteGame.Name);
+            // Initialize search text with game name for auto-search
+            _searchText = startAtEditingStage ? string.Empty : playniteGame.Name;
 
+            // Search commands
+            SearchCommand = new RelayCommand(
+                async _ => await ExecuteSearchAsync(),
+                _ => !IsSearching && !string.IsNullOrWhiteSpace(SearchText));
+
+            // Navigation commands
             NextCommand = new AsyncCommand(_ => TransitionToRefreshingAsync(), _ => CanTransitionToNext());
             SaveCommand = new RelayCommand(_ => Save(), _ => CanSave());
             CancelCommand = new RelayCommand(_ => CloseDialog(false));
             CancelRefreshCommand = new RelayCommand(_ => CancelRefresh());
             RetryCommand = new AsyncCommand(_ => TransitionToRefreshingAsync());
 
+            // Edit commands
+            UnlockAllCommand = new RelayCommand(_ => SetAllUnlocked(true));
+            LockAllCommand = new RelayCommand(_ => SetAllUnlocked(false));
+
             if (_startAtEditingStage)
             {
                 CurrentStage = WizardStage.Editing;
-                LoadEditVmFromExistingLink();
+                LoadEditFromExistingLink();
             }
         }
+
+        #region Search Logic
 
         private bool CanTransitionToNext()
         {
             return CurrentStage == WizardStage.Search &&
-                   SearchVm.SelectedResult != null &&
-                   !SearchVm.IsSearching;
+                   SelectedResult != null &&
+                   !IsSearching;
         }
 
-        private bool CanSave()
+        public async Task ExecuteSearchAsync()
         {
-            return CurrentStage == WizardStage.Editing && EditVm != null;
-        }
-
-        private async Task TransitionToRefreshingAsync()
-        {
-            if (CurrentStage != WizardStage.Search || SearchVm.SelectedResult == null)
+            if (string.IsNullOrWhiteSpace(SearchText) || IsSearching)
             {
                 return;
             }
 
-            var selectedResult = SearchVm.SelectedResult;
+            // Cancel any previous search
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = new CancellationTokenSource();
+
+            var ct = _searchCts.Token;
+            IsSearching = true;
+            SearchStatusMessage = ResourceProvider.GetString("LOCPlayAch_Status_Refreshing");
+            SearchResults.Clear();
+            SelectedResult = null;
+
+            try
+            {
+                var results = await _source.SearchGamesAsync(SearchText.Trim(), _language, ct);
+
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (results == null || results.Count == 0)
+                {
+                    SearchStatusMessage = ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_NoResults");
+                    return;
+                }
+
+                foreach (var result in results)
+                {
+                    if (result != null)
+                    {
+                        SearchResults.Add(result);
+                    }
+                }
+
+                SearchStatusMessage = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_ResultsFormat"),
+                    SearchResults.Count);
+
+                // Auto-select first result
+                if (SearchResults.Count > 0)
+                {
+                    SelectedResult = SearchResults[0];
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Search was cancelled
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Manual achievement search failed");
+                SearchStatusMessage = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_Error"),
+                    ex.Message);
+            }
+            finally
+            {
+                IsSearching = false;
+            }
+        }
+
+        public void CancelSearch()
+        {
+            _searchCts?.Cancel();
+        }
+
+        #endregion
+
+        #region Refresh Logic
+
+        private async Task TransitionToRefreshingAsync()
+        {
+            if (CurrentStage != WizardStage.Search || SelectedResult == null)
+            {
+                return;
+            }
+
+            var selectedResult = SelectedResult;
             CurrentStage = WizardStage.Refreshing;
             ErrorMessage = string.Empty;
             ProgressMessage = ResourceProvider.GetString("LOCPlayAch_Status_Refreshing");
@@ -283,6 +481,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private void CancelRefresh()
+        {
+            _refreshCts?.Cancel();
+            CurrentStage = WizardStage.Search;
+        }
+
+        #endregion
+
+        #region Edit Logic
+
         private void TransitionToEditing(ManualAchievementLink link)
         {
             var cachedData = _achievementService.Cache.LoadGameData(_playniteGame.Id.ToString());
@@ -294,20 +502,14 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            EditVm = new ManualAchievementsEditViewModel(
-                _source,
-                cachedData.Achievements,
-                link.SourceGameId,
-                cachedData.GameName ?? link.SourceGameId,
-                link,
-                _playniteGame.Name,
-                _language,
-                _logger);
+            PopulateAchievements(cachedData.Achievements, link);
+            SourceGameId = link.SourceGameId;
+            SourceGameName = cachedData.GameName ?? link.SourceGameId;
 
             CurrentStage = WizardStage.Editing;
         }
 
-        private void LoadEditVmFromExistingLink()
+        private void LoadEditFromExistingLink()
         {
             if (_existingLink == null)
             {
@@ -334,15 +536,9 @@ namespace PlayniteAchievements.ViewModels
 
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            EditVm = new ManualAchievementsEditViewModel(
-                                _source,
-                                achievements,
-                                _existingLink.SourceGameId,
-                                _existingLink.SourceGameId,
-                                _existingLink,
-                                _playniteGame.Name,
-                                _language,
-                                _logger);
+                            PopulateAchievements(achievements, _existingLink);
+                            SourceGameId = _existingLink.SourceGameId;
+                            SourceGameName = _existingLink.SourceGameId;
                         });
                     }
                     catch (Exception ex)
@@ -357,33 +553,140 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            EditVm = new ManualAchievementsEditViewModel(
-                _source,
-                cachedData.Achievements,
-                _existingLink.SourceGameId,
-                cachedData.GameName ?? _existingLink.SourceGameId,
-                _existingLink,
-                _playniteGame.Name,
-                _language,
-                _logger);
+            PopulateAchievements(cachedData.Achievements, _existingLink);
+            SourceGameId = _existingLink.SourceGameId;
+            SourceGameName = cachedData.GameName ?? _existingLink.SourceGameId;
         }
 
-        private void CancelRefresh()
+        private void PopulateAchievements(List<AchievementDetail> achievements, ManualAchievementLink link)
         {
-            _refreshCts?.Cancel();
-            CurrentStage = WizardStage.Search;
+            AllAchievements.Clear();
+            FilteredAchievements.Clear();
+
+            if (achievements != null)
+            {
+                foreach (var detail in achievements)
+                {
+                    if (detail == null || string.IsNullOrWhiteSpace(detail.ApiName))
+                    {
+                        continue;
+                    }
+
+                    // Get existing unlock state
+                    var isUnlocked = false;
+                    DateTime? unlockTime = null;
+
+                    if (link?.UnlockTimes != null &&
+                        link.UnlockTimes.TryGetValue(detail.ApiName, out var existingTime))
+                    {
+                        unlockTime = existingTime;
+                        isUnlocked = existingTime.HasValue;
+                    }
+
+                    var item = new ManualAchievementEditItem(detail, isUnlocked, unlockTime);
+                    item.PropertyChanged += OnAchievementChanged;
+                    AllAchievements.Add(item);
+                }
+            }
+
+            FilterAchievements();
+            UpdateCounts();
         }
+
+        private void OnAchievementChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ManualAchievementEditItem.IsUnlocked))
+            {
+                UpdateCounts();
+            }
+        }
+
+        private void SetAllUnlocked(bool unlocked)
+        {
+            foreach (var item in AllAchievements)
+            {
+                if (unlocked)
+                {
+                    // Set to now if not already unlocked
+                    if (!item.IsUnlocked)
+                    {
+                        item.UnlockTime = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    item.UnlockTime = null;
+                    item.IsUnlocked = false;
+                }
+            }
+        }
+
+        private void FilterAchievements()
+        {
+            FilteredAchievements.Clear();
+
+            var filter = EditSearchFilter?.Trim().ToLowerInvariant() ?? string.Empty;
+            var hasFilter = !string.IsNullOrEmpty(filter);
+
+            foreach (var item in AllAchievements)
+            {
+                if (!hasFilter ||
+                    item.DisplayName?.ToLowerInvariant().Contains(filter) == true ||
+                    item.Description?.ToLowerInvariant().Contains(filter) == true ||
+                    item.ApiName?.ToLowerInvariant().Contains(filter) == true)
+                {
+                    FilteredAchievements.Add(item);
+                }
+            }
+        }
+
+        private void UpdateCounts()
+        {
+            OnPropertyChanged(nameof(TotalCount));
+            OnPropertyChanged(nameof(UnlockedCount));
+            OnPropertyChanged(nameof(CompletionPercent));
+        }
+
+        private bool CanSave()
+        {
+            return CurrentStage == WizardStage.Editing && AllAchievements.Count > 0;
+        }
+
+        private ManualAchievementLink BuildLink()
+        {
+            var now = DateTime.UtcNow;
+
+            var link = new ManualAchievementLink
+            {
+                SourceKey = _source.SourceKey,
+                SourceGameId = SourceGameId,
+                UnlockTimes = new Dictionary<string, DateTime?>(),
+                CreatedUtc = _existingLink?.CreatedUtc ?? now,
+                LastModifiedUtc = now
+            };
+
+            foreach (var item in AllAchievements)
+            {
+                link.UnlockTimes[item.ApiName] = item.IsUnlocked ? item.UnlockTime : null;
+            }
+
+            return link;
+        }
+
+        #endregion
+
+        #region Save/Close Logic
 
         private void Save()
         {
-            if (EditVm == null)
+            if (CurrentStage != WizardStage.Editing)
             {
                 return;
             }
 
             try
             {
-                var link = EditVm.BuildLink();
+                var link = BuildLink();
                 SaveLink(link);
 
                 var cachedData = _achievementService.Cache.LoadGameData(_playniteGame.Id.ToString());
@@ -427,14 +730,16 @@ namespace PlayniteAchievements.ViewModels
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
-        public void CancelSearch()
-        {
-            SearchVm?.CancelSearch();
-        }
+        #endregion
+
+        #region Cleanup
 
         public void Cleanup()
         {
-            SearchVm?.CancelSearch();
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
+
             _refreshCts?.Cancel();
             _refreshCts?.Dispose();
             _refreshCts = null;
@@ -443,6 +748,14 @@ namespace PlayniteAchievements.ViewModels
             {
                 _achievementService.RebuildProgress -= OnRebuildProgress;
             }
+
+            // Unsubscribe from achievement item events
+            foreach (var item in AllAchievements)
+            {
+                item.PropertyChanged -= OnAchievementChanged;
+            }
         }
+
+        #endregion
     }
 }
