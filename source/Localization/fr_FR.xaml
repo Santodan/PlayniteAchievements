@@ -773,4 +773,15 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_FetchFailed">Échec de la récupération des données de succès depuis Steam : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">La clé API Steam est requise pour récupérer les données de succès. Configurez-la dans les paramètres du plugin.</sys:String>
 
+    <!-- ================================================================= -->
+    <!-- MANUAL ACHIEVEMENTS WIZARD                                        -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Wizard_Title">Lier les succès Steam</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Wizard_GameLabel">Jeu Playnite :</sys:String>
+
+    <!-- Wizard Buttons -->
+    <sys:String x:Key="LOCPlayAch_Button_Next">Suivant</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Save">Enregistrer</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Retry">Réessayer</sys:String>
+
 </ResourceDictionary>

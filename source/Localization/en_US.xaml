@@ -772,4 +772,15 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_FetchFailed">Failed to fetch achievement data from Steam: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">Steam API key is required to fetch achievement data. Configure it in plugin settings.</sys:String>
 
+    <!-- ================================================================= -->
+    <!-- MANUAL ACHIEVEMENTS WIZARD                                        -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Wizard_Title">Link Steam Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Wizard_GameLabel">Playnite game:</sys:String>
+
+    <!-- Wizard Buttons -->
+    <sys:String x:Key="LOCPlayAch_Button_Next">Next</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Save">Save</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Retry">Retry</sys:String>
+
 </ResourceDictionary>
