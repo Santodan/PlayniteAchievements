@@ -248,7 +248,7 @@ namespace PlayniteAchievements.ViewModels
         #region Commands
 
         public RelayCommand SearchCommand { get; }
-        public ICommand NextCommand { get; }
+        public AsyncCommand NextCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
         public ICommand CancelRefreshCommand { get; }
