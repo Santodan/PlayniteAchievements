@@ -36,6 +36,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _isUnlocked = value;
                     OnPropertyChanged(nameof(IsUnlocked));
+                    OnPropertyChanged(nameof(DisplayIconUrl));
 
                     // Auto-set unlock time to now when unlocking without a time
                     if (value && !_unlockTime.HasValue)
@@ -48,6 +49,22 @@ namespace PlayniteAchievements.ViewModels
                         UnlockTime = null;
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Icon URL for display, using grayscale conversion for locked achievements.
+        /// </summary>
+        public string DisplayIconUrl
+        {
+            get
+            {
+                var icon = IsUnlocked ? UnlockedIconUrl : LockedIconUrl;
+                if (!IsUnlocked && !string.IsNullOrWhiteSpace(icon))
+                {
+                    icon = AchievementIconResolver.ApplyGrayPrefix(icon);
+                }
+                return icon;
             }
         }
 

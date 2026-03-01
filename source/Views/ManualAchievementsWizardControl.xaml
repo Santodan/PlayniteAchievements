@@ -317,20 +317,10 @@
                             <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True" SortMemberPath="IsUnlocked">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image>
-                                            <Image.Style>
-                                                <Style TargetType="Image">
-                                                    <Setter Property="Source" Value="{Binding LockedIconUrl, IsAsync=True}"/>
-                                                    <Setter Property="Opacity" Value="0.5"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
-                                                            <Setter Property="Source" Value="{Binding UnlockedIconUrl, IsAsync=True}"/>
-                                                            <Setter Property="Opacity" Value="1.0"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Image.Style>
-                                        </Image>
+                                        <Image Source="{Binding DisplayIconUrl, IsAsync=True}"
+                                               Width="32" Height="32"
+                                               Stretch="UniformToFill"
+                                               RenderOptions.BitmapScalingMode="LowQuality"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
