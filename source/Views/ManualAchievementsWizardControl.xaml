@@ -460,8 +460,7 @@
                                               PreviewMouseDown="HiddenText_PreviewMouseDown">
                                             <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
                                                        VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="NoWrap"
+                                                       TextWrapping="Wrap"
                                                        Style="{StaticResource HiddenAchievementTextStyle}"/>
                                         </Grid>
                                     </DataTemplate>
