@@ -56,6 +56,32 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
+
+            <!-- Cell style that stretches content to fill cell for clickable areas -->
+            <Style x:Key="StretchCellStyle" TargetType="DataGridCell">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True">
+                        <Setter Property="Background" Value="#30FFFFFF"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
+                        <Setter Property="Background" Value="#40FFFFFF"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -350,7 +376,6 @@
                         BorderThickness="1"
                         Margin="0,0,0,12">
                     <DataGrid ItemsSource="{Binding FilteredAchievements}"
-                              CellStyle="{StaticResource AchievementCellStyle}"
                               RowStyle="{StaticResource AchievementRowStyle}"
                               AutoGenerateColumns="False"
                               IsReadOnly="False"
@@ -367,7 +392,8 @@
                         <DataGrid.Columns>
                             <!-- Icon -->
                             <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True" SortMemberPath="IsUnlocked"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource StretchCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -402,11 +428,13 @@
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Name}"
                                                     Width="*"
                                                     IsReadOnly="True"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource StretchCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid Style="{StaticResource ClickableCellStyle}"
+                                        <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                               Background="Transparent"
+                                              Style="{StaticResource ClickableCellStyle}"
                                               PreviewMouseDown="HiddenText_PreviewMouseDown">
                                             <TextBlock Text="{Binding DisplayNameResolved, Mode=OneWay}"
                                                        VerticalAlignment="Center"
@@ -422,11 +450,13 @@
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Description}"
                                                     Width="2*"
                                                     IsReadOnly="True"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource StretchCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid Style="{StaticResource ClickableCellStyle}"
+                                        <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                               Background="Transparent"
+                                              Style="{StaticResource ClickableCellStyle}"
                                               PreviewMouseDown="HiddenText_PreviewMouseDown">
                                             <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
                                                        VerticalAlignment="Center"
@@ -441,7 +471,8 @@
                             <!-- Unlocked checkbox -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Unlocked}"
                                                     Width="70"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsUnlocked, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
@@ -463,10 +494,11 @@
                             <!-- Unlock date -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Date}"
                                                     Width="120"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Grid>
                                             <TextBlock Text="—"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
@@ -485,7 +517,8 @@
                                             <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
-                                                        Padding="4,2">
+                                                        Padding="4,2"
+                                                        Width="90">
                                                 <DatePicker.Style>
                                                     <Style TargetType="DatePicker">
                                                         <Setter Property="Visibility" Value="Visible"/>
@@ -505,10 +538,11 @@
                             <!-- Unlock time -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Time}"
                                                     Width="100"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Grid>
                                             <TextBlock Text="—"
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center"
@@ -527,7 +561,9 @@
                                             <TextBox Text="{Binding UnlockTimeOfDay, StringFormat=hh\\:mm, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                      VerticalContentAlignment="Center"
                                                      HorizontalContentAlignment="Center"
-                                                     Padding="4,2">
+                                                     Padding="4,2"
+                                                     Width="60"
+                                                     HorizontalAlignment="Center">
                                                 <TextBox.Style>
                                                     <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                         <Setter Property="Visibility" Value="Visible"/>
@@ -549,7 +585,8 @@
                                                     Width="70"
                                                     IsReadOnly="True"
                                                     SortMemberPath="GlobalPercentUnlocked"
-                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}"
+                                                    CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock VerticalAlignment="Center"
