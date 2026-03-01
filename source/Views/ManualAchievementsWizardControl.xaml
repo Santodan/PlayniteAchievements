@@ -498,17 +498,13 @@
                                                     CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <TextBlock Text="—"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Opacity="0.5">
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="—" Opacity="0.5">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="False">
-                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -517,14 +513,13 @@
                                             <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
-                                                        Padding="4,2"
-                                                        Width="90">
+                                                        Padding="4,2">
                                                 <DatePicker.Style>
                                                     <Style TargetType="DatePicker">
-                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="False">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -542,17 +537,13 @@
                                                     CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <TextBlock Text="—"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Opacity="0.5">
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="—" Opacity="0.5">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="False">
-                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -561,15 +552,13 @@
                                             <TextBox Text="{Binding UnlockTimeOfDay, StringFormat=hh\\:mm, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                      VerticalContentAlignment="Center"
                                                      HorizontalContentAlignment="Center"
-                                                     Padding="4,2"
-                                                     Width="60"
-                                                     HorizontalAlignment="Center">
+                                                     Padding="4,2">
                                                 <TextBox.Style>
                                                     <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="False">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
