@@ -158,7 +158,7 @@
                                         <Setter Property="BorderThickness" Value="1"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                                <Setter Property="BorderBrush" Value="#06FFA5"/>
+                                                <Setter Property="BorderBrush" Value="{DynamicResource GlyphBrush}"/>
                                                 <Setter Property="BorderThickness" Value="1"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -183,14 +183,15 @@
                                             <Style TargetType="TextBlock">
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                                        <Setter Property="Foreground" Value="#06FFA5"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource GlyphBrush}"/>
                                                         <Setter Property="FontWeight" Value="Bold"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsAuthenticated}" Value="False">
-                                                        <Setter Property="Foreground" Value="#F72585"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource NegativeRatingBrush}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                        <Setter Property="Foreground" Value="#666666"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                                        <Setter Property="Opacity" Value="0.5"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -229,16 +230,19 @@
                                                Margin="6,0,0,0">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#666666"/>
-                                                <Setter Property="Background" Value="#2A2A2A"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                                <Setter Property="Opacity" Value="0.5"/>
+                                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundDarkBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsAuthenticated}" Value="True">
-                                                        <Setter Property="Foreground" Value="#005533"/>
-                                                        <Setter Property="Background" Value="#06FFA5"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource ControlBackgroundBrush}"/>
+                                                        <Setter Property="Opacity" Value="1"/>
+                                                        <Setter Property="Background" Value="{DynamicResource GlyphBrush}"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                        <Setter Property="Foreground" Value="#888888"/>
-                                                        <Setter Property="Background" Value="#444444"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                                        <Setter Property="Opacity" Value="0.4"/>
+                                                        <Setter Property="Background" Value="{DynamicResource ControlBackgroundDarkBrush}"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -334,7 +338,7 @@
                             <TextBlock Text="&#xE8FB;"
                                        FontFamily="Segoe MDL2 Assets"
                                        Style="{DynamicResource BaseTextBlockStyle}"
-                                       Foreground="#06FFA5"
+                                       Foreground="{DynamicResource GlyphBrush}"
                                        HorizontalAlignment="Center"
                                        Margin="0,0,0,4"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Landing_Status_ReadyToRefresh}"

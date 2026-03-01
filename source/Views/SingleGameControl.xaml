@@ -190,7 +190,7 @@
                                        VerticalAlignment="Center"
                                        Style="{DynamicResource BaseTextBlockStyle}"
                                        FontWeight="SemiBold"
-                                       Foreground="White"
+                                       Foreground="{DynamicResource TextBrush}"
                                        Text="{Binding ProgressionText, Mode=OneWay}"/>
                         </Grid>
                     </StackPanel>
