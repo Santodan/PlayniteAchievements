@@ -348,10 +348,25 @@
                             <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True" SortMemberPath="IsUnlocked">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image Width="32" Height="32"
-                                               Stretch="UniformToFill"
-                                               RenderOptions.BitmapScalingMode="LowQuality"
-                                               helpers:AsyncImage.Uri="{Binding DisplayIconUrl}"/>
+                                        <Grid Width="32" Height="32" VerticalAlignment="Center">
+                                            <Border CornerRadius="4" RenderOptions.BitmapScalingMode="LowQuality">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Opacity" Value="0.5"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
+                                                                <Setter Property="Opacity" Value="1"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.Background>
+                                                    <ImageBrush Stretch="UniformToFill"
+                                                                helpers:AsyncImage.Uri="{Binding DisplayIconUrl}"
+                                                                helpers:AsyncImage.DecodePixel="64"/>
+                                                </Border.Background>
+                                            </Border>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>

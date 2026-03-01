@@ -59,20 +59,32 @@ namespace PlayniteAchievements.ViewModels
         }
 
         /// <summary>
-        /// Icon URL for display, using grayscale conversion for locked achievements.
+        /// Icon URL for display.
+        /// For hidden achievements that aren't revealed, uses placeholder icon.
+        /// For unlocked achievements, uses the unlocked icon.
+        /// For locked achievements, uses the locked icon.
         /// </summary>
         public string DisplayIconUrl
         {
             get
             {
-                var icon = IsUnlocked ? UnlockedIconUrl : LockedIconUrl;
-                if (!IsUnlocked && !string.IsNullOrWhiteSpace(icon))
+                // For hidden achievements that aren't revealed, use placeholder
+                if (IsHidden)
                 {
-                    icon = AchievementIconResolver.ApplyGrayPrefix(icon);
+                    return DefaultIcon;
                 }
+
+                var icon = IsUnlocked ? UnlockedIconUrl : LockedIconUrl;
+                if (string.IsNullOrWhiteSpace(icon))
+                {
+                    return DefaultIcon;
+                }
+
                 return icon;
             }
         }
+
+        private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
 
         /// <summary>
         /// Whether this hidden achievement can be revealed (hidden and not unlocked).
@@ -97,6 +109,7 @@ namespace PlayniteAchievements.ViewModels
                     _isRevealed = value;
                     OnPropertyChanged(nameof(IsRevealed));
                     OnPropertyChanged(nameof(IsHidden));
+                    OnPropertyChanged(nameof(DisplayIconUrl));
                     OnPropertyChanged(nameof(DisplayNameResolved));
                     OnPropertyChanged(nameof(DescriptionResolved));
                 }
