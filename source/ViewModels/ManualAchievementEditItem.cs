@@ -266,33 +266,25 @@ namespace PlayniteAchievements.ViewModels
                 if (_selectedTimeMode != value)
                 {
                     var previousMode = _selectedTimeMode;
+
+                    // Convert hour BEFORE changing mode so it's valid when AvailableHours updates
+                    if (value == TimeMode.TwentyFourHour)
+                    {
+                        // Switching to 24hr: convert from 12hr
+                        _selectedHour = Convert12To24Hour(_selectedHour, previousMode);
+                    }
+                    else if (previousMode == TimeMode.TwentyFourHour)
+                    {
+                        // Switching from 24hr to 12hr
+                        Convert24To12Hour(_selectedHour, out _selectedHour, out value);
+                    }
+                    // Switching between AM and PM - keep hour the same
+
                     _selectedTimeMode = value;
                     OnPropertyChanged(nameof(SelectedTimeMode));
                     OnPropertyChanged(nameof(AvailableHours));
-
-                    // Adjust hour when switching modes
-                    if (previousMode != value)
-                    {
-                        if (value == TimeMode.TwentyFourHour)
-                        {
-                            // Switching to 24hr: convert from 12hr
-                            _selectedHour = Convert12To24Hour(_selectedHour, previousMode);
-                        }
-                        else if (previousMode == TimeMode.TwentyFourHour)
-                        {
-                            // Switching from 24hr to 12hr
-                            Convert24To12Hour(_selectedHour, out _selectedHour, out _selectedTimeMode);
-                            // Re-apply since we may have changed mode
-                            value = _selectedTimeMode;
-                        }
-                        else
-                        {
-                            // Switching between AM and PM - keep hour the same
-                        }
-
-                        OnPropertyChanged(nameof(SelectedHour));
-                        UpdateUnlockTimeFromPicker();
-                    }
+                    OnPropertyChanged(nameof(SelectedHour));
+                    UpdateUnlockTimeFromPicker();
                 }
             }
         }
