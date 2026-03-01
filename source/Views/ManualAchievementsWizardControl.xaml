@@ -41,6 +41,21 @@
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0"/>
             </Style>
+
+            <!-- Centered column header style -->
+            <Style x:Key="CenteredColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Clickable cell style for hidden achievements -->
+            <Style x:Key="ClickableCellStyle" TargetType="Grid">
+                <Setter Property="Cursor" Value="Arrow"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                        <Setter Property="Cursor" Value="Hand"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -351,11 +366,14 @@
                               VirtualizingPanel.VirtualizationMode="Recycling">
                         <DataGrid.Columns>
                             <!-- Icon -->
-                            <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True" SortMemberPath="IsUnlocked">
+                            <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True" SortMemberPath="IsUnlocked"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid Width="32" Height="32" VerticalAlignment="Center">
-                                            <Border CornerRadius="4" RenderOptions.BitmapScalingMode="LowQuality">
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Style="{StaticResource ClickableCellStyle}"
+                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
+                                            <Border Width="32" Height="32" CornerRadius="4" RenderOptions.BitmapScalingMode="LowQuality">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Opacity" Value="0.5"/>
@@ -380,15 +398,18 @@
                             <!-- Name -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Name}"
                                                     Width="*"
-                                                    IsReadOnly="True">
+                                                    IsReadOnly="True"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding DisplayNameResolved, Mode=OneWay}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   TextWrapping="NoWrap"
-                                                   Style="{StaticResource HiddenAchievementTextStyle}"
-                                                   PreviewMouseDown="HiddenText_PreviewMouseDown"/>
+                                        <Grid Style="{StaticResource ClickableCellStyle}"
+                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
+                                            <TextBlock Text="{Binding DisplayNameResolved, Mode=OneWay}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="NoWrap"
+                                                       Style="{StaticResource HiddenAchievementTextStyle}"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -396,22 +417,26 @@
                             <!-- Description -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Description}"
                                                     Width="2*"
-                                                    IsReadOnly="True">
+                                                    IsReadOnly="True"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   TextWrapping="NoWrap"
-                                                   Style="{StaticResource HiddenAchievementTextStyle}"
-                                                   PreviewMouseDown="HiddenText_PreviewMouseDown"/>
+                                        <Grid Style="{StaticResource ClickableCellStyle}"
+                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
+                                            <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       TextWrapping="NoWrap"
+                                                       Style="{StaticResource HiddenAchievementTextStyle}"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
                             <!-- Unlocked checkbox -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Unlocked}"
-                                                    Width="70">
+                                                    Width="70"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsUnlocked, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
@@ -432,34 +457,33 @@
 
                             <!-- Unlock date -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Date}"
-                                                    Width="120">
+                                                    Width="120"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                   IsEnabled="{Binding IsUnlocked}"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Padding="4,2"/>
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                        IsEnabled="{Binding IsUnlocked}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Padding="4,2"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
                             <!-- Unlock time -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Time}"
-                                                    Width="100">
+                                                    Width="100"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBox Text="{Binding UnlockTimeOfDay, StringFormat=hh\\:mm, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                                      IsEnabled="{Binding IsUnlocked}"
                                                      VerticalContentAlignment="Center"
                                                      HorizontalContentAlignment="Center"
-                                                     Padding="4,2"
-                                                     Grid.Column="0"/>
+                                                     Padding="4,2"/>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -469,7 +493,8 @@
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Rarity}"
                                                     Width="70"
                                                     IsReadOnly="True"
-                                                    SortMemberPath="GlobalPercentUnlocked">
+                                                    SortMemberPath="GlobalPercentUnlocked"
+                                                    HeaderStyle="{StaticResource CenteredColumnHeaderStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock VerticalAlignment="Center"

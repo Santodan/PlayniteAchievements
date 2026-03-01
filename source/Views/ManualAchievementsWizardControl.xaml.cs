@@ -99,7 +99,7 @@ namespace PlayniteAchievements.Views
 
         private void HiddenText_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is TextBlock textBlock && textBlock.DataContext is ManualAchievementEditItem item)
+            if (sender is FrameworkElement element && element.DataContext is ManualAchievementEditItem item)
             {
                 if (item.CanReveal)
                 {
