@@ -61,8 +61,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Icon URL for display.
         /// For hidden achievements that aren't revealed, uses placeholder icon.
-        /// For unlocked achievements, uses the unlocked icon.
-        /// For locked achievements, uses the locked icon.
+        /// Otherwise uses unlocked icon with grayscale prefix applied for locked achievements.
         /// </summary>
         public string DisplayIconUrl
         {
@@ -74,13 +73,13 @@ namespace PlayniteAchievements.ViewModels
                     return DefaultIcon;
                 }
 
-                var icon = IsUnlocked ? UnlockedIconUrl : LockedIconUrl;
-                if (string.IsNullOrWhiteSpace(icon))
+                var candidate = UnlockedIconUrl;
+                if (!IsUnlocked && !string.IsNullOrWhiteSpace(candidate))
                 {
-                    return DefaultIcon;
+                    candidate = AchievementIconResolver.ApplyGrayPrefix(candidate);
                 }
 
-                return icon;
+                return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
             }
         }
 

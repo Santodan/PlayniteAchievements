@@ -13,6 +13,10 @@
 
     <UserControl.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
             <!-- Converters -->
             <converters:BooleanConverter x:Key="InvertedBooleanConverter" Mode="Inverted"/>
 
@@ -331,6 +335,8 @@
                         BorderThickness="1"
                         Margin="0,0,0,12">
                     <DataGrid ItemsSource="{Binding FilteredAchievements}"
+                              CellStyle="{StaticResource AchievementCellStyle}"
+                              RowStyle="{StaticResource AchievementRowStyle}"
                               AutoGenerateColumns="False"
                               IsReadOnly="False"
                               CanUserAddRows="False"
