@@ -6,22 +6,30 @@ using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Views
 {
-    /// <summary>
-    /// Interaction logic for ManualAchievementsWizardControl.xaml
-    /// </summary>
-    public partial class ManualAchievementsWizardControl : UserControl
+    public partial class GameOptionsManualTrackingTab : UserControl
     {
-        private readonly ManualAchievementsWizardViewModel _viewModel;
+        public static readonly DependencyProperty UnlinkCommandProperty =
+            DependencyProperty.Register(
+                nameof(UnlinkCommand),
+                typeof(ICommand),
+                typeof(GameOptionsManualTrackingTab),
+                new PropertyMetadata(null));
 
-        public ManualAchievementsWizardControl(ManualAchievementsWizardViewModel viewModel)
+        public ICommand UnlinkCommand
+        {
+            get => (ICommand)GetValue(UnlinkCommandProperty);
+            set => SetValue(UnlinkCommandProperty, value);
+        }
+
+        private readonly ManualAchievementsViewModel _viewModel;
+
+        public GameOptionsManualTrackingTab(ManualAchievementsViewModel viewModel)
         {
             InitializeComponent();
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             DataContext = _viewModel;
 
-            _viewModel.RequestClose += ViewModel_RequestClose;
-
-            // Auto-trigger search when control loads if search text is pre-filled
+            // Auto-trigger search when control loads if search text is pre-filled.
             Loaded += OnLoaded;
         }
 
@@ -38,14 +46,9 @@ namespace PlayniteAchievements.Views
                 }
                 catch
                 {
-                    // Error is handled by ViewModel
+                    // Error is handled by ViewModel.
                 }
             }
-        }
-
-        private void ViewModel_RequestClose(object sender, EventArgs e)
-        {
-            // Handled by parent window
         }
 
         private void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -81,14 +84,6 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void SaveButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel?.SaveCommand?.CanExecute(null) == true)
-            {
-                _viewModel.SaveCommand.Execute(null);
-            }
-        }
-
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel?.CancelCommand?.CanExecute(null) == true)
@@ -109,13 +104,25 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        public void Cleanup()
+        private void ClearSearchTextButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel != null)
             {
-                _viewModel.RequestClose -= ViewModel_RequestClose;
-                _viewModel.Cleanup();
+                _viewModel.SearchText = string.Empty;
             }
+        }
+
+        private void ClearEditFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel != null)
+            {
+                _viewModel.EditSearchFilter = string.Empty;
+            }
+        }
+
+        public void Cleanup()
+        {
+            _viewModel?.Cleanup();
         }
     }
 }

@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows.Input;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
@@ -24,7 +23,7 @@ namespace PlayniteAchievements.ViewModels
         private List<CapstoneOptionItem> _allOptions = new List<CapstoneOptionItem>();
         private string _searchText = string.Empty;
 
-        public event EventHandler RequestClose;
+        public event EventHandler CapstoneChanged;
 
         public CapstoneViewModel(
             Guid gameId,
@@ -39,7 +38,6 @@ namespace PlayniteAchievements.ViewModels
             _logger = logger;
             _settings = settings;
 
-            DoneCommand = new RelayCommand(_ => RequestClose?.Invoke(this, EventArgs.Empty));
             ClearSearchCommand = new RelayCommand(_ => ClearSearch());
 
             LoadData();
@@ -52,13 +50,7 @@ namespace PlayniteAchievements.ViewModels
         public string GameName
         {
             get => _gameName;
-            private set
-            {
-                if (SetValueAndReturn(ref _gameName, value))
-                {
-                    OnPropertyChanged(nameof(WindowTitle));
-                }
-            }
+            private set => SetValue(ref _gameName, value);
         }
 
         private string _gameImagePath;
@@ -94,22 +86,7 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public string WindowTitle
-        {
-            get
-            {
-                var titleFormat = ResourceProvider.GetString("LOCPlayAch_Capstone_WindowTitle");
-                if (string.IsNullOrWhiteSpace(titleFormat))
-                {
-                    titleFormat = "Capstone Achievement - {0}";
-                }
-
-                return string.Format(titleFormat, GameName ?? ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"));
-            }
-        }
-
-        public ICommand DoneCommand { get; }
-        public ICommand ClearSearchCommand { get; }
+        public RelayCommand ClearSearchCommand { get; }
 
         public void SetMarker(CapstoneOptionItem item)
         {
@@ -126,6 +103,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             UpdateMarkerSelection(item);
+            CapstoneChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void ClearMarker()
@@ -138,6 +116,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             UpdateMarkerSelection(null);
+            CapstoneChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void ToggleReveal(CapstoneOptionItem item)
@@ -150,12 +129,24 @@ namespace PlayniteAchievements.ViewModels
 
         private void UpdateMarkerSelection(CapstoneOptionItem newMarker)
         {
+            var markerApiName = NormalizeText(newMarker?.ApiName);
+            CapstoneOptionItem matchedMarker = null;
+
             foreach (var option in AchievementOptions)
             {
-                option.IsCurrentMarker = option == newMarker;
+                var isMatch = !string.IsNullOrWhiteSpace(markerApiName) &&
+                              string.Equals(
+                                  NormalizeText(option?.ApiName),
+                                  markerApiName,
+                                  StringComparison.OrdinalIgnoreCase);
+                option.IsCurrentMarker = isMatch;
+                if (isMatch)
+                {
+                    matchedMarker = option;
+                }
             }
 
-            SetCurrentMarkerText(newMarker?.DisplayName);
+            SetCurrentMarkerText(matchedMarker?.DisplayName ?? newMarker?.DisplayName);
         }
 
         private void ApplyFilter()
@@ -179,6 +170,11 @@ namespace PlayniteAchievements.ViewModels
         public void ClearSearch()
         {
             SearchText = string.Empty;
+        }
+
+        public void ReloadData()
+        {
+            LoadData();
         }
 
         private void LoadData()

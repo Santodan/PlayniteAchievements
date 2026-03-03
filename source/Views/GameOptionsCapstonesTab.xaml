@@ -1,10 +1,9 @@
-<UserControl x:Class="PlayniteAchievements.Views.CapstoneControl"
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsCapstonesTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
-             xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
              mc:Ignorable="d"
              d:DesignHeight="640" d:DesignWidth="760">
 
@@ -55,66 +54,22 @@
         <Border Grid.Row="0"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 BorderBrush="{DynamicResource NormalBorderBrush}"
-                BorderThickness="0,0,0,1"
+                BorderThickness="1"
+                CornerRadius="6"
                 Padding="14,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Game Image (Cover or Icon based on settings) -->
-                <Border Grid.Column="0"
-                        Margin="0,0,14,0"
-                        CornerRadius="4"
-                        ClipToBounds="True"
-                        Background="{DynamicResource ControlBackgroundBrush}">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Width" Value="48"/>
-                            <Setter Property="Height" Value="48"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding UseCoverAspect}" Value="True">
-                                    <Setter Property="Width" Value="80"/>
-                                    <Setter Property="Height" Value="108"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <Image Stretch="UniformToFill"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           helpers:AsyncImage.Uri="{Binding GameImagePath}"
-                           helpers:AsyncImage.DecodePixel="160"/>
-                </Border>
-
-                <!-- Game Info -->
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <!-- <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_Header}"
-                               Style="{DynamicResource BaseTextBlockStyle}"
-                               FontSize="{DynamicResource FontSizeLarge}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextBrush}"/> -->
-                    <TextBlock Text="{Binding GameName}"
-                               Style="{DynamicResource BaseTextBlockStyle}"
-                               Foreground="{DynamicResource TextBrush}"
-                               Margin="0,2,0,0"
-                               FontWeight="SemiBold"
-                               Opacity="0.9"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_Subtitle}"
-                               Style="{DynamicResource BaseTextBlockStyle}"
-                               Foreground="{DynamicResource TextBrush}"
-                               Margin="0,6,0,0"
-                               Opacity="0.75"
-                               TextWrapping="Wrap"/>
-                    <TextBlock Text="{Binding CurrentMarkerText}"
-                               Style="{DynamicResource BaseTextBlockStyle}"
-                               Foreground="{DynamicResource TextBrush}"
-                               Margin="0,8,0,0"
-                               FontStyle="Italic"
-                               Opacity="0.75"/>
-                </StackPanel>
-            </Grid>
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_Subtitle}"
+                           Style="{DynamicResource BaseTextBlockStyle}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap"/>
+                <TextBlock Text="{Binding CurrentMarkerText}"
+                           Style="{DynamicResource BaseTextBlockStyle}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Margin="0,8,0,0"
+                           FontStyle="Italic"
+                           Opacity="0.8"/>
+            </StackPanel>
         </Border>
 
         <!-- Search Bar -->
@@ -166,9 +121,12 @@
                         Cursor="Hand">
                     <Button.Style>
                         <Style TargetType="Button">
-                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Visibility" Value="Visible"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SearchText}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                 </DataTrigger>
                             </Style.Triggers>

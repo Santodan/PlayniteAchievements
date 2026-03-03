@@ -50,6 +50,7 @@
     <!-- CONTEXT MENU                                                       -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Set Capstone Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected</sys:String>
@@ -78,6 +79,44 @@
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Please enter a valid positive integer game ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_ClearConfirm">Clear the RetroAchievements game ID override for "{0}"?</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_Cleared">RetroAchievements game ID override cleared.</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- GAME OPTIONS WINDOW                                                -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tabs">Tabs</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Overrides</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">Capstones</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Excluded</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">Included</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualLinked">Linked</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualUnlinked">Not linked</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideNone">No override set</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideValue">Override set: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Manual Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">Unlink Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite Game ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">Last Updated (Local)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedUtc">Last Updated (UTC)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Capstone">Current Capstone</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Completion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Excluded">Excluded</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ManualTracking">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">Game Exclusion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Apply">Apply</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Clear">Clear</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
 
     <!-- ================================================================= -->
     <!-- BUTTONS                                                            -->

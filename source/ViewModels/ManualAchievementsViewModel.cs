@@ -34,7 +34,7 @@ namespace PlayniteAchievements.ViewModels
     /// Manages the flow through Search -> Refreshing -> Editing stages.
     /// All functionality is consolidated directly into this ViewModel.
     /// </summary>
-    public sealed class ManualAchievementsWizardViewModel : Common.ObservableObject
+    public sealed class ManualAchievementsViewModel : Common.ObservableObject
     {
         private readonly Game _playniteGame;
         private readonly AchievementService _achievementService;
@@ -47,6 +47,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ManualAchievementLink _existingLink;
         private CancellationTokenSource _refreshCts;
         private CancellationTokenSource _searchCts;
+        private ManualAchievementLink _lastSavedLink;
 
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
@@ -63,8 +64,10 @@ namespace PlayniteAchievements.ViewModels
         // Edit stage properties
         private string _editSearchFilter = string.Empty;
         private string _sourceGameName = string.Empty;
+        private string _manualSourceName = string.Empty;
+        private string _saveStatusMessage = string.Empty;
 
-        public event EventHandler RequestClose;
+        public event EventHandler ManualLinkSaved;
 
         #region Stage Properties
 
@@ -96,9 +99,6 @@ namespace PlayniteAchievements.ViewModels
 
         public string PlayniteGameName => _playniteGame?.Name ?? string.Empty;
 
-        public string WindowTitle =>
-            ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Wizard_Title");
-
         public string ErrorMessage
         {
             get => _errorMessage;
@@ -115,7 +115,21 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
-        public bool? DialogResult { get; private set; }
+        public string SaveStatusMessage
+        {
+            get => _saveStatusMessage;
+            private set
+            {
+                if (_saveStatusMessage != value)
+                {
+                    _saveStatusMessage = value ?? string.Empty;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasSaveStatus));
+                }
+            }
+        }
+
+        public bool HasSaveStatus => !string.IsNullOrWhiteSpace(SaveStatusMessage);
 
         #endregion
 
@@ -212,6 +226,12 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _sourceGameName, value);
         }
 
+        public string ManualSourceName
+        {
+            get => _manualSourceName;
+            private set => SetValue(ref _manualSourceName, value);
+        }
+
         private string _sourceGameId;
 
         public string SourceGameId
@@ -272,7 +292,7 @@ namespace PlayniteAchievements.ViewModels
 
         #endregion
 
-        public ManualAchievementsWizardViewModel(
+        public ManualAchievementsViewModel(
             Game playniteGame,
             AchievementService achievementService,
             IManualSource source,
@@ -309,7 +329,7 @@ namespace PlayniteAchievements.ViewModels
             // Navigation commands
             NextCommand = new AsyncCommand(_ => TransitionToRefreshingAsync(), _ => CanTransitionToNext());
             SaveCommand = new RelayCommand(_ => Save(), _ => CanSave());
-            CancelCommand = new RelayCommand(_ => CloseDialog(false));
+            CancelCommand = new RelayCommand(_ => CancelOrClose());
             CancelRefreshCommand = new RelayCommand(_ => CancelRefresh());
             RetryCommand = new AsyncCommand(_ => TransitionToRefreshingAsync());
 
@@ -576,8 +596,27 @@ namespace PlayniteAchievements.ViewModels
             PopulateAchievements(cachedData.Achievements, link);
             SourceGameId = link.SourceGameId;
             SourceGameName = cachedData.GameName ?? link.SourceGameId;
+            ManualSourceName = ResolveSourceName(link?.SourceKey);
+            _lastSavedLink = link?.Clone();
+            SaveStatusMessage = string.Empty;
 
             CurrentStage = WizardStage.Editing;
+        }
+
+        private string ResolveSourceName(string sourceKey)
+        {
+            if (!string.IsNullOrWhiteSpace(sourceKey) &&
+                string.Equals(sourceKey, _source.SourceKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return sourceKey;
+            }
+
+            return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
         }
 
         private void PopulateAchievements(List<AchievementDetail> achievements, ManualAchievementLink link)
@@ -617,6 +656,14 @@ namespace PlayniteAchievements.ViewModels
 
         private void OnAchievementChanged(object sender, PropertyChangedEventArgs e)
         {
+            if (e.PropertyName == nameof(ManualAchievementEditItem.IsUnlocked) ||
+                e.PropertyName == nameof(ManualAchievementEditItem.UnlockTime) ||
+                e.PropertyName == nameof(ManualAchievementEditItem.IsValidHour) ||
+                e.PropertyName == nameof(ManualAchievementEditItem.IsValidMinute))
+            {
+                SaveStatusMessage = string.Empty;
+            }
+
             if (e.PropertyName == nameof(ManualAchievementEditItem.IsUnlocked))
             {
                 UpdateCounts();
@@ -759,8 +806,10 @@ namespace PlayniteAchievements.ViewModels
 
                 _logger?.Info($"Saved manual achievement link for '{_playniteGame.Name}' (source={link.SourceKey}, gameId={link.SourceGameId})");
 
-                CurrentStage = WizardStage.Completed;
-                CloseDialog(true);
+                _lastSavedLink = link.Clone();
+                SaveStatusMessage = ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Edit_SaveSuccess");
+                ManualLinkSaved?.Invoke(this, EventArgs.Empty);
+                CurrentStage = WizardStage.Editing;
             }
             catch (Exception ex)
             {
@@ -777,10 +826,60 @@ namespace PlayniteAchievements.ViewModels
             _saveSettings(_settings);
         }
 
-        private void CloseDialog(bool result)
+        private void CancelOrClose()
         {
-            DialogResult = result;
-            RequestClose?.Invoke(this, EventArgs.Empty);
+            if (CurrentStage == WizardStage.Editing)
+            {
+                RevertEditingToLastSavedState();
+                SaveStatusMessage = string.Empty;
+                ErrorMessage = string.Empty;
+            }
+            else if (CurrentStage == WizardStage.Search)
+            {
+                SaveStatusMessage = string.Empty;
+                ErrorMessage = string.Empty;
+            }
+        }
+
+        private void RevertEditingToLastSavedState()
+        {
+            if (CurrentStage != WizardStage.Editing || AllAchievements.Count == 0)
+            {
+                return;
+            }
+
+            var baseline = _lastSavedLink ?? _existingLink;
+            var unlockTimes = baseline?.UnlockTimes ?? new Dictionary<string, DateTime?>();
+
+            foreach (var item in AllAchievements)
+            {
+                if (item == null || string.IsNullOrWhiteSpace(item.ApiName))
+                {
+                    continue;
+                }
+
+                var hasEntry = unlockTimes.TryGetValue(item.ApiName, out var unlockTime);
+                if (hasEntry && unlockTime.HasValue)
+                {
+                    item.UnlockTime = unlockTime.Value;
+                    item.IsUnlocked = true;
+                }
+                else
+                {
+                    item.UnlockTime = null;
+                    item.IsUnlocked = false;
+                }
+            }
+
+            if (baseline != null)
+            {
+                SourceGameId = baseline.SourceGameId;
+                ManualSourceName = ResolveSourceName(baseline.SourceKey);
+            }
+
+            UpdateCounts();
+            FilterAchievements();
+            ((RelayCommand)SaveCommand).RaiseCanExecuteChanged();
         }
 
         #endregion

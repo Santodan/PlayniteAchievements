@@ -12,11 +12,13 @@ using System.Windows.Input;
 
 namespace PlayniteAchievements.Views
 {
-    public partial class CapstoneControl : UserControl
+    public partial class GameOptionsCapstonesTab : UserControl
     {
         private readonly CapstoneViewModel _viewModel;
 
-        public CapstoneControl(
+        public event EventHandler CapstoneChanged;
+
+        public GameOptionsCapstonesTab(
             Guid gameId,
             AchievementService achievementService,
             IPlayniteAPI playniteApi,
@@ -26,24 +28,25 @@ namespace PlayniteAchievements.Views
             _viewModel = new CapstoneViewModel(gameId, achievementService, playniteApi, logger, settings);
             DataContext = _viewModel;
             InitializeComponent();
-            _viewModel.RequestClose += ViewModel_RequestClose;
+            _viewModel.CapstoneChanged += ViewModel_CapstoneChanged;
         }
 
-        public string WindowTitle => _viewModel?.WindowTitle ?? "Capstone Achievement";
-
-        public event EventHandler RequestClose;
+        public void RefreshData()
+        {
+            _viewModel?.ReloadData();
+        }
 
         public void Cleanup()
         {
             if (_viewModel != null)
             {
-                _viewModel.RequestClose -= ViewModel_RequestClose;
+                _viewModel.CapstoneChanged -= ViewModel_CapstoneChanged;
             }
         }
 
-        private void ViewModel_RequestClose(object sender, EventArgs e)
+        private void ViewModel_CapstoneChanged(object sender, EventArgs e)
         {
-            RequestClose?.Invoke(this, EventArgs.Empty);
+            CapstoneChanged?.Invoke(this, EventArgs.Empty);
         }
 
         private void MarkerCheckBox_Click(object sender, RoutedEventArgs e)
@@ -91,8 +94,6 @@ namespace PlayniteAchievements.Views
             }
 
             var column = e.Column;
-
-            // Sort the collection
             var items = _viewModel.AchievementOptions.ToList();
             items.Sort((a, b) => column.SortMemberPath switch
             {
@@ -113,5 +114,3 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
-

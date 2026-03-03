@@ -1,0 +1,534 @@
+using System;
+using System.Linq;
+using Playnite.SDK;
+using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
+using RelayCommand = PlayniteAchievements.Common.RelayCommand;
+
+namespace PlayniteAchievements.ViewModels
+{
+    public sealed class GameOptionsViewModel : ObservableObject
+    {
+        private readonly Guid _gameId;
+        private readonly PlayniteAchievementsPlugin _plugin;
+        private readonly AchievementService _achievementService;
+        private readonly IPlayniteAPI _playniteApi;
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly ILogger _logger;
+
+        private GameOptionsTab _selectedTab;
+        private bool _hasGame;
+        private string _gameName;
+        private string _gameImagePath;
+        private bool _hasCachedData;
+        private string _providerName;
+        private string _librarySourceName;
+        private string _lastUpdatedLocalText;
+        private string _lastUpdatedUtcText;
+        private int _totalAchievements;
+        private int _unlockedAchievements;
+        private bool _isCompleted;
+        private string _currentCapstoneName;
+        private bool _isExcluded;
+        private bool _isRaCapable;
+        private bool _hasRaOverride;
+        private string _raOverrideValue;
+        private string _raOverrideInput;
+        private bool _hasManualTrackingLink;
+        private string _manualTrackingSummary;
+        private bool _hasCapstoneData;
+        private string _capstoneEmptyMessage;
+
+        public RelayCommand OpenAchievementsCommand { get; }
+        public RelayCommand ToggleExclusionCommand { get; }
+        public RelayCommand ApplyRaOverrideCommand { get; }
+        public RelayCommand ClearRaOverrideCommand { get; }
+        public RelayCommand UnlinkManualTrackingCommand { get; }
+        public RelayCommand RefreshStateCommand { get; }
+
+        public GameOptionsViewModel(
+            Guid gameId,
+            GameOptionsTab initialTab,
+            PlayniteAchievementsPlugin plugin,
+            AchievementService achievementService,
+            IPlayniteAPI playniteApi,
+            PlayniteAchievementsSettings settings,
+            ILogger logger)
+        {
+            _gameId = gameId;
+            _selectedTab = initialTab;
+            _plugin = plugin;
+            _achievementService = achievementService;
+            _playniteApi = playniteApi;
+            _settings = settings;
+            _logger = logger;
+
+            OpenAchievementsCommand = new RelayCommand(_ => OpenAchievements(), _ => HasGame);
+            ToggleExclusionCommand = new RelayCommand(_ => ToggleExclusion(), _ => HasGame);
+            ApplyRaOverrideCommand = new RelayCommand(_ => ApplyRaOverride(), _ => HasGame && IsRaCapable);
+            ClearRaOverrideCommand = new RelayCommand(_ => ClearRaOverride(), _ => HasGame && IsRaCapable && HasRaOverride);
+            UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
+            RefreshStateCommand = new RelayCommand(_ => Reload());
+
+            Reload();
+        }
+
+        public Guid GameId => _gameId;
+
+        public string GameIdText => _gameId.ToString();
+
+        public GameOptionsTab SelectedTab
+        {
+            get => _selectedTab;
+            set => SetValue(ref _selectedTab, value);
+        }
+
+        public bool HasGame
+        {
+            get => _hasGame;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasGame, value))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string GameName
+        {
+            get => _gameName;
+            private set => SetValue(ref _gameName, value);
+        }
+
+        public string GameImagePath
+        {
+            get => _gameImagePath;
+            private set => SetValue(ref _gameImagePath, value);
+        }
+
+        public bool HasCachedData
+        {
+            get => _hasCachedData;
+            private set => SetValue(ref _hasCachedData, value);
+        }
+
+        public string ProviderName
+        {
+            get => _providerName;
+            private set => SetValue(ref _providerName, value);
+        }
+
+        public string LibrarySourceName
+        {
+            get => _librarySourceName;
+            private set => SetValue(ref _librarySourceName, value);
+        }
+
+        public string LastUpdatedLocalText
+        {
+            get => _lastUpdatedLocalText;
+            set => SetValue(ref _lastUpdatedLocalText, value);
+        }
+
+        public string LastUpdatedUtcText
+        {
+            get => _lastUpdatedUtcText;
+            set => SetValue(ref _lastUpdatedUtcText, value);
+        }
+
+        public int TotalAchievements
+        {
+            get => _totalAchievements;
+            private set
+            {
+                if (SetValueAndReturn(ref _totalAchievements, value))
+                {
+                    OnPropertyChanged(nameof(CompletionSummary));
+                    OnPropertyChanged(nameof(CompletionPercentValue));
+                }
+            }
+        }
+
+        public int UnlockedAchievements
+        {
+            get => _unlockedAchievements;
+            private set
+            {
+                if (SetValueAndReturn(ref _unlockedAchievements, value))
+                {
+                    OnPropertyChanged(nameof(CompletionSummary));
+                    OnPropertyChanged(nameof(CompletionPercentValue));
+                }
+            }
+        }
+
+        public bool IsCompleted
+        {
+            get => _isCompleted;
+            private set => SetValue(ref _isCompleted, value);
+        }
+
+        public string CompletionSummary
+        {
+            get
+            {
+                if (TotalAchievements <= 0)
+                {
+                    return "0 / 0 (0%)";
+                }
+
+                var percent = (double)UnlockedAchievements / TotalAchievements * 100.0;
+                return $"{UnlockedAchievements} / {TotalAchievements} ({percent:F0}%)";
+            }
+        }
+
+        public double CompletionPercentValue
+        {
+            get
+            {
+                if (TotalAchievements <= 0)
+                {
+                    return 0;
+                }
+
+                var percent = (double)UnlockedAchievements / TotalAchievements * 100.0;
+                return Math.Max(0, Math.Min(100, percent));
+            }
+        }
+
+        public string CurrentCapstoneName
+        {
+            get => _currentCapstoneName;
+            private set => SetValue(ref _currentCapstoneName, value);
+        }
+
+        public bool IsExcluded
+        {
+            get => _isExcluded;
+            private set
+            {
+                if (SetValueAndReturn(ref _isExcluded, value))
+                {
+                    OnPropertyChanged(nameof(ExclusionStatusText));
+                    OnPropertyChanged(nameof(ExclusionActionText));
+                }
+            }
+        }
+
+        public string ExclusionStatusText => IsExcluded
+            ? L("LOCPlayAch_GameOptions_Status_Excluded", "Excluded")
+            : L("LOCPlayAch_GameOptions_Status_Included", "Included");
+
+        public string ExclusionActionText => IsExcluded
+            ? L("LOCPlayAch_Menu_IncludeGame", "Include this Game")
+            : L("LOCPlayAch_Menu_ExcludeGame", "Exclude this Game and Clear Data");
+
+        public bool IsRaCapable
+        {
+            get => _isRaCapable;
+            private set
+            {
+                if (SetValueAndReturn(ref _isRaCapable, value))
+                {
+                    OnPropertyChanged(nameof(RaStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public bool HasRaOverride
+        {
+            get => _hasRaOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasRaOverride, value))
+                {
+                    OnPropertyChanged(nameof(RaStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string RaOverrideValue
+        {
+            get => _raOverrideValue;
+            private set => SetValue(ref _raOverrideValue, value);
+        }
+
+        public string RaOverrideInput
+        {
+            get => _raOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _raOverrideInput, value ?? string.Empty))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string RaStatusText
+        {
+            get
+            {
+                if (!IsRaCapable)
+                {
+                    return L("LOCPlayAch_GameOptions_Overrides_RaNotCapable", "RetroAchievements override is not available for this game.");
+                }
+
+                if (!HasRaOverride)
+                {
+                    return L("LOCPlayAch_GameOptions_Status_RaOverrideNone", "No override set");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_GameOptions_Status_RaOverrideValue", "Override set: {0}"),
+                    RaOverrideValue);
+            }
+        }
+
+        public bool HasManualTrackingLink
+        {
+            get => _hasManualTrackingLink;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasManualTrackingLink, value))
+                {
+                    OnPropertyChanged(nameof(ManualTrackingStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string ManualTrackingSummary
+        {
+            get => _manualTrackingSummary;
+            private set => SetValue(ref _manualTrackingSummary, value);
+        }
+
+        public string ManualTrackingStatusText => HasManualTrackingLink
+            ? L("LOCPlayAch_GameOptions_Status_ManualLinked", "Linked")
+            : L("LOCPlayAch_GameOptions_Status_ManualUnlinked", "Not linked");
+
+        public bool HasCapstoneData
+        {
+            get => _hasCapstoneData;
+            private set => SetValue(ref _hasCapstoneData, value);
+        }
+
+        public string CapstoneEmptyMessage
+        {
+            get => _capstoneEmptyMessage;
+            private set => SetValue(ref _capstoneEmptyMessage, value);
+        }
+
+        public void Reload()
+        {
+            try
+            {
+                var game = _playniteApi?.Database?.Games?.Get(_gameId);
+                HasGame = game != null;
+                GameName = game?.Name ?? L("LOCPlayAch_Text_UnknownGame", "Unknown Game");
+
+                var useCover = _settings?.Persisted?.UseCoverImages ?? false;
+                var imagePath = string.Empty;
+                if (game != null)
+                {
+                    if (useCover && !string.IsNullOrWhiteSpace(game.CoverImage))
+                    {
+                        imagePath = _playniteApi?.Database?.GetFullFilePath(game.CoverImage);
+                    }
+
+                    if (string.IsNullOrWhiteSpace(imagePath) && !string.IsNullOrWhiteSpace(game.Icon))
+                    {
+                        imagePath = _playniteApi?.Database?.GetFullFilePath(game.Icon);
+                    }
+                }
+
+                GameImagePath = imagePath;
+
+                var gameData = _achievementService?.GetGameAchievementData(_gameId);
+                HasCachedData = gameData != null;
+                ProviderName = string.IsNullOrWhiteSpace(gameData?.ProviderName)
+                    ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
+                    : gameData.ProviderName;
+                LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
+
+                if (gameData?.LastUpdatedUtc > DateTime.MinValue)
+                {
+                    LastUpdatedUtcText = gameData.LastUpdatedUtc.ToString("u");
+                    LastUpdatedLocalText = gameData.LastUpdatedUtc.ToLocalTime().ToString("g");
+                }
+                else
+                {
+                    LastUpdatedUtcText = L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A");
+                    LastUpdatedLocalText = L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A");
+                }
+
+                var achievements = gameData?.Achievements ?? Enumerable.Empty<AchievementDetail>();
+                var list = achievements.Where(a => a != null).ToList();
+                TotalAchievements = list.Count;
+                UnlockedAchievements = list.Count(a => a.Unlocked);
+                IsCompleted = gameData?.IsCompleted ?? false;
+
+                var capstone = list.FirstOrDefault(a => a.IsCapstone);
+                CurrentCapstoneName = !string.IsNullOrWhiteSpace(capstone?.DisplayName)
+                    ? capstone.DisplayName.Trim()
+                    : !string.IsNullOrWhiteSpace(capstone?.ApiName)
+                        ? capstone.ApiName.Trim()
+                        : L("LOCPlayAch_Capstone_Current_None", "None");
+
+                HasCapstoneData = (gameData?.HasAchievements ?? false) && list.Count > 0;
+                CapstoneEmptyMessage = string.Format(
+                    L("LOCPlayAch_Capstone_NoCachedData", "No cached achievements are available for \"{0}\". Refresh this game first."),
+                    GameName);
+
+                IsExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
+                IsRaCapable = _plugin?.IsRaCapable(_gameId) ?? false;
+
+                var hasOverride = false;
+                var overrideValue = string.Empty;
+                if (_settings?.Persisted?.RaGameIdOverrides != null &&
+                    _settings.Persisted.RaGameIdOverrides.TryGetValue(_gameId, out var raId))
+                {
+                    hasOverride = true;
+                    overrideValue = raId.ToString();
+                }
+
+                HasRaOverride = hasOverride;
+                RaOverrideValue = overrideValue;
+                RaOverrideInput = hasOverride ? overrideValue : string.Empty;
+
+                ManualAchievementLink link = null;
+                var hasManualLink = _settings?.Persisted?.ManualAchievementLinks != null &&
+                                    _settings.Persisted.ManualAchievementLinks.TryGetValue(_gameId, out link) &&
+                                    link != null;
+                HasManualTrackingLink = hasManualLink;
+
+                if (hasManualLink)
+                {
+                    ManualTrackingSummary = string.Format(
+                        L("LOCPlayAch_GameOptions_Manual_LinkSummary", "{0} ({1})"),
+                        string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
+                        string.IsNullOrWhiteSpace(link.SourceGameId)
+                            ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
+                            : link.SourceGameId);
+                }
+                else
+                {
+                    ManualTrackingSummary = L("LOCPlayAch_GameOptions_Manual_LinkSummary_None", "No manual link configured.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to load Game Options state for gameId={_gameId}");
+            }
+            finally
+            {
+                RaiseCommandStates();
+            }
+        }
+
+        private void OpenAchievements()
+        {
+            _plugin?.OpenSingleGameAchievementsView(_gameId);
+        }
+
+        private void ToggleExclusion()
+        {
+            _plugin?.ToggleGameExclusion(_gameId);
+            Reload();
+        }
+
+        private void ApplyRaOverride()
+        {
+            if (!IsRaCapable)
+            {
+                return;
+            }
+
+            var text = (RaOverrideInput ?? string.Empty).Trim();
+            if (!int.TryParse(text, out var newId) || newId <= 0)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Menu_RaGameId_InvalidId", "Please enter a valid positive integer game ID."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_plugin?.TrySetRaGameIdOverride(_gameId, newId) == true)
+            {
+                Reload();
+            }
+        }
+
+        private void ClearRaOverride()
+        {
+            _plugin?.ClearRaGameIdOverrideForGame(_gameId);
+            Reload();
+        }
+
+        private void UnlinkManualTracking()
+        {
+            if (_plugin?.UnlinkManualAchievementsForGame(_gameId) == true)
+            {
+                Reload();
+            }
+        }
+
+        private void RaiseCommandStates()
+        {
+            OpenAchievementsCommand?.RaiseCanExecuteChanged();
+            ToggleExclusionCommand?.RaiseCanExecuteChanged();
+            ApplyRaOverrideCommand?.RaiseCanExecuteChanged();
+            ClearRaOverrideCommand?.RaiseCanExecuteChanged();
+            UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
+            RefreshStateCommand?.RaiseCanExecuteChanged();
+        }
+
+        private string ResolveLibrarySourceDisplayName(Playnite.SDK.Models.Game game, string cachedLibrarySource)
+        {
+            var fallback = L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A");
+
+            if (!string.IsNullOrWhiteSpace(game?.Source?.Name))
+            {
+                return game.Source.Name.Trim();
+            }
+
+            var candidate = (cachedLibrarySource ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                return fallback;
+            }
+
+            if (Guid.TryParse(candidate, out var sourceId))
+            {
+                var sourceName = _playniteApi?.Database?.Sources?
+                    .FirstOrDefault(s => s != null && s.Id == sourceId)?.Name;
+                if (!string.IsNullOrWhiteSpace(sourceName))
+                {
+                    return sourceName.Trim();
+                }
+
+                if (game != null && game.PluginId == sourceId && !string.IsNullOrWhiteSpace(ProviderName))
+                {
+                    return ProviderName;
+                }
+            }
+
+            return candidate;
+        }
+
+        private static string L(string key, string fallback)
+        {
+            var value = ResourceProvider.GetString(key);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+    }
+}

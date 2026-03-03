@@ -49,6 +49,7 @@
     <!-- CONTEXT MENU                                                       -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">Voir les succès</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Options du jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Définir le succès couronnement</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Actualiser un jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Actualiser la sélection</sys:String>
@@ -77,6 +78,44 @@
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Veuillez entrer un ID de jeu entier positif valide.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_ClearConfirm">Effacer le remplacement d'ID RetroAchievements pour "{0}" ?</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_Cleared">Remplacement d'ID RetroAchievements effacé.</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- FENÊTRE OPTIONS DU JEU                                             -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Options du jeu - {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tabs">Onglets</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">Aperçu</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Remplacements</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">Couronnement</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Suivi manuel</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/D</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Exclu</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">Inclus</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualLinked">Lié</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualUnlinked">Non lié</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideNone">Aucun remplacement défini</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideValue">Remplacement défini : {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">Aucune liaison manuelle configurée.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Source manuelle</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">Dissocier le suivi manuel</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">ID de jeu Playnite</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Fournisseur</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Source de bibliothèque</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">Dernière mise à jour (locale)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedUtc">Dernière mise à jour (UTC)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Capstone">Couronnement actuel</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Progression</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Excluded">Exclusion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">Remplacement RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ManualTracking">Suivi manuel</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">Exclusion du jeu</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Excluez ce jeu du suivi ou incluez-le à nouveau.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">Remplacement d'ID de jeu RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Saisissez l'ID du jeu RetroAchievements pour remplacer la détection automatique de ce jeu.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Apply">Appliquer</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Clear">Effacer</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">Le remplacement RetroAchievements n'est pas disponible pour ce jeu.</sys:String>
 
     <!-- ================================================================= -->
     <!-- BUTTONS                                                            -->
