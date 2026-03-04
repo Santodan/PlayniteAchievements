@@ -593,7 +593,20 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            PopulateAchievements(cachedData.Achievements, link);
+            var achievements = cachedData.Achievements
+                .Where(a => a != null)
+                .ToList();
+
+            var hydratedData = _achievementService.GetGameAchievementData(_playniteGame.Id);
+            if (hydratedData?.AchievementOrder != null && hydratedData.AchievementOrder.Count > 0)
+            {
+                achievements = AchievementOrderHelper.ApplyOrder(
+                    achievements,
+                    a => a?.ApiName,
+                    hydratedData.AchievementOrder);
+            }
+
+            PopulateAchievements(achievements, link);
             SourceGameId = link.SourceGameId;
             SourceGameName = cachedData.GameName ?? link.SourceGameId;
             ManualSourceName = ResolveSourceName(link?.SourceKey);
@@ -679,7 +692,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void SetAllUnlocked(bool unlocked)
         {
-            foreach (var item in AllAchievements)
+            foreach (var item in FilteredAchievements)
             {
                 if (unlocked)
                 {

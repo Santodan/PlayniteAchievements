@@ -238,6 +238,13 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private bool _selectedGameHasCustomAchievementOrder;
+        public bool SelectedGameHasCustomAchievementOrder
+        {
+            get => _selectedGameHasCustomAchievementOrder;
+            private set => SetValue(ref _selectedGameHasCustomAchievementOrder, value);
+        }
+
         private ObservableCollection<string> _providerFilterOptions;
         public ObservableCollection<string> ProviderFilterOptions
         {
@@ -1809,6 +1816,7 @@ namespace PlayniteAchievements.ViewModels
         {
             _selectedGameSortPath = nameof(AchievementDisplayItem.UnlockTime);
             _selectedGameSortDirection = ListSortDirection.Descending;
+            SelectedGameHasCustomAchievementOrder = false;
         }
 
         private async void LoadSelectedGameAchievements()
@@ -1820,6 +1828,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _allSelectedGameAchievements = new List<AchievementDisplayItem>();
                 _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
+                SelectedGameHasCustomAchievementOrder = false;
                 if (SelectedGameAchievements is BulkObservableCollection<AchievementDisplayItem> bulk)
                 {
                     bulk.ReplaceAll(_filteredSelectedGameAchievements);
@@ -1855,12 +1864,12 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
 
-                List<AchievementDisplayItem> items = await Task.Run(() =>
+                var loadResult = await Task.Run(() =>
                 {
                     var gameData = _achievementService.GetGameAchievementData(gameId);
                     if (gameData == null || gameData.Achievements == null)
                     {
-                        return new List<AchievementDisplayItem>();
+                        return Tuple.Create(new List<AchievementDisplayItem>(), false);
                     }
 
                     var options = AchievementProjectionService.CreateOptions(_settings, gameData, revealedCopy);
@@ -1874,12 +1883,40 @@ namespace PlayniteAchievements.ViewModels
                         }
                     }
 
-                    return achievements
-                        .OrderByDescending(a => a.Unlocked)
-                        .ThenByDescending(a => a.UnlockTimeUtc ?? DateTime.MinValue)
-                        .ThenBy(a => a.GlobalPercentUnlocked ?? 100)
-                        .ToList();
+                    var hasCustomOrder = gameData.AchievementOrder != null && gameData.AchievementOrder.Count > 0;
+                    if (hasCustomOrder)
+                    {
+                        return Tuple.Create(
+                            AchievementOrderHelper.ApplyOrder(
+                                achievements,
+                                a => a.ApiName,
+                                gameData.AchievementOrder),
+                            true);
+                    }
+
+                    return Tuple.Create(
+                        achievements
+                            .OrderByDescending(a => a.Unlocked)
+                            .ThenByDescending(a => a.UnlockTimeUtc ?? DateTime.MinValue)
+                            .ThenBy(a => a.GlobalPercentUnlocked ?? 100)
+                            .ToList(),
+                        false);
                 }).ConfigureAwait(true);
+
+                var items = loadResult.Item1;
+                var hasCustomOrder = loadResult.Item2;
+                SelectedGameHasCustomAchievementOrder = hasCustomOrder;
+
+                if (hasCustomOrder &&
+                    string.Equals(_selectedGameSortPath, nameof(AchievementDisplayItem.UnlockTime), StringComparison.Ordinal))
+                {
+                    _selectedGameSortPath = null;
+                }
+                else if (!hasCustomOrder && string.IsNullOrEmpty(_selectedGameSortPath))
+                {
+                    _selectedGameSortPath = nameof(AchievementDisplayItem.UnlockTime);
+                    _selectedGameSortDirection = ListSortDirection.Descending;
+                }
 
                 _allSelectedGameAchievements = items;
                 _filteredSelectedGameAchievements = new List<AchievementDisplayItem>(_allSelectedGameAchievements);
@@ -1916,6 +1953,7 @@ namespace PlayniteAchievements.ViewModels
             }
             catch (Exception ex)
             {
+                SelectedGameHasCustomAchievementOrder = false;
                 _logger?.Warn(ex, $"Failed to load achievements for game {SelectedGame?.AppId}");
             }
         }

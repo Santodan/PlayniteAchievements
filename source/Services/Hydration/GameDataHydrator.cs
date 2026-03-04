@@ -41,7 +41,19 @@ namespace PlayniteAchievements.Services.Hydration
             // Set Game reference from Playnite database (SortingName is computed from this)
             data.Game = GetGame(gameId);
 
-            // Hydrate achievements with capstone override
+            // Populate runtime custom order from settings.
+            data.AchievementOrder = null;
+            if (_settings.AchievementOrderOverrides != null &&
+                _settings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder))
+            {
+                var normalizedOrder = Services.AchievementOrderHelper.NormalizeApiNames(configuredOrder);
+                if (normalizedOrder.Count > 0)
+                {
+                    data.AchievementOrder = normalizedOrder;
+                }
+            }
+
+            // Hydrate achievements with settings overlays (capstone + category/category-type overrides).
             if (data.Achievements != null && data.Achievements.Count > 0)
             {
                 _achievementHydrator.HydrateAllWithCapstoneOverride(data.Achievements, gameId);

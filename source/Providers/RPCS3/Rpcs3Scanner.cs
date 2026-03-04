@@ -228,6 +228,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                         GlobalPercentUnlocked = null,
                         TrophyType = normalizedTrophyType,
                         IsCapstone = normalizedTrophyType == "platinum",
+                        CategoryType = MapGroupIdToCategoryType(trophy.GroupId),
                         Category = trophy.GroupName
                     });
                 }
@@ -913,6 +914,21 @@ namespace PlayniteAchievements.Providers.RPCS3
                 "B" => "bronze",
                 _ => null
             };
+        }
+
+        private static string MapGroupIdToCategoryType(string groupId)
+        {
+            var normalized = (groupId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                string.Equals(normalized, "0", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "000", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "default", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "base", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Base";
+            }
+
+            return "DLC";
         }
 
         /// <summary>

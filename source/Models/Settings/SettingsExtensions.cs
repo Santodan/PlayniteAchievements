@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Models.Settings
@@ -93,6 +94,27 @@ namespace PlayniteAchievements.Models.Settings
                 ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             target.PointsColumnAutoEnabled = source.PointsColumnAutoEnabled;
+            target.AchievementOrderOverrides = source.AchievementOrderOverrides != null
+                ? source.AchievementOrderOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null
+                        ? new List<string>(kvp.Value)
+                        : new List<string>())
+                : new Dictionary<Guid, List<string>>();
+            target.AchievementCategoryOverrides = source.AchievementCategoryOverrides != null
+                ? source.AchievementCategoryOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null
+                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                : new Dictionary<Guid, Dictionary<string, string>>();
+            target.AchievementCategoryTypeOverrides = source.AchievementCategoryTypeOverrides != null
+                ? source.AchievementCategoryTypeOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null
+                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                : new Dictionary<Guid, Dictionary<string, string>>();
 
             // Rarity Threshold Settings (order matters due to cross-property validation)
             target.UncommonThreshold = source.UncommonThreshold;
@@ -179,6 +201,27 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
                 PointsColumnAutoEnabled = source.PointsColumnAutoEnabled,
+                AchievementOrderOverrides = source.AchievementOrderOverrides != null
+                    ? source.AchievementOrderOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new List<string>(kvp.Value)
+                            : new List<string>())
+                    : new Dictionary<Guid, List<string>>(),
+                AchievementCategoryOverrides = source.AchievementCategoryOverrides != null
+                    ? source.AchievementCategoryOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                    : new Dictionary<Guid, Dictionary<string, string>>(),
+                AchievementCategoryTypeOverrides = source.AchievementCategoryTypeOverrides != null
+                    ? source.AchievementCategoryTypeOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                    : new Dictionary<Guid, Dictionary<string, string>>(),
 
                 // Rarity Threshold Settings (order matters due to cross-property validation)
                 UncommonThreshold = source.UncommonThreshold,

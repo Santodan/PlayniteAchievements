@@ -62,6 +62,9 @@ namespace PlayniteAchievements.Views
                     _viewModel?.SetMarker(item);
                 }
             }
+
+            // Marker interactions should not trigger row-level behaviors.
+            e.Handled = true;
         }
 
         private void DataGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -70,6 +73,18 @@ namespace PlayniteAchievements.Views
 
             if (source is CheckBox || VisualTreeHelpers.FindVisualParent<CheckBox>(source) != null)
             {
+                return;
+            }
+
+            var cell = VisualTreeHelpers.FindVisualParent<DataGridCell>(source);
+            if (cell?.Column == null)
+            {
+                return;
+            }
+
+            if (cell.Column.DisplayIndex <= 2)
+            {
+                // Marker/badge/status column interactions should not reveal hidden achievements.
                 return;
             }
 

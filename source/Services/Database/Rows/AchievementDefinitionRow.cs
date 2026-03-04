@@ -12,6 +12,7 @@ namespace PlayniteAchievements.Services.Database.Rows
         public int? Points { get; set; }
         public int? ScaledPoints { get; set; }
         public string Category { get; set; }
+        public string CategoryType { get; set; }
         public string TrophyType { get; set; }
         public long Hidden { get; set; }
         public long IsCapstone { get; set; }

@@ -150,7 +150,15 @@ namespace PlayniteAchievements.Views
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (_viewModel == null || e.PropertyName != nameof(SidebarViewModel.IsGameSelected)) return;
+            if (_viewModel == null || e == null) return;
+
+            if (e.PropertyName == nameof(SidebarViewModel.SelectedGameHasCustomAchievementOrder))
+            {
+                ResetAchievementsSortDirection();
+                return;
+            }
+
+            if (e.PropertyName != nameof(SidebarViewModel.IsGameSelected)) return;
 
             if (!_viewModel.IsGameSelected)
             {
@@ -1068,8 +1076,17 @@ namespace PlayniteAchievements.Views
         {
             if (GameAchievementsDataGrid == null) return;
             foreach (var c in GameAchievementsDataGrid.Columns) c.SortDirection = null;
+
+            if (_viewModel?.SelectedGameHasCustomAchievementOrder == true)
+            {
+                return;
+            }
+
             var unlockCol = GameAchievementsDataGrid.Columns.FirstOrDefault(c => c.SortMemberPath == "UnlockTime");
-            if (unlockCol != null) unlockCol.SortDirection = ListSortDirection.Descending;
+            if (unlockCol != null)
+            {
+                unlockCol.SortDirection = ListSortDirection.Descending;
+            }
         }
 
         private void ResetRecentAchievementsSortDirection()

@@ -29,6 +29,12 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public int? ScaledPoints { get; set; }
 
+        /// <summary>
+        /// Optional structured category classification.
+        /// Allowed canonical values: Default, Base, DLC, Singleplayer, Multiplayer.
+        /// </summary>
+        public string CategoryType { get; set; }
+
         public string Category { get; set; }
 
         /// <summary>

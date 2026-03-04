@@ -212,6 +212,8 @@ namespace PlayniteAchievements.Providers.PSN
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
+                    CategoryType = MapTrophyGroupToCategoryType(detail.TrophyGroupId),
+                    Category = null,
                     Hidden = detail.Hidden,
                     Unlocked = unlocked,
                     UnlockTimeUtc = unlockUtc,
@@ -260,6 +262,20 @@ namespace PlayniteAchievements.Providers.PSN
         private static string GetTrophyKey(PsnTrophyDetail trophy)
         {
             return (trophy?.TrophyId ?? 0).ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string MapTrophyGroupToCategoryType(string trophyGroupId)
+        {
+            var normalized = (trophyGroupId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                string.Equals(normalized, "default", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "base", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "000", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Base";
+            }
+
+            return "DLC";
         }
 
         private static string NormalizeGameId(string raw)

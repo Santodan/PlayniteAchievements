@@ -1,0 +1,472 @@
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsCategoryTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="620"
+             d:DesignWidth="820"
+             d:DataContext="{d:DesignInstance vm:GameOptionsCategoryViewModel}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
+
+            <DataTemplate x:Key="CategoryAchievementInfoTemplate">
+                <StackPanel Margin="12,10" VerticalAlignment="Center" Background="Transparent">
+                    <TextBlock FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
+                                <Setter Property="Opacity" Value="0.7"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                        <Setter Property="Opacity" Value="1"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                        <Setter Property="Opacity" Value="1"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                        <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                             FontStyle="Italic"
+                             FontSize="{DynamicResource FontSizeSmall}"
+                             Foreground="{DynamicResource TextBrushDarker}"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding DescriptionResolved}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"
+                               MaxHeight="44"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                        <Setter Property="Opacity" Value="0.95"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{DynamicResource ControlBackgroundBrush}"
+                BorderBrush="{DynamicResource NormalBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12"
+                Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Category_Header}"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Category_Hint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="{DynamicResource LOCPlayAch_GameOptions_Category_Reset}"
+                        Click="ResetCategoryButton_Click"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Top"
+                        IsEnabled="{Binding HasCustomOverrides}" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,0,0,12" MinHeight="34" VerticalAlignment="Top">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource SearchTextBoxStyle}"
+                         Height="30"
+                         VerticalAlignment="Center" />
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Category_SearchPlaceholder}"
+                           VerticalAlignment="Center"
+                           Margin="9,0,0,0"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.5"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SearchText}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <Button x:Name="FilterTypeSelectionButton"
+                    Grid.Column="1"
+                    Content="{Binding SelectedCategoryTypeFilterText}"
+                    Click="FilterTypeSelectionButton_Click"
+                    Height="30"
+                    Padding="10,4"
+                    HorizontalContentAlignment="Left"
+                    Margin="6,0,0,0"
+                    VerticalAlignment="Center"
+                    ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Type}">
+                <Button.ContextMenu>
+                    <ContextMenu x:Name="FilterTypeSelectionContextMenu"
+                                 DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Base}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterBaseSelected, Mode=TwoWay}" />
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_DLC}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterDlcSelected, Mode=TwoWay}" />
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Singleplayer}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterSingleplayerSelected, Mode=TwoWay}" />
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Multiplayer}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterMultiplayerSelected, Mode=TwoWay}" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+
+            <ComboBox Grid.Column="2"
+                      ItemsSource="{Binding CategoryLabelFilterOptions}"
+                      SelectedItem="{Binding SelectedCategoryLabelFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      Margin="6,0,0,0"
+                      Height="30"
+                      VerticalAlignment="Center"
+                      ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Label}" />
+
+            <Button Grid.Column="3"
+                    Content="✕"
+                    Command="{Binding ClearSearchCommand}"
+                    Width="30"
+                    Height="30"
+                    Margin="6,0,0,0"
+                    Padding="0"
+                    VerticalAlignment="Center">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SearchText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <StackPanel Grid.Column="4"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Margin="8,0,0,0">
+                <Button Content="{DynamicResource LOCPlayAch_GameOptions_Category_SelectAll}"
+                        Click="SelectAllButton_Click"
+                        Height="30"
+                        Padding="10,2"
+                        Margin="0,0,8,0" />
+                <Button Content="{DynamicResource LOCPlayAch_GameOptions_Category_DeselectAll}"
+                        Click="DeselectAllButton_Click"
+                        Height="30"
+                        Padding="10,2" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   Text="{DynamicResource LOCPlayAch_GameOptions_Category_NoAchievements}"
+                   Foreground="{DynamicResource TextBrush}"
+                   Opacity="0.8"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Top"
+                   Margin="0"
+                   Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
+
+        <DataGrid x:Name="CategoryDataGrid"
+                  Grid.Row="2"
+                  Margin="0,2,0,0"
+                  ItemsSource="{Binding AchievementRows}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
+                  SelectionMode="Extended"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="None"
+                  RowBackground="Transparent"
+                  BorderThickness="0"
+                  Background="Transparent"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserResizeRows="False"
+                  CanUserResizeColumns="True"
+                  CanUserReorderColumns="False"
+                  CanUserSortColumns="False"
+                  EnableRowVirtualization="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                  VirtualizingStackPanel.ScrollUnit="Pixel"
+                  ScrollViewer.CanContentScroll="True"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                  PreviewMouseLeftButtonDown="CategoryDataGrid_PreviewMouseLeftButtonDown">
+
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}" />
+            </DataGrid.CellStyle>
+
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                    <Setter Property="MinHeight" Value="76" />
+                    <EventSetter Event="PreviewMouseRightButtonDown" Handler="CategoryDataGridRow_PreviewMouseRightButtonDown" />
+                    <EventSetter Event="PreviewMouseRightButtonUp" Handler="CategoryDataGridRow_PreviewMouseRightButtonUp" />
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Click="RowSelectionCheckBox_Click"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserResize="False"
+                                        CellTemplate="{StaticResource AchievementStatusTemplate}" />
+
+                <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
+                                        CellTemplate="{StaticResource AchievementIconTemplate}" />
+
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                                        CellTemplate="{StaticResource CategoryAchievementInfoTemplate}" />
+
+                <DataGridTextColumn Width="160" Header="{DynamicResource LOCPlayAch_GameOptions_Category_Column_Type}" Binding="{Binding CategoryTypeDisplay}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            <Setter Property="Opacity" Value="0.85" />
+                            <Setter Property="HorizontalAlignment" Value="Center" />
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter Property="Opacity" Value="1" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+
+                <DataGridTextColumn Width="190" Header="{DynamicResource LOCPlayAch_GameOptions_Category_Column_Category}" Binding="{Binding CategoryDisplay}">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                            <Setter Property="Opacity" Value="0.85" />
+                            <Setter Property="HorizontalAlignment" Value="Center" />
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter Property="Opacity" Value="1" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Row="3"
+                Background="#12000000"
+                BorderBrush="{DynamicResource NormalBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Margin="0,10,0,0"
+                Padding="10,8,10,10">
+            <Expander IsExpanded="False"
+                      Background="Transparent"
+                      BorderThickness="0">
+                <Expander.Header>
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Category_BulkHeader}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Category_BulkHint}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.75"
+                                   FontSize="{DynamicResource FontSizeSmall}"
+                                   Margin="0,3,0,0" />
+                    </StackPanel>
+                </Expander.Header>
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="3"
+                               Text="{DynamicResource LOCPlayAch_GameOptions_Category_TypeSelectorLabel}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.9" />
+
+                    <Button x:Name="TypeSelectionButton"
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Content="{Binding SelectedTypeSelectionText}"
+                            Click="TypeSelectionButton_Click"
+                            Height="30"
+                            Padding="10,4"
+                            HorizontalContentAlignment="Left"
+                            Margin="0,6,0,0">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="TypeSelectionContextMenu"
+                                         DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Base}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeBaseSelected, Mode=TwoWay}" />
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_DLC}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeDlcSelected, Mode=TwoWay}" />
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Singleplayer}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeSingleplayerSelected, Mode=TwoWay}" />
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Multiplayer}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeMultiplayerSelected, Mode=TwoWay}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+
+                    <Button Grid.Row="1"
+                            Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_GameOptions_Category_BulkClearSelected}"
+                            Click="ClearSelectedButton_Click"
+                            Padding="12,6"
+                            Height="30"
+                            Margin="8,6,0,0" />
+
+                    <TextBox x:Name="CategoryInputTextBox"
+                             Grid.Row="2"
+                             Grid.Column="0"
+                             Padding="8,6"
+                             VerticalAlignment="Center"
+                             KeyDown="CategoryInputTextBox_KeyDown"
+                             Margin="0,8,0,0" />
+
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_GameOptions_Category_InputPlaceholder}"
+                               VerticalAlignment="Center"
+                               Margin="9,8,0,0"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.5"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ElementName=CategoryInputTextBox, Path=Text}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Button Grid.Row="2"
+                            Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_GameOptions_Category_BulkApply}"
+                            Click="ApplyBulkButton_Click"
+                            Padding="12,6"
+                            Height="30"
+                            Margin="8,8,0,0" />
+
+                    <Button Grid.Row="2"
+                            Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_GameOptions_Category_RenameOpen}"
+                            Click="RenameCategoryButton_Click"
+                            Padding="12,6"
+                            Height="30"
+                            Margin="8,8,0,0" />
+                </Grid>
+            </Expander>
+        </Border>
+    </Grid>
+</UserControl>

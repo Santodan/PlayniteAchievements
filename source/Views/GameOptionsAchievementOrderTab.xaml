@@ -1,0 +1,185 @@
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsAchievementOrderTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             Loaded="Control_Loaded"
+             d:DesignHeight="600"
+             d:DesignWidth="800"
+             d:DataContext="{d:DesignInstance vm:GameOptionsAchievementOrderViewModel}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{DynamicResource ControlBackgroundBrush}"
+                BorderBrush="{DynamicResource NormalBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Order_Header}"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Order_Hint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="{DynamicResource LOCPlayAch_GameOptions_Order_Reset}"
+                        Click="ResetOrderButton_Click"
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Top"
+                        IsEnabled="{Binding HasCustomOrder}" />
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="2"
+                   Text="{DynamicResource LOCPlayAch_GameOptions_Order_NoAchievements}"
+                   Foreground="{DynamicResource TextBrush}"
+                   Opacity="0.8"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Top"
+                   Margin="0"
+                   Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
+
+        <DataGrid x:Name="AchievementOrderDataGrid"
+                  Grid.Row="2"
+                  ItemsSource="{Binding AchievementRows}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
+                  SelectionMode="Extended"
+                  SelectionUnit="FullRow"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="None"
+                  RowBackground="Transparent"
+                  BorderThickness="0"
+                  Background="Transparent"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserResizeRows="False"
+                  CanUserResizeColumns="True"
+                  CanUserReorderColumns="False"
+                  CanUserSortColumns="False"
+                  EnableRowVirtualization="True"
+                  VirtualizingStackPanel.VirtualizationMode="Recycling"
+                  VirtualizingStackPanel.ScrollUnit="Pixel"
+                  ScrollViewer.CanContentScroll="True"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                  AllowDrop="True"
+                  PreviewMouseLeftButtonDown="DataGrid_PreviewMouseLeftButtonDown"
+                  PreviewMouseLeftButtonUp="DataGrid_PreviewMouseLeftButtonUp"
+                  PreviewMouseMove="DataGrid_PreviewMouseMove"
+                  DragOver="DataGrid_DragOver"
+                  DragLeave="DataGrid_DragLeave"
+                  GiveFeedback="DataGrid_GiveFeedback"
+                  QueryContinueDrag="DataGrid_QueryContinueDrag"
+                  Drop="DataGrid_Drop">
+
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}" />
+            </DataGrid.CellStyle>
+
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                    <Setter Property="MinHeight" Value="76" />
+                    <Setter Property="Cursor" Value="Arrow" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                            <Setter Property="Cursor" Value="Hand" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False">
+                    <DataGridTemplateColumn.CellStyle>
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                            <Setter Property="Cursor" Value="SizeAll" />
+                        </Style>
+                    </DataGridTemplateColumn.CellStyle>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Border Tag="DragHandle"
+                                    Background="Transparent"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Cursor="SizeAll">
+                                <TextBlock Tag="DragHandle"
+                                           Text="☰"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           Opacity="0.65" />
+                            </Border>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserResize="False"
+                                        CellTemplate="{StaticResource AchievementStatusTemplate}" />
+
+                <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
+                                        CellTemplate="{StaticResource AchievementIconTemplate}" />
+
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                                        CellTemplate="{StaticResource AchievementInfoTemplate}" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border x:Name="DropInsertLine"
+                Grid.Row="2"
+                Height="2"
+                VerticalAlignment="Top"
+                HorizontalAlignment="Stretch"
+                Background="{DynamicResource HighlightGlyphBrush}"
+                Visibility="Collapsed"
+                Margin="0,0,0,0"
+                IsHitTestVisible="False"
+                Panel.ZIndex="10" />
+
+        <Popup x:Name="DragCountPopup"
+               Placement="AbsolutePoint"
+               AllowsTransparency="True"
+               StaysOpen="True"
+               IsHitTestVisible="False">
+            <Border Background="#E0222222"
+                    BorderBrush="{DynamicResource HighlightGlyphBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Padding="8,3">
+                <TextBlock x:Name="DragCountText"
+                           Foreground="White"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource FontSizeSmall}" />
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

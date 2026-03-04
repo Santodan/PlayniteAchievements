@@ -232,6 +232,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var doc = XDocument.Load(xmlPath);
                 var achievements = new List<AchievementDetail>();
                 var unlockedCount = 0;
+                var groupNamesById = BuildGroupNamesDictionary(doc);
 
                 // Map global language to PS4 locale (same format as PS3)
                 var ps4Locale = MapGlobalLanguageToPs4Locale(_settings?.Persisted?.GlobalLanguage);
@@ -245,6 +246,9 @@ namespace PlayniteAchievements.Providers.ShadPS4
                     var isHidden = trophyElement.Attribute("hidden")?.Value == "yes";
                     var name = GetLocalizedElement(trophyElement, "name", ps4Locale)?.Trim();
                     var description = GetLocalizedElement(trophyElement, "detail", ps4Locale)?.Trim();
+                    var groupId = trophyElement.Attribute("gid")?.Value?.Trim();
+                    groupId = string.IsNullOrWhiteSpace(groupId) ? "0" : groupId;
+                    groupNamesById.TryGetValue(groupId, out var groupName);
 
                     // Check if trophy is unlocked
                     var isUnlocked = trophyElement.Attribute("unlockstate") != null;
@@ -274,7 +278,9 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         UnlockTimeUtc = unlockTime,
                         GlobalPercentUnlocked = null,
                         TrophyType = trophyTypeNormalized,
-                        IsCapstone = trophyType?.ToUpperInvariant() == "P"
+                        IsCapstone = trophyType?.ToUpperInvariant() == "P",
+                        CategoryType = MapGroupIdToCategoryType(groupId),
+                        Category = string.IsNullOrWhiteSpace(groupName) ? null : groupName.Trim()
                     });
                 }
 
@@ -294,6 +300,44 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 _logger?.Error(ex, $"[ShadPS4] Failed to parse TROP.XML for {game.Name}");
                 return Task.FromResult(BuildNoAchievementsData(game, providerName));
             }
+        }
+
+        private static Dictionary<string, string> BuildGroupNamesDictionary(XDocument doc)
+        {
+            var groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (doc == null)
+            {
+                return groups;
+            }
+
+            foreach (var groupElement in doc.Descendants("group"))
+            {
+                var id = groupElement.Attribute("id")?.Value?.Trim();
+                var name = groupElement.Element("name")?.Value?.Trim();
+                if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                groups[id] = name;
+            }
+
+            return groups;
+        }
+
+        private static string MapGroupIdToCategoryType(string groupId)
+        {
+            var normalized = (groupId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                string.Equals(normalized, "0", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "000", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "default", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(normalized, "base", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Base";
+            }
+
+            return "DLC";
         }
 
         private static GameAchievementData BuildNoAchievementsData(Game game, string providerName)

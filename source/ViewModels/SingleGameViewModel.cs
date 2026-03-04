@@ -35,6 +35,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _showUnlocked = true;
         private bool _showLocked = true;
         private bool _showHidden = true;
+        private bool _hasCustomAchievementOrder;
 
         public SingleGameControlModel(
             Guid gameId,
@@ -268,6 +269,12 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasAchievements => TotalAchievements > 0;
 
+        public bool HasCustomAchievementOrder
+        {
+            get => _hasCustomAchievementOrder;
+            private set => SetValue(ref _hasCustomAchievementOrder, value);
+        }
+
         public string SearchText
         {
             get => _searchText;
@@ -355,6 +362,7 @@ namespace PlayniteAchievements.ViewModels
                     RareCount = 0;
                     UltraRareCount = 0;
                     _allAchievements = new List<AchievementDisplayItem>();
+                    HasCustomAchievementOrder = false;
 
                     System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                     {
@@ -369,6 +377,8 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 var achievements = gameData.Achievements;
+                var hasCustomOrder = gameData.AchievementOrder != null && gameData.AchievementOrder.Count > 0;
+                HasCustomAchievementOrder = hasCustomOrder;
                 TotalAchievements = achievements.Count;
                 UnlockedAchievements = achievements.Count(a => a.Unlocked);
                 IsCompleted = gameData.IsCompleted;
@@ -381,7 +391,16 @@ namespace PlayniteAchievements.ViewModels
                 var displayItems = new List<AchievementDisplayItem>();
                 var unlockCounts = new Dictionary<DateTime, int>();
 
-                foreach (var ach in achievements)
+                IEnumerable<AchievementDetail> projectionOrder = achievements;
+                if (hasCustomOrder)
+                {
+                    projectionOrder = AchievementOrderHelper.ApplyOrder(
+                        achievements,
+                        a => a.ApiName,
+                        gameData.AchievementOrder);
+                }
+
+                foreach (var ach in projectionOrder)
                 {
                     if (ach.Unlocked)
                     {
@@ -421,12 +440,22 @@ namespace PlayniteAchievements.ViewModels
                 TrophySilverCount = trophySilver;
                 TrophyBronzeCount = trophyBronze;
 
-                // Sort: unlocked first by date desc, then locked by rarity
-                _allAchievements = displayItems
-                    .OrderByDescending(a => a.Unlocked)
-                    .ThenByDescending(a => a.UnlockTimeUtc ?? DateTime.MinValue)
-                    .ThenBy(a => a.GlobalPercentUnlocked ?? 100)
-                    .ToList();
+                if (hasCustomOrder)
+                {
+                    _allAchievements = AchievementOrderHelper.ApplyOrder(
+                        displayItems,
+                        a => a.ApiName,
+                        gameData.AchievementOrder);
+                }
+                else
+                {
+                    // Default order: unlocked first by date desc, then locked by rarity.
+                    _allAchievements = displayItems
+                        .OrderByDescending(a => a.Unlocked)
+                        .ThenByDescending(a => a.UnlockTimeUtc ?? DateTime.MinValue)
+                        .ThenBy(a => a.GlobalPercentUnlocked ?? 100)
+                        .ToList();
+                }
 
                 ApplySearchFilter();
 
@@ -438,6 +467,7 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed to load game data for {_gameId}");
+                HasCustomAchievementOrder = false;
             }
         }
 

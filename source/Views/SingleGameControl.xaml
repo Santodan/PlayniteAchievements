@@ -394,8 +394,10 @@
                     Content="✕"
                     Click="ClearSearch_Click"
                     Width="24"
+                    Height="24"
                     Margin="4,0,0,0"
-                    Padding="0">
+                    Padding="0"
+                    VerticalAlignment="Center">
                 <Button.Style>
                     <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -495,7 +497,7 @@
                                         CellTemplate="{StaticResource AchievementInfoTemplate}"/>
 
                 <!-- Unlock Date / Progress -->
-                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" SortDirection="Descending" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
                                         CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
 
                 <!-- Trophy -->

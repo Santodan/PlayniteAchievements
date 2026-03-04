@@ -436,8 +436,10 @@
                                 Content="✕"
                                 Click="ClearLeftSearch_Click"
                                 Width="24"
+                                Height="24"
                                 Margin="4,0,0,0"
-                                Padding="0">
+                                Padding="0"
+                                VerticalAlignment="Center">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -515,8 +517,10 @@
                                 Content="✕"
                                 Click="ClearRightSearch_Click"
                                 Width="24"
+                                Height="24"
                                 Margin="4,0,0,0"
-                                Padding="0">
+                                Padding="0"
+                                VerticalAlignment="Center">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -1097,8 +1101,10 @@
                                 <Button Grid.Column="1"
                                         Content="✕"
                                         Click="ClearGameSelection_Click"
-                                        Padding="6,2"
-                                        FontSize="{DynamicResource FontSizeSmall}"
+                                        Width="24"
+                                        Height="24"
+                                        Padding="0"
+                                        Margin="6,0,0,0"
                                         VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
@@ -1412,7 +1418,7 @@
                                                             CellTemplate="{StaticResource AchievementInfoTemplate}"/>
 
                                     <!-- Date / Progress -->
-                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" SortDirection="Descending" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
+                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
                                                             CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
 
                                     <!-- Trophy -->

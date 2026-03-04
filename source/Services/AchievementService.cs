@@ -1077,8 +1077,8 @@ namespace PlayniteAchievements.Services
 
             if (!string.IsNullOrWhiteSpace(key))
             {
-                // Hydrate with non-persisted properties from settings and Playnite DB
-                _hydrator.Hydrate(data);
+                // Persist provider payload as-is. Runtime overlays (capstone/category/order/game reference)
+                // are applied on read and are not written back to cache.
 
                 var writeResult = _cacheService.SaveGameData(key, data);
                 if (writeResult == null || !writeResult.Success)
@@ -2143,6 +2143,124 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)
+        {
+            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            var normalizedOrder = AchievementOrderHelper.NormalizeApiNames(orderedApiNames);
+            var updated = _settings.Persisted.AchievementOrderOverrides != null
+                ? _settings.Persisted.AchievementOrderOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null ? new List<string>(kvp.Value) : new List<string>())
+                : new Dictionary<Guid, List<string>>();
+
+            if (normalizedOrder.Count == 0)
+            {
+                updated.Remove(gameId);
+            }
+            else
+            {
+                updated[gameId] = normalizedOrder;
+            }
+
+            _settings.Persisted.AchievementOrderOverrides = updated;
+            TryPersistSettings(notifySettingsSaved: true);
+            NotifyCacheInvalidatedThrottled(force: true);
+        }
+
+        public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
+        {
+            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            var normalizedCategories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (categoryOverrides != null)
+            {
+                foreach (var pair in categoryOverrides)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    var category = (pair.Value ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(category))
+                    {
+                        continue;
+                    }
+
+                    normalizedCategories[apiName] = category;
+                }
+            }
+
+            var updated = _settings.Persisted.AchievementCategoryOverrides != null
+                ? _settings.Persisted.AchievementCategoryOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null
+                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                : new Dictionary<Guid, Dictionary<string, string>>();
+
+            if (normalizedCategories.Count == 0)
+            {
+                updated.Remove(gameId);
+            }
+            else
+            {
+                updated[gameId] = normalizedCategories;
+            }
+
+            _settings.Persisted.AchievementCategoryOverrides = updated;
+            TryPersistSettings(notifySettingsSaved: true);
+            NotifyCacheInvalidatedThrottled(force: true);
+        }
+
+        public void SetAchievementCategoryTypeOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryTypeOverrides)
+        {
+            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            var normalizedCategoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (categoryTypeOverrides != null)
+            {
+                foreach (var pair in categoryTypeOverrides)
+                {
+                    var apiName = (pair.Key ?? string.Empty).Trim();
+                    var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
+                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(categoryType))
+                    {
+                        continue;
+                    }
+
+                    normalizedCategoryTypes[apiName] = categoryType;
+                }
+            }
+
+            var updated = _settings.Persisted.AchievementCategoryTypeOverrides != null
+                ? _settings.Persisted.AchievementCategoryTypeOverrides.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value != null
+                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                : new Dictionary<Guid, Dictionary<string, string>>();
+
+            if (normalizedCategoryTypes.Count == 0)
+            {
+                updated.Remove(gameId);
+            }
+            else
+            {
+                updated[gameId] = normalizedCategoryTypes;
+            }
+
+            _settings.Persisted.AchievementCategoryTypeOverrides = updated;
+            TryPersistSettings(notifySettingsSaved: true);
+            NotifyCacheInvalidatedThrottled(force: true);
+        }
+
         /// <summary>
         /// Sets the ExcludedByUser flag for a game.
         /// This excludes the game from future achievement tracking until re-included.
@@ -2186,6 +2304,31 @@ namespace PlayniteAchievements.Services
                 var data = _cacheService.LoadGameData(playniteGameId);
                 _hydrator.Hydrate(data);
                 return data;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Log_RefreshGetGameDataFailed"),
+                    playniteGameId));
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets raw cached achievement data for a single game without hydration overlays.
+        /// Used by Game Options tooling that needs to distinguish provider/base values
+        /// from runtime setting overlays.
+        /// </summary>
+        public GameAchievementData GetRawGameAchievementData(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return null;
+            }
+
+            try
+            {
+                return _cacheService.LoadGameData(playniteGameId.ToString());
             }
             catch (Exception ex)
             {

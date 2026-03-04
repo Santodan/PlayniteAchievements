@@ -45,6 +45,9 @@ namespace PlayniteAchievements.Services
                 return null;
             }
 
+            var iconPath = !string.IsNullOrWhiteSpace(achievement.UnlockedIconPath)
+                ? achievement.UnlockedIconPath
+                : achievement.LockedIconPath;
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
             var item = new AchievementDisplayItem
             {
@@ -53,7 +56,7 @@ namespace PlayniteAchievements.Services
                 PlayniteGameId = gameId,
                 DisplayName = achievement.DisplayName ?? achievement.ApiName ?? "Unknown",
                 Description = achievement.Description ?? string.Empty,
-                IconPath = achievement.UnlockedIconPath,
+                IconPath = iconPath,
                 UnlockTimeUtc = achievement.UnlockTimeUtc,
                 GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
                 Unlocked = achievement.Unlocked,
@@ -84,6 +87,9 @@ namespace PlayniteAchievements.Services
                 return null;
             }
 
+            var iconPath = !string.IsNullOrWhiteSpace(achievement.UnlockedIconPath)
+                ? achievement.UnlockedIconPath
+                : achievement.LockedIconPath;
             return new RecentAchievementItem
             {
                 ApiName = achievement.ApiName,
@@ -91,7 +97,7 @@ namespace PlayniteAchievements.Services
                 Name = achievement.DisplayName ?? achievement.ApiName ?? "Unknown",
                 Description = achievement.Description ?? string.Empty,
                 GameName = gameData?.GameName ?? "Unknown",
-                IconPath = achievement.UnlockedIconPath,
+                IconPath = iconPath,
                 UnlockTime = DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value),
                 GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
                 PointsValue = ResolvePoints(achievement, options),

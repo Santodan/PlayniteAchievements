@@ -32,11 +32,14 @@
     <Compile Include="..\..\source\Models\CustomRefreshOptions.cs" Link="Source\Models\CustomRefreshOptions.cs" />
     <Compile Include="..\..\source\Models\RefreshRequest.cs" Link="Source\Models\RefreshRequest.cs" />
     <Compile Include="..\..\source\Services\RefreshCoordinator.cs" Link="Source\Services\RefreshCoordinator.cs" />
+    <Compile Include="..\..\source\Services\AchievementOrderHelper.cs" Link="Source\Services\AchievementOrderHelper.cs" />
+    <Compile Include="..\..\source\Services\AchievementCategoryTypeHelper.cs" Link="Source\Services\AchievementCategoryTypeHelper.cs" />
 
     <Compile Include="..\..\source\Common\ObservableObject.cs" Link="Source\Common\ObservableObject.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
     <Compile Include="..\..\source\Models\Settings\SettingsExtensions.cs" Link="Source\Models\Settings\SettingsExtensions.cs" />
     <Compile Include="..\..\source\Models\Settings\ThemeMigrationCacheEntry.cs" Link="Source\Models\Settings\ThemeMigrationCacheEntry.cs" />
+    <Compile Include="..\..\source\Models\Settings\ManualAchievementLink.cs" Link="Source\Models\Settings\ManualAchievementLink.cs" />
 
     <Reference Include="Playnite.SDK">
       <HintPath>..\..\source\packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll</HintPath>

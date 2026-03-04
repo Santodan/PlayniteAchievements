@@ -36,6 +36,7 @@ namespace PlayniteAchievements.ViewModels
         public string UnlockedIconUrl => Source.UnlockedIconPath;
         public string LockedIconUrl => Source.LockedIconPath;
         public bool Hidden => Source.Hidden;
+        public bool Unlocked => IsUnlocked;
         public double? GlobalPercentUnlocked => Source.GlobalPercentUnlocked;
         public int? Points => Source.Points;
         public bool HasRarity => GlobalPercentUnlocked.HasValue;
@@ -49,9 +50,14 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _isUnlocked = value;
                     OnPropertyChanged(nameof(IsUnlocked));
+                    OnPropertyChanged(nameof(Unlocked));
                     OnPropertyChanged(nameof(DisplayIconUrl));
+                    OnPropertyChanged(nameof(DisplayIcon));
                     OnPropertyChanged(nameof(CanReveal));
                     OnPropertyChanged(nameof(IsHidden));
+                    OnPropertyChanged(nameof(IsIconHidden));
+                    OnPropertyChanged(nameof(IsTitleHidden));
+                    OnPropertyChanged(nameof(IsDescriptionHidden));
                     OnPropertyChanged(nameof(DisplayNameResolved));
                     OnPropertyChanged(nameof(DescriptionResolved));
 
@@ -93,6 +99,7 @@ namespace PlayniteAchievements.ViewModels
                 return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
             }
         }
+        public string DisplayIcon => DisplayIconUrl;
 
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
 
@@ -105,6 +112,10 @@ namespace PlayniteAchievements.ViewModels
         /// Whether the achievement info should be hidden (can reveal and not yet revealed).
         /// </summary>
         public bool IsHidden => CanReveal && !_isRevealed;
+        public bool IsIconHidden => IsHidden;
+        public bool IsTitleHidden => IsHidden;
+        public bool IsDescriptionHidden => IsHidden;
+        public string HiddenTitleSuffix => string.Empty;
 
         /// <summary>
         /// Whether the hidden achievement has been revealed in this session.
@@ -119,7 +130,11 @@ namespace PlayniteAchievements.ViewModels
                     _isRevealed = value;
                     OnPropertyChanged(nameof(IsRevealed));
                     OnPropertyChanged(nameof(IsHidden));
+                    OnPropertyChanged(nameof(IsIconHidden));
+                    OnPropertyChanged(nameof(IsTitleHidden));
+                    OnPropertyChanged(nameof(IsDescriptionHidden));
                     OnPropertyChanged(nameof(DisplayIconUrl));
+                    OnPropertyChanged(nameof(DisplayIcon));
                     OnPropertyChanged(nameof(DisplayNameResolved));
                     OnPropertyChanged(nameof(DescriptionResolved));
                 }
@@ -170,6 +185,16 @@ namespace PlayniteAchievements.ViewModels
                     {
                         _isUnlocked = true;
                         OnPropertyChanged(nameof(IsUnlocked));
+                        OnPropertyChanged(nameof(Unlocked));
+                        OnPropertyChanged(nameof(DisplayIconUrl));
+                        OnPropertyChanged(nameof(DisplayIcon));
+                        OnPropertyChanged(nameof(CanReveal));
+                        OnPropertyChanged(nameof(IsHidden));
+                        OnPropertyChanged(nameof(IsIconHidden));
+                        OnPropertyChanged(nameof(IsTitleHidden));
+                        OnPropertyChanged(nameof(IsDescriptionHidden));
+                        OnPropertyChanged(nameof(DisplayNameResolved));
+                        OnPropertyChanged(nameof(DescriptionResolved));
                     }
                 }
             }

@@ -119,6 +119,12 @@
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -192,6 +198,34 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="ManualHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="AchievementOrder">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="AchievementOrderHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="Category">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="CategoryHost" />
                 </Grid>
             </Grid>
         </Border>

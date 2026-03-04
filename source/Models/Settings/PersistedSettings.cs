@@ -80,6 +80,11 @@ namespace PlayniteAchievements.Models.Settings
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
+        private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
+        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryOverrides =
+            new Dictionary<Guid, Dictionary<string, string>>();
+        private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryTypeOverrides =
+            new Dictionary<Guid, Dictionary<string, string>>();
         private Dictionary<Guid, ManualAchievementLink> _manualAchievementLinks = new Dictionary<Guid, ManualAchievementLink>();
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
@@ -780,6 +785,40 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Manual achievement order per game.
+        /// Key = Playnite Game ID, Value = full ordered list of achievement ApiName values.
+        /// These overrides persist across cache clears.
+        /// </summary>
+        public Dictionary<Guid, List<string>> AchievementOrderOverrides
+        {
+            get => _achievementOrderOverrides;
+            set => SetValue(ref _achievementOrderOverrides, NormalizeAchievementOrderOverrides(value));
+        }
+
+        /// <summary>
+        /// Manual achievement category overrides per game.
+        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> Category.
+        /// These overrides persist across cache clears.
+        /// </summary>
+        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryOverrides
+        {
+            get => _achievementCategoryOverrides;
+            set => SetValue(ref _achievementCategoryOverrides, NormalizeAchievementCategoryOverrides(value));
+        }
+
+        /// <summary>
+        /// Manual achievement category type overrides per game.
+        /// Key = Playnite Game ID, Value = map of Achievement ApiName -> CategoryType.
+        /// Allowed values: Base, DLC, Singleplayer, Multiplayer.
+        /// These overrides persist across cache clears.
+        /// </summary>
+        public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryTypeOverrides
+        {
+            get => _achievementCategoryTypeOverrides;
+            set => SetValue(ref _achievementCategoryTypeOverrides, NormalizeAchievementCategoryTypeOverrides(value));
+        }
+
+        /// <summary>
         /// Manual achievement links. Key = Playnite Game ID, Value = ManualAchievementLink.
         /// Links any Playnite game to achievements from a source (e.g., Steam).
         /// Unlock times are stored here and persist across cache clears.
@@ -896,6 +935,27 @@ namespace PlayniteAchievements.Models.Settings
                 ManualCapstones = this.ManualCapstones != null
                     ? new Dictionary<Guid, string>(this.ManualCapstones)
                     : new Dictionary<Guid, string>(),
+                AchievementOrderOverrides = this.AchievementOrderOverrides != null
+                    ? this.AchievementOrderOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new List<string>(kvp.Value)
+                            : new List<string>())
+                    : new Dictionary<Guid, List<string>>(),
+                AchievementCategoryOverrides = this.AchievementCategoryOverrides != null
+                    ? this.AchievementCategoryOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                    : new Dictionary<Guid, Dictionary<string, string>>(),
+                AchievementCategoryTypeOverrides = this.AchievementCategoryTypeOverrides != null
+                    ? this.AchievementCategoryTypeOverrides.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value != null
+                            ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
+                            : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+                    : new Dictionary<Guid, Dictionary<string, string>>(),
                 ManualAchievementLinks = this.ManualAchievementLinks != null
                     ? this.ManualAchievementLinks.ToDictionary(
                         kvp => kvp.Key,
@@ -903,6 +963,99 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<Guid, ManualAchievementLink>(),
                 ManualEnabled = this.ManualEnabled
             };
+        }
+
+        private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(
+            Dictionary<Guid, List<string>> value)
+        {
+            var normalized = new Dictionary<Guid, List<string>>();
+            if (value == null)
+            {
+                return normalized;
+            }
+
+            foreach (var pair in value)
+            {
+                var order = Services.AchievementOrderHelper.NormalizeApiNames(pair.Value);
+                if (order.Count > 0)
+                {
+                    normalized[pair.Key] = order;
+                }
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryOverrides(
+            Dictionary<Guid, Dictionary<string, string>> value)
+        {
+            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
+            if (value == null)
+            {
+                return normalized;
+            }
+
+            foreach (var gamePair in value)
+            {
+                var categories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (gamePair.Value != null)
+                {
+                    foreach (var categoryPair in gamePair.Value)
+                    {
+                        var key = (categoryPair.Key ?? string.Empty).Trim();
+                        var category = (categoryPair.Value ?? string.Empty).Trim();
+                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(category))
+                        {
+                            continue;
+                        }
+
+                        categories[key] = category;
+                    }
+                }
+
+                if (categories.Count > 0)
+                {
+                    normalized[gamePair.Key] = categories;
+                }
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<Guid, Dictionary<string, string>> NormalizeAchievementCategoryTypeOverrides(
+            Dictionary<Guid, Dictionary<string, string>> value)
+        {
+            var normalized = new Dictionary<Guid, Dictionary<string, string>>();
+            if (value == null)
+            {
+                return normalized;
+            }
+
+            foreach (var gamePair in value)
+            {
+                var categoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (gamePair.Value != null)
+                {
+                    foreach (var categoryTypePair in gamePair.Value)
+                    {
+                        var key = (categoryTypePair.Key ?? string.Empty).Trim();
+                        var categoryType = Services.AchievementCategoryTypeHelper.Normalize(categoryTypePair.Value);
+                        if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(categoryType))
+                        {
+                            continue;
+                        }
+
+                        categoryTypes[key] = categoryType;
+                    }
+                }
+
+                if (categoryTypes.Count > 0)
+                {
+                    normalized[gamePair.Key] = categoryTypes;
+                }
+            }
+
+            return normalized;
         }
 
         #endregion

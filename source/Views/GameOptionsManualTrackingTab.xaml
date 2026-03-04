@@ -85,7 +85,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -110,8 +110,8 @@
                         BorderBrush="{DynamicResource NormalBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6"
-                        Padding="14,10"
-                        Margin="0,0,0,10">
+                        Padding="12"
+                        Margin="0,0,0,12">
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Search_Header}"
                                Style="{DynamicResource BaseTextBlockStyle}"
                                Foreground="{DynamicResource TextBrush}"
@@ -155,32 +155,23 @@
                     </Grid>
 
                     <Button Grid.Column="1"
-                            Content="×"
+                            Content="✕"
                             Click="ClearSearchTextButton_Click"
-                            Width="20"
-                            Height="20"
-                            Margin="6,0,0,0"
+                            Width="24"
+                            Height="24"
+                            Margin="4,0,0,0"
                             Padding="0"
-                            FontSize="14"
-                            FontWeight="Bold"
-                            Foreground="{DynamicResource TextBrush}"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
                             VerticalAlignment="Center">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SearchText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                     </DataTrigger>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Opacity" Value="0.85"/>
-                                    </Trigger>
                                 </Style.Triggers>
                             </Style>
                         </Button.Style>
@@ -199,7 +190,7 @@
                         Background="Transparent"
                         BorderBrush="Transparent"
                         BorderThickness="0"
-                        Margin="0,10,0,8">
+                        Margin="0,0,0,12">
                     <DataGrid ItemsSource="{Binding SearchResults}"
                               SelectedItem="{Binding SelectedResult, Mode=TwoWay}"
                               AutoGenerateColumns="False"
@@ -323,8 +314,8 @@
                         BorderBrush="{DynamicResource NormalBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6"
-                        Padding="14,10"
-                        Margin="0,0,0,10">
+                        Padding="12"
+                        Margin="0,0,0,12">
                     <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Header}"
                                Style="{DynamicResource BaseTextBlockStyle}"
                                Foreground="{DynamicResource TextBrush}"
@@ -332,7 +323,7 @@
                 </Border>
 
                 <!-- Progress and action bar -->
-                <Grid Grid.Row="1" Margin="0,0,0,8">
+                <Grid Grid.Row="1" Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -372,21 +363,15 @@
                         </Grid>
 
                         <Button Grid.Column="1"
-                                Content="×"
+                                Content="✕"
                                 Click="ClearEditFilterButton_Click"
-                                Width="20"
-                                Height="20"
+                                Width="24"
+                                Height="24"
                                 Margin="4,0,0,0"
                                 Padding="0"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Foreground="{DynamicResource TextBrush}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
                                 VerticalAlignment="Center">
                             <Button.Style>
-                                <Style TargetType="Button">
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                     <Setter Property="Visibility" Value="Visible"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding EditSearchFilter}" Value="">
@@ -395,9 +380,6 @@
                                         <DataTrigger Binding="{Binding EditSearchFilter}" Value="{x:Null}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Opacity" Value="0.85"/>
-                                        </Trigger>
                                     </Style.Triggers>
                                 </Style>
                             </Button.Style>
@@ -421,7 +403,7 @@
                         Background="Transparent"
                         BorderBrush="Transparent"
                         BorderThickness="0"
-                        Margin="0,10,0,12">
+                        Margin="0,0,0,12">
                     <DataGrid ItemsSource="{Binding FilteredAchievements}"
                               AutoGenerateColumns="False"
                               IsReadOnly="False"
@@ -455,84 +437,10 @@
                         </DataGrid.RowStyle>
 
                         <DataGrid.Columns>
-                            <!-- Icon -->
-                            <DataGridTemplateColumn Header="" Width="74" IsReadOnly="True" SortMemberPath="IsUnlocked"
-                                                    CellStyle="{StaticResource StretchCellStyle}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                              Background="Transparent"
-                                              Style="{StaticResource ClickableCellStyle}"
-                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
-                                            <Border Width="52" Height="52" CornerRadius="6"
-                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                    Margin="4,7,0,7"
-                                                    RenderOptions.BitmapScalingMode="LowQuality">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Opacity" Value="0.9"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsUnlocked}" Value="True">
-                                                                <Setter Property="Opacity" Value="1"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Border.Background>
-                                                    <ImageBrush Stretch="UniformToFill"
-                                                                helpers:AsyncImage.Uri="{Binding DisplayIconUrl}"
-                                                                helpers:AsyncImage.DecodePixel="64"/>
-                                                </Border.Background>
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Name -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Name}"
-                                                    Width="*"
-                                                    IsReadOnly="True"
-                                                    CellStyle="{StaticResource StretchCellStyle}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                              Background="Transparent"
-                                              Style="{StaticResource ClickableCellStyle}"
-                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
-                                            <TextBlock Text="{Binding DisplayNameResolved, Mode=OneWay}"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="NoWrap"
-                                                       Style="{StaticResource HiddenAchievementTextStyle}"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Description -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Description}"
-                                                    Width="2*"
-                                                    IsReadOnly="True"
-                                                    CellStyle="{StaticResource StretchCellStyle}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                              Background="Transparent"
-                                              Style="{StaticResource ClickableCellStyle}"
-                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
-                                            <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"
-                                                       VerticalAlignment="Center"
-                                                       TextWrapping="Wrap"
-                                                       Style="{StaticResource HiddenAchievementTextStyle}"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
                             <!-- Unlocked checkbox -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_Column_Unlocked}"
                                                     Width="80"
+                                                    SortMemberPath="IsUnlocked"
                                                     HeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
                                                     CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -551,6 +459,43 @@
                                                   Style="{StaticResource DataGridCheckBoxStyle}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Width="78"
+                                                    MinWidth="78"
+                                                    MaxWidth="78"
+                                                    CanUserResize="False">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Stretch"
+                                              Background="Transparent"
+                                              Style="{StaticResource ClickableCellStyle}"
+                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
+                                            <ContentControl Content="{Binding}"
+                                                            ContentTemplate="{StaticResource AchievementIconTemplate}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                                                    Width="*"
+                                                    SortMemberPath="DisplayName"
+                                                    IsReadOnly="True"
+                                                    CellStyle="{StaticResource StretchCellStyle}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Stretch"
+                                              Background="Transparent"
+                                              Style="{StaticResource ClickableCellStyle}"
+                                              PreviewMouseDown="HiddenText_PreviewMouseDown">
+                                            <ContentControl Content="{Binding}"
+                                                            ContentTemplate="{StaticResource AchievementInfoTemplate}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
                             <!-- Unlock date -->
@@ -664,7 +609,7 @@
         </Grid>
 
         <!-- Footer Buttons -->
-        <Grid Grid.Row="1" Margin="0,16,0,0">
+        <Grid Grid.Row="1" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

@@ -5,6 +5,8 @@ namespace PlayniteAchievements.ViewModels
         Overview,
         Overrides,
         Capstones,
-        ManualTracking
+        ManualTracking,
+        AchievementOrder,
+        Category
     }
 }

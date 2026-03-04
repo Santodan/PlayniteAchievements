@@ -28,7 +28,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="2">
+        <StackPanel Margin="0">
             <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_ExclusionHeader}"

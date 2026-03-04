@@ -1,6 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -172,6 +173,243 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(3, options.ProviderKeys.Count);
             Assert.AreEqual(2, options.IncludeGameIds.Count);
             Assert.AreEqual(1, options.ExcludeGameIds.Count);
+        }
+
+        [TestMethod]
+        public void PersistedSettings_NormalizesAchievementOverrides()
+        {
+            var gameId = Guid.NewGuid();
+            var removedGameId = Guid.NewGuid();
+
+            var settings = new PersistedSettings
+            {
+                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
+                {
+                    [gameId] = new List<string> { "  First  ", string.Empty, "FIRST", null, "Second " },
+                    [removedGameId] = new List<string>()
+                },
+                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>
+                    {
+                        ["  AchA  "] = "  Story ",
+                        [" "] = "Invalid",
+                        ["AchB"] = " ",
+                        ["aChA"] = "Updated"
+                    },
+                    [removedGameId] = new Dictionary<string, string>()
+                },
+                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>
+                    {
+                        ["  AchA  "] = "  dlc ",
+                        [" "] = "base",
+                        ["AchB"] = " multiplayer, dlc ",
+                        ["aChA"] = "base",
+                        ["AchD"] = "default",
+                        ["AchC"] = "unsupported"
+                    },
+                    [removedGameId] = new Dictionary<string, string>()
+                }
+            };
+
+            Assert.AreEqual(1, settings.AchievementOrderOverrides.Count);
+            CollectionAssert.AreEqual(
+                new List<string> { "First", "Second" },
+                settings.AchievementOrderOverrides[gameId]);
+
+            Assert.AreEqual(1, settings.AchievementCategoryOverrides.Count);
+            var categoryMap = settings.AchievementCategoryOverrides[gameId];
+            Assert.AreEqual(1, categoryMap.Count);
+            Assert.IsTrue(categoryMap.TryGetValue("acha", out var value));
+            Assert.AreEqual("Updated", value);
+
+            Assert.AreEqual(1, settings.AchievementCategoryTypeOverrides.Count);
+            var categoryTypeMap = settings.AchievementCategoryTypeOverrides[gameId];
+            Assert.AreEqual(3, categoryTypeMap.Count);
+            Assert.IsTrue(categoryTypeMap.TryGetValue("acha", out var categoryTypeValue));
+            Assert.AreEqual("Base", categoryTypeValue);
+            Assert.IsTrue(categoryTypeMap.TryGetValue("achb", out var multiCategoryTypeValue));
+            Assert.AreEqual("DLC|Multiplayer", multiCategoryTypeValue);
+            Assert.IsTrue(categoryTypeMap.TryGetValue("achd", out var defaultCategoryTypeValue));
+            Assert.AreEqual("Default", defaultCategoryTypeValue);
+        }
+
+        [TestMethod]
+        public void PersistedSettingsClone_DeepCopiesAchievementOverrides()
+        {
+            var gameId = Guid.NewGuid();
+            var settings = new PersistedSettings
+            {
+                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
+                {
+                    [gameId] = new List<string> { "One", "Two" }
+                },
+                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["One"] = "Story"
+                    }
+                },
+                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["One"] = "DLC"
+                    }
+                }
+            };
+
+            var clone = settings.Clone();
+
+            Assert.AreNotSame(settings.AchievementOrderOverrides, clone.AchievementOrderOverrides);
+            Assert.AreNotSame(settings.AchievementOrderOverrides[gameId], clone.AchievementOrderOverrides[gameId]);
+            Assert.AreNotSame(settings.AchievementCategoryOverrides, clone.AchievementCategoryOverrides);
+            Assert.AreNotSame(settings.AchievementCategoryOverrides[gameId], clone.AchievementCategoryOverrides[gameId]);
+            Assert.AreNotSame(settings.AchievementCategoryTypeOverrides, clone.AchievementCategoryTypeOverrides);
+            Assert.AreNotSame(settings.AchievementCategoryTypeOverrides[gameId], clone.AchievementCategoryTypeOverrides[gameId]);
+
+            clone.AchievementOrderOverrides[gameId].Add("Three");
+            clone.AchievementCategoryOverrides[gameId]["Two"] = "Combat";
+            clone.AchievementCategoryTypeOverrides[gameId]["Two"] = "Multiplayer";
+
+            Assert.AreEqual(2, settings.AchievementOrderOverrides[gameId].Count);
+            Assert.IsFalse(settings.AchievementCategoryOverrides[gameId].ContainsKey("Two"));
+            Assert.IsFalse(settings.AchievementCategoryTypeOverrides[gameId].ContainsKey("Two"));
+        }
+
+        [TestMethod]
+        public void SettingsExtensions_CopyFromAndClone_PreserveAchievementOverrides()
+        {
+            var gameId = Guid.NewGuid();
+            var source = new PersistedSettings
+            {
+                AchievementOrderOverrides = new Dictionary<Guid, List<string>>
+                {
+                    [gameId] = new List<string> { "Alpha", "Beta" }
+                },
+                AchievementCategoryOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Alpha"] = "Category A"
+                    }
+                },
+                AchievementCategoryTypeOverrides = new Dictionary<Guid, Dictionary<string, string>>
+                {
+                    [gameId] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Alpha"] = "Singleplayer"
+                    }
+                }
+            };
+
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(2, target.AchievementOrderOverrides[gameId].Count);
+            Assert.AreEqual("Category A", target.AchievementCategoryOverrides[gameId]["alpha"]);
+            Assert.AreEqual("Singleplayer", target.AchievementCategoryTypeOverrides[gameId]["alpha"]);
+            Assert.AreNotSame(source.AchievementOrderOverrides[gameId], target.AchievementOrderOverrides[gameId]);
+            Assert.AreNotSame(source.AchievementCategoryOverrides[gameId], target.AchievementCategoryOverrides[gameId]);
+            Assert.AreNotSame(source.AchievementCategoryTypeOverrides[gameId], target.AchievementCategoryTypeOverrides[gameId]);
+
+            var clone = SettingsExtensions.Clone(source);
+            Assert.AreEqual(2, clone.AchievementOrderOverrides[gameId].Count);
+            Assert.AreEqual("Category A", clone.AchievementCategoryOverrides[gameId]["alpha"]);
+            Assert.AreEqual("Singleplayer", clone.AchievementCategoryTypeOverrides[gameId]["alpha"]);
+            Assert.AreNotSame(source.AchievementOrderOverrides[gameId], clone.AchievementOrderOverrides[gameId]);
+            Assert.AreNotSame(source.AchievementCategoryOverrides[gameId], clone.AchievementCategoryOverrides[gameId]);
+            Assert.AreNotSame(source.AchievementCategoryTypeOverrides[gameId], clone.AchievementCategoryTypeOverrides[gameId]);
+        }
+
+        [TestMethod]
+        public void AchievementOrderHelper_TryReorder_SingleRowMove()
+        {
+            var source = new List<string> { "A", "B", "C", "D" };
+            var moved = AchievementOrderHelper.TryReorder(
+                source,
+                new List<int> { 1 },
+                targetIndex: 3,
+                insertAfterTarget: true,
+                out var reordered);
+
+            Assert.IsTrue(moved);
+            CollectionAssert.AreEqual(new List<string> { "A", "C", "D", "B" }, reordered);
+        }
+
+        [TestMethod]
+        public void AchievementOrderHelper_TryReorder_MultiRowPreservesRelativeOrder()
+        {
+            var source = new List<string> { "A", "B", "C", "D", "E", "F" };
+            var moved = AchievementOrderHelper.TryReorder(
+                source,
+                new List<int> { 1, 3 },
+                targetIndex: 4,
+                insertAfterTarget: false,
+                out var reordered);
+
+            Assert.IsTrue(moved);
+            CollectionAssert.AreEqual(new List<string> { "A", "C", "B", "D", "E", "F" }, reordered);
+        }
+
+        [TestMethod]
+        public void AchievementOrderHelper_TryReorder_DropBeforeAndAfter()
+        {
+            var source = new List<string> { "A", "B", "C", "D" };
+
+            var movedBefore = AchievementOrderHelper.TryReorder(
+                source,
+                new List<int> { 0 },
+                targetIndex: 2,
+                insertAfterTarget: false,
+                out var before);
+            Assert.IsTrue(movedBefore);
+            CollectionAssert.AreEqual(new List<string> { "B", "A", "C", "D" }, before);
+
+            var movedAfter = AchievementOrderHelper.TryReorder(
+                source,
+                new List<int> { 0 },
+                targetIndex: 2,
+                insertAfterTarget: true,
+                out var after);
+            Assert.IsTrue(movedAfter);
+            CollectionAssert.AreEqual(new List<string> { "B", "C", "A", "D" }, after);
+        }
+
+        [TestMethod]
+        public void AchievementOrderHelper_TryReorder_NoOpSelfDrop()
+        {
+            var source = new List<string> { "A", "B", "C", "D" };
+            var moved = AchievementOrderHelper.TryReorder(
+                source,
+                new List<int> { 1, 2 },
+                targetIndex: 1,
+                insertAfterTarget: false,
+                out var reordered);
+
+            Assert.IsFalse(moved);
+            CollectionAssert.AreEqual(source, reordered);
+        }
+
+        [TestMethod]
+        public void AchievementCategoryTypeHelper_NormalizesAndFormatsMultiValues()
+        {
+            var normalized = AchievementCategoryTypeHelper.Normalize("multiplayer, dlc | base");
+            Assert.AreEqual("Base|DLC|Multiplayer", normalized);
+            Assert.AreEqual("Base, DLC, Multiplayer", AchievementCategoryTypeHelper.ToDisplayText(normalized));
+        }
+
+        [TestMethod]
+        public void AchievementCategoryTypeHelper_DefaultFallbacksAndMerging()
+        {
+            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeOrDefault(null));
+            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeOrDefault("unknown"));
+            Assert.AreEqual("DLC|Multiplayer", AchievementCategoryTypeHelper.Normalize("default|dlc|multiplayer"));
+            Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(null));
+            Assert.AreEqual("Label", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(" Label "));
         }
     }
 }

@@ -745,6 +745,8 @@ namespace PlayniteAchievements.Services
                     UnlockedIconPath = achievement.UnlockedIconPath,
                     LockedIconPath = achievement.LockedIconPath,
                     Points = achievement.Points,
+                    ScaledPoints = achievement.ScaledPoints,
+                    CategoryType = achievement.CategoryType,
                     Category = achievement.Category,
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,

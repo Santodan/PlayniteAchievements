@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 5;
+        public const int SchemaVersion = 6;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -97,7 +97,8 @@ namespace PlayniteAchievements.Services.Database
                 LockedIconPath TEXT NULL,
                 Points INTEGER NULL,
                 ScaledPoints INTEGER NULL,
-                Category TEXT NULL,
+                Category TEXT NOT NULL DEFAULT 'Default',
+                CategoryType TEXT NOT NULL DEFAULT 'Default',
                 TrophyType TEXT NULL,
                 Hidden INTEGER NOT NULL DEFAULT 0,
                 IsCapstone INTEGER NOT NULL DEFAULT 0,
@@ -164,6 +165,8 @@ namespace PlayniteAchievements.Services.Database
 
             if (verification.Success)
             {
+                BackfillRequiredAchievementCategoryValues(db);
+
                 // Schema is correct - ensure version is set if needed
                 if (storedVersion < SchemaVersion)
                 {
@@ -206,6 +209,8 @@ namespace PlayniteAchievements.Services.Database
                 "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                 "schema_version",
                 SchemaVersion.ToString(CultureInfo.InvariantCulture));
+
+            BackfillRequiredAchievementCategoryValues(db);
         }
 
         private void ExecuteSafe(SQLiteDatabase db, string sql)
@@ -219,6 +224,21 @@ namespace PlayniteAchievements.Services.Database
                 _logger?.Error(ex, $"Failed schema SQL: {sql}");
                 throw;
             }
+        }
+
+        private void BackfillRequiredAchievementCategoryValues(SQLiteDatabase db)
+        {
+            ExecuteSafe(
+                db,
+                "UPDATE AchievementDefinitions " +
+                "SET Category = 'Default' " +
+                "WHERE Category IS NULL OR TRIM(Category) = '';");
+
+            ExecuteSafe(
+                db,
+                "UPDATE AchievementDefinitions " +
+                "SET CategoryType = 'Default' " +
+                "WHERE CategoryType IS NULL OR TRIM(CategoryType) = '';");
         }
 
         private string ReconcileSchema(SQLiteDatabase db)
@@ -249,7 +269,8 @@ namespace PlayniteAchievements.Services.Database
             definitionColumns = GetColumnNames(db, "AchievementDefinitions");
             EnsureColumn(db, "AchievementDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
-            EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "CategoryType", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
@@ -470,6 +491,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(definitionColumns, "Points", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "ScaledPoints", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Category", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "CategoryType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
 

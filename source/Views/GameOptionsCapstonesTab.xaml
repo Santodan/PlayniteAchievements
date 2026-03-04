@@ -3,12 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="640" d:DesignWidth="760">
 
     <UserControl.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
             <!-- Checkbox style for marker selection -->
             <Style x:Key="MarkerCheckBoxStyle" TargetType="CheckBox">
                 <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -44,7 +46,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="14">
+    <Grid Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -56,7 +58,8 @@
                 BorderBrush="{DynamicResource NormalBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
-                Padding="14,10">
+                Padding="12"
+                Margin="0,0,0,12">
             <StackPanel>
                 <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_Subtitle}"
                            Style="{DynamicResource BaseTextBlockStyle}"
@@ -74,7 +77,8 @@
 
         <!-- Search Bar -->
         <Border Grid.Row="1"
-                Padding="0,8,0,4">
+                Padding="0"
+                Margin="0,0,0,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -108,19 +112,15 @@
                 </Grid>
 
                 <Button Grid.Column="1"
-                        Content="×"
+                        Content="✕"
                         Command="{Binding ClearSearchCommand}"
-                        Width="20" Height="20"
+                        Width="24"
+                        Height="24"
                         Margin="4,0,0,0"
                         Padding="0"
-                        FontSize="14"
-                        FontWeight="Bold"
-                        Foreground="{DynamicResource TextBrush}"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand">
+                        VerticalAlignment="Center">
                     <Button.Style>
-                        <Style TargetType="Button">
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                             <Setter Property="Visibility" Value="Visible"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding SearchText}" Value="">
@@ -138,7 +138,7 @@
 
         <DataGrid x:Name="AchievementsDataGrid"
                   Grid.Row="2"
-                  Margin="0,10,0,0"
+                  Margin="0"
                   ItemsSource="{Binding AchievementOptions}"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
@@ -170,7 +170,7 @@
 
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
-                    <Setter Property="MinHeight" Value="66"/>
+                    <Setter Property="MinHeight" Value="76"/>
                 </Style>
             </DataGrid.RowStyle>
 
@@ -186,93 +186,32 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
 
+                <!-- Current capstone badge -->
+                <DataGridTemplateColumn Width="34" MinWidth="34" MaxWidth="34" CanUserSort="False" CanUserResize="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Image Source="{StaticResource BadgeCompletedGame}"
+                                   Style="{StaticResource RarityIcon}"
+                                   Effect="{StaticResource BadgeShadow}"
+                                   Width="18"
+                                   Height="18"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsCurrentMarker, Converter={StaticResource BoolToVis}}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <!-- Status: Checkmark (unlocked) or Padlock (locked) -->
                 <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserSort="False" CanUserResize="False"
                                         CellTemplate="{StaticResource AchievementStatusTemplate}"/>
 
-                <!-- Achievement Icon -->
-                <DataGridTemplateColumn Width="74" MinWidth="74" MaxWidth="74" CanUserSort="False" CanUserResize="False">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Grid Width="52" Height="52" VerticalAlignment="Center" Margin="4,7,0,7">
-                                <Border CornerRadius="6" ClipToBounds="True" Opacity="0.95">
-                                    <Image Stretch="UniformToFill"
-                                           helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                                           helpers:AsyncImage.DecodePixel="64"/>
-                                </Border>
-                            </Grid>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserSort="False" CanUserResize="False"
+                                        CellTemplate="{StaticResource AchievementIconTemplate}"/>
 
-                <!-- Achievement Name with Badge -->
-                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Capstone_Column_Achievement}">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,6">
-                                <!-- Completed game badge for current marker -->
-                                <Image Source="{StaticResource BadgeCompletedGame}"
-                                       Width="18"
-                                       Height="18"
-                                       Margin="0,0,8,0"
-                                       VerticalAlignment="Center"
-                                       Effect="{StaticResource BadgeShadow}">
-                                    <Image.Style>
-                                        <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsCurrentMarker}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Image.Style>
-                                </Image>
-
-                                <TextBlock Text="{Binding DisplayNameResolved}"
-                                           Foreground="{DynamicResource TextBrush}"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsEffectivelyHidden}" Value="True">
-                                                    <Setter Property="FontStyle" Value="Italic"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <!-- Description -->
-                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Capstone_Column_Description}">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DescriptionResolved}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.7"
-                                       TextWrapping="Wrap"
-                                       VerticalAlignment="Center"
-                                       Margin="0,6">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsEffectivelyHidden}" Value="True">
-                                                <Setter Property="FontStyle" Value="Italic"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Capstone_Column_Achievement}"
+                                        CanUserSort="False"
+                                        CellTemplate="{StaticResource AchievementInfoTemplate}"/>
 
                 <!-- Rarity -->
                 <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Rarity}" SortMemberPath="GlobalPercent" SortDirection="Ascending"

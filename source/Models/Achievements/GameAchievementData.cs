@@ -78,6 +78,13 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public string SortingName => Game?.SortingName ?? GameName;
 
+        /// <summary>
+        /// Runtime-only custom achievement order hydrated from plugin settings.
+        /// Not persisted in cache/database.
+        /// </summary>
+        [IgnoreDataMember]
+        public List<string> AchievementOrder { get; set; }
+
         public List<AchievementDetail> Achievements { get; set; } = new List<AchievementDetail>();
     }
 }

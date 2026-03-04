@@ -46,6 +46,10 @@ namespace PlayniteAchievements.Views
             _settings = settings;
             _logger = logger;
             DataContext = new SingleGameControlModel(gameId, achievementService, playniteApi, logger, settings);
+            if (ViewModel != null)
+            {
+                ViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            }
 
             // Subscribe to settings saved event to refresh when credentials change
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
@@ -55,6 +59,7 @@ namespace PlayniteAchievements.Views
         {
             RefreshView();
             _columnPersistence?.Refresh();
+            UpdateDefaultSortIndicator();
         }
 
         private SingleGameControlModel ViewModel => DataContext as SingleGameControlModel;
@@ -71,6 +76,10 @@ namespace PlayniteAchievements.Views
         public void Cleanup()
         {
             PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+            if (ViewModel != null)
+            {
+                ViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            }
             _columnPersistence?.Dispose();
             _columnPersistence = null;
             ViewModel?.Dispose();
@@ -94,6 +103,45 @@ namespace PlayniteAchievements.Views
                 DefaultColumnWidthSeeds);
 
             _columnPersistence.Attach();
+            UpdateDefaultSortIndicator();
+        }
+
+        private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e == null)
+            {
+                return;
+            }
+
+            if (e.PropertyName == nameof(SingleGameControlModel.HasCustomAchievementOrder))
+            {
+                Dispatcher.BeginInvoke(new Action(UpdateDefaultSortIndicator));
+            }
+        }
+
+        private void UpdateDefaultSortIndicator()
+        {
+            if (AchievementsDataGrid == null || AchievementsDataGrid.Columns == null)
+            {
+                return;
+            }
+
+            foreach (var column in AchievementsDataGrid.Columns)
+            {
+                column.SortDirection = null;
+            }
+
+            if (ViewModel?.HasCustomAchievementOrder == true)
+            {
+                return;
+            }
+
+            var unlockColumn = AchievementsDataGrid.Columns
+                .FirstOrDefault(c => string.Equals(c.SortMemberPath, "UnlockTime", StringComparison.Ordinal));
+            if (unlockColumn != null)
+            {
+                unlockColumn.SortDirection = ListSortDirection.Descending;
+            }
         }
 
         private Dictionary<string, double> GetMergedWidths()
