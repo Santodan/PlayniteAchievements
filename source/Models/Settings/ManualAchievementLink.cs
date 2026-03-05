@@ -21,11 +21,17 @@ namespace PlayniteAchievements.Models.Settings
         public string SourceGameId { get; set; }
 
         /// <summary>
-        /// Dictionary mapping achievement ApiName to unlock time (null if locked).
+        /// Dictionary mapping achievement ApiName to unlock time (nullable).
         /// ApiName is the stable identifier (e.g., Steam's internal_name) that uniquely
         /// identifies an achievement within a game.
         /// </summary>
         public Dictionary<string, DateTime?> UnlockTimes { get; set; } = new Dictionary<string, DateTime?>();
+
+        /// <summary>
+        /// Dictionary mapping achievement ApiName to unlocked state.
+        /// This allows representing unlocked achievements with unknown unlock time (null timestamp).
+        /// </summary>
+        public Dictionary<string, bool> UnlockStates { get; set; } = new Dictionary<string, bool>();
 
         /// <summary>
         /// UTC timestamp when this link was first created.
@@ -49,6 +55,9 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockTimes = this.UnlockTimes != null
                     ? new Dictionary<string, DateTime?>(this.UnlockTimes)
                     : new Dictionary<string, DateTime?>(),
+                UnlockStates = this.UnlockStates != null
+                    ? new Dictionary<string, bool>(this.UnlockStates)
+                    : new Dictionary<string, bool>(),
                 CreatedUtc = this.CreatedUtc,
                 LastModifiedUtc = this.LastModifiedUtc
             };

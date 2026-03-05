@@ -196,12 +196,29 @@ namespace PlayniteAchievements.Providers.Manual
             // Apply unlock times from link to each achievement
             foreach (var detail in achievements)
             {
-                if (link.UnlockTimes != null &&
-                    link.UnlockTimes.TryGetValue(detail.ApiName, out var unlockTime) &&
-                    unlockTime.HasValue)
+                if (detail == null || string.IsNullOrWhiteSpace(detail.ApiName))
+                {
+                    continue;
+                }
+
+                var unlockedState = false;
+                var hasState = link.UnlockStates != null &&
+                               link.UnlockStates.TryGetValue(detail.ApiName, out unlockedState);
+
+                DateTime? unlockTime = null;
+                var hasTime = link.UnlockTimes != null &&
+                              link.UnlockTimes.TryGetValue(detail.ApiName, out unlockTime);
+
+                var isUnlocked = hasState
+                    ? unlockedState
+                    : (hasTime && unlockTime.HasValue);
+
+                if (isUnlocked)
                 {
                     detail.Unlocked = true;
-                    detail.UnlockTimeUtc = unlockTime;
+                    detail.UnlockTimeUtc = hasTime && unlockTime.HasValue
+                        ? unlockTime
+                        : null;
                 }
             }
 
