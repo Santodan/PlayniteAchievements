@@ -171,9 +171,8 @@
                     <TextBlock Grid.Row="1"
                                Grid.Column="0"
                                Grid.ColumnSpan="2"
+                               Style="{StaticResource FieldValueStyle}"
                                Text="{Binding ExclusionStatusText}"
-                               Foreground="{DynamicResource TextBrush}"
-                               FontWeight="SemiBold"
                                Margin="0,8,0,0" />
 
                     <TextBlock Grid.Row="2"
