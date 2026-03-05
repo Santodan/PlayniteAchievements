@@ -98,21 +98,21 @@
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overview}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
-                                 Style="{StaticResource NavTabRadioStyle}"
-                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
-                                 Style="{StaticResource NavTabRadioStyle}"
-                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
                                  Style="{StaticResource NavTabRadioStyle}"
-                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
                 </StackPanel>
             </Grid>
         </Border>
