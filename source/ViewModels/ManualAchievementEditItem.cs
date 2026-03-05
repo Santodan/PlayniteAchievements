@@ -60,20 +60,45 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(IsDescriptionHidden));
                     OnPropertyChanged(nameof(DisplayNameResolved));
                     OnPropertyChanged(nameof(DescriptionResolved));
+                    OnPropertyChanged(nameof(CanEditUnlockTime));
 
-                    // Auto-set unlock time to now when unlocking without a time
-                    if (value && !_unlockTime.HasValue)
-                    {
-                        UnlockTime = DateTime.UtcNow;
-                    }
                     // Clear unlock time when locking
-                    else if (!value)
+                    if (!value)
                     {
                         UnlockTime = null;
                     }
                 }
             }
         }
+
+        /// <summary>
+        /// Whether an unlock timestamp is set for this row.
+        /// </summary>
+        public bool HasUnlockTime
+        {
+            get => _unlockTime.HasValue;
+            set
+            {
+                if (value)
+                {
+                    if (!IsUnlocked)
+                    {
+                        IsUnlocked = true;
+                    }
+
+                    if (!_unlockTime.HasValue)
+                    {
+                        UnlockTime = DateTime.UtcNow;
+                    }
+                }
+                else
+                {
+                    UnlockTime = null;
+                }
+            }
+        }
+
+        public bool CanEditUnlockTime => IsUnlocked && HasUnlockTime;
 
         /// <summary>
         /// Icon URL for display.
@@ -175,6 +200,8 @@ namespace PlayniteAchievements.ViewModels
                 {
                     _unlockTime = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasUnlockTime));
+                    OnPropertyChanged(nameof(CanEditUnlockTime));
                     OnPropertyChanged(nameof(UnlockTimeLocal));
                     OnPropertyChanged(nameof(UnlockDate));
                     OnPropertyChanged(nameof(UnlockTimeOfDay));
@@ -195,6 +222,7 @@ namespace PlayniteAchievements.ViewModels
                         OnPropertyChanged(nameof(IsDescriptionHidden));
                         OnPropertyChanged(nameof(DisplayNameResolved));
                         OnPropertyChanged(nameof(DescriptionResolved));
+                        OnPropertyChanged(nameof(CanEditUnlockTime));
                     }
                 }
             }
@@ -262,10 +290,8 @@ namespace PlayniteAchievements.ViewModels
         private TimeMode _selectedTimeMode;
         private int _selectedHour;
         private int _selectedMinute;
-        private string _hourText;
-        private string _minuteText;
-        private bool _isValidHour = true;
-        private bool _isValidMinute = true;
+        private string _timeText;
+        private bool _isValidTime = true;
         private bool _isUpdatingFromText;
 
         // Cached time mode display strings for dropdown
@@ -277,102 +303,110 @@ namespace PlayniteAchievements.ViewModels
         public IEnumerable<string> AvailableTimeModes => TimeModeDisplayNames;
 
         /// <summary>
-        /// Hour text for TextBox binding.
+        /// Combined time text for TextBox binding (HH:mm or h:mm depending on mode).
         /// </summary>
-        public string HourText
+        public string TimeText
         {
-            get => _hourText;
+            get => _timeText;
             set
             {
-                if (_hourText != value)
+                if (_timeText != value)
                 {
-                    _hourText = value;
-                    ValidateAndApplyHour();
+                    _timeText = value;
+                    ValidateAndApplyTimeText();
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsValidTime));
                     OnPropertyChanged(nameof(IsValidHour));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Whether the current hour text is valid.
-        /// </summary>
-        public bool IsValidHour => _isValidHour;
-
-        /// <summary>
-        /// Minute text for TextBox binding.
-        /// </summary>
-        public string MinuteText
-        {
-            get => _minuteText;
-            set
-            {
-                if (_minuteText != value)
-                {
-                    _minuteText = value;
-                    ValidateAndApplyMinute();
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(IsValidMinute));
                 }
             }
         }
 
         /// <summary>
-        /// Whether the current minute text is valid.
+        /// Whether the current time text is valid.
         /// </summary>
-        public bool IsValidMinute => _isValidMinute;
+        public bool IsValidTime => _isValidTime;
 
-        private void ValidateAndApplyHour()
+        /// <summary>
+        /// Backward-compatible aliases used by save validation and bindings.
+        /// </summary>
+        public bool IsValidHour => _isValidTime;
+
+        public bool IsValidMinute => _isValidTime;
+
+        private void ValidateAndApplyTimeText()
         {
             if (_isUpdatingFromText) return;
 
-            if (string.IsNullOrWhiteSpace(_hourText))
+            if (!TryParseTimeText(_timeText, _selectedTimeMode, out var parsedHour, out var parsedMinute))
             {
-                _isValidHour = false;
+                _isValidTime = false;
                 return;
             }
 
-            if (int.TryParse(_hourText, out int hour))
-            {
-                int min = _selectedTimeMode == TimeMode.TwentyFourHour ? 0 : 1;
-                int max = _selectedTimeMode == TimeMode.TwentyFourHour ? 23 : 12;
-                _isValidHour = hour >= min && hour <= max;
-
-                if (_isValidHour)
-                {
-                    _selectedHour = hour;
-                    UpdateUnlockTimeFromPicker();
-                }
-            }
-            else
-            {
-                _isValidHour = false;
-            }
+            _selectedHour = parsedHour;
+            _selectedMinute = parsedMinute;
+            _isValidTime = true;
+            UpdateUnlockTimeFromPicker();
         }
 
-        private void ValidateAndApplyMinute()
+        private bool TryParseTimeText(string input, TimeMode mode, out int hour, out int minute)
         {
-            if (_isUpdatingFromText) return;
+            hour = 0;
+            minute = 0;
 
-            if (string.IsNullOrWhiteSpace(_minuteText))
+            if (string.IsNullOrWhiteSpace(input))
             {
-                _isValidMinute = false;
-                return;
+                return false;
             }
 
-            if (int.TryParse(_minuteText, out int minute))
+            var parts = input.Trim().Split(':');
+            if (parts.Length != 2)
             {
-                _isValidMinute = minute >= 0 && minute <= 59;
-
-                if (_isValidMinute)
-                {
-                    _selectedMinute = minute;
-                    UpdateUnlockTimeFromPicker();
-                }
+                return false;
             }
-            else
+
+            if (!int.TryParse(parts[0].Trim(), out hour) ||
+                !int.TryParse(parts[1].Trim(), out minute))
             {
-                _isValidMinute = false;
+                return false;
+            }
+
+            if (minute < 0 || minute > 59)
+            {
+                return false;
+            }
+
+            var minHour = mode == TimeMode.TwentyFourHour ? 0 : 1;
+            var maxHour = mode == TimeMode.TwentyFourHour ? 23 : 12;
+            return hour >= minHour && hour <= maxHour;
+        }
+
+        private static string FormatTimeText(int hour, int minute, TimeMode mode)
+        {
+            if (mode == TimeMode.TwentyFourHour)
+            {
+                return $"{hour:D2}:{minute:D2}";
+            }
+
+            return $"{hour}:{minute:D2}";
+        }
+
+        private void SetTimeTextFromSelection()
+        {
+            _isUpdatingFromText = true;
+            try
+            {
+                _timeText = FormatTimeText(_selectedHour, _selectedMinute, _selectedTimeMode);
+                _isValidTime = true;
+                OnPropertyChanged(nameof(TimeText));
+                OnPropertyChanged(nameof(IsValidTime));
+                OnPropertyChanged(nameof(IsValidHour));
+                OnPropertyChanged(nameof(IsValidMinute));
+            }
+            finally
+            {
+                _isUpdatingFromText = false;
             }
         }
 
@@ -412,25 +446,8 @@ namespace PlayniteAchievements.ViewModels
                         // Switching from 24hr to 12hr
                         Convert24To12Hour(_selectedHour, out _selectedHour, out _selectedTimeMode);
                     }
-                    // Switching between AM and PM - keep hour the same, but re-validate
-
-                    // Update hour text and re-validate for new mode
-                    _isUpdatingFromText = true;
-                    try
-                    {
-                        _hourText = _selectedHour.ToString();
-                        OnPropertyChanged(nameof(HourText));
-
-                        // Re-validate hour for new mode
-                        int min = _selectedTimeMode == TimeMode.TwentyFourHour ? 0 : 1;
-                        int max = _selectedTimeMode == TimeMode.TwentyFourHour ? 23 : 12;
-                        _isValidHour = _selectedHour >= min && _selectedHour <= max;
-                        OnPropertyChanged(nameof(IsValidHour));
-                    }
-                    finally
-                    {
-                        _isUpdatingFromText = false;
-                    }
+                    // Switching between AM and PM keeps hour/minute values as entered.
+                    SetTimeTextFromSelection();
 
                     OnPropertyChanged(nameof(SelectedTimeModeText));
                     UpdateUnlockTimeFromPicker();
@@ -445,8 +462,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void UpdateUnlockTimeFromPicker()
         {
-            // Only update if both hour and minute are valid
-            if (!UnlockDate.HasValue || !_isValidHour || !_isValidMinute) return;
+            if (!UnlockDate.HasValue || !_isValidTime) return;
 
             int hour24 = _selectedTimeMode == TimeMode.TwentyFourHour
                 ? _selectedHour
@@ -495,39 +511,21 @@ namespace PlayniteAchievements.ViewModels
 
         private void InitializeTimePickerFromUnlockTime()
         {
-            _isUpdatingFromText = true;
-            try
+            if (UnlockTimeLocal.HasValue)
             {
-                if (UnlockTimeLocal.HasValue)
-                {
-                    var time = UnlockTimeLocal.Value.TimeOfDay;
-                    Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
-                    _selectedMinute = time.Minutes;
-                }
-                else
-                {
-                    // Default to noon
-                    _selectedHour = 12;
-                    _selectedMinute = 0;
-                    _selectedTimeMode = TimeMode.PM;
-                }
-
-                // Update text properties
-                _hourText = _selectedHour.ToString();
-                _minuteText = _selectedMinute.ToString("D2");
-                _isValidHour = true;
-                _isValidMinute = true;
-
-                OnPropertyChanged(nameof(HourText));
-                OnPropertyChanged(nameof(MinuteText));
-                OnPropertyChanged(nameof(IsValidHour));
-                OnPropertyChanged(nameof(IsValidMinute));
-                OnPropertyChanged(nameof(SelectedTimeModeText));
+                var time = UnlockTimeLocal.Value.TimeOfDay;
+                Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
+                _selectedMinute = time.Minutes;
             }
-            finally
+            else
             {
-                _isUpdatingFromText = false;
+                _selectedHour = 12;
+                _selectedMinute = 0;
+                _selectedTimeMode = TimeMode.PM;
             }
+
+            SetTimeTextFromSelection();
+            OnPropertyChanged(nameof(SelectedTimeModeText));
         }
 
         public ManualAchievementEditItem(AchievementDetail source, bool isUnlocked, DateTime? unlockTime)

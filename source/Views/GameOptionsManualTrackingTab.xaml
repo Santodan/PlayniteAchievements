@@ -5,7 +5,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
-             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              mc:Ignorable="d"
              d:DesignHeight="600" d:DesignWidth="800"
              d:DataContext="{d:DesignInstance vm:ManualAchievementsViewModel}"
@@ -16,9 +15,6 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- Converters -->
-            <converters:BooleanConverter x:Key="InvertedBooleanConverter" Mode="Inverted"/>
 
             <!-- Cursor style for hidden achievements -->
             <Style x:Key="HiddenAchievementTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -40,11 +36,6 @@
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0"/>
-            </Style>
-
-            <!-- Centered column header style -->
-            <Style x:Key="CenteredColumnHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
-                <Setter Property="HorizontalContentAlignment" Value="Center"/>
             </Style>
 
             <!-- Clickable cell style for hidden achievements -->
@@ -471,7 +462,7 @@
                         </DataGrid.RowStyle>
 
                         <DataGrid.Columns>
-                            <!-- Unlocked checkbox -->
+                            <!-- Unlocked / locked -->
                             <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Unlocked}"
                                                     Width="80"
                                                     SortMemberPath="IsUnlocked"
@@ -485,14 +476,6 @@
                                                   Style="{StaticResource DataGridCheckBoxStyle}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
-                                <DataGridTemplateColumn.CellEditingTemplate>
-                                    <DataTemplate>
-                                        <CheckBox IsChecked="{Binding IsUnlocked, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Style="{StaticResource DataGridCheckBoxStyle}"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
 
                             <DataGridTemplateColumn Width="78"
@@ -532,66 +515,53 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <!-- Unlock date -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Date}"
-                                                    Width="120"
+                            <!-- Unlock time set/null + date/time editor -->
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_UnlockDate}"
+                                                    Width="300"
+                                                    SortMemberPath="UnlockTime"
                                                     HeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
                                                     CellStyle="{StaticResource AchievementCellStyle}">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="—" Opacity="0.5"
-                                                       Visibility="{Binding IsUnlocked, Converter={StaticResource InvertedBooleanToVisibilityConverter}}"/>
-                                            <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                        Visibility="{Binding IsUnlocked, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Padding="4,2"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
-                            <!-- Unlock time -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Time}"
-                                                    Width="150"
-                                                    HeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
-                                                    CellStyle="{StaticResource AchievementCellStyle}">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="—" Opacity="0.5"
-                                                       Visibility="{Binding IsUnlocked, Converter={StaticResource InvertedBooleanToVisibilityConverter}}"/>
-                                            <StackPanel Orientation="Horizontal"
-                                                        Visibility="{Binding IsUnlocked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBox Text="{Binding HourText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                         Width="32"
+                                        <Grid VerticalAlignment="Center"
+                                              Margin="4,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding HasUnlockTime, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                      IsEnabled="{Binding IsUnlocked}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Style="{StaticResource DataGridCheckBoxStyle}"/>
+                                            <Grid Grid.Column="1"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center">
+                                                <TextBlock Text="—"
+                                                           Opacity="0.5"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="{Binding CanEditUnlockTime, Converter={StaticResource InvertedBooleanToVisibilityConverter}}"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding CanEditUnlockTime, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <DatePicker SelectedDate="{Binding UnlockDate, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            Padding="4,2"
+                                                            Margin="0,0,6,0"/>
+                                                <TextBox Text="{Binding TimeText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                         Width="62"
                                                          VerticalContentAlignment="Center"
                                                          HorizontalContentAlignment="Center"
-                                                         Padding="2,0"
-                                                         MaxLength="2">
+                                                         Padding="4,0"
+                                                         MaxLength="5">
                                                     <TextBox.Style>
                                                         <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsValidHour}" Value="False">
-                                                                    <Setter Property="BorderBrush" Value="Red"/>
-                                                                    <Setter Property="BorderThickness" Value="2"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBox.Style>
-                                                </TextBox>
-                                                <TextBlock Text=":" VerticalAlignment="Center" Margin="2,0"/>
-                                                <TextBox Text="{Binding MinuteText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                                         Width="32"
-                                                         VerticalContentAlignment="Center"
-                                                         HorizontalContentAlignment="Center"
-                                                         Padding="2,0"
-                                                         MaxLength="2">
-                                                    <TextBox.Style>
-                                                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsValidMinute}" Value="False">
+                                                                <DataTrigger Binding="{Binding IsValidTime}" Value="False">
                                                                     <Setter Property="BorderBrush" Value="Red"/>
                                                                     <Setter Property="BorderThickness" Value="2"/>
                                                                 </DataTrigger>
@@ -601,11 +571,12 @@
                                                 </TextBox>
                                                 <ComboBox ItemsSource="{Binding AvailableTimeModes}"
                                                           SelectedItem="{Binding SelectedTimeModeText, Mode=TwoWay}"
-                                                          Width="55"
+                                                          Width="74"
                                                           VerticalContentAlignment="Center"
                                                           Padding="4,0"
                                                           Margin="2,0,0,0"/>
-                                            </StackPanel>
+                                                </StackPanel>
+                                            </Grid>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -628,17 +599,6 @@
                            MaxWidth="400"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,24"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Content="{DynamicResource LOCPlayAch_Button_Retry}"
-                            Command="{Binding RetryCommand}"
-                            Padding="12,6"
-                            MinWidth="80"
-                            Margin="0,0,8,0"/>
-                    <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}"
-                            Command="{Binding CancelCommand}"
-                            Padding="12,6"
-                            MinWidth="80"/>
-                </StackPanel>
             </StackPanel>
         </Grid>
 
@@ -650,7 +610,13 @@
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0"
+                            Orientation="Horizontal"
                             Visibility="{Binding DataContext.IsEditingStage,
                                 RelativeSource={RelativeSource AncestorType=UserControl},
                                 Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -693,17 +659,20 @@
                             VerticalAlignment="Center" />
                 </StackPanel>
 
-                <TextBlock Text="{Binding SaveStatusMessage}"
+                <TextBlock Grid.Row="1"
+                           Text="{Binding SaveStatusMessage}"
                            Foreground="{DynamicResource TextBrush}"
                            Opacity="0.8"
                            VerticalAlignment="Center"
+                           Margin="0,6,0,0"
                            TextWrapping="Wrap"
                            Visibility="{Binding HasSaveStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </Grid>
 
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
-                        HorizontalAlignment="Right">
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top">
                 <!-- Search stage buttons -->
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding DataContext.IsSearchStage,
@@ -736,8 +705,7 @@
                     <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}"
                             Click="CancelButton_Click"
                             Padding="12,6"
-                            MinWidth="80"
-                            IsCancel="True"/>
+                            MinWidth="80"/>
                 </StackPanel>
             </StackPanel>
         </Grid>
