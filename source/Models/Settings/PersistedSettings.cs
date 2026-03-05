@@ -38,6 +38,8 @@ namespace PlayniteAchievements.Models.Settings
         private string _shadPS4GameDataPath = string.Empty;
         private bool _rpcs3Enabled = true;
         private string _rpcs3ExecutablePath = string.Empty;
+        private string _legacyManualImportPath = string.Empty;
+        private bool _manualTrackingOverrideEnabled = false;
         private bool _enablePeriodicUpdates = true;
         private int _periodicUpdateHours = 6;
         private bool _manualEnabled = true;
@@ -282,6 +284,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _rpcs3ExecutablePath;
             set => SetValue(ref _rpcs3ExecutablePath, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Folder path containing legacy SuccessStory JSON files used for manual link import.
+        /// </summary>
+        public string LegacyManualImportPath
+        {
+            get => _legacyManualImportPath;
+            set => SetValue(ref _legacyManualImportPath, NormalizePath(value));
+        }
+
+        /// <summary>
+        /// Allow manual tracking for games that already have non-manual provider data.
+        /// </summary>
+        public bool ManualTrackingOverrideEnabled
+        {
+            get => _manualTrackingOverrideEnabled;
+            set => SetValue(ref _manualTrackingOverrideEnabled, value);
         }
 
         #endregion
@@ -873,6 +893,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4GameDataPath = this.ShadPS4GameDataPath,
                 Rpcs3Enabled = this.Rpcs3Enabled,
                 Rpcs3ExecutablePath = this.Rpcs3ExecutablePath,
+                LegacyManualImportPath = this.LegacyManualImportPath,
+                ManualTrackingOverrideEnabled = this.ManualTrackingOverrideEnabled,
                 EnablePeriodicUpdates = this.EnablePeriodicUpdates,
                 PeriodicUpdateHours = this.PeriodicUpdateHours,
                 EnableNotifications = this.EnableNotifications,
@@ -975,6 +997,11 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<Guid, ManualAchievementLink>(),
                 ManualEnabled = this.ManualEnabled
             };
+        }
+
+        private static string NormalizePath(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
         }
 
         private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(

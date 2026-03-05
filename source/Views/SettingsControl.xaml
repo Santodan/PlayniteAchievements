@@ -2162,6 +2162,96 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ================== TAB: MANUAL ================== -->
+            <TabItem x:Name="ManualTab" Header="{DynamicResource LOCPlayAch_Provider_Manual}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20">
+
+                        <!-- Provider Enable Toggle -->
+                        <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                                      IsChecked="{Binding Persisted.ManualEnabled}"
+                                      FontWeight="SemiBold"
+                                      FontSize="{DynamicResource FontSize}"/>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Manual_Override_Enable}"
+                                          IsChecked="{Binding Persisted.ManualTrackingOverrideEnabled}"
+                                          FontWeight="SemiBold"
+                                          FontSize="{DynamicResource FontSize}"
+                                          Margin="0,0,0,6"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Override_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Header}"
+                                           Style="{StaticResource SectionHeaderStyle}"
+                                           Margin="0,0,0,12"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathLabel}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           Margin="0,0,0,6"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_PathHint}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,10"/>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding Persisted.LegacyManualImportPath, UpdateSourceTrigger=PropertyChanged}"
+                                             VerticalAlignment="Center"
+                                             Padding="8,6"
+                                             Margin="0,0,8,0"/>
+
+                                    <Button Grid.Column="1"
+                                            Content="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Browse}"
+                                            Click="ManualLegacyBrowse_Click"
+                                            Padding="14,6"/>
+                                </Grid>
+
+                                <Button Content="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_ImportButton}"
+                                        Click="ManualLegacyImport_Click"
+                                        Padding="14,6"
+                                        Margin="0,0,0,10"
+                                        HorizontalAlignment="Left"
+                                        MinWidth="170">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LegacyManualImportBusy, ElementName=SettingsControlRoot}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+
+                                <TextBlock Text="{Binding LegacyManualImportStatus, ElementName=SettingsControlRoot}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ================== TAB: THEME MIGRATION ================== -->
             <TabItem x:Name="ThemeMigrationTab" Header="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"

@@ -431,6 +431,32 @@ namespace PlayniteAchievements.Views
             set => SetValue(ShowNoRevertableThemesMessageProperty, value);
         }
 
+        public static readonly DependencyProperty LegacyManualImportStatusProperty =
+            DependencyProperty.Register(
+                nameof(LegacyManualImportStatus),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusIdle")));
+
+        public string LegacyManualImportStatus
+        {
+            get => (string)GetValue(LegacyManualImportStatusProperty);
+            set => SetValue(LegacyManualImportStatusProperty, value);
+        }
+
+        public static readonly DependencyProperty LegacyManualImportBusyProperty =
+            DependencyProperty.Register(
+                nameof(LegacyManualImportBusy),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool LegacyManualImportBusy
+        {
+            get => (bool)GetValue(LegacyManualImportBusyProperty);
+            set => SetValue(LegacyManualImportBusyProperty, value);
+        }
+
         private readonly PlayniteAchievementsPlugin _plugin;
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly ILogger _logger;
@@ -441,6 +467,8 @@ namespace PlayniteAchievements.Views
         private readonly EpicSessionManager _epicSessionManager;
         private readonly PsnSessionManager _psnSessionManager;
         private readonly XboxSessionManager _xboxSessionManager;
+        private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
+        private const string SuccessStoryFolderName = "SuccessStory";
 
         public SettingsControl(PlayniteAchievementsSettingsViewModel settingsViewModel, ILogger logger, PlayniteAchievementsPlugin plugin, SteamSessionManager steamSessionManager, GogSessionManager gogSessionManager, EpicSessionManager epicSessionManager, PsnSessionManager psnSessionManager, XboxSessionManager xboxSessionManager)
         {
@@ -494,6 +522,10 @@ namespace PlayniteAchievements.Views
                 UpdateRaAuthState();
                 CheckShadPS4Auth();
                 CheckRpcs3Auth();
+                EnsureLegacyManualImportPathDefault();
+                SetLegacyManualImportStatus(L(
+                    "LOCPlayAch_Settings_Manual_Legacy_StatusIdle",
+                    "Ready to import Legacy manual links."));
 
                 // Load themes on initial load
                 LoadThemes();
@@ -1925,6 +1957,230 @@ namespace PlayniteAchievements.Views
         }
 
         // -----------------------------
+        // Legacy Manual Import actions
+        // -----------------------------
+
+        private void EnsureLegacyManualImportPathDefault()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null || !string.IsNullOrWhiteSpace(persisted.LegacyManualImportPath))
+            {
+                return;
+            }
+
+            var extensionsDataPath = _plugin?.PlayniteApi?.Paths?.ExtensionsDataPath;
+            if (string.IsNullOrWhiteSpace(extensionsDataPath))
+            {
+                return;
+            }
+
+            persisted.LegacyManualImportPath = Path.Combine(
+                extensionsDataPath,
+                SuccessStoryExtensionId,
+                SuccessStoryFolderName);
+        }
+
+        private void ManualLegacyBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureLegacyManualImportPathDefault();
+
+            var selectedPath = _plugin.PlayniteApi.Dialogs.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            _settingsViewModel.Settings.Persisted.LegacyManualImportPath = selectedPath;
+            _plugin.SavePluginSettings(_settingsViewModel.Settings);
+            _plugin.ProviderRegistry?.SyncFromSettings(_settingsViewModel.Settings.Persisted);
+            PlayniteAchievementsPlugin.NotifySettingsSaved();
+            SetLegacyManualImportStatus(L(
+                "LOCPlayAch_Settings_Manual_Legacy_StatusPathUpdated",
+                "Import folder updated."));
+        }
+
+        private async void ManualLegacyImport_Click(object sender, RoutedEventArgs e)
+        {
+            if (LegacyManualImportBusy)
+            {
+                return;
+            }
+
+            EnsureLegacyManualImportPathDefault();
+            var importPath = _settingsViewModel?.Settings?.Persisted?.LegacyManualImportPath;
+            if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
+            {
+                var invalidPathMessage = LF(
+                    "LOCPlayAch_Settings_Manual_Legacy_PathInvalid",
+                    "Legacy folder not found: {0}",
+                    importPath ?? string.Empty);
+
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    invalidPathMessage,
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                SetLegacyManualImportStatus(invalidPathMessage);
+                return;
+            }
+
+            SetLegacyManualImportBusy(true);
+            SetLegacyManualImportStatus(L(
+                "LOCPlayAch_Settings_Manual_Legacy_StatusRunning",
+                "Importing Legacy manual links..."));
+
+            LegacyManualImportResult importResult;
+            try
+            {
+                importResult = _plugin.ImportLegacyManualLinks(importPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Legacy manual import failed.");
+                var failureMessage = LF(
+                    "LOCPlayAch_Settings_Manual_Legacy_ImportFailed",
+                    "Legacy import failed: {0}",
+                    ex.Message);
+
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    failureMessage,
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                SetLegacyManualImportStatus(failureMessage);
+                SetLegacyManualImportBusy(false);
+                return;
+            }
+            finally
+            {
+                SetLegacyManualImportBusy(false);
+            }
+
+            var autoRefreshStarted = false;
+            var autoRefreshSkipped = false;
+
+            if (importResult.ImportedGameIds.Count > 0)
+            {
+                if (_plugin.AchievementService.IsRebuilding)
+                {
+                    autoRefreshSkipped = true;
+                }
+                else
+                {
+                    var refreshGameIds = importResult.ImportedGameIds
+                        .Where(id => id != Guid.Empty)
+                        .Distinct()
+                        .ToList();
+
+                    if (refreshGameIds.Count > 0)
+                    {
+                        var progressSingleGameId = refreshGameIds.Count == 1
+                            ? (Guid?)refreshGameIds[0]
+                            : null;
+
+                        await _plugin.RefreshCoordinator.ExecuteAsync(
+                            new RefreshRequest
+                            {
+                                GameIds = refreshGameIds
+                            },
+                            RefreshExecutionPolicy.ProgressWindow(progressSingleGameId));
+
+                        autoRefreshStarted = true;
+                    }
+                }
+            }
+
+            var summary = BuildLegacyManualImportSummary(
+                importResult,
+                autoRefreshStarted,
+                autoRefreshSkipped);
+
+            SetLegacyManualImportStatus(summary);
+        }
+
+        private string BuildLegacyManualImportSummary(
+            LegacyManualImportResult result,
+            bool autoRefreshStarted,
+            bool autoRefreshSkipped)
+        {
+            var lines = new List<string>
+            {
+                L("LOCPlayAch_Settings_Manual_Legacy_SummaryHeader", "Legacy import complete."),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummaryScanned", "Scanned: {0}", result.Scanned),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummaryImported", "Imported: {0}", result.Imported),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed", "Parse failures: {0}", result.ParseFailures),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipNotManual", "Skipped (not manual): {0}", result.SkippedNotManual),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipIgnored", "Skipped (ignored): {0}", result.SkippedIgnored),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipInvalidFile", "Skipped (invalid file name): {0}", result.SkippedInvalidFileName),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipMissingGame", "Skipped (game not found): {0}", result.SkippedGameMissing),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipManualExists", "Skipped (manual link exists): {0}", result.SkippedManualLinkExists),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipCachedData", "Skipped (cached provider data exists): {0}", result.SkippedCachedProviderData),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnsupportedSource", "Skipped (unsupported source): {0}", result.SkippedUnsupportedSource),
+                LF("LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnresolvedId", "Skipped (source game id unresolved): {0}", result.SkippedUnresolvedSourceGameId)
+            };
+
+            if (result.ManualProviderAutoEnabled)
+            {
+                lines.Add(L(
+                    "LOCPlayAch_Settings_Manual_Legacy_ManualProviderAutoEnabled",
+                    "Manual provider was enabled automatically."));
+            }
+
+            if (result.UnsupportedSources.Count > 0)
+            {
+                lines.Add(L(
+                    "LOCPlayAch_Settings_Manual_Legacy_UnsupportedSourcesHeader",
+                    "Unsupported source breakdown:"));
+
+                foreach (var pair in result.UnsupportedSources.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    lines.Add($"- {pair.Key}: {pair.Value}");
+                }
+            }
+
+            if (autoRefreshSkipped)
+            {
+                lines.Add(L(
+                    "LOCPlayAch_Settings_Manual_Legacy_AutoRefreshSkippedRunning",
+                    "Refresh already running; auto-refresh skipped."));
+            }
+            else if (autoRefreshStarted)
+            {
+                lines.Add(L(
+                    "LOCPlayAch_Settings_Manual_Legacy_AutoRefreshStarted",
+                    "Auto-refresh started for imported games."));
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private void SetLegacyManualImportStatus(string status)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                LegacyManualImportStatus = status;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => LegacyManualImportStatus = status));
+            }
+        }
+
+        private void SetLegacyManualImportBusy(bool busy)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                LegacyManualImportBusy = busy;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => LegacyManualImportBusy = busy));
+            }
+        }
+
+        // -----------------------------
         // ShadPS4 actions
         // -----------------------------
 
@@ -2401,6 +2657,11 @@ namespace PlayniteAchievements.Views
             {
                 CheckRpcs3Auth();
                 _logger?.Info("Checked RPCS3 auth for RPCS3 tab.");
+            }
+            else if (string.Equals(name, "ManualTab", StringComparison.OrdinalIgnoreCase))
+            {
+                EnsureLegacyManualImportPathDefault();
+                _logger?.Info("Prepared Legacy manual import defaults for Manual tab.");
             }
             else if (string.Equals(name, "ThemeMigrationTab", StringComparison.OrdinalIgnoreCase))
             {

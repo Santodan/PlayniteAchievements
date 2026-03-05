@@ -46,6 +46,9 @@ namespace PlayniteAchievements.Models.Settings
             target.GogEnabled = source.GogEnabled;
             target.PsnEnabled = source.PsnEnabled;
             target.RetroAchievementsEnabled = source.RetroAchievementsEnabled;
+            target.ManualEnabled = source.ManualEnabled;
+            target.LegacyManualImportPath = source.LegacyManualImportPath;
+            target.ManualTrackingOverrideEnabled = source.ManualTrackingOverrideEnabled;
 
             // Update and Refresh Settings
             target.EnablePeriodicUpdates = source.EnablePeriodicUpdates;
@@ -153,6 +156,9 @@ namespace PlayniteAchievements.Models.Settings
                 GogEnabled = source.GogEnabled,
                 PsnEnabled = source.PsnEnabled,
                 RetroAchievementsEnabled = source.RetroAchievementsEnabled,
+                ManualEnabled = source.ManualEnabled,
+                LegacyManualImportPath = source.LegacyManualImportPath,
+                ManualTrackingOverrideEnabled = source.ManualTrackingOverrideEnabled,
 
                 // Update and Refresh Settings
                 EnablePeriodicUpdates = source.EnablePeriodicUpdates,

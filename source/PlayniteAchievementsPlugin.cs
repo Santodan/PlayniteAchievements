@@ -65,6 +65,7 @@ namespace PlayniteAchievements
         private readonly XboxSessionManager _xboxSessionManager;
         private readonly ProviderRegistry _providerRegistry;
         private readonly ManualAchievementsProvider _manualProvider;
+        private readonly LegacyManualLinkImporter _legacyManualLinkImporter;
 
         private readonly BackgroundUpdater _backgroundUpdates;
         private readonly RefreshCoordinator _refreshCoordinator;
@@ -243,6 +244,11 @@ namespace PlayniteAchievements
                     _notifications = new NotificationPublisher(api, settings, _logger);
                     _refreshCoordinator = new RefreshCoordinator(_achievementService, _logger, ShowRefreshProgressControlAndRun);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _achievementService, settings, _logger, _notifications, null);
+                    _legacyManualLinkImporter = new LegacyManualLinkImporter(
+                        () => _settingsViewModel?.Settings?.Persisted,
+                        gameId => PlayniteApi?.Database?.Games?.Get(gameId) != null,
+                        gameId => _achievementService.GetRawGameAchievementData(gameId) != null,
+                        _logger);
 
                     try
                     {
@@ -918,6 +924,23 @@ namespace PlayniteAchievements
             }
 
             return UnlinkManualAchievements(game);
+        }
+
+        internal LegacyManualImportResult ImportLegacyManualLinks(string folderPath)
+        {
+            var result = _legacyManualLinkImporter?.Import(folderPath) ?? new LegacyManualImportResult();
+
+            if (result.Imported > 0 && !_settingsViewModel.Settings.Persisted.ManualEnabled)
+            {
+                _settingsViewModel.Settings.Persisted.ManualEnabled = true;
+                result.ManualProviderAutoEnabled = true;
+            }
+
+            SavePluginSettings(_settingsViewModel.Settings);
+            _providerRegistry?.SyncFromSettings(_settingsViewModel.Settings.Persisted);
+            NotifySettingsSaved();
+
+            return result;
         }
 
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)

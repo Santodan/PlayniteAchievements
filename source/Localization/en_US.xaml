@@ -120,6 +120,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Manual Source</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">Unlink Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning">Manual tracking can replace cached achievement data from {0}. Continue?</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
@@ -720,6 +721,36 @@
     <!-- MANUAL ACHIEVEMENTS                                                -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Manual Tracking Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow manual tracking for games which already have official achievement support.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Legacy Manual Import</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Import manual links from SuccessStory (Legacy). Import is add-only and never overwrites existing manual links or cached provider data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Legacy folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">Default: Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Browse">Browse</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Import Legacy Manual Links</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusIdle">Ready to import Legacy manual links.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusRunning">Importing Legacy manual links...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusPathUpdated">Import folder updated.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathInvalid">Legacy folder not found: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportFailed">Legacy import failed: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryTitle">Legacy Manual Import</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryHeader">Legacy import complete.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">Scanned: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryImported">Imported: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">Parse failures: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipNotManual">Skipped (not manual): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipIgnored">Skipped (ignored): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipInvalidFile">Skipped (invalid file name): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipMissingGame">Skipped (game not found): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipManualExists">Skipped (manual link exists): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipCachedData">Skipped (cached provider data exists): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnsupportedSource">Skipped (unsupported source): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnresolvedId">Skipped (source game id unresolved): {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ManualProviderAutoEnabled">Manual provider was enabled automatically.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_UnsupportedSourcesHeader">Unsupported source breakdown:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_AutoRefreshSkippedRunning">Refresh already running; auto-refresh skipped.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_AutoRefreshStarted">Auto-refresh started for imported games.</sys:String>
 
     <!-- Game context menu -->
     <sys:String x:Key="LOCPlayAch_Menu_LinkSteamAchievements">Enable Manual Tracking</sys:String>
@@ -734,6 +765,7 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_GameLabel">Playnite game:</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Placeholder">Enter game name to search...</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NothingFound">Nothing was found.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">Found {0} game(s)</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Error">Search failed: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Loading">Searching...</sys:String>
