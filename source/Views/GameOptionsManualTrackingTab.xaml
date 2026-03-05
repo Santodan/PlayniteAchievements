@@ -82,6 +82,7 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -196,6 +197,7 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Single"
+                              SelectionUnit="FullRow"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
                               CanUserReorderColumns="True"
@@ -206,16 +208,32 @@
                               BorderThickness="0"
                               Background="Transparent"
                               RowBackground="Transparent"
+                              Foreground="{DynamicResource TextBrush}"
                               ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                              PreviewMouseLeftButtonDown="SearchDataGrid_PreviewMouseLeftButtonDown"
                               MouseDoubleClick="SearchDataGrid_MouseDoubleClick">
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}"/>
+                        </DataGrid.CellStyle>
+
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                                <Setter Property="MinHeight" Value="64"/>
+                            </Style>
+                        </DataGrid.RowStyle>
+
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="" Width="48" IsReadOnly="True">
+                            <DataGridTemplateColumn Header="" Width="92" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Image Source="{Binding IconUrl}"
-                                               Width="32" Height="32"
-                                               Stretch="UniformToFill"
-                                               RenderOptions.BitmapScalingMode="LowQuality"/>
+                                        <Grid HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Width="84"
+                                              Height="52">
+                                            <Image Source="{Binding IconUrl}"
+                                                   Stretch="Uniform"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -225,6 +243,7 @@
                                                 Width="*">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                                         <Setter Property="VerticalAlignment" Value="Center"/>
                                         <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                                         <Setter Property="TextWrapping" Value="NoWrap"/>
@@ -237,11 +256,26 @@
                                                 Width="80">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                                         <Setter Property="VerticalAlignment" Value="Center"/>
                                         <Setter Property="HorizontalAlignment" Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_GameOptions_Manual_Source}"
+                                                    Width="140"
+                                                    IsReadOnly="True">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DataContext.ManualSourceName, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>
@@ -615,9 +649,7 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0"
-                        Orientation="Vertical"
-                        VerticalAlignment="Center">
+            <Grid Grid.Column="0" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal"
                             Visibility="{Binding DataContext.IsEditingStage,
                                 RelativeSource={RelativeSource AncestorType=UserControl},
@@ -666,9 +698,8 @@
                            Opacity="0.8"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
-                           Margin="0,4,0,0"
                            Visibility="{Binding HasSaveStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
+            </Grid>
 
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
