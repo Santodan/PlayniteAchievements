@@ -75,13 +75,6 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0">
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Menu_GameOptions}"
-                               Foreground="{DynamicResource TextBrush}"
-                               FontSize="{DynamicResource FontSizeLarge}"
-                               FontWeight="SemiBold" />
-                </StackPanel>
-
                 <Border Grid.Row="2"
                         Height="190"
                         CornerRadius="6"
@@ -95,7 +88,7 @@
                 </Border>
 
                 <TextBlock Grid.Row="4"
-                           Text="{DynamicResource LOCPlayAch_GameOptions_Tabs}"
+                           Text="{DynamicResource LOCPlayAch_Menu_GameOptions}"
                            Foreground="{DynamicResource TextBrush}"
                            Opacity="0.65"
                            FontWeight="SemiBold"
