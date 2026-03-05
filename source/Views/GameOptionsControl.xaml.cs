@@ -113,7 +113,14 @@ namespace PlayniteAchievements.Views
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
-                EnsureManualControl(forceRecreate: true);
+                // Do not recreate the manual tab when a link flips false->true mid-flow.
+                // The wizard saves a transient link before refresh starts, and recreating
+                // here resets the stage/progress UI while work is still in flight.
+                // Still recreate when link is removed (true->false) so UI returns to search.
+                if (!_viewModel.HasManualTrackingLink)
+                {
+                    EnsureManualControl(forceRecreate: true);
+                }
             }
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasCapstoneData) &&
                      _viewModel.SelectedTab == GameOptionsTab.Capstones)
@@ -226,6 +233,7 @@ namespace PlayniteAchievements.Views
                 _settings,
                 SaveSettings,
                 _logger,
+                _playniteApi,
                 startAtEditingStage: startAtEditing);
             _manualViewModel.ManualLinkSaved += ManualViewModel_ManualLinkSaved;
 

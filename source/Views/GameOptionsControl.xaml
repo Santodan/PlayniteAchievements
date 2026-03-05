@@ -100,15 +100,19 @@
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                  Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding ShowManualTrackingTab, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
                                  Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
                                  Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
                                  Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
                                  Style="{StaticResource NavTabRadioStyle}"

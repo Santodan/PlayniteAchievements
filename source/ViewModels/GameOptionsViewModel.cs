@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -44,6 +45,9 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasCapstoneData;
         private string _capstoneEmptyMessage;
         private bool _isRefreshing;
+        private string _cachedProviderName;
+        private string _manualTrackingWarningAcceptedForProvider;
+        private bool _showManualTrackingTab = true;
 
         public RelayCommand OpenAchievementsCommand { get; }
         public RelayCommand ToggleExclusionCommand { get; }
@@ -90,7 +94,58 @@ namespace PlayniteAchievements.ViewModels
         public GameOptionsTab SelectedTab
         {
             get => _selectedTab;
-            set => SetValue(ref _selectedTab, value);
+            set
+            {
+                if (_selectedTab == value)
+                {
+                    return;
+                }
+
+                if (value == GameOptionsTab.ManualTracking && !ShowManualTrackingTab)
+                {
+                    return;
+                }
+
+                if (!HasCapstoneData &&
+                    (value == GameOptionsTab.Capstones ||
+                     value == GameOptionsTab.AchievementOrder ||
+                     value == GameOptionsTab.Category))
+                {
+                    return;
+                }
+
+                if (value == GameOptionsTab.ManualTracking &&
+                    ShouldWarnAboutManualTrackingOverride(out var existingProvider) &&
+                    !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProvider, StringComparison.OrdinalIgnoreCase))
+                {
+                    var message = string.Format(
+                        L(
+                            "LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning",
+                            "Manual tracking can replace cached achievement data from {0}. Continue?"),
+                        existingProvider);
+
+                    var result = _playniteApi?.Dialogs?.ShowMessage(
+                        message,
+                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                        MessageBoxButton.OKCancel,
+                        MessageBoxImage.Warning) ?? MessageBoxResult.None;
+
+                    if (result != MessageBoxResult.OK)
+                    {
+                        return;
+                    }
+
+                    _manualTrackingWarningAcceptedForProvider = existingProvider;
+                }
+
+                SetValue(ref _selectedTab, value);
+            }
+        }
+
+        public bool ShowManualTrackingTab
+        {
+            get => _showManualTrackingTab;
+            private set => SetValue(ref _showManualTrackingTab, value);
         }
 
         public bool HasGame
@@ -371,6 +426,10 @@ namespace PlayniteAchievements.ViewModels
 
                 var gameData = _achievementService?.GetGameAchievementData(_gameId);
                 HasCachedData = gameData != null;
+                _cachedProviderName = gameData?.ProviderName?.Trim();
+                var allowManualOverride = _settings?.Persisted?.ManualTrackingOverrideEnabled == true;
+                var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
+                ShowManualTrackingTab = allowManualOverride || !hasNonManualProviderData;
                 ProviderName = string.IsNullOrWhiteSpace(gameData?.ProviderName)
                     ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
                     : gameData.ProviderName;
@@ -439,6 +498,19 @@ namespace PlayniteAchievements.ViewModels
                 else
                 {
                     ManualTrackingSummary = L("LOCPlayAch_GameOptions_Manual_LinkSummary_None", "No manual link configured.");
+                }
+
+                if (!ShowManualTrackingTab && SelectedTab == GameOptionsTab.ManualTracking)
+                {
+                    SelectedTab = GameOptionsTab.Overview;
+                }
+
+                if (!HasCapstoneData &&
+                    (SelectedTab == GameOptionsTab.Capstones ||
+                     SelectedTab == GameOptionsTab.AchievementOrder ||
+                     SelectedTab == GameOptionsTab.Category))
+                {
+                    SelectedTab = GameOptionsTab.Overview;
                 }
             }
             catch (Exception ex)
@@ -601,6 +673,19 @@ namespace PlayniteAchievements.ViewModels
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
             ClearGameDataCommand?.RaiseCanExecuteChanged();
+        }
+
+        private bool ShouldWarnAboutManualTrackingOverride(out string providerName)
+        {
+            providerName = (_cachedProviderName ?? string.Empty).Trim();
+            if (!HasCachedData || string.IsNullOrWhiteSpace(providerName))
+            {
+                return false;
+            }
+
+            var manualProviderName = L("LOCPlayAch_Provider_Manual", "Manual");
+            return !string.Equals(providerName, "Manual", StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(providerName, manualProviderName, StringComparison.OrdinalIgnoreCase);
         }
 
         private string ResolveLibrarySourceDisplayName(Playnite.SDK.Models.Game game, string cachedLibrarySource)
