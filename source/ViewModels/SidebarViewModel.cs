@@ -2176,6 +2176,13 @@ namespace PlayniteAchievements.ViewModels
                 return dateComparison;
             }
 
+            // Platinum > Gold > Silver > Bronze when unlock times are equal
+            var trophyComparison = GetTrophyRank(b.TrophyType).CompareTo(GetTrophyRank(a.TrophyType));
+            if (trophyComparison != 0)
+            {
+                return trophyComparison;
+            }
+
             var progressComparison = CompareProgressFraction(a.ProgressNum, a.ProgressDenom, b.ProgressNum, b.ProgressDenom);
             if (progressComparison != 0)
             {
@@ -2209,6 +2216,13 @@ namespace PlayniteAchievements.ViewModels
             if (dateComparison != 0)
             {
                 return dateComparison;
+            }
+
+            // Platinum > Gold > Silver > Bronze when unlock times are equal
+            var trophyComparison = GetTrophyRank(b.TrophyType).CompareTo(GetTrophyRank(a.TrophyType));
+            if (trophyComparison != 0)
+            {
+                return trophyComparison;
             }
 
             var progressComparison = CompareProgressFraction(a.ProgressNum, a.ProgressDenom, b.ProgressNum, b.ProgressDenom);
