@@ -7,7 +7,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 {
     /// <summary>
     /// Desktop PlayniteAchievements compact list control for theme integration.
-    /// Displays achievement icons in a horizontal wrap panel.
+    /// Displays achievement icons in a horizontal scrolling row.
     /// </summary>
     public partial class AchievementCompactListControl : ThemeControlBase
     {
@@ -44,12 +44,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         /// <summary>
         /// Called when theme data changes and the compact list should be refreshed.
-        /// Forces the ListBox to refresh its ItemsSource binding.
+        /// Forces the ItemsControl to refresh its ItemsSource binding.
         /// </summary>
         protected override void OnThemeDataUpdated()
         {
-            // Force the ItemsSource binding to refresh
-            // This ensures the ListBox picks up changes to Theme.AllAchievements
             if (AchievementsList != null)
             {
                 var binding = AchievementsList.GetBindingExpression(ItemsControl.ItemsSourceProperty);
