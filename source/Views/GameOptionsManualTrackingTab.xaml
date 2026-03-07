@@ -115,13 +115,12 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <Grid Grid.Column="0">
                         <TextBox x:Name="SearchTextBox"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                 Style="{StaticResource SearchTextBoxStyle}"
+                                 Style="{StaticResource ClearableSearchTextBoxStyle}"
                                  KeyDown="SearchTextBox_KeyDown"/>
                         <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Search_Placeholder}"
                                    VerticalAlignment="Center"
@@ -144,32 +143,12 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                        <Button Tag="{Binding SearchText}"
+                                Click="ClearSearchTextButton_Click"
+                                Style="{StaticResource ClearSearchButtonStyle}"/>
                     </Grid>
 
                     <Button Grid.Column="1"
-                            Content="✕"
-                            Click="ClearSearchTextButton_Click"
-                            Width="24"
-                            Height="24"
-                            Margin="4,0,0,0"
-                            Padding="0"
-                            VerticalAlignment="Center">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Setter Property="Visibility" Value="Visible"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SearchText}" Value="">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-
-                    <Button Grid.Column="2"
                             Content="{DynamicResource LOCPlayAch_Button_Search}"
                             Command="{Binding SearchCommand}"
                             Padding="12,6"
@@ -356,14 +335,9 @@
 
                     <!-- Search filter -->
                     <Grid Grid.Column="0" HorizontalAlignment="Stretch">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <Grid Grid.Column="0">
+                        <Grid>
                             <TextBox Text="{Binding EditSearchFilter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                                     Style="{StaticResource SearchTextBoxStyle}"/>
+                                     Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Edit_SearchPlaceholder}"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Left"
@@ -385,30 +359,10 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                            <Button Tag="{Binding EditSearchFilter}"
+                                    Click="ClearEditFilterButton_Click"
+                                    Style="{StaticResource ClearSearchButtonStyle}"/>
                         </Grid>
-
-                        <Button Grid.Column="1"
-                                Content="✕"
-                                Click="ClearEditFilterButton_Click"
-                                Width="24"
-                                Height="24"
-                                Margin="4,0,0,0"
-                                Padding="0"
-                                VerticalAlignment="Center">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding EditSearchFilter}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding EditSearchFilter}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </Grid>
 
                     <!-- Action buttons -->
@@ -516,7 +470,7 @@
                             </DataGridTemplateColumn>
 
                             <!-- Unlock time set/null + date/time editor -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_UnlockDate}"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_ManualAchievements_Edit_UnlockTime}"
                                                     Width="300"
                                                     SortMemberPath="UnlockTime"
                                                     HeaderStyle="{StaticResource AchievementColumnHeaderStyle}"

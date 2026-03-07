@@ -80,14 +80,9 @@
                 Padding="0"
                 Margin="0,0,0,12">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <Grid Grid.Column="0">
+                <Grid>
                     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource SearchTextBoxStyle}"/>
+                             Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_SearchPlaceholder}"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Left"
@@ -109,30 +104,10 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    <Button Tag="{Binding SearchText}"
+                            Command="{Binding ClearSearchCommand}"
+                            Style="{StaticResource ClearSearchButtonStyle}"/>
                 </Grid>
-
-                <Button Grid.Column="1"
-                        Content="✕"
-                        Command="{Binding ClearSearchCommand}"
-                        Width="24"
-                        Height="24"
-                        Margin="4,0,0,0"
-                        Padding="0"
-                        VerticalAlignment="Center">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                            <Setter Property="Visibility" Value="Visible"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SearchText}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
             </Grid>
         </Border>
 

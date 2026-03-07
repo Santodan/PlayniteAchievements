@@ -36,6 +36,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isCompleted;
         private string _currentCapstoneName;
         private bool _isExcluded;
+        private bool _isExcludedFromSummaries;
         private bool _isRaCapable;
         private bool _hasRaOverride;
         private string _raOverrideValue;
@@ -46,11 +47,13 @@ namespace PlayniteAchievements.ViewModels
         private string _capstoneEmptyMessage;
         private bool _isRefreshing;
         private string _cachedProviderName;
+        private bool _cachedHasAchievements;
         private string _manualTrackingWarningAcceptedForProvider;
         private bool _showManualTrackingTab = true;
 
         public RelayCommand OpenAchievementsCommand { get; }
         public RelayCommand ToggleExclusionCommand { get; }
+        public RelayCommand ToggleSummaryExclusionCommand { get; }
         public RelayCommand ApplyRaOverrideCommand { get; }
         public RelayCommand ClearRaOverrideCommand { get; }
         public RelayCommand UnlinkManualTrackingCommand { get; }
@@ -77,6 +80,7 @@ namespace PlayniteAchievements.ViewModels
 
             OpenAchievementsCommand = new RelayCommand(_ => OpenAchievements(), _ => HasGame);
             ToggleExclusionCommand = new RelayCommand(_ => ToggleExclusion(), _ => HasGame);
+            ToggleSummaryExclusionCommand = new RelayCommand(_ => ToggleSummaryExclusion(), _ => HasGame);
             ApplyRaOverrideCommand = new RelayCommand(_ => ApplyRaOverride(), _ => HasGame && IsRaCapable);
             ClearRaOverrideCommand = new RelayCommand(_ => ClearRaOverride(), _ => HasGame && IsRaCapable && HasRaOverride);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
@@ -289,6 +293,27 @@ namespace PlayniteAchievements.ViewModels
             ? L("LOCPlayAch_Menu_IncludeGame", "Include this Game")
             : L("LOCPlayAch_Menu_ExcludeGame", "Exclude this Game and Clear Data");
 
+        public bool IsExcludedFromSummaries
+        {
+            get => _isExcludedFromSummaries;
+            private set
+            {
+                if (SetValueAndReturn(ref _isExcludedFromSummaries, value))
+                {
+                    OnPropertyChanged(nameof(SummaryExclusionStatusText));
+                    OnPropertyChanged(nameof(SummaryExclusionActionText));
+                }
+            }
+        }
+
+        public string SummaryExclusionStatusText => IsExcludedFromSummaries
+            ? L("LOCPlayAch_GameOptions_Status_ExcludedFromSummaries", "Excluded from Summaries")
+            : L("LOCPlayAch_GameOptions_Status_IncludedFromSummaries", "Included in Summaries");
+
+        public string SummaryExclusionActionText => IsExcludedFromSummaries
+            ? L("LOCPlayAch_GameOptions_Action_IncludeInSummaries", "Include in Summaries")
+            : L("LOCPlayAch_GameOptions_Action_ExcludeFromSummaries", "Exclude from Summaries");
+
         public bool IsRaCapable
         {
             get => _isRaCapable;
@@ -427,9 +452,12 @@ namespace PlayniteAchievements.ViewModels
                 var gameData = _achievementService?.GetGameAchievementData(_gameId);
                 HasCachedData = gameData != null;
                 _cachedProviderName = gameData?.ProviderName?.Trim();
+                _cachedHasAchievements = gameData?.HasAchievements ?? false;
                 var allowManualOverride = _settings?.Persisted?.ManualTrackingOverrideEnabled == true;
+                var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
-                ShowManualTrackingTab = allowManualOverride || !hasNonManualProviderData;
+                ShowManualTrackingTab = allowManualOverride ||
+                    (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData));
                 ProviderName = string.IsNullOrWhiteSpace(gameData?.ProviderName)
                     ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
                     : gameData.ProviderName;
@@ -464,7 +492,8 @@ namespace PlayniteAchievements.ViewModels
                     L("LOCPlayAch_Capstone_NoCachedData", "No cached achievements are available for \"{0}\". Refresh this game first."),
                     GameName);
 
-                IsExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
+                IsExcluded = isExcluded;
+                IsExcludedFromSummaries = _settings?.Persisted?.ExcludedFromSummariesGameIds?.Contains(_gameId) ?? false;
                 IsRaCapable = _plugin?.IsRaCapable(_gameId) ?? false;
 
                 var hasOverride = false;
@@ -531,6 +560,12 @@ namespace PlayniteAchievements.ViewModels
         private void ToggleExclusion()
         {
             _plugin?.ToggleGameExclusion(_gameId);
+            Reload();
+        }
+
+        private void ToggleSummaryExclusion()
+        {
+            _achievementService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
             Reload();
         }
 
@@ -667,6 +702,7 @@ namespace PlayniteAchievements.ViewModels
         {
             OpenAchievementsCommand?.RaiseCanExecuteChanged();
             ToggleExclusionCommand?.RaiseCanExecuteChanged();
+            ToggleSummaryExclusionCommand?.RaiseCanExecuteChanged();
             ApplyRaOverrideCommand?.RaiseCanExecuteChanged();
             ClearRaOverrideCommand?.RaiseCanExecuteChanged();
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
@@ -678,7 +714,7 @@ namespace PlayniteAchievements.ViewModels
         private bool ShouldWarnAboutManualTrackingOverride(out string providerName)
         {
             providerName = (_cachedProviderName ?? string.Empty).Trim();
-            if (!HasCachedData || string.IsNullOrWhiteSpace(providerName))
+            if (!HasCachedData || !_cachedHasAchievements || string.IsNullOrWhiteSpace(providerName))
             {
                 return false;
             }
