@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using Playnite.SDK.Data;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
@@ -84,43 +85,32 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
             {
-                var webViewSettings = new WebViewSettings
-                {
-                    UserAgent = DefaultUserAgent,
-                    JavaScriptEnabled = true
-                };
-
-                using (var view = _playniteApi.WebViews.CreateOffscreenView(webViewSettings))
+                using (var view = _playniteApi.WebViews.CreateOffscreenView())
                 {
                     try
                     {
-                        view.Navigate(url);
+                        // Navigate and wait for page load (follows ExophaseSessionManager pattern)
+                        await view.NavigateAndWaitAsync(url, timeoutMs: 15000);
 
-                        // Wait for page to start loading and then hide webdriver flag
-                        await Task.Delay(500, ct).ConfigureAwait(false);
+                        // Get page text (JSON API response displayed as plain text)
+                        var pageText = await view.GetPageTextAsync();
 
-                        // Hide bot detection flag like Success Story does
-                        for (int i = 0; i < 10; i++)
+                        if (string.IsNullOrWhiteSpace(pageText))
                         {
-                            ct.ThrowIfCancellationRequested();
-                            try
-                            {
-                                await view.EvaluateScriptAsync(
-                                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
-                                break;
-                            }
-                            catch (Exception ex) when (ex.Message.Contains("V8Context"))
-                            {
-                                _logger?.Debug($"[Exophase] V8Context not ready, retrying... ({i + 1}/10)");
-                                await Task.Delay(500, ct).ConfigureAwait(false);
-                            }
+                            _logger?.Debug("[Exophase] WebView returned empty page text");
+                            return null;
                         }
 
-                        // Wait for JSON response to load
-                        await Task.Delay(2000, ct).ConfigureAwait(false);
+                        // Check if we got a Cloudflare challenge page
+                        if (pageText.Contains("Just a moment") ||
+                            pageText.Contains("Cloudflare") ||
+                            pageText.Contains("Verifying you are human"))
+                        {
+                            _logger?.Warn("[Exophase] Cloudflare challenge detected, search may fail");
+                            return null;
+                        }
 
-                        // Get page text (JSON response)
-                        var pageText = await view.GetPageTextAsync();
+                        _logger?.Debug($"[Exophase] WebView fetched {pageText.Length} chars");
                         return pageText;
                     }
                     catch (OperationCanceledException)
