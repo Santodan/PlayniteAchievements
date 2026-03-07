@@ -8,6 +8,7 @@ namespace PlayniteAchievements.Services.Sidebar
     {
         public string CacheKey { get; set; }
         public Guid? PlayniteGameId { get; set; }
+        public string ProviderKey { get; set; }
         public string ProviderName { get; set; }
 
         public List<AchievementDisplayItem> Achievements { get; set; } = new List<AchievementDisplayItem>();

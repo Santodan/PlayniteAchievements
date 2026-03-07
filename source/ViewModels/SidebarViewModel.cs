@@ -1346,7 +1346,7 @@ namespace PlayniteAchievements.ViewModels
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
             foreach (var provider in _achievementService.GetProviders())
             {
-                providerLookup[provider.ProviderName] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
             }
 
             var completedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Complete");

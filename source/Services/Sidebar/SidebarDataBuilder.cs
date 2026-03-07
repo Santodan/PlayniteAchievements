@@ -198,6 +198,7 @@ namespace PlayniteAchievements.Services.Sidebar
             {
                 CacheKey = gameData.PlayniteGameId?.ToString(),
                 PlayniteGameId = gameData.PlayniteGameId,
+                ProviderKey = providerKey,
                 ProviderName = gameData.ProviderDisplayName
             };
 
@@ -353,12 +354,12 @@ namespace PlayniteAchievements.Services.Sidebar
 
             foreach (var provider in providers)
             {
-                if (provider == null || string.IsNullOrWhiteSpace(provider.ProviderName))
+                if (provider == null || string.IsNullOrWhiteSpace(provider.ProviderKey))
                 {
                     continue;
                 }
 
-                lookup[provider.ProviderName] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                lookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
             }
 
             return lookup;
