@@ -459,16 +459,6 @@
                         </Button.ContextMenu>
                     </Button>
 
-                        <CheckBox Grid.Column="3" Content="{DynamicResource LOCPlayAch_Filter_ShowNoUnlocks}"
-                                  IsChecked="{Binding ShowGamesWithNoUnlocks}"
-                                  VerticalAlignment="Center"
-                                  Margin="8,0,0,0"/>
-
-                        <CheckBox Grid.Column="4" Content="{DynamicResource LOCPlayAch_Filter_ShowUnplayed}"
-                                  IsChecked="{Binding ShowUnplayedGames}"
-                                  VerticalAlignment="Center"
-                                  Margin="8,0,0,0"/>
-
                     </Grid>
                 </Border>
 
