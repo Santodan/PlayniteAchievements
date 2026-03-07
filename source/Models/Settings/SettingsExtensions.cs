@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Models.Settings
 
             // Update and Refresh Settings
             target.EnablePeriodicUpdates = source.EnablePeriodicUpdates;
+            target.AutoExcludeHiddenGames = source.AutoExcludeHiddenGames;
             target.PeriodicUpdateHours = source.PeriodicUpdateHours;
             target.RecentRefreshGamesCount = source.RecentRefreshGamesCount;
             target.CustomRefreshPresets = source.CustomRefreshPresets != null
@@ -69,6 +70,12 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenDescription = source.ShowHiddenDescription;
             target.UseCoverImages = source.UseCoverImages;
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
+            target.ShowSidebarPieCharts = source.ShowSidebarPieCharts;
+            target.ShowSidebarGamesPieChart = source.ShowSidebarGamesPieChart;
+            target.ShowSidebarProviderPieChart = source.ShowSidebarProviderPieChart;
+            target.ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart;
+            target.ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart;
+            target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
 
             // RetroAchievements Settings
             target.RaUsername = source.RaUsername;
@@ -97,6 +104,9 @@ namespace PlayniteAchievements.Models.Settings
                 ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             target.PointsColumnAutoEnabled = source.PointsColumnAutoEnabled;
+            target.ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
+                ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
+                : new HashSet<Guid>();
             target.AchievementOrderOverrides = source.AchievementOrderOverrides != null
                 ? source.AchievementOrderOverrides.ToDictionary(
                     kvp => kvp.Key,
@@ -162,6 +172,7 @@ namespace PlayniteAchievements.Models.Settings
 
                 // Update and Refresh Settings
                 EnablePeriodicUpdates = source.EnablePeriodicUpdates,
+                AutoExcludeHiddenGames = source.AutoExcludeHiddenGames,
                 PeriodicUpdateHours = source.PeriodicUpdateHours,
                 RecentRefreshGamesCount = source.RecentRefreshGamesCount,
                 CustomRefreshPresets = source.CustomRefreshPresets != null
@@ -179,6 +190,12 @@ namespace PlayniteAchievements.Models.Settings
                 ShowHiddenDescription = source.ShowHiddenDescription,
                 UseCoverImages = source.UseCoverImages,
                 IncludeUnplayedGames = source.IncludeUnplayedGames,
+                ShowSidebarPieCharts = source.ShowSidebarPieCharts,
+                ShowSidebarGamesPieChart = source.ShowSidebarGamesPieChart,
+                ShowSidebarProviderPieChart = source.ShowSidebarProviderPieChart,
+                ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart,
+                ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart,
+                ShowSidebarBarCharts = source.ShowSidebarBarCharts,
 
                 // RetroAchievements Settings
                 RaUsername = source.RaUsername,
@@ -207,6 +224,9 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
                 PointsColumnAutoEnabled = source.PointsColumnAutoEnabled,
+                ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
+                    ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
+                    : new HashSet<Guid>(),
                 AchievementOrderOverrides = source.AchievementOrderOverrides != null
                     ? source.AchievementOrderOverrides.ToDictionary(
                         kvp => kvp.Key,

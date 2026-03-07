@@ -41,6 +41,7 @@ namespace PlayniteAchievements.Models.Settings
         private string _legacyManualImportPath = string.Empty;
         private bool _manualTrackingOverrideEnabled = false;
         private bool _enablePeriodicUpdates = true;
+        private bool _autoExcludeHiddenGames = false;
         private int _periodicUpdateHours = 6;
         private bool _manualEnabled = true;
         private bool _enableNotifications = true;
@@ -53,6 +54,11 @@ namespace PlayniteAchievements.Models.Settings
         private bool _useCoverImages = true;
         private bool _includeUnplayedGames = true;
         private bool _showSidebarPieCharts = true;
+        private bool _showSidebarGamesPieChart = true;
+        private bool _showSidebarProviderPieChart = true;
+        private bool _showSidebarRarityPieChart = true;
+        private bool _showSidebarTrophyPieChart = true;
+        private bool _sidebarPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showSidebarBarCharts = true;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
@@ -82,6 +88,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
+        private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
         private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
         private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryOverrides =
@@ -318,6 +325,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// When true, Playnite hide/unhide actions automatically exclude/include games from tracking.
+        /// Hiding also clears cached data for the game.
+        /// </summary>
+        public bool AutoExcludeHiddenGames
+        {
+            get => _autoExcludeHiddenGames;
+            set => SetValue(ref _autoExcludeHiddenGames, value);
+        }
+
+        /// <summary>
         /// Hours between periodic background updates.
         /// </summary>
         public int PeriodicUpdateHours
@@ -427,13 +444,82 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// When true, shows the pie charts section at the bottom of the sidebar.
-        /// When false, the games overview grid takes the full space.
+        /// Legacy aggregate toggle for sidebar pie charts.
+        /// New builds use per-chart visibility settings, but this is preserved for migration.
         /// </summary>
         public bool ShowSidebarPieCharts
         {
             get => _showSidebarPieCharts;
-            set => SetValue(ref _showSidebarPieCharts, value);
+            set
+            {
+                if (_showSidebarPieCharts == value)
+                {
+                    return;
+                }
+
+                SetValue(ref _showSidebarPieCharts, value);
+                if (_sidebarPieChartVisibilityInitializedFromIndividualSettings)
+                {
+                    return;
+                }
+
+                ShowSidebarGamesPieChart = value;
+                ShowSidebarProviderPieChart = value;
+                ShowSidebarRarityPieChart = value;
+                ShowSidebarTrophyPieChart = value;
+            }
+        }
+
+        /// <summary>
+        /// When true, shows the completed-games pie chart in the sidebar.
+        /// </summary>
+        public bool ShowSidebarGamesPieChart
+        {
+            get => _showSidebarGamesPieChart;
+            set
+            {
+                _sidebarPieChartVisibilityInitializedFromIndividualSettings = true;
+                SetValue(ref _showSidebarGamesPieChart, value);
+            }
+        }
+
+        /// <summary>
+        /// When true, shows the platform/provider pie chart in the sidebar.
+        /// </summary>
+        public bool ShowSidebarProviderPieChart
+        {
+            get => _showSidebarProviderPieChart;
+            set
+            {
+                _sidebarPieChartVisibilityInitializedFromIndividualSettings = true;
+                SetValue(ref _showSidebarProviderPieChart, value);
+            }
+        }
+
+        /// <summary>
+        /// When true, shows the rarity pie chart in the sidebar.
+        /// </summary>
+        public bool ShowSidebarRarityPieChart
+        {
+            get => _showSidebarRarityPieChart;
+            set
+            {
+                _sidebarPieChartVisibilityInitializedFromIndividualSettings = true;
+                SetValue(ref _showSidebarRarityPieChart, value);
+            }
+        }
+
+        /// <summary>
+        /// When true, shows the trophy pie chart in the sidebar.
+        /// </summary>
+        public bool ShowSidebarTrophyPieChart
+        {
+            get => _showSidebarTrophyPieChart;
+            set
+            {
+                _sidebarPieChartVisibilityInitializedFromIndividualSettings = true;
+                SetValue(ref _showSidebarTrophyPieChart, value);
+            }
         }
 
         /// <summary>
@@ -806,6 +892,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Game IDs that are excluded from all summary surfaces.
+        /// These exclusions persist across cache clears.
+        /// </summary>
+        public HashSet<Guid> ExcludedFromSummariesGameIds
+        {
+            get => _excludedFromSummariesGameIds;
+            set => SetValue(ref _excludedFromSummariesGameIds, value ?? new HashSet<Guid>());
+        }
+
+        /// <summary>
         /// Manual capstone selections. Key = Playnite Game ID, Value = Achievement ApiName.
         /// These selections persist across cache clears.
         /// </summary>
@@ -896,6 +992,7 @@ namespace PlayniteAchievements.Models.Settings
                 LegacyManualImportPath = this.LegacyManualImportPath,
                 ManualTrackingOverrideEnabled = this.ManualTrackingOverrideEnabled,
                 EnablePeriodicUpdates = this.EnablePeriodicUpdates,
+                AutoExcludeHiddenGames = this.AutoExcludeHiddenGames,
                 PeriodicUpdateHours = this.PeriodicUpdateHours,
                 EnableNotifications = this.EnableNotifications,
                 NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
@@ -910,6 +1007,10 @@ namespace PlayniteAchievements.Models.Settings
                 UseCoverImages = this.UseCoverImages,
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 ShowSidebarPieCharts = this.ShowSidebarPieCharts,
+                ShowSidebarGamesPieChart = this.ShowSidebarGamesPieChart,
+                ShowSidebarProviderPieChart = this.ShowSidebarProviderPieChart,
+                ShowSidebarRarityPieChart = this.ShowSidebarRarityPieChart,
+                ShowSidebarTrophyPieChart = this.ShowSidebarTrophyPieChart,
                 ShowSidebarBarCharts = this.ShowSidebarBarCharts,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
@@ -965,6 +1066,9 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase),
                 ExcludedGameIds = this.ExcludedGameIds != null
                     ? new HashSet<Guid>(this.ExcludedGameIds)
+                    : new HashSet<Guid>(),
+                ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
+                    ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
                     : new HashSet<Guid>(),
                 ManualCapstones = this.ManualCapstones != null
                     ? new Dictionary<Guid, string>(this.ManualCapstones)
