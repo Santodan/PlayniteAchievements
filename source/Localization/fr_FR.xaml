@@ -56,6 +56,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Afficher le graphique de rareté</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Afficher le graphique des trophées</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarBarCharts">Afficher les graphiques à barres</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowGamesWithNoUnlocks">Afficher les jeux sans succès</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowUnplayedGames">Afficher les jeux non joués</sys:String>
 
     <sys:String x:Key="LOCPlayAch_Provider_Steam">Steam</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
