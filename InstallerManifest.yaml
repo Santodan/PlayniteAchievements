@@ -1,6 +1,24 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 1.6.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-03-01
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.0/PlayniteAchievements_1_6_0.pext
+    Changelog:
+       - "Game Options Window - New comprehensive options menu for each game"
+       - "Manual Achievement Tracking - Track achievements manually by linking to Steam data and entering your progress"
+       - "SuccessStory Import - Import manual tracking data from SuccessStory via Settings > Manual (do this first if you have existing data!)"
+       - "Achievement Categories - Organize achievements into custom categories"
+       - "Achievement Sort Order - Customize display order per game"
+       - "Multi-Select Filters - Filter sidebar by multiple providers, completion status, game type, and category"
+       - "Contextual Pie Charts - Trophy pie chart for PSN games, pie charts have more interactability, and rarity/trophy charts now reflect the selected game."
+       - "New Platform, Type, and Category columns"
+       - "Summary Exclusions - Exclude games from sidebar summaries"
+       - "Exclude Hidden Games - New option to automatically remove achievement data and exclude games from refreshes when hiding them in Playnite"
+       - "PSN Provider Fixes - Improved authentication and DLC trophy tracking"
+       - "Various other UI improvements, bug fixes, and optimizations throughout"
+
   - Version: 1.5.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-01
