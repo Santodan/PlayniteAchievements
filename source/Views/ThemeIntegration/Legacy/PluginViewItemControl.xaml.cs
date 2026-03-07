@@ -9,6 +9,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Logging;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
@@ -21,9 +22,17 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     public partial class PluginViewItemControl : PluginUserControl
     {
         private static readonly ILogger _logger = PluginLogger.GetLogger(nameof(PluginViewItemControl));
+        private static readonly string[] DataContextGamePropertyCandidates =
+        {
+            "Game",
+            "Source",
+            "Item",
+            "SourceItem",
+            "Value"
+        };
         private PlayniteAchievementsPlugin Plugin => PlayniteAchievementsPlugin.Instance;
-        private bool _isCacheInvalidationSubscribed;
-        private bool _cacheInvalidationRefreshQueued;
+        private bool _isCacheEventSubscribed;
+        private bool _cacheRefreshQueued;
 
         #region IntegrationViewItemWithProgressBar Property
 
@@ -71,14 +80,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            SubscribeToCacheInvalidation();
+            SubscribeToCacheEvents();
             TryUpdateFromDataContext();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
-            UnsubscribeFromCacheInvalidation();
-            _cacheInvalidationRefreshQueued = false;
+            UnsubscribeFromCacheEvents();
+            _cacheRefreshQueued = false;
         }
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -86,9 +95,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             TryUpdateFromDataContext();
         }
 
-        private void SubscribeToCacheInvalidation()
+        private void SubscribeToCacheEvents()
         {
-            if (_isCacheInvalidationSubscribed)
+            if (_isCacheEventSubscribed)
             {
                 return;
             }
@@ -101,12 +110,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
             service.CacheInvalidated -= AchievementService_CacheInvalidated;
             service.CacheInvalidated += AchievementService_CacheInvalidated;
-            _isCacheInvalidationSubscribed = true;
+            service.GameCacheUpdated -= AchievementService_GameCacheUpdated;
+            service.GameCacheUpdated += AchievementService_GameCacheUpdated;
+            _isCacheEventSubscribed = true;
         }
 
-        private void UnsubscribeFromCacheInvalidation()
+        private void UnsubscribeFromCacheEvents()
         {
-            if (!_isCacheInvalidationSubscribed)
+            if (!_isCacheEventSubscribed)
             {
                 return;
             }
@@ -114,42 +125,105 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             try
             {
                 Plugin?.AchievementService.CacheInvalidated -= AchievementService_CacheInvalidated;
+                Plugin?.AchievementService.GameCacheUpdated -= AchievementService_GameCacheUpdated;
             }
             catch
             {
             }
 
-            _isCacheInvalidationSubscribed = false;
+            _isCacheEventSubscribed = false;
         }
 
         private void AchievementService_CacheInvalidated(object sender, EventArgs e)
         {
-            QueueRefreshFromCacheInvalidation();
+            QueueRefresh();
         }
 
-        private void QueueRefreshFromCacheInvalidation()
+        private void AchievementService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
         {
-            if (!IsLoaded || _cacheInvalidationRefreshQueued)
+            var updatedGameId = ParseUpdatedGameId(e);
+            if (!updatedGameId.HasValue)
             {
                 return;
             }
 
-            _cacheInvalidationRefreshQueued = true;
-            var dispatcher = Dispatcher;
-            if (dispatcher == null)
+            if (!IsLoaded)
             {
-                RunQueuedCacheInvalidationRefresh();
+                return;
+            }
+
+            var dispatcher = Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                QueueRefreshIfMatches(updatedGameId.Value);
                 return;
             }
 
             dispatcher.BeginInvoke(
-                new Action(RunQueuedCacheInvalidationRefresh),
+                new Action(() => QueueRefreshIfMatches(updatedGameId.Value)),
                 DispatcherPriority.Background);
         }
 
-        private void RunQueuedCacheInvalidationRefresh()
+        private Guid? GetCurrentGameIdFromDataContext()
         {
-            _cacheInvalidationRefreshQueued = false;
+            var game = GetGameFromDataContext(DataContext);
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return null;
+            }
+
+            return game.Id;
+        }
+
+        private static Guid? ParseUpdatedGameId(GameCacheUpdatedEventArgs args)
+        {
+            if (args == null || string.IsNullOrWhiteSpace(args.GameId))
+            {
+                return null;
+            }
+
+            if (Guid.TryParse(args.GameId, out var gameId) && gameId != Guid.Empty)
+            {
+                return gameId;
+            }
+
+            return null;
+        }
+
+        private void QueueRefreshIfMatches(Guid updatedGameId)
+        {
+            var currentGameId = GetCurrentGameIdFromDataContext();
+            if (!currentGameId.HasValue || currentGameId.Value != updatedGameId)
+            {
+                return;
+            }
+
+            QueueRefresh();
+        }
+
+        private void QueueRefresh()
+        {
+            if (!IsLoaded || _cacheRefreshQueued)
+            {
+                return;
+            }
+
+            _cacheRefreshQueued = true;
+            var dispatcher = Dispatcher;
+            if (dispatcher == null)
+            {
+                RunQueuedRefresh();
+                return;
+            }
+
+            dispatcher.BeginInvoke(
+                new Action(RunQueuedRefresh),
+                DispatcherPriority.Background);
+        }
+
+        private void RunQueuedRefresh()
+        {
+            _cacheRefreshQueued = false;
             if (!IsLoaded)
             {
                 return;
@@ -194,25 +268,79 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         private Game GetGameFromDataContext(object dataContext)
         {
             if (dataContext == null)
+            {
                 return null;
+            }
 
             // Direct Game reference
             if (dataContext is Game game)
-                return game;
-
-            // GamesCollectionViewEntry - the wrapper Playnite uses for GridView items
-            var type = dataContext.GetType();
-            if (type.Name == "GamesCollectionViewEntry")
             {
-                // The Game property holds the actual game
-                var gameProperty = type.GetProperty("Game");
-                if (gameProperty != null)
+                return game;
+            }
+
+            // Try common wrapper property names used by different Playnite view templates.
+            foreach (var propertyName in DataContextGamePropertyCandidates)
+            {
+                if (TryGetGamePropertyValue(dataContext, propertyName, out var wrappedGame))
                 {
-                    return gameProperty.GetValue(dataContext) as Game;
+                    return wrappedGame;
                 }
             }
 
             return null;
+        }
+
+        private static bool TryGetGamePropertyValue(object source, string propertyName, out Game game)
+        {
+            game = null;
+            if (source == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+
+            var property = source.GetType().GetProperty(propertyName);
+            if (property == null || property.GetIndexParameters().Length != 0)
+            {
+                return false;
+            }
+
+            object propertyValue;
+            try
+            {
+                propertyValue = property.GetValue(source);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (propertyValue is Game directGame)
+            {
+                game = directGame;
+                return true;
+            }
+
+            if (propertyValue == null || ReferenceEquals(propertyValue, source))
+            {
+                return false;
+            }
+
+            var nestedGameProperty = propertyValue.GetType().GetProperty("Game");
+            if (nestedGameProperty == null || nestedGameProperty.GetIndexParameters().Length != 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                game = nestedGameProperty.GetValue(propertyValue) as Game;
+            }
+            catch
+            {
+                game = null;
+            }
+
+            return game != null;
         }
 
         private void UpdateForGame(Guid gameId)

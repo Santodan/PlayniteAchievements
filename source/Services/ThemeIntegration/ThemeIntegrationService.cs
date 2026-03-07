@@ -266,7 +266,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             try
             {
-                var id = GetSingleSelectedGameId();
+                var id = ResolveSelectedGameIdForThemeUpdate();
                 if (id.HasValue)
                 {
                     _requestSingleGameThemeUpdate(id);
@@ -277,27 +277,57 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
+        private Guid? ResolveSelectedGameIdForThemeUpdate()
+        {
+            try
+            {
+                var selectedGame = _settings?.SelectedGame;
+                if (selectedGame != null && selectedGame.Id != Guid.Empty)
+                {
+                    return selectedGame.Id;
+                }
+            }
+            catch
+            {
+            }
+
+            return GetSingleSelectedGameId();
+        }
+
         private Guid? GetSingleSelectedGameId()
         {
             try
             {
-                var selected = _api?.MainView?.SelectedGames?
-                    .Where(g => g != null)
-                    .Take(2)
-                    .ToList();
-
-                if (selected == null || selected.Count != 1)
+                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
                 {
-                    return null;
+                    return dispatcher.Invoke(
+                        new Func<Guid?>(GetSingleSelectedGameIdFromMainView),
+                        DispatcherPriority.Background);
                 }
 
-                return selected[0].Id;
+                return GetSingleSelectedGameIdFromMainView();
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to resolve selected game for fullscreen achievement window.");
                 return null;
             }
+        }
+
+        private Guid? GetSingleSelectedGameIdFromMainView()
+        {
+            var selected = _api?.MainView?.SelectedGames?
+                    .Where(g => g != null)
+                    .Take(2)
+                    .ToList();
+
+            if (selected == null || selected.Count != 1)
+            {
+                return null;
+            }
+
+            return selected[0].Id;
         }
 
         #region Window Operations (delegated to FullscreenWindowService)
@@ -495,6 +525,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Info("PopulateAllGamesDataSync: Starting to populate all-games achievement data.");
 
                 var allData = _achievementService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
+                allData = FilterExcludedFromSummaries(allData);
                 _logger?.Info($"PopulateAllGamesDataSync: Found {allData.Count} total game data entries.");
 
                 var snapshot = AllGamesSnapshotService.BuildSnapshot(
@@ -514,6 +545,21 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Error(ex, "Failed to populate all-games data synchronously.");
             }
+        }
+
+        private List<GameAchievementData> FilterExcludedFromSummaries(List<GameAchievementData> allData)
+        {
+            allData ??= new List<GameAchievementData>();
+
+            var excludedIds = _settings?.Persisted?.ExcludedFromSummariesGameIds;
+            if (excludedIds == null || excludedIds.Count == 0)
+            {
+                return allData;
+            }
+
+            return allData
+                .Where(data => data?.PlayniteGameId == null || !excludedIds.Contains(data.PlayniteGameId.Value))
+                .ToList();
         }
 
         /// <summary>
@@ -587,6 +633,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     await Task.Delay(500, token).ConfigureAwait(false);
 
                     var allData = _achievementService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
+                    allData = FilterExcludedFromSummaries(allData);
 
                     token.ThrowIfCancellationRequested();
 
