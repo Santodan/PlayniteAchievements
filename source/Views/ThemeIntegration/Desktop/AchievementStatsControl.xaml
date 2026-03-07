@@ -1,19 +1,19 @@
-<desktop:SingleGameDataControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Desktop.AchievementStatsControl"
+<base:ThemeControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Desktop.AchievementStatsControl"
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-                   xmlns:desktop="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop"
+                   xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    mc:Ignorable="d"
                    d:DesignHeight="150" d:DesignWidth="300">
 
-    <desktop:SingleGameDataControlBase.Resources>
+    <base:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
-    </desktop:SingleGameDataControlBase.Resources>
+    </base:ThemeControlBase.Resources>
 
     <StackPanel>
         <!-- UltraRare Row -->
@@ -39,9 +39,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource TextBrush}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding UltraRare.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.UltraRare.Unlocked, Mode=OneWay}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding UltraRare.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.UltraRare.Total, Mode=OneWay}"/>
             </TextBlock>
         </Grid>
 
@@ -68,9 +68,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource TextBrush}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Rare.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Rare.Unlocked, Mode=OneWay}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Rare.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Rare.Total, Mode=OneWay}"/>
             </TextBlock>
         </Grid>
 
@@ -97,9 +97,9 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource TextBrush}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Uncommon.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Uncommon.Unlocked, Mode=OneWay}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Uncommon.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Uncommon.Total, Mode=OneWay}"/>
             </TextBlock>
         </Grid>
 
@@ -126,10 +126,10 @@
             <TextBlock Grid.Column="2"
                        Foreground="{DynamicResource TextBrush}"
                        VerticalAlignment="Center">
-                <Run Text="{Binding Common.Unlocked, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Common.Unlocked, Mode=OneWay}"/>
                 <Run Text="/"/>
-                <Run Text="{Binding Common.Total, Mode=OneWay}"/>
+                <Run Text="{Binding Theme.Common.Total, Mode=OneWay}"/>
             </TextBlock>
         </Grid>
     </StackPanel>
-</desktop:SingleGameDataControlBase>
+</base:ThemeControlBase>
