@@ -7,7 +7,7 @@
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              mc:Ignorable="d"
-             d:DesignHeight="78" d:DesignWidth="78"
+             d:DesignHeight="68" d:DesignWidth="68"
              d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -15,12 +15,15 @@
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
+            <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <!-- Add padding around the icon so glow effect is visible -->
     <Grid x:Name="RootGrid"
           Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-          Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}">
+          Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+          Margin="4">
         <Grid.ToolTip>
             <ToolTip MaxWidth="300">
                 <ToolTip.Content>

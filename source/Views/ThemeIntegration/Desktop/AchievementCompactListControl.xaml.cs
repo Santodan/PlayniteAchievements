@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
@@ -20,11 +21,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         public static readonly DependencyProperty IconSizeProperty =
             DependencyProperty.Register(nameof(IconSize), typeof(double), typeof(AchievementCompactListControl),
-                new PropertyMetadata(78.0));
+                new PropertyMetadata(56.0));
 
         /// <summary>
         /// Gets or sets the size of each achievement icon.
-        /// Default is 78 to match the grid icon column width.
+        /// Default is 56 to allow space for glow effect around the icon.
         /// </summary>
         public double IconSize
         {
@@ -35,6 +36,40 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         public AchievementCompactListControl()
         {
             InitializeComponent();
+            PreviewMouseWheel += OnPreviewMouseWheel;
+        }
+
+        /// <summary>
+        /// Handles mouse wheel for horizontal scrolling.
+        /// </summary>
+        private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (e.Delta != 0)
+            {
+                e.Handled = true;
+                var scrollViewer = FindScrollViewer(AchievementsList);
+                if (scrollViewer != null)
+                {
+                    scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - e.Delta);
+                }
+            }
+        }
+
+        private static ScrollViewer FindScrollViewer(DependencyObject parent)
+        {
+            if (parent == null) return null;
+
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is ScrollViewer scrollViewer)
+                {
+                    return scrollViewer;
+                }
+                var result = FindScrollViewer(child);
+                if (result != null) return result;
+            }
+            return null;
         }
 
         /// <summary>
