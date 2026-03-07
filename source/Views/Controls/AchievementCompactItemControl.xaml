@@ -96,8 +96,12 @@
             </ToolTip>
         </Grid.ToolTip>
 
-        <!-- Border for achievement icon - matches sidebar styling -->
+        <!-- Achievement icon with glow effect -->
+        <!-- Border is sized to icon with negative margin to extend glow beyond bounds -->
         <Border CornerRadius="6" RenderOptions.BitmapScalingMode="HighQuality"
+                Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                Margin="-6"
                 Effect="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}">
             <Border.Background>
                 <ImageBrush Stretch="UniformToFill"
