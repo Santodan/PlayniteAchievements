@@ -361,12 +361,6 @@ namespace PlayniteAchievements.Providers.ShadPS4
             };
         }
 
-        private static string GetProviderName()
-        {
-            var value = ResourceProvider.GetString("LOCPlayAch_Provider_ShadPS4");
-            return string.IsNullOrWhiteSpace(value) ? "ShadPS4" : value;
-        }
-
         /// <summary>
         /// Converts a PS4 timestamp to UTC DateTime.
         /// PS4 epoch: 2008-01-01 00:00:00 UTC
