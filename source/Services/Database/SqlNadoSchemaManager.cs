@@ -364,9 +364,9 @@ namespace PlayniteAchievements.Services.Database
                             );");
                         _logger?.Info("[Schema] Created Games_New table");
 
-                        // Migrate data with value transformation
+                        // Migrate data with value transformation (INSERT OR IGNORE to handle duplicates)
                         ExecuteSafe(db,
-                            @"INSERT INTO Games_New (Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
+                            @"INSERT OR IGNORE INTO Games_New (Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
                               SELECT
                                 Id,
                                 CASE
@@ -445,9 +445,9 @@ namespace PlayniteAchievements.Services.Database
                             );");
                         _logger?.Info("[Schema] Created Users_New table");
 
-                        // Migrate data with value transformation
+                        // Migrate data with value transformation (INSERT OR IGNORE to handle duplicates)
                         ExecuteSafe(db,
-                            @"INSERT INTO Users_New (Id, ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, CreatedUtc, UpdatedUtc)
+                            @"INSERT OR IGNORE INTO Users_New (Id, ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, CreatedUtc, UpdatedUtc)
                               SELECT
                                 Id,
                                 CASE
