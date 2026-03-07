@@ -15,6 +15,9 @@
 
     <UserControl.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
             <converters:EnumToBoolConverter x:Key="EnumToBool"/>
             <converters:IntToVisibilityConverter x:Key="IntToVis"/>
             <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
@@ -317,13 +320,20 @@
                 <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center">
-                    <ComboBox ItemsSource="{Binding RefreshModes}"
-                              DisplayMemberPath="ShortDisplayName"
-                              SelectedValuePath="Key"
-                              SelectedValue="{Binding SelectedRefreshMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                              Width="100"
-                              Margin="0,0,8,0"
-                              VerticalContentAlignment="Center"/>
+                    <Button x:Name="RefreshModeSelectionButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding RefreshModeSelectionText}"
+                            Click="RefreshModeSelectionButton_Click"
+                            HorizontalContentAlignment="Center"
+                            Width="100"
+                            Height="30"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="RefreshModeSelectionContextMenu"
+                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
 
                     <Button Content="{Binding RefreshActionButtonText}"
                             Command="{Binding RefreshCommand}"
@@ -373,7 +383,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto" MinHeight="225"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- LEFT: Filters Row -->
@@ -393,7 +403,7 @@
 
                         <Grid Grid.Column="0">
                             <TextBox Text="{Binding LeftSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SearchTextBoxStyle}"/>
+                                     Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Filter_Games}"
                                        VerticalAlignment="Center"
                                        Margin="9,0,0,0"
@@ -414,47 +424,51 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                            <Button Tag="{Binding LeftSearchText}"
+                                    Click="ClearLeftSearch_Click"
+                                    Style="{StaticResource ClearSearchButtonStyle}"/>
                         </Grid>
 
-                        <ComboBox Grid.Column="1"
-                                  ItemsSource="{Binding ProviderFilterOptions}"
-                                  SelectedItem="{Binding SelectedProviderFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  Width="170"
-                                  Margin="4,0,0,0"
-                                  VerticalContentAlignment="Center"/>
+                        <Button x:Name="ProviderFilterSelectionButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Grid.Column="1"
+                                Content="{Binding SelectedProviderFilterText}"
+                                Click="ProviderFilterSelectionButton_Click"
+                                Width="170"
+                                Height="30"
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="ProviderFilterSelectionContextMenu"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
 
-                        <CheckBox Grid.Column="2" Content="{DynamicResource LOCPlayAch_Filter_ShowNoUnlocks}"
+                        <Button x:Name="CompletenessFilterSelectionButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Grid.Column="2"
+                                Content="{Binding SelectedCompletenessFilterText}"
+                                Click="CompletenessFilterSelectionButton_Click"
+                                Width="170"
+                                Height="30"
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="CompletenessFilterSelectionContextMenu"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                        </Button.ContextMenu>
+                    </Button>
+
+                        <CheckBox Grid.Column="3" Content="{DynamicResource LOCPlayAch_Filter_ShowNoUnlocks}"
                                   IsChecked="{Binding ShowGamesWithNoUnlocks}"
                                   VerticalAlignment="Center"
                                   Margin="8,0,0,0"/>
 
-                        <CheckBox Grid.Column="3" Content="{DynamicResource LOCPlayAch_Filter_ShowUnplayed}"
+                        <CheckBox Grid.Column="4" Content="{DynamicResource LOCPlayAch_Filter_ShowUnplayed}"
                                   IsChecked="{Binding ShowUnplayedGames}"
                                   VerticalAlignment="Center"
                                   Margin="8,0,0,0"/>
 
-                        <Button Grid.Column="4"
-                                Content="✕"
-                                Click="ClearLeftSearch_Click"
-                                Width="24"
-                                Height="24"
-                                Margin="4,0,0,0"
-                                Padding="0"
-                                VerticalAlignment="Center">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding LeftSearchText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding LeftSearchText}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </Grid>
                 </Border>
 
@@ -468,12 +482,11 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" MinWidth="180"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <Grid Grid.Column="0">
                             <TextBox Text="{Binding RightSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SearchTextBoxStyle}"/>
+                                     Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Filter_Achievements}"
                                        VerticalAlignment="Center"
                                        Margin="9,0,0,0"
@@ -494,6 +507,9 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                            <Button Tag="{Binding RightSearchText}"
+                                    Click="ClearRightSearch_Click"
+                                    Style="{StaticResource ClearSearchButtonStyle}"/>
                         </Grid>
 
                         <StackPanel Grid.Column="1"
@@ -501,6 +517,34 @@
                                 VerticalAlignment="Center"
                                 Margin="8,0,0,0"
                                 Visibility="{Binding IsGameSelected, Converter={StaticResource BoolToVis}}">
+                            <Button x:Name="SelectedGameTypeFilterSelectionButton"
+                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                    Content="{Binding SelectedGameTypeFilterText}"
+                                    Click="SelectedGameTypeFilterSelectionButton_Click"
+                                    Width="120"
+                                    Height="30"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Type}">
+                                <Button.ContextMenu>
+                                    <ContextMenu x:Name="SelectedGameTypeFilterSelectionContextMenu"
+                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                </Button.ContextMenu>
+                            </Button>
+                            <Button x:Name="SelectedGameCategoryFilterSelectionButton"
+                                    Style="{StaticResource AchievementSelectorButtonStyle}"
+                                    Content="{Binding SelectedGameCategoryFilterText}"
+                                    Click="SelectedGameCategoryFilterSelectionButton_Click"
+                                    Width="140"
+                                    Height="30"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Label}">
+                                <Button.ContextMenu>
+                                    <ContextMenu x:Name="SelectedGameCategoryFilterSelectionContextMenu"
+                                                 ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                                </Button.ContextMenu>
+                            </Button>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Unlocked}"
                                   IsChecked="{Binding ShowSelectedGameUnlocked}"
                                   VerticalAlignment="Center"
@@ -514,28 +558,6 @@
                                   VerticalAlignment="Center"/>
                         </StackPanel>
 
-                        <Button Grid.Column="2"
-                                Content="✕"
-                                Click="ClearRightSearch_Click"
-                                Width="24"
-                                Height="24"
-                                Margin="4,0,0,0"
-                                Padding="0"
-                                VerticalAlignment="Center">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding RightSearchText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding RightSearchText}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
                     </Grid>
                 </Border>
 
@@ -557,17 +579,7 @@
                     <Border Grid.Row="2" Grid.Column="0"
                             BorderBrush="{DynamicResource NormalBorderBrush}"
                             BorderThickness="0,0,1,0">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Grid.RowSpan" Value="1"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowSidebarPieCharts}" Value="False">
-                                        <Setter Property="Grid.RowSpan" Value="2"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Grid>
+                        <Grid x:Name="SidebarBottomChartsGrid">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
@@ -723,6 +735,51 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Platform -->
+                            <DataGridTemplateColumn Width="40" MinWidth="40" MaxWidth="40"
+                                                    Header="{DynamicResource LOCPlayAch_Filter_ProviderSelectorPlaceholder}"
+                                                    CanUserResize="False"
+                                                    CanUserSort="False"
+                                                    helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlatform">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text=""/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <Image Width="32"
+                                                   Height="32"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   SnapsToDevicePixels="True"
+                                                   RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                   ToolTip="{Binding Provider}">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                                        <Binding Path="ProviderIconKey"/>
+                                                        <Binding Path="ProviderColorHex"/>
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -974,83 +1031,6 @@
                         </Grid>
                     </Border>
                     
-                    <!-- LEFT: Pie Charts -->
-                    <Border Grid.Row="3" Grid.Column="0"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            BorderBrush="{DynamicResource NormalBorderBrush}"
-                            BorderThickness="0,1,1,0"
-                            Padding="12,10"
-                            Visibility="{Binding ShowSidebarPieCharts, Converter={StaticResource BoolToVis}}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Games Completion Pie Chart -->
-                            <Grid Grid.Column="0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0"
-                                           Text="{DynamicResource LOCPlayAch_Sidebar_GamesPieChart}"
-                                           Style="{DynamicResource BaseTextBlockStyle}"
-                                           Foreground="{DynamicResource TextBrush}"
-                                           Opacity="0.7"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4"/>
-                                <controls:PieChartWithRadialIcons Grid.Row="1"
-                                                                  PieSeries="{Binding GamesPieChart.PieSeries}"
-                                                                  LegendItems="{Binding GamesPieChart.LegendItems}"
-                                                                  IconOffset="12"/>
-                            </Grid>
-
-                            <!-- Provider Distribution Pie Chart -->
-                            <Grid Grid.Column="2">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0"
-                                           Text="{DynamicResource LOCPlayAch_Sidebar_ProviderDistribution}"
-                                           Style="{DynamicResource BaseTextBlockStyle}"
-                                           Foreground="{DynamicResource TextBrush}"
-                                           Opacity="0.7"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4"/>
-                                <controls:PieChartWithRadialIcons x:Name="ProviderPieChartControl"
-                                                                  Grid.Row="1"
-                                                                  PieSeries="{Binding ProviderPieChart.PieSeries}"
-                                                                  LegendItems="{Binding ProviderPieChart.LegendItems}"
-                                                                  IconOffset="12"
-                                                                  SliceClick="OnProviderPieChartSliceClick"/>
-                            </Grid>
-
-                            <!-- Rarity Pie Chart with Custom Legend -->
-                            <Grid Grid.Column="4">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0"
-                                           Text="{DynamicResource LOCPlayAch_Sidebar_RarityPieChart}"
-                                           Style="{DynamicResource BaseTextBlockStyle}"
-                                           Foreground="{DynamicResource TextBrush}"
-                                           Opacity="0.7"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4"/>
-                                <controls:PieChartWithRadialIcons Grid.Row="1"
-                                                                  PieSeries="{Binding RarityPieChart.PieSeries}"
-                                                                  LegendItems="{Binding RarityPieChart.LegendItems}"
-                                                                  IconOffset="12"/>
-                            </Grid>
-                        </Grid>
-                    </Border>
-
                     <!-- RIGHT: Header -->
                     <Grid Grid.Row="1" Grid.Column="2">
                         <!-- Header for when NO game is selected -->
@@ -1113,16 +1093,6 @@
                     
                     <!-- RIGHT: Content (Recent List OR Game Details) -->
                     <Grid Grid.Row="2" Grid.Column="2" ClipToBounds="True">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="Grid.RowSpan" Value="1"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ShowSidebarBarCharts}" Value="False">
-                                        <Setter Property="Grid.RowSpan" Value="2"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
@@ -1312,6 +1282,34 @@
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
 
+                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CategoryTypeDisplay}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CategoryLabel}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
                                     <!-- Trophy -->
                                     <DataGridTemplateColumn Width="100" MinWidth="90" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="False" SortMemberPath="TrophyType"
                                                             CellTemplate="{StaticResource AchievementTrophyTemplate}"/>
@@ -1422,6 +1420,34 @@
                                     <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
                                                             CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
 
+                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CategoryTypeDisplay}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
+                                    <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding CategoryLabel}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           Opacity="0.7"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+
                                     <!-- Trophy -->
                                     <DataGridTemplateColumn Width="100" MinWidth="90" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="False" SortMemberPath="TrophyType"
                                                             CellTemplate="{StaticResource AchievementTrophyTemplate}"/>
@@ -1438,101 +1464,295 @@
                         </Grid>
                     </Grid>
 
-                    <!-- RIGHT: Timeline -->
-                    <Border Grid.Row="3" Grid.Column="2"
+                    <Border Grid.Row="3"
+                            Grid.ColumnSpan="3"
+                            MinHeight="225"
+                            Margin="-20,0,-20,-20"
+                            Padding="20,8,20,20"
                             Background="{DynamicResource ControlBackgroundBrush}"
                             BorderBrush="{DynamicResource NormalBorderBrush}"
-                            BorderThickness="0,0,0,0"
-                            Padding="12,10"
-                            Visibility="{Binding ShowSidebarBarCharts, Converter={StaticResource BoolToVis}}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="140"/>
-                            </Grid.RowDefinitions>
+                            BorderThickness="0,3,0,0">
+                        <Border.Resources>
+                            <DataTemplate x:Key="SidebarTimelineContentTemplate">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="140"/>
+                                    </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0"
-                                       Text="{DynamicResource LOCPlayAch_Section_Timeline}"
-                                       Style="{DynamicResource BaseTextBlockStyle}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.7"
-                                       Margin="0,0,0,6"/>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{Binding TimelineSectionTitle}"
+                                               Style="{DynamicResource BaseTextBlockStyle}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               Margin="0,0,0,6"/>
 
-                            <!-- Time Range Buttons -->
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                                <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_All}" GroupName="GlobalTimeRangeDefault"
-                                             Style="{StaticResource TimeRangeButtonStyle}"
-                                             IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
-                                             Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="All"/>
-                            </StackPanel>
+                                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
+                                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_All}" GroupName="GlobalTimeRangeDefault"
+                                                     Style="{StaticResource TimeRangeButtonStyle}"
+                                                     IsChecked="{Binding GlobalTimeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
+                                                     Command="{Binding GlobalTimeline.SetTimeRangeCommand}" CommandParameter="All"/>
+                                    </StackPanel>
 
-                            <!-- LiveCharts Timeline Bar Chart -->
-                            <lvc:CartesianChart Grid.Row="2"
-                                                Series="{Binding GlobalTimeline.TimelineSeries}"
-                                                LegendLocation="None"
-                                                Hoverable="True"
-                                                DisableAnimations="True">
-                                <lvc:CartesianChart.Resources>
-                                    <Style TargetType="lvc:ColumnSeries">
-                                        <Setter Property="Fill" Value="{DynamicResource HighlightGlyphBrush}" />
+                                    <lvc:CartesianChart Grid.Row="2"
+                                                        Series="{Binding GlobalTimeline.TimelineSeries}"
+                                                        LegendLocation="None"
+                                                        Hoverable="True"
+                                                        DisableAnimations="True">
+                                        <lvc:CartesianChart.Resources>
+                                            <Style TargetType="lvc:ColumnSeries">
+                                                <Setter Property="Fill" Value="{DynamicResource HighlightGlyphBrush}" />
+                                            </Style>
+                                        </lvc:CartesianChart.Resources>
+                                        <lvc:CartesianChart.AxisX>
+                                            <lvc:Axis Labels="{Binding GlobalTimeline.TimelineLabels}"
+                                                      ShowLabels="True"
+                                                      LabelsRotation="45"
+                                                      FontSize="{DynamicResource FontSizeSmall}"
+                                                      Foreground="{DynamicResource TextBrush}">
+                                                <lvc:Axis.Separator>
+                                                    <lvc:Separator Step="1" IsEnabled="False"/>
+                                                </lvc:Axis.Separator>
+                                            </lvc:Axis>
+                                        </lvc:CartesianChart.AxisX>
+                                        <lvc:CartesianChart.AxisY>
+                                            <lvc:Axis MinValue="0"
+                                                      LabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
+                                                      FontSize="{DynamicResource FontSizeSmall}"
+                                                      Foreground="{DynamicResource TextBrush}">
+                                                <lvc:Axis.Separator>
+                                                    <lvc:Separator Stroke="{DynamicResource NormalBorderBrush}" Opacity="0.2"/>
+                                                </lvc:Axis.Separator>
+                                            </lvc:Axis>
+                                        </lvc:CartesianChart.AxisY>
+                                    </lvc:CartesianChart>
+                                </Grid>
+                            </DataTemplate>
+                        </Border.Resources>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding ShowSidebarPieCharts}" Value="False"/>
+                                            <Condition Binding="{Binding ShowSidebarBarCharts}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid x:Name="ChartsRowGrid">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" x:Name="PieChartsColumn"/>
+                                <ColumnDefinition Width="1*" x:Name="BarChartColumn"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- LEFT: Pie Charts -->
+                            <Border x:Name="SidebarPieChartsHost"
+                                    Grid.Column="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="12,10">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Setter Property="Grid.ColumnSpan" Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowSidebarPieCharts}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ShowSidebarBarCharts}" Value="False">
+                                                <Setter Property="Grid.ColumnSpan" Value="2"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
                                     </Style>
-                                </lvc:CartesianChart.Resources>
-                                <lvc:CartesianChart.AxisX>
-                                    <lvc:Axis Labels="{Binding GlobalTimeline.TimelineLabels}"
-                                              ShowLabels="True"
-                                              LabelsRotation="45"
-                                              FontSize="{DynamicResource FontSizeSmall}"
-                                              Foreground="{DynamicResource TextBrush}">
-                                        <lvc:Axis.Separator>
-                                            <lvc:Separator Step="1" IsEnabled="False"/>
-                                        </lvc:Axis.Separator>
-                                    </lvc:Axis>
-                                </lvc:CartesianChart.AxisX>
-                                <lvc:CartesianChart.AxisY>
-                                    <lvc:Axis MinValue="0"
-                                              LabelFormatter="{Binding GlobalTimeline.YAxisFormatter}"
-                                              FontSize="{DynamicResource FontSizeSmall}"
-                                              Foreground="{DynamicResource TextBrush}">
-                                        <lvc:Axis.Separator>
-                                            <lvc:Separator Stroke="{DynamicResource NormalBorderBrush}" Opacity="0.2"/>
-                                        </lvc:Axis.Separator>
-                                    </lvc:Axis>
-                                </lvc:CartesianChart.AxisY>
-                            </lvc:CartesianChart>
+                                </Border.Style>
+                                <Grid x:Name="SidebarPieChartsGrid">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                <!-- Games Completion Pie Chart -->
+                                <Grid x:Name="GamesPieChartPanel" Grid.Column="0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{DynamicResource LOCPlayAch_Sidebar_GamesPieChart}"
+                                               Style="{DynamicResource BaseTextBlockStyle}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Top"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="6,0,6,4"/>
+                                    <controls:PieChartWithRadialIcons Grid.Row="1"
+                                                                      PieSeries="{Binding GamesPieChart.PieSeries}"
+                                                                      LegendItems="{Binding GamesPieChart.LegendItems}"
+                                                                      HighlightedLabels="{Binding GamesPieChart.HighlightedLabels}"
+                                                                      IconOffset="12"
+                                                                      SliceClick="OnGamesPieChartSliceClick"/>
+                                </Grid>
+
+                                <!-- Provider Distribution Pie Chart -->
+                                <Grid x:Name="ProviderPieChartPanel" Grid.Column="1">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{DynamicResource LOCPlayAch_Sidebar_ProviderDistribution}"
+                                               Style="{DynamicResource BaseTextBlockStyle}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Top"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="6,0,6,4"/>
+                                    <controls:PieChartWithRadialIcons x:Name="ProviderPieChartControl"
+                                                                      Grid.Row="1"
+                                                                      PieSeries="{Binding ProviderPieChart.PieSeries}"
+                                                                      LegendItems="{Binding ProviderPieChart.LegendItems}"
+                                                                      HighlightedLabels="{Binding ProviderPieChart.HighlightedLabels}"
+                                                                      IconOffset="12"
+                                                                      SliceClick="OnProviderPieChartSliceClick"/>
+                                </Grid>
+
+                                <!-- Rarity Pie Chart with Custom Legend -->
+                                <Grid x:Name="RarityPieChartPanel" Grid.Column="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{Binding RarityPieChartTitle}"
+                                               Style="{DynamicResource BaseTextBlockStyle}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Top"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="6,0,6,4"/>
+                                    <controls:PieChartWithRadialIcons Grid.Row="1"
+                                                                      PieSeries="{Binding RarityPieChart.PieSeries}"
+                                                                      LegendItems="{Binding RarityPieChart.LegendItems}"
+                                                                      HighlightedLabels="{Binding RarityPieChart.HighlightedLabels}"
+                                                                      IconOffset="12"/>
+                                </Grid>
+
+                                <!-- Trophy Pie Chart -->
+                                <Grid x:Name="TrophyPieChartPanel" Grid.Column="3">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{Binding TrophyPieChartTitle}"
+                                               Style="{DynamicResource BaseTextBlockStyle}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               HorizontalAlignment="Stretch"
+                                               VerticalAlignment="Top"
+                                               TextAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Margin="6,0,6,4"/>
+                                    <controls:PieChartWithRadialIcons Grid.Row="1"
+                                                                      PieSeries="{Binding TrophyPieChart.PieSeries}"
+                                                                      LegendItems="{Binding TrophyPieChart.LegendItems}"
+                                                                      HighlightedLabels="{Binding TrophyPieChart.HighlightedLabels}"
+                                                                      IconOffset="12"/>
+                                </Grid>
+                                </Grid>
+                            </Border>
+
+                            <!-- RIGHT: Timeline -->
+                            <Border Grid.Column="1"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="12,10">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ShowSidebarPieCharts}" Value="True"/>
+                                                    <Condition Binding="{Binding ShowSidebarBarCharts}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <ContentControl Content="{Binding}"
+                                                ContentTemplate="{StaticResource SidebarTimelineContentTemplate}"/>
+                            </Border>
+
+                            <!-- FULL-WIDTH Timeline When Pie Charts Are Hidden -->
+                            <Border Grid.ColumnSpan="2"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="12,10">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ShowSidebarPieCharts}" Value="False"/>
+                                                    <Condition Binding="{Binding ShowSidebarBarCharts}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <ContentControl Content="{Binding}"
+                                                ContentTemplate="{StaticResource SidebarTimelineContentTemplate}"/>
+                            </Border>
                         </Grid>
                     </Border>
 
                     <!-- Visible divider line (always shows) -->
                     <Border Grid.Column="1"
-                        Grid.RowSpan="4"
+                        Grid.RowSpan="3"
                         Width="2"
                         HorizontalAlignment="Center"
                         Background="{DynamicResource PanelSeparatorBrush}"
                         Opacity="0.35"
                         IsHitTestVisible="False"/>
                     <GridSplitter Grid.Column="1"
-                        Grid.RowSpan="4"
+                        Grid.RowSpan="3"
                         Style="{StaticResource CenterLineSplitterStyle}"
                         Panel.ZIndex="100"/>
             </Grid>

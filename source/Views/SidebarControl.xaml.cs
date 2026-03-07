@@ -44,6 +44,8 @@ namespace PlayniteAchievements.Views
             {
                 ["Achievement"] = 520,
                 ["UnlockDate"] = 230,
+                ["CategoryType"] = 200,
+                ["CategoryLabel"] = 200,
                 ["Rarity"] = 170,
                 ["Points"] = 120
             };
@@ -146,6 +148,7 @@ namespace PlayniteAchievements.Views
             AttachHandlers(GameAchievementsDataGrid);
             ApplyVisibilityToGrids();
             ApplyWidthsToGrids();
+            UpdatePieChartLayout();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -156,6 +159,16 @@ namespace PlayniteAchievements.Views
             {
                 ResetAchievementsSortDirection();
                 return;
+            }
+
+            if (e.PropertyName == nameof(SidebarViewModel.ShowSidebarGamesPieChart)
+                || e.PropertyName == nameof(SidebarViewModel.ShowSidebarProviderPieChart)
+                || e.PropertyName == nameof(SidebarViewModel.ShowSidebarRarityPieChart)
+                || e.PropertyName == nameof(SidebarViewModel.ShowSidebarTrophyPieChart)
+                || e.PropertyName == nameof(SidebarViewModel.ShowSidebarPieCharts)
+                || e.PropertyName == nameof(SidebarViewModel.ShowSidebarBarCharts))
+            {
+                UpdatePieChartLayout();
             }
 
             if (e.PropertyName != nameof(SidebarViewModel.IsGameSelected)) return;
@@ -191,6 +204,195 @@ namespace PlayniteAchievements.Views
 
         private void ClearLeftSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearLeftSearch();
         private void ClearRightSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearRightSearch();
+
+        private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            OpenSingleSelectRefreshModeContextMenu(
+                RefreshModeSelectionButton,
+                _viewModel.RefreshModes,
+                _viewModel.SelectedRefreshMode,
+                selectedKey => _viewModel.SelectedRefreshMode = selectedKey);
+        }
+
+        private static void OpenSingleSelectRefreshModeContextMenu(
+            Button button,
+            IEnumerable<RefreshMode> modes,
+            string selectedModeKey,
+            Action<string> setSelection)
+        {
+            if (button == null || setSelection == null)
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            if (menu == null)
+            {
+                return;
+            }
+
+            menu.Items.Clear();
+            if (modes == null)
+            {
+                return;
+            }
+
+            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            foreach (var mode in modes.Where(mode => mode != null && !string.IsNullOrWhiteSpace(mode.Key)))
+            {
+                var modeKey = mode.Key;
+                var item = new MenuItem
+                {
+                    Header = !string.IsNullOrWhiteSpace(mode.ShortDisplayName)
+                        ? mode.ShortDisplayName
+                        : (!string.IsNullOrWhiteSpace(mode.DisplayName) ? mode.DisplayName : modeKey),
+                    IsCheckable = true,
+                    IsChecked = string.Equals(modeKey, selectedModeKey, StringComparison.Ordinal)
+                };
+                if (itemStyle != null)
+                {
+                    item.Style = itemStyle;
+                }
+                item.Click += (_, __) => setSelection(modeKey);
+                menu.Items.Add(item);
+            }
+
+            if (menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
+
+        private void ProviderFilterSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            OpenMultiSelectFilterContextMenu(
+                ProviderFilterSelectionButton,
+                _viewModel.ProviderFilterOptions,
+                option => _viewModel.IsProviderFilterSelected(option),
+                (option, isSelected) => _viewModel.SetProviderFilterSelected(option, isSelected));
+        }
+
+        private void CompletenessFilterSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            OpenMultiSelectFilterContextMenu(
+                CompletenessFilterSelectionButton,
+                _viewModel.CompletenessFilterOptions,
+                option => _viewModel.IsCompletenessFilterSelected(option),
+                (option, isSelected) => _viewModel.SetCompletenessFilterSelected(option, isSelected));
+        }
+
+        private void SelectedGameTypeFilterSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            OpenMultiSelectFilterContextMenu(
+                SelectedGameTypeFilterSelectionButton,
+                _viewModel.SelectedGameTypeFilterOptions,
+                option => _viewModel.IsSelectedGameTypeFilterSelected(option),
+                (option, isSelected) => _viewModel.SetSelectedGameTypeFilterSelected(option, isSelected));
+        }
+
+        private void SelectedGameCategoryFilterSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            OpenMultiSelectFilterContextMenu(
+                SelectedGameCategoryFilterSelectionButton,
+                _viewModel.SelectedGameCategoryFilterOptions,
+                option => _viewModel.IsSelectedGameCategoryFilterSelected(option),
+                (option, isSelected) => _viewModel.SetSelectedGameCategoryFilterSelected(option, isSelected));
+        }
+
+        private void OpenMultiSelectFilterContextMenu(
+            Button button,
+            IEnumerable<string> options,
+            Func<string, bool> isSelected,
+            Action<string, bool> setSelection)
+        {
+            if (button == null || isSelected == null || setSelection == null)
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            if (menu == null)
+            {
+                return;
+            }
+
+            menu.Items.Clear();
+            if (options == null)
+            {
+                return;
+            }
+
+            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            foreach (var option in options.Where(value => !string.IsNullOrWhiteSpace(value)))
+            {
+                var item = new MenuItem
+                {
+                    Header = option,
+                    IsCheckable = true,
+                    StaysOpenOnClick = true,
+                    IsChecked = isSelected(option)
+                };
+                if (itemStyle != null)
+                {
+                    item.Style = itemStyle;
+                }
+                item.Click += (_, __) => setSelection(option, item.IsChecked);
+                menu.Items.Add(item);
+            }
+
+            if (menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
+
+        private static void OpenSelectorContextMenu(Button button, ContextMenu menu)
+        {
+            if (button == null || menu == null)
+            {
+                return;
+            }
+
+            RoutedEventHandler onClosed = null;
+            onClosed = (_, __) =>
+            {
+                menu.Closed -= onClosed;
+                button.ReleaseMouseCapture();
+            };
+
+            menu.Closed += onClosed;
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
 
         private void ClearGameSelection_Click(object sender, RoutedEventArgs e)
         {
@@ -317,6 +519,68 @@ namespace PlayniteAchievements.Views
         private void OnProviderPieChartSliceClick(object sender, string providerName)
         {
             _viewModel?.ToggleProviderFilterFromPieChart(providerName);
+        }
+
+        private void OnGamesPieChartSliceClick(object sender, string completenessLabel)
+        {
+            _viewModel?.ToggleCompletenessFilterFromPieChart(completenessLabel);
+        }
+
+        private void UpdatePieChartLayout()
+        {
+            if (_viewModel == null || SidebarPieChartsGrid == null) return;
+
+            var panels = new List<(FrameworkElement Element, bool IsVisible)>
+            {
+                (GamesPieChartPanel, _viewModel.ShowSidebarGamesPieChart),
+                (ProviderPieChartPanel, _viewModel.ShowSidebarProviderPieChart),
+                (RarityPieChartPanel, _viewModel.ShowSidebarRarityPieChart),
+                (TrophyPieChartPanel, _viewModel.ShowSidebarTrophyPieChart)
+            };
+
+            var visibleIndex = 0;
+            foreach (var (element, isVisible) in panels)
+            {
+                if (element == null) continue;
+
+                if (isVisible)
+                {
+                    element.Visibility = Visibility.Visible;
+                    Grid.SetColumn(element, visibleIndex);
+                    // Add spacing to all but last visible panel
+                    element.Margin = new Thickness(0, 0, 8, 0);
+                    visibleIndex++;
+                }
+                else
+                {
+                    element.Visibility = Visibility.Collapsed;
+                }
+            }
+
+            // Remove margin from last visible panel
+            if (visibleIndex > 0)
+            {
+                var lastVisible = panels.Where(p => p.IsVisible).Last().Element;
+                lastVisible.Margin = new Thickness(0);
+            }
+
+            // Update column definitions: visible get star, hidden get 0
+            for (var i = 0; i < SidebarPieChartsGrid.ColumnDefinitions.Count; i++)
+            {
+                SidebarPieChartsGrid.ColumnDefinitions[i].Width = i < visibleIndex
+                    ? new GridLength(1, GridUnitType.Star)
+                    : new GridLength(0);
+            }
+
+            // Update parent grid column widths based on visible pie count
+            // Formula: pie_width = visible_pies * 0.5, bar_width = 1
+            // This gives: 1 pie = 33%/67%, 2 pies = 50%/50%, 3 pies = 60%/40%, 4 pies = 67%/33%
+            if (ChartsRowGrid != null && visibleIndex > 0)
+            {
+                var pieWidth = visibleIndex * 0.5;
+                ChartsRowGrid.ColumnDefinitions[0].Width = new GridLength(pieWidth, GridUnitType.Star);
+                ChartsRowGrid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+            }
         }
 
         #endregion
@@ -956,10 +1220,14 @@ namespace PlayniteAchievements.Views
             var menu = new ContextMenu();
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_RefreshGame",
                 () => ExecuteCommand(_viewModel?.RefreshSingleGameCommand, data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_GameOptions", () => OpenGameOptions(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
                 () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
+            menu.Items.Add(new Separator());
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_GameOptions", () => OpenGameOptions(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ClearData", () => ClearGameData(data)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshes", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: false)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: true)));
 
             return menu;
         }
@@ -967,7 +1235,12 @@ namespace PlayniteAchievements.Views
         private ContextMenu BuildAchievementMenu(object data)
         {
             var menu = new ContextMenu();
-            if (!IsCurrentGame(data))
+            if (data is RecentAchievementItem)
+            {
+                menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ViewAchievements",
+                    () => ExecuteCommand(_viewModel?.OpenGameInSidebarCommand, data)));
+            }
+            else if (!IsCurrentGame(data))
             {
                 menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInSidebar",
                     () => ExecuteCommand(_viewModel?.OpenGameInSidebarCommand, data)));
@@ -1052,6 +1325,49 @@ namespace PlayniteAchievements.Views
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void ExcludeGameFromSummaries(object data)
+        {
+            if (!TryGetGameId(data, out var gameId))
+            {
+                return;
+            }
+
+            _achievementService?.SetExcludedFromSummaries(gameId, true);
+        }
+
+        private void ExcludeGameFromRefreshes(object data, bool clearDataWhenExcluding)
+        {
+            if (!TryGetGameId(data, out var gameId))
+            {
+                return;
+            }
+
+            var game = _playniteApi?.Database?.Games?.Get(gameId);
+            if (game == null)
+            {
+                return;
+            }
+
+            if (clearDataWhenExcluding)
+            {
+                var result = _playniteApi?.Dialogs?.ShowMessage(
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), game.Name),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            _achievementService?.SetExcludedByUser(
+                gameId,
+                excluded: true,
+                clearCachedDataWhenExcluding: clearDataWhenExcluding);
         }
 
         #endregion
