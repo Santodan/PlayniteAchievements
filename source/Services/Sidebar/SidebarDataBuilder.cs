@@ -102,7 +102,7 @@ namespace PlayniteAchievements.Services.Sidebar
                     completedGames++;
                 }
 
-                var provider = fragment.ProviderName ?? "Unknown";
+                var provider = allGameData[i].ProviderKey ?? "Unknown";
                 if (!unlockedByProvider.ContainsKey(provider))
                 {
                     unlockedByProvider[provider] = 0;
@@ -181,8 +181,8 @@ namespace PlayniteAchievements.Services.Sidebar
             }
 
             providerLookup ??= BuildProviderLookup();
-            var providerName = gameData.ProviderName ?? "Unknown";
-            providerLookup.TryGetValue(providerName, out var providerMetadata);
+            var providerKey = gameData.ProviderKey ?? "Unknown";
+            providerLookup.TryGetValue(providerKey, out var providerMetadata);
 
             var playniteGame = gameData.PlayniteGameId.HasValue
                 ? _playniteApi?.Database?.Games?.Get(gameData.PlayniteGameId.Value)
@@ -198,7 +198,7 @@ namespace PlayniteAchievements.Services.Sidebar
             {
                 CacheKey = gameData.PlayniteGameId?.ToString(),
                 PlayniteGameId = gameData.PlayniteGameId,
-                ProviderName = providerName
+                ProviderName = gameData.ProviderDisplayName
             };
 
             var projectionOptions = AchievementProjectionService.CreateOptions(settings, gameData, revealedKeys);
@@ -334,7 +334,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 TrophyBronzeTotal = gameTrophyBronzeTotal,
                 LastPlayed = playniteGame?.LastActivity,
                 IsCompleted = gameData.IsCompleted,
-                Provider = providerName,
+                Provider = gameData.ProviderDisplayName,
                 ProviderIconKey = providerMetadata.iconKey,
                 ProviderColorHex = providerMetadata.colorHex
             };
