@@ -3,27 +3,21 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    xmlns:desktop="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop"
-                   xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+                   xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    mc:Ignorable="d"
-                   d:DesignHeight="64" d:DesignWidth="600">
-    <local:ThemeControlBase.Resources>
-        <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
-    </local:ThemeControlBase.Resources>
+                   d:DesignHeight="82" d:DesignWidth="600">
 
-    <!-- Horizontal scrolling row of achievement icons -->
+    <!-- Horizontal scrolling row of achievement compact items -->
+    <!-- Uses ScrollViewer with horizontal orientation for overflow -->
     <ItemsControl x:Name="AchievementsList"
                   ItemsSource="{Binding Theme.AllAchievementDisplayItems, Mode=OneWay}"
                   VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling"
-                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                  ScrollViewer.CanContentScroll="True"
-                  ScrollViewer.PanningMode="HorizontalOnly">
+                  VirtualizingPanel.VirtualizationMode="Recycling">
         <ItemsControl.Template>
             <ControlTemplate TargetType="ItemsControl">
+                <!-- Horizontal scroll viewer - shows scrollbar when items overflow -->
                 <ScrollViewer CanContentScroll="True"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
@@ -35,6 +29,7 @@
 
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
+                <!-- Horizontal stack panel for single-row layout -->
                 <VirtualizingStackPanel Orientation="Horizontal"
                                         IsItemsHost="True"
                                         VirtualizationMode="Recycling"/>
@@ -43,34 +38,10 @@
 
         <ItemsControl.ItemTemplate>
             <DataTemplate>
-                <Grid Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControl}}"
-                      Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControl}}"
-                      Margin="2,0"
-                      ToolTip="{Binding DisplayNameResolved}">
-                    <Border CornerRadius="4"
-                            RenderOptions.BitmapScalingMode="HighQuality">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Opacity" Value="0.5"/>
-                                <Setter Property="Effect" Value="{x:Null}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Unlocked}" Value="True">
-                                        <Setter Property="Opacity" Value="1"/>
-                                        <Setter Property="Effect" Value="{Binding Percent, Converter={StaticResource PercentToRarityGlow}}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
-                                        <Setter Property="Opacity" Value="1"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <Border.Background>
-                            <ImageBrush Stretch="UniformToFill"
-                                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                                        helpers:AsyncImage.DecodePixel="64"/>
-                        </Border.Background>
-                    </Border>
-                </Grid>
+                <!-- Use shared compact item control -->
+                <controls:AchievementCompactItemControl
+                    IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControl}}"
+                    Margin="2,0"/>
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>
