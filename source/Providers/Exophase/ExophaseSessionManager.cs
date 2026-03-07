@@ -406,57 +406,30 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 _logger?.Debug($"[ExophaseAuth] Navigation to: {address}");
 
-                // Check if we're on the account page after successful login
-                if (address.IndexOf("/account", StringComparison.OrdinalIgnoreCase) >= 0)
+                // Exophase may redirect to various pages after login, not just /account.
+                // Poll for authentication like GOG does.
+                var extractedUsername = await WaitForAuthenticatedUserAsync(CancellationToken.None).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(extractedUsername))
                 {
-                    var html = await view.GetPageSourceAsync();
-                    var username = ExtractUsernameFromHtml(html);
-
-                    if (!string.IsNullOrWhiteSpace(username))
+                    _authResult = (true, extractedUsername);
+                    _isSessionAuthenticated = true;
+                    _username = extractedUsername;
+                    _logger?.Info($"[ExophaseAuth] Authenticated as user: {extractedUsername}");
+                    _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                     {
-                        _authResult = (true, username);
-                        _isSessionAuthenticated = true;
-                        _username = username;
-                        _logger?.Info($"[ExophaseAuth] Authenticated as user: {username}");
-                        _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
+                        try
                         {
-                            try
-                            {
-                                view.Close();
-                            }
-                            catch (Exception closeEx)
-                            {
-                                _logger?.Debug(closeEx, "[ExophaseAuth] Failed to close login dialog.");
-                            }
-                        }));
-                    }
-                    else
-                    {
-                        // Cookies may not be committed yet, poll for a bit
-                        var extractedUsername = await WaitForAuthenticatedUserAsync(CancellationToken.None).ConfigureAwait(false);
-                        if (!string.IsNullOrWhiteSpace(extractedUsername))
-                        {
-                            _authResult = (true, extractedUsername);
-                            _isSessionAuthenticated = true;
-                            _username = extractedUsername;
-                            _logger?.Info($"[ExophaseAuth] Authenticated as user: {extractedUsername}");
-                            _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
-                            {
-                                try
-                                {
-                                    view.Close();
-                                }
-                                catch (Exception closeEx)
-                                {
-                                    _logger?.Debug(closeEx, "[ExophaseAuth] Failed to close login dialog.");
-                                }
-                            }));
+                            view.Close();
                         }
-                        else
+                        catch (Exception closeEx)
                         {
-                            _logger?.Debug("[ExophaseAuth] Session not authenticated yet after navigation.");
+                            _logger?.Debug(closeEx, "[ExophaseAuth] Failed to close login dialog.");
                         }
-                    }
+                    }));
+                }
+                else
+                {
+                    _logger?.Debug("[ExophaseAuth] Session not authenticated yet after navigation.");
                 }
             }
             catch (Exception ex)
