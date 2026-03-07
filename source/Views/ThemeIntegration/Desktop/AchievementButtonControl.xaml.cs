@@ -6,8 +6,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// <summary>
     /// Desktop PlayniteAchievements button control for theme integration.
     /// Displays progress information with detailed and non-detailed display modes.
+    /// Binds directly to Plugin.Settings.Theme properties.
     /// </summary>
-    public partial class AchievementButtonControl : SingleGameDataControlBase
+    public partial class AchievementButtonControl : ThemeControlBase
     {
         /// <summary>
         /// Identifies the <see cref="DisplayDetails"/> dependency property.
