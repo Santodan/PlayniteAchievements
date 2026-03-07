@@ -226,10 +226,34 @@ namespace PlayniteAchievements.Views
 
             _manualStartAtEditing = startAtEditing;
 
+            // Get all available sources
+            var availableSources = _manualProvider.GetAllSources();
+
+            // Determine the initial source based on existing link or default to Steam
+            IManualSource initialSource;
+            if (startAtEditing &&
+                _settings.Persisted.ManualAchievementLinks.TryGetValue(game.Id, out var existingLink) &&
+                existingLink != null)
+            {
+                // Use the source from the existing link
+                initialSource = _manualProvider.GetSourceByKey(existingLink.SourceKey);
+                if (initialSource == null)
+                {
+                    _logger?.Warn($"Unknown manual source key '{existingLink.SourceKey}', falling back to Steam");
+                    initialSource = _manualProvider.GetSteamManualSource();
+                }
+            }
+            else
+            {
+                // Default to Steam for new manual links
+                initialSource = _manualProvider.GetSteamManualSource();
+            }
+
             _manualViewModel = new ManualAchievementsViewModel(
                 game,
                 _achievementService,
-                _manualProvider.GetSteamManualSource(),
+                availableSources,
+                initialSource,
                 _settings,
                 SaveSettings,
                 _logger,

@@ -780,8 +780,9 @@
 
     <!-- Search dialog -->
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Title">Lier les succès</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Recherchez un jeu Steam pour lier ses succès. Les succès du jeu sélectionné seront liés à ce jeu Playnite.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Recherchez un jeu pour lier ses succès. Les succès du jeu sélectionné seront liés à ce jeu Playnite.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_GameLabel">Jeu Playnite :</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Source_Label">Source :</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Placeholder">Entrez le nom du jeu pour rechercher...</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">Aucun jeu trouvé. Essayez un terme de recherche différent.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NothingFound">Aucun résultat trouvé.</sys:String>

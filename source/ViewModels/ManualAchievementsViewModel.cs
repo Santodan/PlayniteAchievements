@@ -39,7 +39,8 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Game _playniteGame;
         private readonly AchievementService _achievementService;
-        private readonly IManualSource _source;
+        private IManualSource _source;
+        private readonly IReadOnlyList<IManualSource> _availableSources;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action<PlayniteAchievementsSettings> _saveSettings;
         private readonly ILogger _logger;
@@ -63,6 +64,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isSearching;
         private ManualGameSearchResult _selectedResult;
         private string _searchStatusMessage = string.Empty;
+        private IManualSource _selectedSource;
 
         // Edit stage properties
         private string _editSearchFilter = string.Empty;
@@ -109,6 +111,35 @@ namespace PlayniteAchievements.ViewModels
         #region Common Properties
 
         public string PlayniteGameName => _playniteGame?.Name ?? string.Empty;
+
+        /// <summary>
+        /// Gets the list of available manual sources for selection.
+        /// </summary>
+        public IReadOnlyList<IManualSource> AvailableSources => _availableSources;
+
+        /// <summary>
+        /// Gets or sets the currently selected manual source.
+        /// Changing this updates the active source for search operations.
+        /// </summary>
+        public IManualSource SelectedSource
+        {
+            get => _selectedSource;
+            set
+            {
+                if (_selectedSource != value)
+                {
+                    _selectedSource = value;
+                    _source = value;
+                    ManualSourceName = ResolveSourceName(_source?.SourceKey);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ManualSourceName));
+
+                    // Clear search results when source changes
+                    SearchResults.Clear();
+                    SelectedResult = null;
+                }
+            }
+        }
 
         public string ErrorMessage
         {
@@ -312,10 +343,26 @@ namespace PlayniteAchievements.ViewModels
             ILogger logger,
             IPlayniteAPI playniteApi,
             bool startAtEditingStage = false)
+            : this(playniteGame, achievementService, new[] { source }, source, settings, saveSettings, logger, playniteApi, startAtEditingStage)
+        {
+        }
+
+        public ManualAchievementsViewModel(
+            Game playniteGame,
+            AchievementService achievementService,
+            IEnumerable<IManualSource> availableSources,
+            IManualSource initialSource,
+            PlayniteAchievementsSettings settings,
+            Action<PlayniteAchievementsSettings> saveSettings,
+            ILogger logger,
+            IPlayniteAPI playniteApi,
+            bool startAtEditingStage = false)
         {
             _playniteGame = playniteGame ?? throw new ArgumentNullException(nameof(playniteGame));
             _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
-            _source = source ?? throw new ArgumentNullException(nameof(source));
+            _availableSources = availableSources?.ToList().AsReadOnly() ?? throw new ArgumentNullException(nameof(availableSources));
+            _source = initialSource ?? throw new ArgumentNullException(nameof(initialSource));
+            _selectedSource = _source;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _saveSettings = saveSettings ?? throw new ArgumentNullException(nameof(saveSettings));
             _logger = logger;

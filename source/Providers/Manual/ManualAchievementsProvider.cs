@@ -265,6 +265,35 @@ namespace PlayniteAchievements.Providers.Manual
         public IManualSource GetExophaseManualSource() => _exophaseManualSource;
 
         /// <summary>
+        /// Gets a manual source by its source key.
+        /// </summary>
+        /// <param name="sourceKey">The source key (e.g., "Steam", "Exophase").</param>
+        /// <returns>The manual source, or null if not found.</returns>
+        public IManualSource GetSourceByKey(string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            return sourceKey switch
+            {
+                "Steam" => _steamManualSource,
+                "Exophase" => _exophaseManualSource,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Gets all available manual sources.
+        /// </summary>
+        public IReadOnlyList<IManualSource> GetAllSources()
+        {
+            return new List<IManualSource> { _steamManualSource, _exophaseManualSource }
+                .AsReadOnly();
+        }
+
+        /// <summary>
         /// Gets the Exophase session manager for settings UI.
         /// </summary>
         public ExophaseSessionManager GetExophaseSessionManager() => _exophaseSessionManager;

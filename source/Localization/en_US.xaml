@@ -780,8 +780,9 @@
 
     <!-- Search dialog -->
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Title">Link Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a Steam game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_GameLabel">Playnite game:</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Source_Label">Source:</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Placeholder">Enter game name to search...</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NothingFound">Nothing was found.</sys:String>
