@@ -347,6 +347,9 @@ namespace PlayniteAchievements.Services.Database
                         ExecuteSafe(db, "DROP INDEX IF EXISTS UX_Games_Provider_GameId_NonRA;");
                         _logger?.Info("[Schema] Dropped old Games indexes");
 
+                        // Clean up any leftover from failed migration
+                        ExecuteSafe(db, "DROP TABLE IF EXISTS Games_New;");
+
                         // Create new table
                         ExecuteSafe(db,
                             @"CREATE TABLE Games_New (
@@ -423,6 +426,9 @@ namespace PlayniteAchievements.Services.Database
                         ExecuteSafe(db, "DROP INDEX IF EXISTS UX_Users_CurrentPerProvider;");
                         ExecuteSafe(db, "DROP INDEX IF EXISTS IX_Users_CurrentUser_Id;");
                         _logger?.Info("[Schema] Dropped old Users indexes");
+
+                        // Clean up any leftover from failed migration
+                        ExecuteSafe(db, "DROP TABLE IF EXISTS Users_New;");
 
                         // Create new table
                         ExecuteSafe(db,
