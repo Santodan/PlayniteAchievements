@@ -63,6 +63,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PlayStation">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
 
@@ -351,6 +352,21 @@
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Click Login to authenticate with Xbox Live via Microsoft account.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Download Smaller Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Enable if Xbox icon downloads are slow. Requests 128px icons instead of full resolution.</sys:String>
+
+    <!-- Exophase Settings -->
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseConnection">Exophase Connection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Description">Login is optional. Achievement names and descriptions use your Global Language setting.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_ExophaseAuth">Exophase Authentication</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Login to access authenticated-only features. Achievement data is public.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_NotAuthenticated">Not authenticated with Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated">Authenticated with Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Verified">Exophase authentication verified</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Cancelled">Exophase login cancelled</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_TimedOut">Exophase login timed out</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Failed">Exophase authentication failed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_ProbeFailed">Unable to check Exophase authentication status</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Checking">Checking Exophase authentication...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_WindowNotOpened">Failed to open login window</sys:String>
 
     <!-- ShadPS4 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4Connection">ShadPS4 Connection</sys:String>
