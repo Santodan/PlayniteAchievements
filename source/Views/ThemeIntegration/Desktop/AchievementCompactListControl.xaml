@@ -38,10 +38,10 @@
 
         <ItemsControl.ItemTemplate>
             <DataTemplate>
-                <!-- Use shared compact item control -->
+                <!-- Use shared compact item control with padding for glow effect -->
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControl}}"
-                    Margin="2,0"/>
+                    Margin="8,0,8,16"/>
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>
