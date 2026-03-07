@@ -719,9 +719,8 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            var manualProviderName = L("LOCPlayAch_Provider_Manual", "Manual");
-            return !string.Equals(providerName, "Manual", StringComparison.OrdinalIgnoreCase) &&
-                   !string.Equals(providerName, manualProviderName, StringComparison.OrdinalIgnoreCase);
+            // _cachedProviderName is ProviderKey (stable key like "Manual")
+            return !string.Equals(providerName, "Manual", StringComparison.OrdinalIgnoreCase);
         }
 
         private string ResolveLibrarySourceDisplayName(Playnite.SDK.Models.Game game, string cachedLibrarySource)

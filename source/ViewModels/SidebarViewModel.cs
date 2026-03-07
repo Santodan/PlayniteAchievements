@@ -1344,9 +1344,11 @@ namespace PlayniteAchievements.ViewModels
             GlobalProgression = snapshot.GlobalProgressionPercent;
 
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
+            var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var provider in _achievementService.GetProviders())
             {
                 providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                providerDisplayNames[provider.ProviderKey] = provider.ProviderName;
             }
 
             var completedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Complete");
@@ -1361,7 +1363,7 @@ namespace PlayniteAchievements.ViewModels
             var trophyBronzeLabel = ResourceProvider.GetString("LOCPlayAch_Trophy_Bronze");
             var lockedLabel = ResourceProvider.GetString("LOCPlayAch_Sidebar_Locked");
 
-            ProviderPieChart.SetProviderData(snapshot.UnlockedByProvider, snapshot.TotalByProvider, snapshot.TotalLocked, lockedLabel, providerLookup);
+            ProviderPieChart.SetProviderData(snapshot.UnlockedByProvider, snapshot.TotalByProvider, snapshot.TotalLocked, lockedLabel, providerLookup, providerDisplayNames);
 
             GamesPieChart.SetGameData(snapshot.TotalGames, snapshot.CompletedGames, completedLabel, incompleteLabel);
             UpdateContextualPieCharts(

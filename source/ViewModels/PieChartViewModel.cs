@@ -120,17 +120,19 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Sets the pie chart data for Provider distribution.
         /// </summary>
-        /// <param name="unlockedByProvider">Dictionary of provider name to unlocked count</param>
-        /// <param name="totalByProvider">Dictionary of provider name to total count (including locked)</param>
+        /// <param name="unlockedByProvider">Dictionary of provider key to unlocked count</param>
+        /// <param name="totalByProvider">Dictionary of provider key to total count (including locked)</param>
         /// <param name="totalLocked">Total locked achievements</param>
         /// <param name="lockedLabel">Localized label for locked achievements</param>
-        /// <param name="providerLookup">Dictionary of provider name to (iconKey, colorHex) tuple</param>
+        /// <param name="providerLookup">Dictionary of provider key to (iconKey, colorHex) tuple</param>
+        /// <param name="providerDisplayNames">Dictionary of provider key to localized display name</param>
         public void SetProviderData(
             Dictionary<string, int> unlockedByProvider,
             Dictionary<string, int> totalByProvider,
             int totalLocked,
             string lockedLabel,
-            Dictionary<string, (string iconKey, string colorHex)> providerLookup)
+            Dictionary<string, (string iconKey, string colorHex)> providerLookup,
+            Dictionary<string, string> providerDisplayNames = null)
         {
             if (unlockedByProvider == null || !unlockedByProvider.Any())
             {
@@ -143,14 +145,21 @@ namespace PlayniteAchievements.ViewModels
             // Sort providers by count descending
             foreach (var provider in unlockedByProvider.OrderByDescending(p => p.Value))
             {
-                var providerName = provider.Key;
+                var providerKey = provider.Key;
                 var unlockedCount = provider.Value;
-                var totalCount = totalByProvider != null && totalByProvider.TryGetValue(providerName, out var total) ? total : unlockedCount;
+                var totalCount = totalByProvider != null && totalByProvider.TryGetValue(providerKey, out var total) ? total : unlockedCount;
+
+                // Get display name for the provider key
+                var displayLabel = providerKey;
+                if (providerDisplayNames != null && providerDisplayNames.TryGetValue(providerKey, out var displayName) && !string.IsNullOrWhiteSpace(displayName))
+                {
+                    displayLabel = displayName;
+                }
 
                 // Look up provider icon and color
                 string colorHex = "#888888";
                 string iconKey = string.Empty;
-                if (providerLookup != null && providerLookup.TryGetValue(providerName, out var metadata))
+                if (providerLookup != null && providerLookup.TryGetValue(providerKey, out var metadata))
                 {
                     colorHex = metadata.colorHex;
                     iconKey = metadata.iconKey ?? string.Empty;
@@ -159,11 +168,11 @@ namespace PlayniteAchievements.ViewModels
                 // Parse color hex to Color
                 if (ColorConverter.ConvertFromString(colorHex) is Color color)
                 {
-                    dataPoints.Add((providerName, unlockedCount, iconKey, color, colorHex, unlockedCount, totalCount, false));
+                    dataPoints.Add((displayLabel, unlockedCount, iconKey, color, colorHex, unlockedCount, totalCount, false));
                 }
                 else
                 {
-                    dataPoints.Add((providerName, unlockedCount, iconKey, Colors.Gray, "#888888", unlockedCount, totalCount, false));
+                    dataPoints.Add((displayLabel, unlockedCount, iconKey, Colors.Gray, "#888888", unlockedCount, totalCount, false));
                 }
             }
 
