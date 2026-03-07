@@ -60,6 +60,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showSidebarTrophyPieChart = true;
         private bool _sidebarPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showSidebarBarCharts = true;
+        private bool _showGamesWithNoUnlocks = false;
+        private bool _showUnplayedGames = false;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
         private int _maxRetryAttempts = 3;
@@ -530,6 +532,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showSidebarBarCharts;
             set => SetValue(ref _showSidebarBarCharts, value);
+        }
+
+        /// <summary>
+        /// When true, shows games with no unlocked achievements in the sidebar game list.
+        /// </summary>
+        public bool ShowGamesWithNoUnlocks
+        {
+            get => _showGamesWithNoUnlocks;
+            set => SetValue(ref _showGamesWithNoUnlocks, value);
+        }
+
+        /// <summary>
+        /// When true, shows unplayed games in the sidebar game list.
+        /// </summary>
+        public bool ShowUnplayedGames
+        {
+            get => _showUnplayedGames;
+            set => SetValue(ref _showUnplayedGames, value);
         }
 
         /// <summary>
@@ -1012,6 +1032,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarRarityPieChart = this.ShowSidebarRarityPieChart,
                 ShowSidebarTrophyPieChart = this.ShowSidebarTrophyPieChart,
                 ShowSidebarBarCharts = this.ShowSidebarBarCharts,
+                ShowGamesWithNoUnlocks = this.ShowGamesWithNoUnlocks,
+                ShowUnplayedGames = this.ShowUnplayedGames,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
                 MaxRetryAttempts = this.MaxRetryAttempts,
