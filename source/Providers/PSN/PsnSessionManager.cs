@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Providers.PSN
     {
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
         private static readonly TimeSpan CachedTokenLifetime = TimeSpan.FromMinutes(45);
+        private static readonly TimeSpan MobileTokenExpiryBuffer = TimeSpan.FromMinutes(5);
 
         private const string LoginUrl = @"https://web.np.playstation.com/api/session/v1/signin?redirect_uri=https://io.playstation.com/central/auth/login%3FpostSignInURL=https://www.playstation.com/home%26cancelURL=https://www.playstation.com/home&smcid=web:pdc";
         private const string MobileCodeUrl = "https://ca.account.sony.com/api/authz/v3/oauth/authorize?access_type=offline&client_id=09515159-7237-4370-9b40-3806e67c0891&redirect_uri=com.scee.psxandroid.scecompcall%3A%2F%2Fredirect&response_type=code&scope=psn%3Amobile.v2.core%20psn%3Aclientapp";
@@ -31,6 +32,8 @@ namespace PlayniteAchievements.Providers.PSN
 
         private readonly PersistedSettings _settings;
         private MobileTokens _mobileToken;
+        private DateTime _mobileTokenAcquiredUtc = DateTime.MinValue;
+        private DateTime _mobileTokenExpiryUtc = DateTime.MinValue;
 
         private string _accessToken;
         private DateTime _tokenAcquiredUtc = DateTime.MinValue;
@@ -67,11 +70,11 @@ namespace PlayniteAchievements.Providers.PSN
             }
         }
 
-        public async Task<string> GetAccessTokenAsync(CancellationToken ct)
+        public async Task<string> GetAccessTokenAsync(CancellationToken ct, bool forceRefresh = false)
         {
             ct.ThrowIfCancellationRequested();
 
-            var token = await TryAcquireTokenAsync(ct, forceRefresh: false).ConfigureAwait(false);
+            var token = await TryAcquireTokenAsync(ct, forceRefresh).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(token))
             {
                 return token;
@@ -212,6 +215,12 @@ namespace PlayniteAchievements.Providers.PSN
             SetCachedToken(null);
         }
 
+        internal void InvalidateAccessToken()
+        {
+            _logger?.Debug("[PSNAch] Invalidating cached PSN token state.");
+            SetCachedToken(null);
+        }
+
         private async Task<bool> LoginAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
@@ -316,14 +325,17 @@ namespace PlayniteAchievements.Providers.PSN
                 }
 
                 // Get mobile token if needed
-                if (_mobileToken == null)
+                if (!HasValidMobileToken())
                 {
-                    _logger?.Debug("[PSNAch] Getting mobile token");
+                    _logger?.Debug(
+                        $"[PSNAch] Mobile token missing or stale (hasToken={!string.IsNullOrWhiteSpace(_mobileToken?.access_token)}, expiryUtc={_mobileTokenExpiryUtc:O}); requesting new token.");
                     if (!await GetMobileTokenAsync().ConfigureAwait(false))
                     {
                         _logger?.Debug("[PSNAch] Failed to get mobile token");
                         return false;
                     }
+
+                    _logger?.Debug($"[PSNAch] Mobile token reissued; valid until {_mobileTokenExpiryUtc:O}.");
                 }
 
                 return true;
@@ -343,7 +355,7 @@ namespace PlayniteAchievements.Providers.PSN
                 {
                     File.Delete(_tokenPath);
                 }
-                _mobileToken = null;
+                ResetMobileTokenState();
                 _logger?.Info("[PSNAch] Authentication cleared.");
             }
             catch (Exception ex)
@@ -440,10 +452,22 @@ namespace PlayniteAchievements.Providers.PSN
                     }
 
                     _mobileToken = Newtonsoft.Json.JsonConvert.DeserializeObject<MobileTokens>(responseContent);
-                    return _mobileToken != null && !string.IsNullOrWhiteSpace(_mobileToken.access_token);
+                    if (_mobileToken == null || string.IsNullOrWhiteSpace(_mobileToken.access_token))
+                    {
+                        ResetMobileTokenState();
+                        return false;
+                    }
+
+                    _mobileTokenAcquiredUtc = DateTime.UtcNow;
+                    var expiresInSeconds = Math.Max(0, _mobileToken.expires_in);
+                    _mobileTokenExpiryUtc = expiresInSeconds > 0
+                        ? _mobileTokenAcquiredUtc.AddSeconds(expiresInSeconds)
+                        : _mobileTokenAcquiredUtc;
+                    return true;
                 }
                 catch (Exception ex)
                 {
+                    ResetMobileTokenState();
                     _logger?.Error(ex, "[PSNAch] Failed to exchange mobile code for token.");
                     return false;
                 }
@@ -599,6 +623,13 @@ namespace PlayniteAchievements.Providers.PSN
                     return null;
                 }
 
+                if (!HasValidMobileToken())
+                {
+                    _logger?.Debug("[PSNAch] Authentication check completed but mobile token is still invalid.");
+                    SetCachedToken(null);
+                    return null;
+                }
+
                 var token = _mobileToken?.access_token;
                 if (string.IsNullOrWhiteSpace(token))
                 {
@@ -613,6 +644,29 @@ namespace PlayniteAchievements.Providers.PSN
             {
                 _tokenSemaphore.Release();
             }
+        }
+
+        private bool HasValidMobileToken()
+        {
+            if (_mobileToken == null ||
+                string.IsNullOrWhiteSpace(_mobileToken.access_token) ||
+                _mobileTokenExpiryUtc == DateTime.MinValue)
+            {
+                return false;
+            }
+
+            var tokenLifetime = _mobileTokenExpiryUtc - _mobileTokenAcquiredUtc;
+            var effectiveBuffer = tokenLifetime > MobileTokenExpiryBuffer
+                ? MobileTokenExpiryBuffer
+                : TimeSpan.Zero;
+            return DateTime.UtcNow < _mobileTokenExpiryUtc - effectiveBuffer;
+        }
+
+        private void ResetMobileTokenState()
+        {
+            _mobileToken = null;
+            _mobileTokenAcquiredUtc = DateTime.MinValue;
+            _mobileTokenExpiryUtc = DateTime.MinValue;
         }
 
         private static string GetQueryParam(string query, string key)
@@ -654,6 +708,7 @@ namespace PlayniteAchievements.Providers.PSN
                 _accessToken = null;
                 _tokenAcquiredUtc = DateTime.MinValue;
                 _isSessionAuthenticated = false;
+                ResetMobileTokenState();
                 return;
             }
 

@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -77,8 +78,7 @@ namespace PlayniteAchievements.Providers.PSN
             using (var http = new HttpClient())
             {
                 http.Timeout = TimeSpan.FromSeconds(45);
-                http.DefaultRequestHeaders.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                SetAuthorizationHeader(http, token);
 
                 var acceptLanguage = MapGlobalLanguageToPsnLocale(_settings?.Persisted?.GlobalLanguage);
                 if (!string.IsNullOrWhiteSpace(acceptLanguage))
@@ -98,7 +98,7 @@ namespace PlayniteAchievements.Providers.PSN
                         };
                     },
                     onGameCompleted,
-                    isAuthRequiredException: _ => false,
+                    isAuthRequiredException: ex => ex is PsnAuthRequiredException,
                     onGameError: (game, ex, consecutiveErrors) =>
                     {
                         _logger?.Debug(ex, $"[PSNAch] Failed to scan {game?.Name}");
@@ -118,17 +118,23 @@ namespace PlayniteAchievements.Providers.PSN
             }
 
             var normalizedId = NormalizeGameId(game?.GameId);
-            var isPs5 = normalizedId.StartsWith("PPSA", StringComparison.OrdinalIgnoreCase);
-            var serviceSuffix = isPs5 ? string.Empty : "?npServiceName=trophy";
-
-            var urlUser = string.Format(UrlTrophiesUserAll, npCommId) + serviceSuffix;
-            var urlDetails = string.Format(UrlTrophiesDetailsAll, npCommId) + serviceSuffix;
+            var serviceSuffixCandidates = PsnSuffixRetryHelper.BuildSuffixCandidates(normalizedId);
 
             string userJson = null;
             try
             {
-                userJson = await http.GetStringAsync(urlUser).ConfigureAwait(false);
+                userJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                    suffix => GetStringWithAuthRetryAsync(
+                        http,
+                        string.Format(UrlTrophiesUserAll, npCommId) + suffix,
+                        $"user trophies for '{game?.Name}'",
+                        cancel),
+                    serviceSuffixCandidates).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
+            }
+            catch (PsnAuthRequiredException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -140,23 +146,23 @@ namespace PlayniteAchievements.Providers.PSN
             string detailsJson;
             try
             {
-                detailsJson = await http.GetStringAsync(urlDetails).ConfigureAwait(false);
+                detailsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
+                    suffix => GetStringWithAuthRetryAsync(
+                        http,
+                        string.Format(UrlTrophiesDetailsAll, npCommId) + suffix,
+                        $"trophy details for '{game?.Name}'",
+                        cancel),
+                    serviceSuffixCandidates).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
+            }
+            catch (PsnAuthRequiredException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                try
-                {
-                    var retrySuffix = string.IsNullOrEmpty(serviceSuffix) ? "?npServiceName=trophy" : string.Empty;
-                    var retryUrl = string.Format(UrlTrophiesDetailsAll, npCommId) + retrySuffix;
-                    detailsJson = await http.GetStringAsync(retryUrl).ConfigureAwait(false);
-                    cancel.ThrowIfCancellationRequested();
-                }
-                catch
-                {
-                    _logger?.Warn(ex, $"[PSNAch] Failed to fetch trophy details for '{game?.Name}' (npCommId='{npCommId}')");
-                    return null;
-                }
+                _logger?.Warn(ex, $"[PSNAch] Failed to fetch trophy details for '{game?.Name}' (npCommId='{npCommId}')");
+                return null;
             }
 
             var user = string.IsNullOrWhiteSpace(userJson)
@@ -165,19 +171,33 @@ namespace PlayniteAchievements.Providers.PSN
 
             var details = JsonConvert.DeserializeObject<PsnTrophiesDetailResponse>(detailsJson);
 
-            var userByKey = (user?.Trophies ?? new List<PsnUserTrophy>())
-                .GroupBy(GetTrophyKey)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.FirstOrDefault(t => t != null && t.Earned) ?? g.First());
+            var userByKey = PsnTrophyMatchHelper.BuildUserTrophyLookupByGroupAndId(user?.Trophies);
+            var userByTrophyId = PsnTrophyMatchHelper.BuildUserTrophyLookupById(user?.Trophies);
 
             var achievements = new List<AchievementDetail>();
             var unlockedCount = 0;
+            var fallbackMatchCount = 0;
+            var fallbackNonDefaultGroupCount = 0;
             foreach (var detail in (details?.Trophies ?? new List<PsnTrophyDetail>())
-                .GroupBy(GetTrophyKey)
+                .GroupBy(PsnTrophyMatchHelper.GetTrophyKey)
                 .Select(g => g.First()))
             {
-                userByKey.TryGetValue(GetTrophyKey(detail), out var userEntry);
+                PsnTrophyMatchHelper.TryResolveUserTrophy(
+                    detail,
+                    userByKey,
+                    userByTrophyId,
+                    out var userEntry,
+                    out var usedIdFallback);
+
+                if (usedIdFallback)
+                {
+                    fallbackMatchCount++;
+                    var detailGroup = PsnTrophyMatchHelper.NormalizeGroupId(detail?.TrophyGroupId);
+                    if (!string.Equals(detailGroup, "default", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fallbackNonDefaultGroupCount++;
+                    }
+                }
 
                 DateTime? unlockUtc = null;
                 var unlocked = userEntry != null && userEntry.Earned;
@@ -208,7 +228,7 @@ namespace PlayniteAchievements.Providers.PSN
 
                 achievements.Add(new AchievementDetail
                 {
-                    ApiName = GetTrophyKey(detail),
+                    ApiName = PsnTrophyMatchHelper.GetTrophyKey(detail),
                     DisplayName = detail.TrophyName,
                     Description = detail.TrophyDetail,
                     UnlockedIconPath = detail.TrophyIconUrl,
@@ -223,6 +243,18 @@ namespace PlayniteAchievements.Providers.PSN
                 });
             }
 
+            if (fallbackMatchCount > 0)
+            {
+                _logger?.Debug(
+                    $"[PSNAch] User trophy fallback-by-id matched {fallbackMatchCount} trophies for '{game?.Name}' (non-default groups: {fallbackNonDefaultGroupCount}).");
+            }
+
+            if (fallbackNonDefaultGroupCount > 0)
+            {
+                _logger?.Debug(
+                    $"[PSNAch] User trophy fallback-by-id used for non-default groups in '{game?.Name}' ({fallbackNonDefaultGroupCount} trophies).");
+            }
+
             return new GameAchievementData
             {
                 ProviderName = providerName,
@@ -235,34 +267,98 @@ namespace PlayniteAchievements.Providers.PSN
             };
         }
 
+        private void SetAuthorizationHeader(HttpClient http, string token)
+        {
+            if (http == null)
+            {
+                return;
+            }
+
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+
+        private async Task<string> GetStringWithAuthRetryAsync(
+            HttpClient http,
+            string url,
+            string operationLabel,
+            CancellationToken cancel)
+        {
+            try
+            {
+                return await GetStringCoreAsync(http, url, cancel).ConfigureAwait(false);
+            }
+            catch (PsnUnauthorizedHttpException ex)
+            {
+                _logger?.Debug($"[PSNAch] Unauthorized ({(int)ex.StatusCode}) during {operationLabel}; forcing PSN token refresh and retry.");
+
+                _sessionManager.InvalidateAccessToken();
+                string refreshedToken;
+                try
+                {
+                    refreshedToken = await _sessionManager.GetAccessTokenAsync(cancel, forceRefresh: true).ConfigureAwait(false);
+                }
+                catch (PsnAuthRequiredException)
+                {
+                    _logger?.Warn($"[PSNAch] Token refresh failed while recovering unauthorized response for {operationLabel}.");
+                    throw;
+                }
+
+                SetAuthorizationHeader(http, refreshedToken);
+
+                try
+                {
+                    var retryJson = await GetStringCoreAsync(http, url, cancel).ConfigureAwait(false);
+                    _logger?.Debug($"[PSNAch] Unauthorized retry succeeded for {operationLabel}.");
+                    return retryJson;
+                }
+                catch (PsnUnauthorizedHttpException retryEx)
+                {
+                    _logger?.Warn($"[PSNAch] Unauthorized retry failed ({(int)retryEx.StatusCode}) for {operationLabel}.");
+                    throw new PsnAuthRequiredException(
+                        $"PlayStation authentication required after unauthorized retry failure ({(int)retryEx.StatusCode}).");
+                }
+                catch (Exception retryEx)
+                {
+                    _logger?.Debug(retryEx, $"[PSNAch] Retry failed for {operationLabel}.");
+                    throw;
+                }
+            }
+        }
+
+        private static async Task<string> GetStringCoreAsync(HttpClient http, string url, CancellationToken cancel)
+        {
+            using (var response = await http.GetAsync(url, cancel).ConfigureAwait(false))
+            {
+                if (response.StatusCode == HttpStatusCode.Unauthorized ||
+                    response.StatusCode == HttpStatusCode.Forbidden)
+                {
+                    throw new PsnUnauthorizedHttpException(response.StatusCode, url);
+                }
+
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            }
+        }
+
+        private sealed class PsnUnauthorizedHttpException : Exception
+        {
+            public HttpStatusCode StatusCode { get; }
+
+            public string Url { get; }
+
+            public PsnUnauthorizedHttpException(HttpStatusCode statusCode, string url)
+                : base($"PSN request unauthorized: {(int)statusCode} ({statusCode})")
+            {
+                StatusCode = statusCode;
+                Url = url;
+            }
+        }
+
         private static string GetProviderName()
         {
             var value = ResourceProvider.GetString("LOCPlayAch_Provider_PlayStation");
             return string.IsNullOrWhiteSpace(value) ? "PlayStation" : value;
-        }
-
-        private static string GetTrophyKey(PsnUserTrophy trophy)
-        {
-            var group = (trophy?.TrophyGroupId ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(group))
-            {
-                group = "default";
-            }
-
-            var trophyId = (trophy?.TrophyId ?? 0).ToString(CultureInfo.InvariantCulture);
-            return $"{group}:{trophyId}";
-        }
-
-        private static string GetTrophyKey(PsnTrophyDetail trophy)
-        {
-            var group = (trophy?.TrophyGroupId ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(group))
-            {
-                group = "default";
-            }
-
-            var trophyId = (trophy?.TrophyId ?? 0).ToString(CultureInfo.InvariantCulture);
-            return $"{group}:{trophyId}";
         }
 
         private static string MapTrophyGroupToCategoryType(string trophyGroupId)
@@ -399,7 +495,11 @@ namespace PlayniteAchievements.Providers.PSN
             try
             {
                 var url = string.Format(UrlTitlesWithIdsMobile, Uri.EscapeDataString(normalized));
-                var json = await http.GetStringAsync(url).ConfigureAwait(false);
+                var json = await GetStringWithAuthRetryAsync(
+                    http,
+                    url,
+                    $"npCommunicationId lookup for '{game?.Name}'",
+                    cancel).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
 
                 var titles = JsonConvert.DeserializeObject<PsnTrophyTitleLookup>(json);
@@ -408,6 +508,10 @@ namespace PlayniteAchievements.Providers.PSN
                 {
                     return comm;
                 }
+            }
+            catch (PsnAuthRequiredException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -420,7 +524,11 @@ namespace PlayniteAchievements.Providers.PSN
                 {
                     var withSuffix = normalized + "_00";
                     var url2 = string.Format(UrlTitlesWithIdsMobile, Uri.EscapeDataString(withSuffix));
-                    var json2 = await http.GetStringAsync(url2).ConfigureAwait(false);
+                    var json2 = await GetStringWithAuthRetryAsync(
+                        http,
+                        url2,
+                        $"npCommunicationId lookup for '{game?.Name}' with _00 suffix",
+                        cancel).ConfigureAwait(false);
                     cancel.ThrowIfCancellationRequested();
 
                     var titles2 = JsonConvert.DeserializeObject<PsnTrophyTitleLookup>(json2);
@@ -429,6 +537,10 @@ namespace PlayniteAchievements.Providers.PSN
                     {
                         return comm2;
                     }
+                }
+                catch (PsnAuthRequiredException)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -461,7 +573,11 @@ namespace PlayniteAchievements.Providers.PSN
 
             try
             {
-                var json = await http.GetStringAsync(UrlAllTrophyTitles).ConfigureAwait(false);
+                var json = await GetStringWithAuthRetryAsync(
+                    http,
+                    UrlAllTrophyTitles,
+                    $"name-based npCommunicationId lookup for '{gameName}'",
+                    cancel).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
 
                 var response = JsonConvert.DeserializeObject<PsnAllTrophyTitlesResponse>(json);
@@ -475,6 +591,10 @@ namespace PlayniteAchievements.Providers.PSN
                     NormalizeGameName(t?.TrophyTitleName) == normalizedSearch);
 
                 return match?.NpCommunicationId;
+            }
+            catch (PsnAuthRequiredException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
