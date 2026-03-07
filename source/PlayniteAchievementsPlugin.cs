@@ -95,6 +95,8 @@ namespace PlayniteAchievements
             { "AchievementButton", () => new Views.ThemeIntegration.Desktop.AchievementButtonControl() },
             { "AchievementProgressBar", () => new Views.ThemeIntegration.Desktop.AchievementProgressBarControl() },
             { "AchievementCompactList", () => new Views.ThemeIntegration.Desktop.AchievementCompactListControl() },
+            { "AchievementCompactLockedList", () => new Views.ThemeIntegration.Desktop.AchievementCompactLockedListControl() },
+            { "AchievementCompactUnlockedList", () => new Views.ThemeIntegration.Desktop.AchievementCompactUnlockedListControl() },
             { "AchievementBarChart", () => new Views.ThemeIntegration.Desktop.AchievementBarChartControl() },
             { "AchievementPieChart", () => new Views.ThemeIntegration.Desktop.AchievementPieChartControl() },
             { "AchievementStats", () => new Views.ThemeIntegration.Desktop.AchievementStatsControl() },
@@ -329,6 +331,8 @@ namespace PlayniteAchievements
                             "AchievementButton",
                             "AchievementProgressBar",
                             "AchievementCompactList",
+                            "AchievementCompactLockedList",
+                            "AchievementCompactUnlockedList",
                             "AchievementChart",
                             "AchievementStats",
                             "AchievementList"
