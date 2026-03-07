@@ -3,21 +3,44 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-                   xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:shared="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop.Shared"
                    mc:Ignorable="d"
                    d:DesignHeight="40" d:DesignWidth="300">
-    <!--
-        TODO: Add full progress bar UI implementation
 
-        Example binding:
-        - Value="{Binding UnlockedCount}" - Current progress
-        - Maximum="{Binding AchievementCount}" - Maximum value
-        - Display progress percentage text
-    -->
+    <local:ThemeControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </local:ThemeControlBase.Resources>
+
     <Grid>
-        <TextBlock Text="Achievement Progress Bar (Stub)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Row 1: Progress bar with percentage overlay -->
+        <Grid Grid.Row="0">
+            <ProgressBar Value="{Binding Theme.ProgressPercentage, Mode=OneWay}"
+                         Maximum="100"
+                         Style="{StaticResource GameProgressBar}"
+                         Height="22"/>
+            <TextBlock Text="{Binding Theme.ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}"
+                       HorizontalAlignment="Left"
+                       Margin="6,0,0,0"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       FontSize="11"
+                       Foreground="White"/>
+        </Grid>
+
+        <!-- Row 2: Rarity badges -->
+        <shared:RarityBadgesControl x:Name="Badges"
+                                    Grid.Row="1"
+                                    Margin="0,6,0,0"/>
     </Grid>
 </local:ThemeControlBase>

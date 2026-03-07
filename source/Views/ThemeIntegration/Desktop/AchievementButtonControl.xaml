@@ -3,21 +3,110 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-                   xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
+                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:desktop="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop"
                    mc:Ignorable="d"
-                   d:DesignHeight="100" d:DesignWidth="200">
-    <!--
-        TODO: Add full button UI implementation
+                   d:DesignHeight="40" d:DesignWidth="200">
 
-        Example binding:
-        - Text="{Binding AchievementCount}" - Total achievements
-        - Text="{Binding UnlockedCount}" - Unlocked achievements
-        - Text="{Binding ProgressPercentage, StringFormat='{0:F0}%'}" - Completion percentage
-    -->
-    <Grid>
-        <TextBlock Text="Achievement Button (Stub)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
-    </Grid>
+    <local:ThemeControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
+            <converters:BooleanConverter x:Key="InverseBoolToVisConverter" Mode="InvertedToVisibility" />
+            <converters:HeightToFontSizeConverter x:Key="HeightToFontSizeConverter" />
+        </ResourceDictionary>
+    </local:ThemeControlBase.Resources>
+
+    <Button x:Name="PART_PluginButton" Click="PART_PluginButton_Click"
+            Background="Transparent" BorderBrush="Transparent"
+            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+        <Button.Style>
+            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </Button.Style>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Trophy icon (shown when DisplayDetails=False) -->
+            <TextBlock Grid.Column="0"
+                       Text="&#xedd7;" FontFamily="{DynamicResource FontIcoFont}"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=desktop:AchievementButtonControl}, Converter={StaticResource InverseBoolToVisConverter}}"
+                       FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementButtonControl}, FallbackValue=14}"
+                       Foreground="{DynamicResource TextBrush}"
+                       Margin="0,0,4,0"/>
+
+            <!-- Details grid (shown when DisplayDetails=True) -->
+            <Grid Grid.Column="1" HorizontalAlignment="Stretch"
+                  Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=desktop:AchievementButtonControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="4" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="2" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Completed game indicator (checkmark) -->
+                <TextBlock Grid.Column="0" Grid.Row="0" Grid.RowSpan="3"
+                           Text="&#xe8c7;" FontFamily="{DynamicResource FontIcoFont}"
+                           Visibility="{Binding Theme.IsCompleted, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"
+                           VerticalAlignment="Center" Padding="0,0,4,0"
+                           FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementButtonControl}, FallbackValue=14}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.8"/>
+
+                <!-- "Achievements" label -->
+                <TextBlock Grid.Column="1" Grid.Row="0" Grid.ColumnSpan="3"
+                           Text="{DynamicResource LOCPlayAch_Achievements}"
+                           Padding="0" Margin="0,-2,0,-2"
+                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}"
+                           Foreground="{DynamicResource TextBrush}"/>
+
+                <!-- Progress count (X/Y) -->
+                <TextBlock Grid.Column="1" Grid.Row="2"
+                           Padding="0" Margin="0,-2,0,-2"
+                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}"
+                           Foreground="{DynamicResource TextBrush}">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0}/{1}">
+                            <Binding Path="Theme.UnlockedCount" FallbackValue="0" />
+                            <Binding Path="Theme.AchievementCount" FallbackValue="0" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+
+                <!-- Progress bar -->
+                <ProgressBar Grid.Column="3" Grid.Row="2"
+                             Height="10"
+                             Maximum="{Binding Theme.AchievementCount, Mode=OneWay, FallbackValue=100}"
+                             Value="{Binding Theme.UnlockedCount, Mode=OneWay, FallbackValue=0}"
+                             Foreground="{DynamicResource HighlightGlyphBrush}"
+                             Background="{DynamicResource ControlBackgroundBrush}"
+                             BorderBrush="{DynamicResource NormalBorderBrush}"
+                             BorderThickness="1"/>
+            </Grid>
+        </Grid>
+    </Button>
 </local:ThemeControlBase>

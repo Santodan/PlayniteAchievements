@@ -1,0 +1,102 @@
+<local:ThemeControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Desktop.AchievementBarChartControl"
+                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                   xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                   xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
+                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                   xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:desktop="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop"
+                   mc:Ignorable="d"
+                   d:DesignHeight="200" d:DesignWidth="300">
+
+    <local:ThemeControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:EnumToBoolConverter x:Key="EnumToBool"/>
+        </ResourceDictionary>
+    </local:ThemeControlBase.Resources>
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Time range toggle buttons matching sidebar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="SevenDays"/>
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="FourteenDays"/>
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="OneMonth"/>
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="ThreeMonths"/>
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="OneYear"/>
+            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_All}"
+                         GroupName="DesktopTimeRange"
+                         Style="{StaticResource TimeRangeButtonStyle}"
+                         IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                         CommandParameter="All"/>
+        </StackPanel>
+
+        <!-- LiveCharts CartesianChart matching sidebar style -->
+        <lvc:CartesianChart Grid.Row="1"
+                            Series="{Binding TimelineViewModel.TimelineSeries, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                            LegendLocation="None"
+                            Hoverable="True"
+                            DisableAnimations="True">
+            <lvc:CartesianChart.Resources>
+                <Style TargetType="lvc:ColumnSeries">
+                    <Setter Property="Fill" Value="{DynamicResource HighlightGlyphBrush}" />
+                </Style>
+            </lvc:CartesianChart.Resources>
+            <lvc:CartesianChart.AxisX>
+                <lvc:Axis Labels="{Binding TimelineViewModel.TimelineLabels, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                          ShowLabels="True"
+                          LabelsRotation="45"
+                          FontSize="{DynamicResource FontSizeSmall}"
+                          Foreground="{DynamicResource TextBrush}">
+                    <lvc:Axis.Separator>
+                        <lvc:Separator Step="1" IsEnabled="False"/>
+                    </lvc:Axis.Separator>
+                </lvc:Axis>
+            </lvc:CartesianChart.AxisX>
+            <lvc:CartesianChart.AxisY>
+                <lvc:Axis MinValue="0"
+                          LabelFormatter="{Binding TimelineViewModel.YAxisFormatter, RelativeSource={RelativeSource AncestorType=desktop:AchievementBarChartControl}}"
+                          FontSize="{DynamicResource FontSizeSmall}"
+                          Foreground="{DynamicResource TextBrush}">
+                    <lvc:Axis.Separator>
+                        <lvc:Separator Stroke="{DynamicResource NormalBorderBrush}" Opacity="0.2"/>
+                    </lvc:Axis.Separator>
+                </lvc:Axis>
+            </lvc:CartesianChart.AxisY>
+        </lvc:CartesianChart>
+    </Grid>
+</local:ThemeControlBase>

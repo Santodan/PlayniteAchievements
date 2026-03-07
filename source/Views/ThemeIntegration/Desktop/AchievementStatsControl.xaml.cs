@@ -5,10 +5,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 {
     /// <summary>
     /// Desktop PlayniteAchievements stats control for theme integration.
-    /// Receives game context changes via GameContextChanged and updates achievement data.
+    /// Displays rarity statistics breakdown in a 4-row grid.
     /// </summary>
     public partial class AchievementStatsControl : ThemeControlBase
     {
+        /// <summary>
+        /// Gets a value indicating whether this control should subscribe to theme data change notifications.
+        /// </summary>
+        protected override bool EnableAutomaticThemeDataUpdates => true;
+
         public AchievementStatsControl()
         {
             InitializeComponent();

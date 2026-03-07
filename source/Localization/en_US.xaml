@@ -70,6 +70,7 @@
     <!-- CONTEXT MENU                                                       -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_TestNativeControls">Test Native Theme Controls</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Set Capstone Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>

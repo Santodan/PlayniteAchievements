@@ -22,17 +22,33 @@ namespace PlayniteAchievements.Views.ParityTests
 
         public NativeParityTestView(Game game)
         {
-            InitializeComponent();
+            try
+            {
+                InitializeComponent();
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"InitializeComponent failed: {ex.Message}\n\n{ex.StackTrace}", "NativeParityTestView Error");
+                throw;
+            }
 
-            _plugin = PlayniteAchievementsPlugin.Instance ?? throw new InvalidOperationException("Plugin instance not available");
-            _game = game ?? throw new ArgumentNullException(nameof(game));
+            try
+            {
+                _plugin = PlayniteAchievementsPlugin.Instance ?? throw new InvalidOperationException("Plugin instance not available");
+                _game = game ?? throw new ArgumentNullException(nameof(game));
 
-            GameName = _game.Name;
-            GameId = _game.Id;
+                GameName = _game.Name;
+                GameId = _game.Id;
 
-            DataContext = this;
+                DataContext = this;
 
-            Loaded += NativeParityTestView_Loaded;
+                Loaded += NativeParityTestView_Loaded;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Constructor setup failed: {ex.Message}\n\n{ex.StackTrace}", "NativeParityTestView Error");
+                throw;
+            }
         }
 
         private void NativeParityTestView_Loaded(object sender, RoutedEventArgs e)

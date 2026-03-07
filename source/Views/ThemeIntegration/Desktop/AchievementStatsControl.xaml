@@ -3,22 +3,133 @@
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-                   xmlns:controls="clr-namespace:Playnite.SDK.Controls;assembly=Playnite.SDK"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    mc:Ignorable="d"
                    d:DesignHeight="150" d:DesignWidth="300">
-    <!--
-        TODO: Add full stats UI implementation
 
-        Example binding:
-        - Display Common.Total/Unlocked/Locked
-        - Display Uncommon.Total/Unlocked/Locked
-        - Display Rare.Total/Unlocked/Locked
-        - Display UltraRare.Total/Unlocked/Locked
-    -->
-    <Grid>
-        <TextBlock Text="Achievement Stats (Stub)"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center" />
-    </Grid>
+    <local:ThemeControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </local:ThemeControlBase.Resources>
+
+    <StackPanel>
+        <!-- UltraRare Row -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Image Grid.Column="0"
+                   Source="{StaticResource BadgePlatinumHexagon}"
+                   Width="18" Height="18"
+                   Effect="{StaticResource BadgeShadow}"
+                   Style="{StaticResource RarityIcon}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1"
+                       Text="Ultra Rare"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center">
+                <Run Text="{Binding Theme.UltraRare.Unlocked, Mode=OneWay}"/>
+                <Run Text="/"/>
+                <Run Text="{Binding Theme.UltraRare.Total, Mode=OneWay}"/>
+            </TextBlock>
+        </Grid>
+
+        <!-- Rare Row -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Image Grid.Column="0"
+                   Source="{StaticResource BadgeGoldPentagon}"
+                   Width="18" Height="18"
+                   Effect="{StaticResource BadgeShadow}"
+                   Style="{StaticResource RarityIcon}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1"
+                       Text="Rare"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center">
+                <Run Text="{Binding Theme.Rare.Unlocked, Mode=OneWay}"/>
+                <Run Text="/"/>
+                <Run Text="{Binding Theme.Rare.Total, Mode=OneWay}"/>
+            </TextBlock>
+        </Grid>
+
+        <!-- Uncommon Row -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Image Grid.Column="0"
+                   Source="{StaticResource BadgeSilverSquare}"
+                   Width="18" Height="18"
+                   Effect="{StaticResource BadgeShadow}"
+                   Style="{StaticResource RarityIcon}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1"
+                       Text="Uncommon"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center">
+                <Run Text="{Binding Theme.Uncommon.Unlocked, Mode=OneWay}"/>
+                <Run Text="/"/>
+                <Run Text="{Binding Theme.Uncommon.Total, Mode=OneWay}"/>
+            </TextBlock>
+        </Grid>
+
+        <!-- Common Row -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Image Grid.Column="0"
+                   Source="{StaticResource BadgeBronzeTriangle}"
+                   Width="18" Height="18"
+                   Effect="{StaticResource BadgeShadow}"
+                   Style="{StaticResource RarityIcon}"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="1"
+                       Text="Common"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center">
+                <Run Text="{Binding Theme.Common.Unlocked, Mode=OneWay}"/>
+                <Run Text="/"/>
+                <Run Text="{Binding Theme.Common.Total, Mode=OneWay}"/>
+            </TextBlock>
+        </Grid>
+    </StackPanel>
 </local:ThemeControlBase>

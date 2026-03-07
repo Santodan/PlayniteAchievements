@@ -106,16 +106,7 @@
                         <!-- Unlocked: full opacity and rarity glow -->
                         <DataTrigger Binding="{Binding Unlocked}" Value="True">
                             <Setter Property="Opacity" Value="1"/>
-                            <Setter Property="Effect">
-                                <Setter.Value>
-                                    <MultiBinding Converter="{StaticResource PercentToRarityGlow}">
-                                        <Binding Path="GlobalPercent" Mode="OneWay"/>
-                                        <Binding Source="5" Mode="OneWay"/>
-                                        <Binding Source="20" Mode="OneWay"/>
-                                        <Binding Source="50" Mode="OneWay"/>
-                                    </MultiBinding>
-                                </Setter.Value>
-                            </Setter>
+                            <Setter Property="Effect" Value="{Binding GlobalPercent, Mode=OneWay, Converter={StaticResource PercentToRarityGlow}}"/>
                         </DataTrigger>
 
                         <!-- Hidden locked (showing question mark): full opacity but no glow -->

@@ -26,13 +26,13 @@
                 </TextBlock>
                 <TextBlock Margin="0,6,0,0" Opacity="0.85">
                     <Run Text="HasAchievements=" />
-                    <Run Text="{Binding Settings.HasAchievements}" />
+                    <Run Text="{Binding Settings.HasAchievements, Mode=OneWay}" />
                     <Run Text="  Unlocked=" />
-                    <Run Text="{Binding Settings.UnlockedCount}" />
+                    <Run Text="{Binding Settings.UnlockedCount, Mode=OneWay}" />
                     <Run Text="/" />
-                    <Run Text="{Binding Settings.AchievementCount}" />
+                    <Run Text="{Binding Settings.AchievementCount, Mode=OneWay}" />
                     <Run Text="  Progress=" />
-                    <Run Text="{Binding Settings.ProgressPercentage, StringFormat={}{0:0.#}}" />
+                    <Run Text="{Binding Settings.ProgressPercentage, Mode=OneWay, StringFormat={}{0:0.#}}" />
                     <Run Text="%" />
                 </TextBlock>
                 <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap">
@@ -56,8 +56,12 @@
                     <local:GameViewControlHost ControlName="AchievementStats" />
                 </GroupBox>
 
-                <GroupBox Header="AchievementChart" Margin="0,10,0,0">
-                    <local:GameViewControlHost ControlName="AchievementChart" Height="260" />
+                <GroupBox Header="AchievementBarChart" Margin="0,10,0,0">
+                    <local:GameViewControlHost ControlName="AchievementBarChart" Height="260" />
+                </GroupBox>
+
+                <GroupBox Header="AchievementPieChart" Margin="0,10,0,0">
+                    <local:GameViewControlHost ControlName="AchievementPieChart" Height="260" />
                 </GroupBox>
 
                 <GroupBox Header="AchievementCompactList" Margin="0,10,0,0">

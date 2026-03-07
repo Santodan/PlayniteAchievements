@@ -95,7 +95,8 @@ namespace PlayniteAchievements
             { "AchievementButton", () => new Views.ThemeIntegration.Desktop.AchievementButtonControl() },
             { "AchievementProgressBar", () => new Views.ThemeIntegration.Desktop.AchievementProgressBarControl() },
             { "AchievementCompactList", () => new Views.ThemeIntegration.Desktop.AchievementCompactListControl() },
-            { "AchievementChart", () => new Views.ThemeIntegration.Desktop.AchievementChartControl() },
+            { "AchievementBarChart", () => new Views.ThemeIntegration.Desktop.AchievementBarChartControl() },
+            { "AchievementPieChart", () => new Views.ThemeIntegration.Desktop.AchievementPieChartControl() },
             { "AchievementStats", () => new Views.ThemeIntegration.Desktop.AchievementStatsControl() },
             { "AchievementList", () => new Views.ThemeIntegration.Desktop.AchievementListControl() }
         };
@@ -557,6 +558,16 @@ namespace PlayniteAchievements
                 Action = (a) =>
                 {
                     OpenSingleGameAchievementsView(game.Id);
+                }
+            };
+
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestNativeControls"),
+                MenuSection = PluginGameMenuSection,
+                Action = (a) =>
+                {
+                    OpenNativeParityTestView(game.Id);
                 }
             };
 
@@ -1793,6 +1804,60 @@ namespace PlayniteAchievements
                 _logger.Error(ex, $"Failed to open per-game achievements view for gameId={gameId}");
                 PlayniteApi?.Dialogs?.ShowErrorMessage(
                     $"Failed to open achievements view: {ex.Message}",
+                    "Playnite Achievements");
+            }
+        }
+
+        /// <summary>
+        /// Opens the native parity test view window for testing theme integration controls.
+        /// </summary>
+        public void OpenNativeParityTestView(Guid gameId)
+        {
+            try
+            {
+                var game = PlayniteApi?.Database?.Games?.Get(gameId);
+                if (game == null)
+                {
+                    PlayniteApi?.Dialogs?.ShowErrorMessage(
+                        ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"),
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                    return;
+                }
+
+                var view = new Views.ParityTests.NativeParityTestView(game);
+
+                var windowOptions = new WindowOptions
+                {
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 900,
+                    Height = 700
+                };
+
+                var window = PlayniteUiProvider.CreateExtensionWindow(
+                    "Native Theme Controls Test",
+                    view,
+                    windowOptions
+                );
+
+                try
+                {
+                    if (window.Owner == null)
+                    {
+                        window.Owner = PlayniteApi?.Dialogs?.GetCurrentAppWindow();
+                    }
+                }
+                catch { }
+
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to open native parity test view for gameId={gameId}");
+                PlayniteApi?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open test view: {ex.Message}",
                     "Playnite Achievements");
             }
         }
