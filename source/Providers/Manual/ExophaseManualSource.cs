@@ -25,11 +25,15 @@ namespace PlayniteAchievements.Providers.Manual
 
         public ExophaseManualSource(
             HttpClient httpClient,
+            IPlayniteAPI playniteApi,
             ExophaseSessionManager sessionManager,
             ILogger logger,
             Func<string> getLanguage)
         {
-            _apiClient = new ExophaseApiClient(httpClient ?? throw new ArgumentNullException(nameof(httpClient)), logger);
+            _apiClient = new ExophaseApiClient(
+                httpClient ?? throw new ArgumentNullException(nameof(httpClient)),
+                playniteApi ?? throw new ArgumentNullException(nameof(playniteApi)),
+                logger);
             _sessionManager = sessionManager;
             _logger = logger;
             _getLanguage = getLanguage ?? throw new ArgumentNullException(nameof(getLanguage));
