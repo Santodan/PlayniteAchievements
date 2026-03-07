@@ -1423,7 +1423,26 @@ namespace PlayniteAchievements.Services.Database
                 return "Unmapped";
             }
 
-            return providerKey.Trim();
+            var normalized = providerKey.Trim();
+
+            // Normalize to standard casing to match database values
+            switch (normalized.ToLowerInvariant())
+            {
+                case "steam": return "Steam";
+                case "epic": return "Epic";
+                case "epic games": return "Epic";
+                case "gog": return "GOG";
+                case "xbox": return "Xbox";
+                case "psn": return "PSN";
+                case "playstation": return "PSN";
+                case "retroachievements": return "RetroAchievements";
+                case "rpcs3": return "RPCS3";
+                case "shadps4": return "ShadPS4";
+                case "manual": return "Manual";
+                case "manuel": return "Manual";
+                case "unmapped": return "Unmapped";
+                default: return normalized;
+            }
         }
 
         private static object DbValue(string value)

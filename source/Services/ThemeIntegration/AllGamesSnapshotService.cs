@@ -186,17 +186,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     case "GOG":
                         gogGames.Add(summary);
                         break;
-                    // Epic: stable key "Epic" or old localized "Epic Games"
                     case "Epic":
-                    case "Epic Games":
                         epicGames.Add(summary);
                         break;
                     case "Xbox":
                         xboxGames.Add(summary);
                         break;
-                    // PSN: stable key "PSN" or old localized "PlayStation"
                     case "PSN":
-                    case "PlayStation":
                         psnGames.Add(summary);
                         break;
                     case "RetroAchievements":
@@ -208,9 +204,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     case "ShadPS4":
                         shadPS4Games.Add(summary);
                         break;
-                    // Manual: stable key "Manual" or localized variants
                     case "Manual":
-                    case "Manuel":
                         manualGames.Add(summary);
                         break;
                 }

@@ -30,13 +30,7 @@ namespace PlayniteAchievements.Services
 
         private static string GetLocalizationKey(string providerKey)
         {
-            switch (providerKey?.Trim())
-            {
-                case "PSN":
-                    return "LOCPlayAch_Provider_PlayStation";
-                default:
-                    return $"LOCPlayAch_Provider_{providerKey}";
-            }
+            return $"LOCPlayAch_Provider_{providerKey}";
         }
 
         private readonly Dictionary<string, bool> _enabledState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
