@@ -14,7 +14,7 @@
             <converters:BooleanConverter x:Key="InvertedBooleanToVisibilityConverter" Mode="InvertedToVisibility" />
             <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
             <converters:LocalDateTimeConverter x:Key="LocalDateTimeConverter" />
-            <converters:PercentToGlowEffectConverter x:Key="PercentToGlowEffectConverter" />
+            <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlowConverter" />
             <converters:PercentToRarityBadgeConverter x:Key="PercentToRarityBadgeConverter" />
             <converters:LockedIconSelectorConverter x:Key="LockedIconSelectorConverter" />
         </ResourceDictionary>
@@ -46,16 +46,7 @@
                         <Style.Triggers>
                             <!-- Rarity indicator glow effect - color based on achievement rarity -->
                             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True">
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <MultiBinding Converter="{StaticResource PercentToGlowEffectConverter}">
-                                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Percent" />
-                                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="UltraRareThreshold" />
-                                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="RareThreshold" />
-                                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="UncommonThreshold" />
-                                        </MultiBinding>
-                                    </Setter.Value>
-                                </Setter>
+                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Percent, Converter={StaticResource PercentToRarityGlowConverter}}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
