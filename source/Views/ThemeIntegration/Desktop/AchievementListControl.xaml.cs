@@ -1,4 +1,3 @@
-using System.Windows.Controls;
 using Playnite.SDK.Controls;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
@@ -26,19 +25,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
             return propertyName == nameof(Models.ThemeIntegration.ThemeData.AllAchievementDisplayItems);
-        }
-
-        /// <summary>
-        /// Called when theme data changes and the list should be refreshed.
-        /// Forces the DataGrid to refresh its ItemsSource binding.
-        /// </summary>
-        protected override void OnThemeDataUpdated()
-        {
-            if (AchievementsGrid != null)
-            {
-                var binding = AchievementsGrid.GetBindingExpression(ItemsControl.ItemsSourceProperty);
-                binding?.UpdateTarget();
-            }
         }
     }
 }

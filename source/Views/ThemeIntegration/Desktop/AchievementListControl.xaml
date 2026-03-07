@@ -4,62 +4,10 @@
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                   xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    mc:Ignorable="d"
-                   d:DesignHeight="300" d:DesignWidth="400">
-    <local:ThemeControlBase.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </local:ThemeControlBase.Resources>
+                   d:DesignHeight="300" d:DesignWidth="600">
 
-    <DataGrid x:Name="AchievementsGrid"
-              ItemsSource="{Binding Theme.AllAchievementDisplayItems, Mode=OneWay}"
-              AutoGenerateColumns="False"
-              IsReadOnly="True"
-              SelectionMode="Single"
-              CanUserAddRows="False"
-              CanUserDeleteRows="False"
-              CanUserReorderColumns="True"
-              CanUserResizeColumns="True"
-              CanUserSortColumns="True"
-              EnableRowVirtualization="True"
-              EnableColumnVirtualization="True"
-              VirtualizingPanel.IsVirtualizing="True"
-              VirtualizingPanel.VirtualizationMode="Recycling"
-              GridLinesVisibility="None"
-              HeadersVisibility="Column"
-              BorderThickness="0"
-              Background="Transparent"
-              RowBackground="Transparent"
-              AlternatingRowBackground="Transparent"
-              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderWithMenuStyle}"
-              CellStyle="{StaticResource AchievementCellStyle}"
-              RowStyle="{StaticResource AchievementRowStyle}">
-
-        <DataGrid.Columns>
-            <DataGridTemplateColumn Width="36"
-                                    Header=""
-                                    SortMemberPath="Unlocked"
-                                    CellTemplate="{StaticResource AchievementStatusTemplate}"/>
-            <DataGridTemplateColumn Width="72"
-                                    Header=""
-                                    SortMemberPath="DisplayNameResolved"
-                                    CellTemplate="{StaticResource AchievementIconTemplate}"/>
-            <DataGridTemplateColumn Width="*"
-                                    MinWidth="120"
-                                    Header="Name"
-                                    SortMemberPath="DisplayNameResolved"
-                                    CellTemplate="{StaticResource AchievementInfoTemplate}"/>
-            <DataGridTemplateColumn Width="90"
-                                    Header="Unlocked"
-                                    SortMemberPath="UnlockTimeUtc"
-                                    CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
-            <DataGridTemplateColumn Width="80"
-                                    Header="Rarity"
-                                    SortMemberPath="Percent"
-                                    CellTemplate="{StaticResource AchievementRarityTemplate}"/>
-        </DataGrid.Columns>
-    </DataGrid>
+    <controls:AchievementDataGridControl ItemsSource="{Binding Theme.AllAchievementDisplayItems, Mode=OneWay}"
+                                         ColumnSettingsKey="DesktopTheme"/>
 </local:ThemeControlBase>
