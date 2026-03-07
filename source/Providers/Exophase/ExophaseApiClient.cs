@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Providers.Exophase
 {
     /// <summary>
     /// API client for Exophase game search.
-    /// Uses public API for search and HTML parsing for achievement pages.
+    /// Uses WebView for search (to bypass Cloudflare) and HTML parsing for achievement pages.
     /// </summary>
     public sealed class ExophaseApiClient
     {
@@ -24,16 +24,18 @@ namespace PlayniteAchievements.Providers.Exophase
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
         private readonly HttpClient _httpClient;
+        private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
 
-        public ExophaseApiClient(HttpClient httpClient, ILogger logger)
+        public ExophaseApiClient(HttpClient httpClient, IPlayniteAPI playniteApi, ILogger logger)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
             _logger = logger;
         }
 
         /// <summary>
-        /// Searches for games on Exophase.
+        /// Searches for games on Exophase using WebView to bypass Cloudflare.
         /// </summary>
         public async Task<List<ExophaseGame>> SearchGamesAsync(string query, CancellationToken ct)
         {
@@ -46,37 +48,23 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 var url = $"{SearchUrl}?q={Uri.EscapeDataString(query)}&sort=added";
 
-                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                // Use WebView to bypass Cloudflare protection
+                var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(json))
                 {
-                    request.Headers.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
-                    request.Headers.TryAddWithoutValidation("Accept", "application/json");
-
-                    using (var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false))
-                    {
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            _logger?.Error($"Exophase search failed with status {(int)response.StatusCode}");
-                            return new List<ExophaseGame>();
-                        }
-
-                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        if (string.IsNullOrWhiteSpace(json))
-                        {
-                            return new List<ExophaseGame>();
-                        }
-
-                        var result = Serialization.FromJson<ExophaseSearchResult>(json);
-                        if (result?.Games?.List == null || result.Games.List.Count == 0)
-                        {
-                            return new List<ExophaseGame>();
-                        }
-
-                        // Filter to only games with achievements (endpoint_awards URL)
-                        return result.Games.List
-                            .Where(g => g != null && !string.IsNullOrWhiteSpace(g.EndpointAwards))
-                            .ToList();
-                    }
+                    return new List<ExophaseGame>();
                 }
+
+                var result = Serialization.FromJson<ExophaseSearchResult>(json);
+                if (result?.Games?.List == null || result.Games.List.Count == 0)
+                {
+                    return new List<ExophaseGame>();
+                }
+
+                // Filter to only games with achievements (endpoint_awards URL)
+                return result.Games.List
+                    .Where(g => g != null && !string.IsNullOrWhiteSpace(g.EndpointAwards))
+                    .ToList();
             }
             catch (OperationCanceledException)
             {
@@ -87,6 +75,68 @@ namespace PlayniteAchievements.Providers.Exophase
                 _logger?.Error(ex, "Exophase search failed");
                 return new List<ExophaseGame>();
             }
+        }
+
+        /// <summary>
+        /// Fetches JSON from a URL using offscreen WebView to bypass Cloudflare.
+        /// </summary>
+        private async Task<string> FetchJsonViaWebViewAsync(string url, CancellationToken ct)
+        {
+            var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
+            {
+                var webViewSettings = new WebViewSettings
+                {
+                    UserAgent = DefaultUserAgent,
+                    JavaScriptEnabled = true
+                };
+
+                using (var view = _playniteApi.WebViews.CreateOffscreenView(webViewSettings))
+                {
+                    try
+                    {
+                        view.Navigate(url);
+
+                        // Wait for page to start loading and then hide webdriver flag
+                        await Task.Delay(500, ct).ConfigureAwait(false);
+
+                        // Hide bot detection flag like Success Story does
+                        for (int i = 0; i < 10; i++)
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            try
+                            {
+                                await view.EvaluateScriptAsync(
+                                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})");
+                                break;
+                            }
+                            catch (Exception ex) when (ex.Message.Contains("V8Context"))
+                            {
+                                _logger?.Debug($"[Exophase] V8Context not ready, retrying... ({i + 1}/10)");
+                                await Task.Delay(500, ct).ConfigureAwait(false);
+                            }
+                        }
+
+                        // Wait for JSON response to load
+                        await Task.Delay(2000, ct).ConfigureAwait(false);
+
+                        // Get page text (JSON response)
+                        var pageText = await view.GetPageTextAsync();
+                        return pageText;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, "[Exophase] Failed to fetch JSON via WebView");
+                        return null;
+                    }
+                }
+            });
+
+            var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
+            return await responseTask.ConfigureAwait(false);
         }
 
         /// <summary>
