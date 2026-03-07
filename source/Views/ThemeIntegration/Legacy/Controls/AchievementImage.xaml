@@ -21,14 +21,15 @@
     </UserControl.Resources>
 
     <Grid Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
-          Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}">
+          Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+          ClipToBounds="False">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="auto" />
         </Grid.RowDefinitions>
 
-        <!-- Border with clipping to handle rectangular images, centered in square container -->
-        <Border ClipToBounds="True">
+        <!-- Border for image container -->
+        <Border>
             <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant" x:Name="PART_Image"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Loaded="Image_Loaded" ImageFailed="Image_ImageFailed"
