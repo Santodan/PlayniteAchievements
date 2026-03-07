@@ -41,7 +41,7 @@
                 <!-- Use shared compact item control -->
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControl}}"
-                    Margin="6,0,6,12"/>
+                    Margin="4,0,4,12"/>
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>
