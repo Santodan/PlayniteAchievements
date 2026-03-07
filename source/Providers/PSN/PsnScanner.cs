@@ -357,8 +357,7 @@ namespace PlayniteAchievements.Providers.PSN
 
         private static string GetProviderName()
         {
-            var value = ResourceProvider.GetString("LOCPlayAch_Provider_PlayStation");
-            return string.IsNullOrWhiteSpace(value) ? "PlayStation" : value;
+            return "PSN";
         }
 
         private static string MapTrophyGroupToCategoryType(string trophyGroupId)

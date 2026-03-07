@@ -201,6 +201,55 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         #endregion
 
+        #region Per-Provider Game Lists
+
+        /// <summary>
+        /// Steam games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> SteamGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// GOG games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> GOGGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// Epic games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> EpicGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// Xbox games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> XboxGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// PSN games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> PSNGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// RetroAchievements games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> RetroAchievementsGames { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// RPCS3 games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> RPCS3Games { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// ShadPS4 games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> ShadPS4Games { get; set; } = new List<GameAchievementSummary>();
+
+        /// <summary>
+        /// Manual achievement games sorted by last unlock date (newest first).
+        /// </summary>
+        public List<GameAchievementSummary> ManualGames { get; set; } = new List<GameAchievementSummary>();
+
+        #endregion
+
         #region Helper Methods for Theme Binding
 
         /// <summary>
@@ -258,6 +307,60 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             return new ObservableCollection<GameAchievementSummary>(GameSummariesAsc ?? new List<GameAchievementSummary>());
         }
+
+        /// <summary>
+        /// Creates an observable collection of Steam games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateSteamGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(SteamGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of GOG games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateGOGGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(GOGGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of Epic games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateEpicGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(EpicGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of Xbox games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateXboxGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(XboxGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of PSN games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreatePSNGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(PSNGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of RetroAchievements games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateRetroAchievementsGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(RetroAchievementsGames ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of RPCS3 games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateRPCS3GamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(RPCS3Games ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of ShadPS4 games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateShadPS4GamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(ShadPS4Games ?? new List<GameAchievementSummary>());
+
+        /// <summary>
+        /// Creates an observable collection of Manual games for theme binding.
+        /// </summary>
+        public ObservableCollection<GameAchievementSummary> CreateManualGamesObservable()
+            => new ObservableCollection<GameAchievementSummary>(ManualGames ?? new List<GameAchievementSummary>());
 
         #endregion
     }

@@ -159,6 +159,67 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             snapshot.TotalRareUnlockCount = items.Sum(i => i.RareUnlockCount);
             snapshot.TotalUltraRareUnlockCount = items.Sum(i => i.UltraRareUnlockCount);
 
+            // Build per-provider game lists
+            var steamGames = new List<GameAchievementSummary>();
+            var gogGames = new List<GameAchievementSummary>();
+            var epicGames = new List<GameAchievementSummary>();
+            var xboxGames = new List<GameAchievementSummary>();
+            var psnGames = new List<GameAchievementSummary>();
+            var retroAchievementsGames = new List<GameAchievementSummary>();
+            var rpcs3Games = new List<GameAchievementSummary>();
+            var shadPS4Games = new List<GameAchievementSummary>();
+            var manualGames = new List<GameAchievementSummary>();
+
+            foreach (var data in allData)
+            {
+                if (data?.HasAchievements != true || data.PlayniteGameId == null) continue;
+
+                var summary = items.FirstOrDefault(i => i.GameId == data.PlayniteGameId.Value);
+                if (summary == null) continue;
+
+                var providerName = data.ProviderName ?? "";
+                switch (providerName)
+                {
+                    case "Steam":
+                        steamGames.Add(summary);
+                        break;
+                    case "GOG":
+                        gogGames.Add(summary);
+                        break;
+                    case "Epic":
+                        epicGames.Add(summary);
+                        break;
+                    case "Xbox":
+                        xboxGames.Add(summary);
+                        break;
+                    case "PSN":
+                        psnGames.Add(summary);
+                        break;
+                    case "RetroAchievements":
+                        retroAchievementsGames.Add(summary);
+                        break;
+                    case "RPCS3":
+                        rpcs3Games.Add(summary);
+                        break;
+                    case "ShadPS4":
+                        shadPS4Games.Add(summary);
+                        break;
+                    case "Manual":
+                        manualGames.Add(summary);
+                        break;
+                }
+            }
+
+            snapshot.SteamGames = steamGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.GOGGames = gogGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.EpicGames = epicGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.XboxGames = xboxGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.PSNGames = psnGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.RetroAchievementsGames = retroAchievementsGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.RPCS3Games = rpcs3Games.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.ShadPS4Games = shadPS4Games.OrderByDescending(g => g.LastUnlockDate).ToList();
+            snapshot.ManualGames = manualGames.OrderByDescending(g => g.LastUnlockDate).ToList();
+
             if (snapshot.TotalCount > 0)
             {
                 snapshot.Score = snapshot.PlatCount * 300 + snapshot.GoldCount * 90 + snapshot.SilverCount * 30 + snapshot.BronzeCount * 15;

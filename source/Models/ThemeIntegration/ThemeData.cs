@@ -467,5 +467,118 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         #endregion
+
+        #region Per-Provider Game Lists
+
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _steamGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _gogGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _epicGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _xboxGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _psnGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _retroAchievementsGames = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _rpcs3Games = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _shadPS4Games = new ObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private ObservableCollection<GameAchievementSummary> _manualGames = new ObservableCollection<GameAchievementSummary>();
+
+        /// <summary>
+        /// Steam games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> SteamGames
+        {
+            get => _steamGames;
+            set => SetValue(ref _steamGames, value);
+        }
+
+        /// <summary>
+        /// GOG games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> GOGGames
+        {
+            get => _gogGames;
+            set => SetValue(ref _gogGames, value);
+        }
+
+        /// <summary>
+        /// Epic games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> EpicGames
+        {
+            get => _epicGames;
+            set => SetValue(ref _epicGames, value);
+        }
+
+        /// <summary>
+        /// Xbox games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> XboxGames
+        {
+            get => _xboxGames;
+            set => SetValue(ref _xboxGames, value);
+        }
+
+        /// <summary>
+        /// PSN games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> PSNGames
+        {
+            get => _psnGames;
+            set => SetValue(ref _psnGames, value);
+        }
+
+        /// <summary>
+        /// RetroAchievements games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RetroAchievementsGames
+        {
+            get => _retroAchievementsGames;
+            set => SetValue(ref _retroAchievementsGames, value);
+        }
+
+        /// <summary>
+        /// RPCS3 games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RPCS3Games
+        {
+            get => _rpcs3Games;
+            set => SetValue(ref _rpcs3Games, value);
+        }
+
+        /// <summary>
+        /// ShadPS4 games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> ShadPS4Games
+        {
+            get => _shadPS4Games;
+            set => SetValue(ref _shadPS4Games, value);
+        }
+
+        /// <summary>
+        /// Manual achievement games sorted by last unlock date (newest first).
+        /// </summary>
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> ManualGames
+        {
+            get => _manualGames;
+            set => SetValue(ref _manualGames, value);
+        }
+
+        #endregion
     }
 }

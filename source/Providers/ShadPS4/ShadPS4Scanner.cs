@@ -366,8 +366,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private static string GetProviderName()
         {
-            var value = ResourceProvider.GetString("LOCPlayAch_Provider_ShadPS4");
-            return string.IsNullOrWhiteSpace(value) ? "ShadPS4" : value;
+            return "ShadPS4";
         }
 
         /// <summary>

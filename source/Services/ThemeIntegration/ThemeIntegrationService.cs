@@ -72,7 +72,16 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.MostRecentUnlocksTop10),
             nameof(PlayniteAchievementsSettings.RarestRecentUnlocksTop3),
             nameof(PlayniteAchievementsSettings.RarestRecentUnlocksTop5),
-            nameof(PlayniteAchievementsSettings.RarestRecentUnlocksTop10)
+            nameof(PlayniteAchievementsSettings.RarestRecentUnlocksTop10),
+            nameof(PlayniteAchievementsSettings.SteamGames),
+            nameof(PlayniteAchievementsSettings.GOGGames),
+            nameof(PlayniteAchievementsSettings.EpicGames),
+            nameof(PlayniteAchievementsSettings.XboxGames),
+            nameof(PlayniteAchievementsSettings.PSNGames),
+            nameof(PlayniteAchievementsSettings.RetroAchievementsGames),
+            nameof(PlayniteAchievementsSettings.RPCS3Games),
+            nameof(PlayniteAchievementsSettings.ShadPS4Games),
+            nameof(PlayniteAchievementsSettings.ManualGames)
         };
 
         private static readonly string[] NativeAllGamesHeavyDelegatedProperties =
@@ -724,6 +733,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.Theme.TotalUncommonUnlockCount = snapshot.TotalUncommonUnlockCount;
             _settings.Theme.TotalRareUnlockCount = snapshot.TotalRareUnlockCount;
             _settings.Theme.TotalUltraRareUnlockCount = snapshot.TotalUltraRareUnlockCount;
+
+            // Per-provider game lists
+            _settings.Theme.SteamGames = snapshot.CreateSteamGamesObservable();
+            _settings.Theme.GOGGames = snapshot.CreateGOGGamesObservable();
+            _settings.Theme.EpicGames = snapshot.CreateEpicGamesObservable();
+            _settings.Theme.XboxGames = snapshot.CreateXboxGamesObservable();
+            _settings.Theme.PSNGames = snapshot.CreatePSNGamesObservable();
+            _settings.Theme.RetroAchievementsGames = snapshot.CreateRetroAchievementsGamesObservable();
+            _settings.Theme.RPCS3Games = snapshot.CreateRPCS3GamesObservable();
+            _settings.Theme.ShadPS4Games = snapshot.CreateShadPS4GamesObservable();
+            _settings.Theme.ManualGames = snapshot.CreateManualGamesObservable();
 
             _settings.LegacyTheme.Level = snapshot.Level;
             _settings.LegacyTheme.LevelProgress = snapshot.LevelProgress;

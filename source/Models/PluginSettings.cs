@@ -314,6 +314,70 @@ namespace PlayniteAchievements.Models
             set => Theme.RarestRecentUnlocksTop10 = value;
         }
 
+        // Per-provider game lists
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> SteamGames
+        {
+            get => Theme.SteamGames;
+            set => Theme.SteamGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> GOGGames
+        {
+            get => Theme.GOGGames;
+            set => Theme.GOGGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> EpicGames
+        {
+            get => Theme.EpicGames;
+            set => Theme.EpicGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> XboxGames
+        {
+            get => Theme.XboxGames;
+            set => Theme.XboxGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> PSNGames
+        {
+            get => Theme.PSNGames;
+            set => Theme.PSNGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RetroAchievementsGames
+        {
+            get => Theme.RetroAchievementsGames;
+            set => Theme.RetroAchievementsGames = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> RPCS3Games
+        {
+            get => Theme.RPCS3Games;
+            set => Theme.RPCS3Games = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> ShadPS4Games
+        {
+            get => Theme.ShadPS4Games;
+            set => Theme.ShadPS4Games = value;
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> ManualGames
+        {
+            get => Theme.ManualGames;
+            set => Theme.ManualGames = value;
+        }
+
         #endregion
 
         #region Legacy Theme Compatibility

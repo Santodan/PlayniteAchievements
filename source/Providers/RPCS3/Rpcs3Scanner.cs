@@ -1069,8 +1069,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private static string GetProviderName()
         {
-            var value = ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3");
-            return string.IsNullOrWhiteSpace(value) ? "RPCS3" : value;
+            return "RPCS3";
         }
 
         private static string NormalizeTrophyType(string trophyType)
