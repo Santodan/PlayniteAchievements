@@ -243,7 +243,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>
         /// Quick check using offscreen view to see if already authenticated.
-        /// Verifies by checking for 'column-username' element on account page.
+        /// If account page redirects to login, user is not authenticated.
         /// </summary>
         private async Task<string> QuickAuthCheckAsync(CancellationToken ct)
         {
@@ -258,18 +258,23 @@ namespace PlayniteAchievements.Providers.Exophase
                         try
                         {
                             await view.NavigateAndWaitAsync(UrlAccount, timeoutMs: 10000);
-                            var html = await view.GetPageSourceAsync();
+                            var currentUrl = view.GetCurrentAddress();
 
-                            if (!string.IsNullOrWhiteSpace(html))
+                            // If redirected to login page, not authenticated
+                            if (IsLoginPageUrl(currentUrl))
                             {
-                                // Check for column-username element which indicates logged-in state
-                                var username = ExtractUsernameFromHtml(html);
-                                if (!string.IsNullOrWhiteSpace(username))
-                                {
-                                    _isSessionAuthenticated = true;
-                                    _username = username;
-                                    return username;
-                                }
+                                _logger?.Debug("[ExophaseAuth] Account page redirected to login, not authenticated.");
+                                return null;
+                            }
+
+                            // We're on the account page, extract username
+                            var html = await view.GetPageSourceAsync();
+                            var username = ExtractUsernameFromHtml(html);
+                            if (!string.IsNullOrWhiteSpace(username))
+                            {
+                                _isSessionAuthenticated = true;
+                                _username = username;
+                                return username;
                             }
                         }
                         catch (Exception ex)
@@ -286,7 +291,8 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
-        /// Extracts username from the account page HTML by parsing the column-username element.
+        /// Extracts username from the account page HTML.
+        /// Exophase embeds user info in window.me JavaScript object.
         /// </summary>
         private string ExtractUsernameFromHtml(string html)
         {
@@ -295,29 +301,30 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
-            // Look for column-username class in the HTML
-            var usernameIndex = html.IndexOf("column-username", StringComparison.OrdinalIgnoreCase);
-            if (usernameIndex < 0)
+            // Pattern: window.me = { username: 'jdd056', ... }
+            var meIndex = html.IndexOf("window.me = {", StringComparison.OrdinalIgnoreCase);
+            if (meIndex >= 0)
             {
-                return null;
+                var usernameKeyIndex = html.IndexOf("username:", meIndex, StringComparison.OrdinalIgnoreCase);
+                if (usernameKeyIndex >= 0 && usernameKeyIndex < meIndex + 500)
+                {
+                    var startQuote = html.IndexOf('\'', usernameKeyIndex);
+                    if (startQuote < 0)
+                        startQuote = html.IndexOf('"', usernameKeyIndex);
+
+                    if (startQuote >= 0 && startQuote < usernameKeyIndex + 50)
+                    {
+                        var quoteChar = html[startQuote];
+                        var endQuote = html.IndexOf(quoteChar, startQuote + 1);
+                        if (endQuote > startQuote)
+                        {
+                            return html.Substring(startQuote + 1, endQuote - startQuote - 1);
+                        }
+                    }
+                }
             }
 
-            // Find the username value within the element (typically in a span or as text content)
-            // The pattern is usually: class="column-username">username<
-            var startIndex = html.IndexOf('>', usernameIndex);
-            if (startIndex < 0 || startIndex >= html.Length - 1)
-            {
-                return null;
-            }
-
-            var endIndex = html.IndexOf('<', startIndex + 1);
-            if (endIndex < 0)
-            {
-                return null;
-            }
-
-            var username = html.Substring(startIndex + 1, endIndex - startIndex - 1).Trim();
-            return string.IsNullOrWhiteSpace(username) ? null : username;
+            return null;
         }
 
         /// <summary>
@@ -406,7 +413,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 _logger?.Debug($"[ExophaseAuth] Navigation to: {address}");
 
-                // Exophase may redirect to various pages after login, not just /account.
+                // Exophase may redirect to various pages after login.
                 // Poll for authentication like GOG does.
                 var extractedUsername = await WaitForAuthenticatedUserAsync(CancellationToken.None).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(extractedUsername))
