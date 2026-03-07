@@ -6,7 +6,6 @@
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
-             xmlns:achievements="clr-namespace:PlayniteAchievements.Models.Achievements"
              mc:Ignorable="d"
              d:DesignHeight="48" d:DesignWidth="48"
              d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}">
@@ -15,7 +14,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <converters:PercentToGlowEffectConverter x:Key="PercentToGlowEffectConverter"/>
+            <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlowConverter"/>
             <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
             <converters:BooleanConverter x:Key="InvertedBooleanConverter" Mode="Inverted"/>
         </ResourceDictionary>
@@ -98,6 +97,20 @@
 
         <!-- Border with clipping - matches legacy AchievementImage -->
         <Border ClipToBounds="True">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <!-- Rarity indicator glow effect - only for unlocked achievements with rarity -->
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                <Condition Binding="{Binding HasRarity}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <!-- Achievement Icon - matches legacy styling -->
             <Image Stretch="UniformToFill"
                    RenderOptions.BitmapScalingMode="Fant"
@@ -105,31 +118,7 @@
                    VerticalAlignment="Center"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
                    helpers:AsyncImage.Gray="{Binding Unlocked, Converter={StaticResource InvertedBooleanConverter}}"
-                   helpers:AsyncImage.DecodePixel="64">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Style.Triggers>
-                            <!-- Rarity indicator glow effect - only for unlocked achievements with rarity -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                    <Condition Binding="{Binding HasRarity}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Effect">
-                                    <Setter.Value>
-                                        <MultiBinding Converter="{StaticResource PercentToGlowEffectConverter}">
-                                            <Binding Path="GlobalPercent" Mode="OneWay"/>
-                                            <Binding Source="{x:Static achievements:RarityHelper.UltraRareThreshold}" Mode="OneWay"/>
-                                            <Binding Source="{x:Static achievements:RarityHelper.RareThreshold}" Mode="OneWay"/>
-                                            <Binding Source="{x:Static achievements:RarityHelper.UncommonThreshold}" Mode="OneWay"/>
-                                        </MultiBinding>
-                                    </Setter.Value>
-                                </Setter>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
+                   helpers:AsyncImage.DecodePixel="64"/>
         </Border>
 
         <!-- Lock icon overlay for locked achievements (when not showing hidden icon) -->
