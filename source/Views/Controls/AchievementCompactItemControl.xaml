@@ -96,16 +96,15 @@
             </ToolTip>
         </Grid.ToolTip>
 
-        <!-- Border for achievement icon -->
-        <Border Effect="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}">
-            <!-- Achievement Icon - matches legacy styling -->
-            <Image Stretch="UniformToFill"
-                   RenderOptions.BitmapScalingMode="Fant"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.Gray="{Binding Unlocked, Converter={StaticResource InvertedBooleanConverter}}"
-                   helpers:AsyncImage.DecodePixel="64"/>
+        <!-- Border for achievement icon - matches sidebar styling -->
+        <Border CornerRadius="6" RenderOptions.BitmapScalingMode="HighQuality"
+                Effect="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}">
+            <Border.Background>
+                <ImageBrush Stretch="UniformToFill"
+                            helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                            helpers:AsyncImage.Gray="{Binding Unlocked, Converter={StaticResource InvertedBooleanConverter}}"
+                            helpers:AsyncImage.DecodePixel="64"/>
+            </Border.Background>
         </Border>
 
         <!-- Lock icon overlay for locked achievements (when not showing hidden icon) -->
