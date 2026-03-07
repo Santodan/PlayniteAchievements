@@ -57,7 +57,7 @@ namespace PlayniteAchievements.Services.Database
         }
 
         public static bool ShouldFallbackToProviderGameIdLookup(
-            string providerName,
+            string providerKey,
             string playniteGameId,
             long? providerGameId)
         {
@@ -67,7 +67,7 @@ namespace PlayniteAchievements.Services.Database
             }
 
             var hasPlayniteGameId = !string.IsNullOrWhiteSpace(playniteGameId);
-            if (hasPlayniteGameId && IsRetroAchievementsProvider(providerName))
+            if (hasPlayniteGameId && IsRetroAchievementsProvider(providerKey))
             {
                 return false;
             }
@@ -75,10 +75,10 @@ namespace PlayniteAchievements.Services.Database
             return true;
         }
 
-        public static bool IsRetroAchievementsProvider(string providerName)
+        public static bool IsRetroAchievementsProvider(string providerKey)
         {
-            return !string.IsNullOrWhiteSpace(providerName) &&
-                   string.Equals(providerName.Trim(), "RetroAchievements", StringComparison.OrdinalIgnoreCase);
+            return !string.IsNullOrWhiteSpace(providerKey) &&
+                   string.Equals(providerKey.Trim(), "RetroAchievements", StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool ComputeIsCompleted(
