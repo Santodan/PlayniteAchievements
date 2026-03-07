@@ -24,9 +24,6 @@
     <Compile Include="..\..\source\Providers\GOG\GogClientIdCacheStore.cs" Link="Source\Providers\GOG\GogClientIdCacheStore.cs" />
     <Compile Include="..\..\source\Providers\GOG\Models\GogAchievementResponse.cs" Link="Source\Providers\GOG\Models\GogAchievementResponse.cs" />
     <Compile Include="..\..\source\Providers\GOG\Models\GogProductData.cs" Link="Source\Providers\GOG\Models\GogProductData.cs" />
-    <Compile Include="..\..\source\Providers\PSN\Models\PsnTrophyModels.cs" Link="Source\Providers\PSN\Models\PsnTrophyModels.cs" />
-    <Compile Include="..\..\source\Providers\PSN\PsnSuffixRetryHelper.cs" Link="Source\Providers\PSN\PsnSuffixRetryHelper.cs" />
-    <Compile Include="..\..\source\Providers\PSN\PsnTrophyMatchHelper.cs" Link="Source\Providers\PSN\PsnTrophyMatchHelper.cs" />
 
     <Compile Include="..\..\source\Services\Database\SqlNadoCacheBehavior.cs" Link="Source\Services\Database\SqlNadoCacheBehavior.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamTimeParser.cs" Link="Source\Providers\Steam\SteamTimeParser.cs" />

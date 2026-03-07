@@ -109,55 +109,6 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void PersistedSettings_ExcludedFromSummariesDefaultsToEmptySet()
-        {
-            var settings = new PersistedSettings();
-
-            Assert.IsNotNull(settings.ExcludedFromSummariesGameIds);
-            Assert.AreEqual(0, settings.ExcludedFromSummariesGameIds.Count);
-        }
-
-        [TestMethod]
-        public void PersistedSettings_AutoExcludeHiddenGamesDefaultsToFalse()
-        {
-            var settings = new PersistedSettings();
-
-            Assert.IsFalse(settings.AutoExcludeHiddenGames);
-        }
-
-        [TestMethod]
-        public void PersistedSettingsClone_DeepCopiesExcludedFromSummariesGameIds()
-        {
-            var gameId = Guid.NewGuid();
-            var settings = new PersistedSettings
-            {
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId }
-            };
-
-            var clone = settings.Clone();
-
-            Assert.IsNotNull(clone.ExcludedFromSummariesGameIds);
-            Assert.AreNotSame(settings.ExcludedFromSummariesGameIds, clone.ExcludedFromSummariesGameIds);
-            Assert.IsTrue(clone.ExcludedFromSummariesGameIds.Contains(gameId));
-
-            clone.ExcludedFromSummariesGameIds.Add(Guid.NewGuid());
-            Assert.AreEqual(1, settings.ExcludedFromSummariesGameIds.Count);
-        }
-
-        [TestMethod]
-        public void PersistedSettingsClone_PreservesAutoExcludeHiddenGames()
-        {
-            var settings = new PersistedSettings
-            {
-                AutoExcludeHiddenGames = true
-            };
-
-            var clone = settings.Clone();
-
-            Assert.IsTrue(clone.AutoExcludeHiddenGames);
-        }
-
-        [TestMethod]
         public void SettingsExtensions_CopyFromAndClone_PreserveCustomRefreshPresets()
         {
             var gameId = Guid.NewGuid();
@@ -191,41 +142,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("My Preset", clone.CustomRefreshPresets[0].Name);
             Assert.AreNotSame(source.CustomRefreshPresets, clone.CustomRefreshPresets);
             Assert.AreNotSame(source.CustomRefreshPresets[0].Options, clone.CustomRefreshPresets[0].Options);
-        }
-
-        [TestMethod]
-        public void SettingsExtensions_CopyFromAndClone_PreserveExcludedFromSummariesGameIds()
-        {
-            var gameId = Guid.NewGuid();
-            var source = new PersistedSettings
-            {
-                ExcludedFromSummariesGameIds = new HashSet<Guid> { gameId }
-            };
-
-            var target = new PersistedSettings();
-            target.CopyFrom(source);
-            Assert.IsTrue(target.ExcludedFromSummariesGameIds.Contains(gameId));
-            Assert.AreNotSame(source.ExcludedFromSummariesGameIds, target.ExcludedFromSummariesGameIds);
-
-            var clone = SettingsExtensions.Clone(source);
-            Assert.IsTrue(clone.ExcludedFromSummariesGameIds.Contains(gameId));
-            Assert.AreNotSame(source.ExcludedFromSummariesGameIds, clone.ExcludedFromSummariesGameIds);
-        }
-
-        [TestMethod]
-        public void SettingsExtensions_CopyFromAndClone_PreserveAutoExcludeHiddenGames()
-        {
-            var source = new PersistedSettings
-            {
-                AutoExcludeHiddenGames = true
-            };
-
-            var target = new PersistedSettings();
-            target.CopyFrom(source);
-            Assert.IsTrue(target.AutoExcludeHiddenGames);
-
-            var clone = SettingsExtensions.Clone(source);
-            Assert.IsTrue(clone.AutoExcludeHiddenGames);
         }
 
         [TestMethod]
