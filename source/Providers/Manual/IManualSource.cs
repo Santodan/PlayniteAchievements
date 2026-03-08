@@ -29,6 +29,11 @@ namespace PlayniteAchievements.Providers.Manual
         /// Indicates if this game has achievements in the source system.
         /// </summary>
         public bool HasAchievements { get; set; }
+
+        /// <summary>
+        /// Optional platform display string (e.g., "Steam, PS4" for Exophase results).
+        /// </summary>
+        public string Platforms { get; set; }
     }
 
     /// <summary>

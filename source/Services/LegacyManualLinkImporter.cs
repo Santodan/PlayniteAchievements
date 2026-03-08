@@ -345,22 +345,30 @@ namespace PlayniteAchievements.Services
             return !string.IsNullOrWhiteSpace(appId);
         }
 
-        private static bool TryExtractExophaseUrl(string url, out string exophaseUrl)
+        private static bool TryExtractExophaseUrl(string url, out string exophaseId)
         {
-            exophaseUrl = null;
+            exophaseId = null;
             if (string.IsNullOrWhiteSpace(url))
             {
                 return false;
             }
 
             // Exophase achievement URLs follow patterns like:
-            // https://www.exophase.com/game/<platform>/<game-slug>/achievements
-            // https://www.exophase.com/game/<game-id>/achievements
-            // The full URL is used as the SourceGameId for Exophase
+            // https://www.exophase.com/game/<game-slug>/achievements
+            // Extract just the slug for storage (more stable than full URL)
             if (url.IndexOf("exophase.com/game/", StringComparison.OrdinalIgnoreCase) >= 0 &&
                 url.IndexOf("/achievements", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                exophaseUrl = url.Trim();
+                // Extract the slug from the URL
+                var match = Regex.Match(url, @"/game/([^/]+)/achievements", RegexOptions.IgnoreCase);
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    exophaseId = match.Groups[1].Value;
+                    return true;
+                }
+
+                // Fallback: store full URL if we can't extract slug (for edge cases)
+                exophaseId = url.Trim();
                 return true;
             }
 

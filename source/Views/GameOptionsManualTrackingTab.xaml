@@ -125,7 +125,8 @@
                                Foreground="{DynamicResource TextBrush}"/>
                     <ComboBox Grid.Column="1"
                               ItemsSource="{Binding AvailableSources}"
-                              SelectedItem="{Binding SelectedSource, Mode=TwoWay}"
+                              SelectedValue="{Binding SelectedSourceKey, Mode=TwoWay}"
+                              SelectedValuePath="SourceKey"
                               DisplayMemberPath="SourceName"
                               MinWidth="150"
                               HorizontalAlignment="Left"/>
@@ -242,31 +243,31 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_AppId}"
-                                                Binding="{Binding SourceGameId}"
-                                                Width="80">
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Platform}"
+                                                Binding="{Binding Platforms}"
+                                                Width="120"
+                                                Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                                         <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="MaxHeight" Value="60"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_GameOptions_Manual_Source}"
-                                                    Width="140"
-                                                    IsReadOnly="True">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DataContext.ManualSourceName, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   HorizontalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_AppId}"
+                                                Binding="{Binding SourceGameId}"
+                                                Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>

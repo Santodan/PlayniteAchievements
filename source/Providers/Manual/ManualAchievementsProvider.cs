@@ -66,9 +66,8 @@ namespace PlayniteAchievements.Providers.Manual
                 logger,
                 () => settings.Persisted.SteamApiKey);
 
-            // Create Exophase manual source (reuses the same HTTP client)
+            // Create Exophase manual source (uses WebView, no HTTP client needed)
             _exophaseManualSource = new ExophaseManualSource(
-                httpClient,
                 playniteApi,
                 exophaseSessionManager,
                 logger,

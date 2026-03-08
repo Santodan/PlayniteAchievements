@@ -113,11 +113,12 @@ namespace PlayniteAchievements.Views
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
-                // Do not recreate the manual tab when a link flips false->true mid-flow.
-                // The wizard saves a transient link before refresh starts, and recreating
-                // here resets the stage/progress UI while work is still in flight.
-                // Still recreate when link is removed (true->false) so UI returns to search.
-                if (!_viewModel.HasManualTrackingLink)
+                // Do not recreate the manual tab when a link changes mid-flow.
+                // The wizard saves a transient link before refresh starts, and rolling back
+                // removes it during failure handling. Recreating here resets the stage/progress
+                // UI while work is still in flight.
+                // Only recreate if not currently in a refresh operation.
+                if (!_viewModel.HasManualTrackingLink && !IsManualViewModelRefreshing())
                 {
                     EnsureManualControl(forceRecreate: true);
                 }
@@ -158,6 +159,11 @@ namespace PlayniteAchievements.Views
             {
                 EnsureCategoryControl(forceRecreate: false);
             }
+        }
+
+        private bool IsManualViewModelRefreshing()
+        {
+            return _manualViewModel?.IsRefreshingStage ?? false;
         }
 
         private void EnsureCapstoneControl(bool forceRecreate)

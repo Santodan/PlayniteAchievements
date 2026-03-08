@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,24 +14,80 @@ using HtmlAgilityPack;
 namespace PlayniteAchievements.Providers.Exophase
 {
     /// <summary>
-    /// API client for Exophase game search.
-    /// Uses WebView for search (to bypass Cloudflare) and HTML parsing for achievement pages.
+    /// API client for Exophase game search and achievement fetching.
+    /// Uses WebView for all requests to bypass Cloudflare protection.
     /// </summary>
     public sealed class ExophaseApiClient
     {
         private const string SearchUrl = "https://api.exophase.com/public/archive/games";
-        private const string DefaultUserAgent =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        private const string AchievementPageBaseUrl = "https://www.exophase.com/game/{0}/achievements/";
 
-        private readonly HttpClient _httpClient;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
 
-        public ExophaseApiClient(HttpClient httpClient, IPlayniteAPI playniteApi, ILogger logger)
+        public ExophaseApiClient(IPlayniteAPI playniteApi, ILogger logger)
         {
-            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Extracts the game slug from an Exophase achievement/trophy URL.
+        /// Examples:
+        /// - https://www.exophase.com/game/shogun-showdown-steam/achievements/ -> shogun-showdown-steam
+        /// - https://www.exophase.com/game/shogun-showdown-psn/trophies/ -> shogun-showdown-psn
+        /// </summary>
+        public static string ExtractSlugFromUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            // Match pattern: /game/{slug}/ followed by achievements, trophies, or end of URL
+            var match = System.Text.RegularExpressions.Regex.Match(url, @"/game/([^/]+)(?:/(?:achievements|trophies))?/?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success && match.Groups.Count > 1)
+            {
+                return match.Groups[1].Value;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds the achievement page URL from a game slug or full URL.
+        /// Supports both new format (slug only) and legacy format (full URL) for backward compatibility.
+        /// PlayStation games use /trophies/, others use /achievements/
+        /// </summary>
+        public static string BuildUrlFromSlug(string slugOrUrl)
+        {
+            if (string.IsNullOrWhiteSpace(slugOrUrl))
+            {
+                return null;
+            }
+
+            // If it's already a full URL, extract the slug and rebuild (normalizes URL)
+            if (slugOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                var extractedSlug = ExtractSlugFromUrl(slugOrUrl);
+                if (!string.IsNullOrWhiteSpace(extractedSlug))
+                {
+                    // Check if original URL was for trophies (PlayStation) to preserve the endpoint type
+                    var wasTrophies = slugOrUrl.IndexOf("/trophies", StringComparison.OrdinalIgnoreCase) >= 0;
+                    return $"https://www.exophase.com/game/{extractedSlug}/{(wasTrophies ? "trophies" : "achievements")}/";
+                }
+                // If we can't extract, return as-is (legacy fallback)
+                return slugOrUrl;
+            }
+
+            // Detect if this is a PlayStation game from the slug
+            var isPlayStation = slugOrUrl.IndexOf("-psn", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               slugOrUrl.IndexOf("-ps4", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               slugOrUrl.IndexOf("-ps5", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               slugOrUrl.IndexOf("-vita", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               slugOrUrl.IndexOf("-ps3", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            return $"https://www.exophase.com/game/{slugOrUrl}/{(isPlayStation ? "trophies" : "achievements")}/";
         }
 
         /// <summary>
@@ -59,13 +114,19 @@ namespace PlayniteAchievements.Providers.Exophase
                 var result = Serialization.FromJson<ExophaseSearchResult>(json);
                 if (result?.Games?.List == null || result.Games.List.Count == 0)
                 {
+                    _logger?.Debug($"[Exophase] Parsed result: Games=null, or empty list");
                     return new List<ExophaseGame>();
                 }
 
+                _logger?.Debug($"[Exophase] Parsed {result.Games.List.Count} games from API");
+
                 // Filter to only games with achievements (endpoint_awards URL)
-                return result.Games.List
+                var filtered = result.Games.List
                     .Where(g => g != null && !string.IsNullOrWhiteSpace(g.EndpointAwards))
                     .ToList();
+
+                _logger?.Debug($"[Exophase] After filtering: {filtered.Count} games with achievements");
+                return filtered;
             }
             catch (OperationCanceledException)
             {
@@ -131,9 +192,10 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>
         /// Fetches and parses achievement page HTML to extract achievements.
+        /// Uses WebView to bypass Cloudflare protection.
         /// </summary>
         /// <param name="achievementUrl">The achievement page URL (endpoint_awards value).</param>
-        /// <param name="acceptLanguage">The Accept-Language header value for localization.</param>
+        /// <param name="acceptLanguage">The Accept-Language header value for localization (not used with WebView).</param>
         /// <param name="ct">Cancellation token.</param>
         /// <returns>List of AchievementDetail objects, or null if error.</returns>
         public async Task<List<AchievementDetail>> FetchAchievementsAsync(
@@ -148,33 +210,14 @@ namespace PlayniteAchievements.Providers.Exophase
 
             try
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Get, achievementUrl))
+                var html = await FetchHtmlViaWebViewAsync(achievementUrl, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(html))
                 {
-                    request.Headers.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
-                    request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-
-                    if (!string.IsNullOrWhiteSpace(acceptLanguage))
-                    {
-                        request.Headers.TryAddWithoutValidation("Accept-Language", acceptLanguage);
-                    }
-
-                    using (var response = await _httpClient.SendAsync(request, ct).ConfigureAwait(false))
-                    {
-                        if (!response.IsSuccessStatusCode)
-                        {
-                            _logger?.Debug($"Exophase achievement page returned {(int)response.StatusCode} for URL: {achievementUrl}");
-                            return null;
-                        }
-
-                        var html = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                        if (string.IsNullOrWhiteSpace(html))
-                        {
-                            return null;
-                        }
-
-                        return ParseAchievementsHtml(html);
-                    }
+                    _logger?.Debug($"[Exophase] No HTML fetched for achievement URL: {achievementUrl}");
+                    return null;
                 }
+
+                return ParseAchievementsHtml(html);
             }
             catch (OperationCanceledException)
             {
@@ -185,6 +228,55 @@ namespace PlayniteAchievements.Providers.Exophase
                 _logger?.Error(ex, $"Failed to fetch Exophase achievements from {achievementUrl}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
+        /// </summary>
+        private async Task<string> FetchHtmlViaWebViewAsync(string url, CancellationToken ct)
+        {
+            var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
+            {
+                using (var view = _playniteApi.WebViews.CreateOffscreenView())
+                {
+                    try
+                    {
+                        await view.NavigateAndWaitAsync(url, timeoutMs: 20000);
+
+                        var html = await view.GetPageSourceAsync();
+
+                        if (string.IsNullOrWhiteSpace(html))
+                        {
+                            _logger?.Debug("[Exophase] WebView returned empty HTML");
+                            return null;
+                        }
+
+                        // Check if we got a Cloudflare challenge page
+                        if (html.Contains("Just a moment") ||
+                            html.Contains("Cloudflare") ||
+                            html.Contains("Verifying you are human"))
+                        {
+                            _logger?.Warn("[Exophase] Cloudflare challenge detected on achievement page");
+                            return null;
+                        }
+
+                        _logger?.Debug($"[Exophase] WebView fetched HTML: {html.Length} chars");
+                        return html;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Error(ex, "[Exophase] Failed to fetch HTML via WebView");
+                        return null;
+                    }
+                }
+            });
+
+            var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
+            return await responseTask.ConfigureAwait(false);
         }
 
         /// <summary>
@@ -415,11 +507,14 @@ namespace PlayniteAchievements.Providers.Exophase
     [DataContract]
     public sealed class ExophaseImages
     {
-        [DataMember(Name = "cover")]
-        public string Cover { get; set; }
+        [DataMember(Name = "o")]
+        public string O { get; set; }
 
-        [DataMember(Name = "banner")]
-        public string Banner { get; set; }
+        [DataMember(Name = "l")]
+        public string L { get; set; }
+
+        [DataMember(Name = "m")]
+        public string M { get; set; }
     }
 
     [DataContract]

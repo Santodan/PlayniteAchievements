@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -243,7 +244,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>
         /// Quick check using offscreen view to see if already authenticated.
-        /// If account page redirects to login, user is not authenticated.
+        /// Follows Steam/GOG pattern: check cookies directly, then verify with page navigation.
         /// </summary>
         private async Task<string> QuickAuthCheckAsync(CancellationToken ct)
         {
@@ -257,8 +258,20 @@ namespace PlayniteAchievements.Providers.Exophase
                     {
                         try
                         {
+                            // First check if we have Exophase session cookies
+                            var cookies = view.GetCookies();
+                            var hasExophaseCookies = cookies?.Any(c =>
+                                c != null &&
+                                !string.IsNullOrWhiteSpace(c.Domain) &&
+                                c.Domain.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0) == true;
+
+                            _logger?.Debug($"[ExophaseAuth] Has exophase.com cookies: {hasExophaseCookies}");
+
+                            // Navigate to account page to verify session
                             await view.NavigateAndWaitAsync(UrlAccount, timeoutMs: 10000);
                             var currentUrl = view.GetCurrentAddress();
+
+                            _logger?.Debug($"[ExophaseAuth] After navigation, current URL: {currentUrl}");
 
                             // If redirected to login page, not authenticated
                             if (IsLoginPageUrl(currentUrl))
@@ -274,8 +287,11 @@ namespace PlayniteAchievements.Providers.Exophase
                             {
                                 _isSessionAuthenticated = true;
                                 _username = username;
+                                _logger?.Debug($"[ExophaseAuth] Extracted username: {username}");
                                 return username;
                             }
+
+                            _logger?.Debug("[ExophaseAuth] Could not extract username from account page HTML.");
                         }
                         catch (Exception ex)
                         {

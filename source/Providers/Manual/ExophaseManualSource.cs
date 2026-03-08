@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -11,7 +10,7 @@ namespace PlayniteAchievements.Providers.Manual
 {
     /// <summary>
     /// Manual source implementation for Exophase.
-    /// Uses Exophase public API for search and HTML parsing for achievement pages.
+    /// Uses WebView for all requests to bypass Cloudflare protection.
     /// </summary>
     internal sealed class ExophaseManualSource : IManualSource
     {
@@ -24,14 +23,12 @@ namespace PlayniteAchievements.Providers.Manual
         public string SourceName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
 
         public ExophaseManualSource(
-            HttpClient httpClient,
             IPlayniteAPI playniteApi,
             ExophaseSessionManager sessionManager,
             ILogger logger,
             Func<string> getLanguage)
         {
             _apiClient = new ExophaseApiClient(
-                httpClient ?? throw new ArgumentNullException(nameof(httpClient)),
                 playniteApi ?? throw new ArgumentNullException(nameof(playniteApi)),
                 logger);
             _sessionManager = sessionManager;
@@ -59,32 +56,39 @@ namespace PlayniteAchievements.Providers.Manual
                 {
                     if (game == null || string.IsNullOrWhiteSpace(game.EndpointAwards))
                     {
+                        _logger?.Debug("[ExophaseManualSource] Skipping game: null or no EndpointAwards");
                         continue;
                     }
 
-                    // Get the icon URL - prefer cover, then banner
-                    var iconUrl = game.Images?.Cover;
-                    if (string.IsNullOrWhiteSpace(iconUrl))
+                    // Extract the slug from the achievement URL for a stable identifier
+                    var slug = ExophaseApiClient.ExtractSlugFromUrl(game.EndpointAwards);
+                    if (string.IsNullOrWhiteSpace(slug))
                     {
-                        iconUrl = game.Images?.Banner;
+                        _logger?.Debug($"[ExophaseManualSource] Skipping game '{game.Title}': could not extract slug from {game.EndpointAwards}");
+                        continue;
                     }
+
+                    // Get the icon URL - prefer O (original), then L (large), then M (medium)
+                    var iconUrl = game.Images?.O ?? game.Images?.L ?? game.Images?.M;
 
                     // Build platform display string
                     var platformNames = game.Platforms != null && game.Platforms.Count > 0
                         ? string.Join(", ", game.Platforms.ConvertAll(p => p?.Name).FindAll(n => !string.IsNullOrWhiteSpace(n)))
                         : "";
 
+                    _logger?.Debug($"[ExophaseManualSource] Adding result: {game.Title} | Platforms: {platformNames} | Slug: {slug}");
+
                     results.Add(new ManualGameSearchResult
                     {
-                        SourceGameId = game.EndpointAwards,
-                        Name = string.IsNullOrWhiteSpace(platformNames)
-                            ? game.Title ?? "Unknown Game"
-                            : $"{game.Title} ({platformNames})",
+                        SourceGameId = slug,
+                        Name = game.Title ?? "Unknown Game",
                         IconUrl = iconUrl ?? string.Empty,
-                        HasAchievements = true // All Exophase games have achievements
+                        HasAchievements = true, // All Exophase games have achievements
+                        Platforms = platformNames
                     });
                 }
 
+                _logger?.Debug($"[ExophaseManualSource] Returning {results.Count} search results");
                 return results;
             }
             catch (OperationCanceledException)
@@ -105,20 +109,27 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            // sourceGameId is the achievement page URL (endpoint_awards value)
-            // It should be a URL like: https://www.exophase.com/game/.../achievements
+            // sourceGameId is the game slug (e.g., "shogun-showdown-steam")
+            // Build the full URL from the slug
             try
             {
+                var achievementUrl = ExophaseApiClient.BuildUrlFromSlug(sourceGameId);
+                if (string.IsNullOrWhiteSpace(achievementUrl))
+                {
+                    _logger?.Debug($"Failed to build URL from slug: {sourceGameId}");
+                    return null;
+                }
+
                 var acceptLanguage = ExophaseApiClient.MapLanguageToAcceptLanguage(language);
 
                 var achievements = await _apiClient.FetchAchievementsAsync(
-                    sourceGameId,
+                    achievementUrl,
                     acceptLanguage,
                     ct).ConfigureAwait(false);
 
                 if (achievements == null || achievements.Count == 0)
                 {
-                    _logger?.Debug($"No achievements found for Exophase URL: {sourceGameId}");
+                    _logger?.Debug($"No achievements found for Exophase slug: {sourceGameId}");
                     return null;
                 }
 
@@ -132,7 +143,7 @@ namespace PlayniteAchievements.Providers.Manual
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, $"Failed to fetch Exophase achievements from {sourceGameId}");
+                _logger?.Error(ex, $"Failed to fetch Exophase achievements from slug: {sourceGameId}");
                 return null;
             }
         }
