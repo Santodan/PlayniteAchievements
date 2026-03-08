@@ -267,7 +267,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Date">Date</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Time">Time</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_AppId">App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Platform">Platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Type">Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_UnlockDate">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
@@ -804,7 +805,7 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SaveFailed">Failed to save manual achievements: {0}</sys:String>
 
     <!-- Schema fetch errors -->
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected Steam game has no achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_FetchFailed">Failed to fetch achievement data from Steam: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">Steam API key is required to fetch achievement data. Configure it in plugin settings.</sys:String>
 
