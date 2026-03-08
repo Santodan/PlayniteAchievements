@@ -37,7 +37,6 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public sealed class ManualAchievementsViewModel : Common.ObservableObject
     {
-        private static int _nextInstanceId = 0;
         private readonly Game _playniteGame;
         private readonly AchievementService _achievementService;
         private IManualSource _source;
@@ -53,7 +52,6 @@ namespace PlayniteAchievements.ViewModels
         private CancellationTokenSource _searchCts;
         private ManualAchievementLink _lastSavedLink;
         private List<InheritedUnlockEntry> _pendingInheritedUnlocks;
-        private readonly int _instanceId;
 
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
@@ -93,7 +91,6 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (_currentStage != value)
                 {
-                    _logger?.Debug($"[ManualTracking#{_instanceId}] CurrentStage changing from {_currentStage} to {value}, caller: {new System.Diagnostics.StackTrace().GetFrame(1)?.GetMethod()?.Name}");
                     _currentStage = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsSearchStage));
@@ -104,15 +101,7 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public bool IsSearchStage
-        {
-            get
-            {
-                var value = CurrentStage == WizardStage.Search;
-                _logger?.Debug($"[ManualTracking#{_instanceId}] IsSearchStage getter: {value} (CurrentStage={CurrentStage})");
-                return value;
-            }
-        }
+        public bool IsSearchStage => CurrentStage == WizardStage.Search;
         public bool IsRefreshingStage => CurrentStage == WizardStage.Refreshing;
         public bool IsEditingStage => CurrentStage == WizardStage.Editing;
         public bool IsCompletedStage => CurrentStage == WizardStage.Completed;
