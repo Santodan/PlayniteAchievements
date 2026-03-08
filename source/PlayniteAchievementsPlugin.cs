@@ -71,6 +71,9 @@ namespace PlayniteAchievements
         private readonly RefreshCoordinator _refreshCoordinator;
         private bool _applicationStarted;
 
+        // Top panel item
+        private PlayniteAchievementsTopPanelItem _topPanelItem;
+
         // Theme integration
         private readonly ThemeIntegrationUpdateService _themeUpdateService;
         private readonly FullscreenWindowService _fullscreenWindowService;
@@ -335,6 +338,10 @@ namespace PlayniteAchievements
                         SourceName = "PlayniteAchievements"
                     });
                 }
+
+                // Initialize top panel item for popout window
+                _topPanelItem = new PlayniteAchievementsTopPanelItem(
+                    PlayniteApi, _logger, _achievementService, _refreshCoordinator, _settingsViewModel.Settings);
 
                 _logger.Info("PlayniteAchievementsPlugin initialized.");
             }
@@ -1294,6 +1301,13 @@ namespace PlayniteAchievements
             // tb.SetResourceReference(TextBlock.ForegroundProperty, "GlyphBrush");
 
             return tb;
+        }
+
+        // === Top Panel ===
+
+        public override IEnumerable<TopPanelItem> GetTopPanelItems()
+        {
+            yield return _topPanelItem;
         }
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
