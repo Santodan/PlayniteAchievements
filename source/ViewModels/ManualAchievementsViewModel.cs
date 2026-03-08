@@ -786,10 +786,10 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
-        private void ResetToSearchStage()
+        private void ResetToSearchStage(IManualSource sourceToPreserve = null)
         {
-            // Capture current source before any changes
-            var preservedSource = _source;
+            // Use provided source or preserve current source
+            var preservedSource = sourceToPreserve ?? _source;
             _logger?.Debug($"[ManualTracking] ResetToSearchStage: preserving source={preservedSource?.SourceKey}");
 
             CurrentStage = WizardStage.Search;
@@ -799,13 +799,12 @@ namespace PlayniteAchievements.ViewModels
             SearchResults.Clear();
             SelectedResult = null;
 
-            // Restore the preserved source (in case anything cleared it)
+            // Set the preserved source
             _source = preservedSource;
             _selectedSource = preservedSource;
 
             // Ensure source name is updated
             ManualSourceName = ResolveSourceName(_source?.SourceKey);
-            _logger?.Debug($"[ManualTracking] ResetToSearchStage: after sync _source={_source?.SourceKey}, _selectedSource={_selectedSource?.SourceKey}");
 
             // Notify all source-related properties
             OnPropertyChanged(nameof(SelectedSourceKey));
@@ -823,10 +822,8 @@ namespace PlayniteAchievements.ViewModels
         {
             _logger?.Debug($"[ManualTracking] HandleRefreshFailureAsync: _source={_source?.SourceKey}");
 
-            // Capture the current source to preserve it through the reset
+            // Capture the current source before showing dialog
             var currentSource = _source;
-            var currentSourceKey = currentSource?.SourceKey;
-            _logger?.Debug($"[ManualTracking] Captured source: {currentSourceKey}");
 
             // Show dialog while still on Refreshing stage
             // User explicitly clicks OK to transition back to search
@@ -841,15 +838,8 @@ namespace PlayniteAchievements.ViewModels
                 // Transition only happens when user explicitly dismisses the dialog
                 if (result == MessageBoxResult.OK)
                 {
-                    // Restore the captured source to ensure correct source is selected
-                    if (_source != currentSource)
-                    {
-                        _logger?.Warn($"[ManualTracking] Source changed from {currentSourceKey} to {_source?.SourceKey}, restoring");
-                        _source = currentSource;
-                    }
-
                     // Transition back to search with preserved source
-                    ResetToSearchStage();
+                    ResetToSearchStage(currentSource);
 
                     // Re-search with the current source to populate results
                     if (!string.IsNullOrWhiteSpace(SearchText))
@@ -860,8 +850,8 @@ namespace PlayniteAchievements.ViewModels
             }
             else
             {
-                // No dialog message - just transition back
-                ResetToSearchStage();
+                // No dialog message - just transition back with current source
+                ResetToSearchStage(currentSource);
 
                 if (!string.IsNullOrWhiteSpace(SearchText))
                 {
