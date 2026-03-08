@@ -275,6 +275,7 @@ namespace PlayniteAchievements.Providers.Manual
         /// <summary>
         /// Filters app IDs to only include games (not demos, DLC, soundtracks, etc.)
         /// using the Steam AppDetails API.
+        /// Steam AppDetails API only accepts a single appid per request.
         /// </summary>
         /// <returns>Set of valid game app IDs, or null if the API call failed.</returns>
         private async Task<HashSet<int>> FilterGamesByTypeAsync(List<int> appIds, CancellationToken ct)
@@ -286,15 +287,13 @@ namespace PlayniteAchievements.Providers.Manual
 
             try
             {
-                // Batch request up to 20 apps at a time (Steam API limit)
-                var batchSize = 20;
                 var validIds = new HashSet<int>();
 
-                for (var i = 0; i < appIds.Count; i += batchSize)
+                foreach (var appId in appIds)
                 {
-                    var batch = appIds.Skip(i).Take(batchSize).ToList();
-                    var appIdsParam = string.Join(",", batch);
-                    var url = $"{AppDetailsUrl}?appids={appIdsParam}&filters=type";
+                    ct.ThrowIfCancellationRequested();
+
+                    var url = $"{AppDetailsUrl}?appids={appId}&filters=type";
 
                     using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                     {
@@ -305,35 +304,24 @@ namespace PlayniteAchievements.Providers.Manual
                         {
                             if (!response.IsSuccessStatusCode)
                             {
-                                _logger?.Debug($"AppDetails API returned {(int)response.StatusCode}, using fallback filter");
-                                return null;
-                            }
-
-                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                            if (string.IsNullOrWhiteSpace(json))
-                            {
-                                return null;
-                            }
-
-                            var details = Serialization.FromJson<Dictionary<string, AppDetailsEnvelope>>(json);
-                            if (details == null)
-                            {
+                                _logger?.Debug($"AppDetails API returned {(int)response.StatusCode} for appId={appId}");
                                 continue;
                             }
 
-                            foreach (var kvp in details)
+                            var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                            var details = Serialization.FromJson<Dictionary<string, AppDetailsEnvelope>>(json);
+
+                            if (details?.TryGetValue(appId.ToString(), out var envelope) == true &&
+                                envelope?.Success == true &&
+                                string.Equals(envelope.Data?.Type, "game", StringComparison.OrdinalIgnoreCase))
                             {
-                                if (kvp.Value?.Success == true &&
-                                    string.Equals(kvp.Value.Data?.Type, "game", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    if (int.TryParse(kvp.Key, out var appId))
-                                    {
-                                        validIds.Add(appId);
-                                    }
-                                }
+                                validIds.Add(appId);
                             }
                         }
                     }
+
+                    // Small delay to avoid rate limiting
+                    await Task.Delay(50, ct).ConfigureAwait(false);
                 }
 
                 return validIds;
