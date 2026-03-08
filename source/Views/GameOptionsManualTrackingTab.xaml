@@ -201,7 +201,7 @@
                               Background="Transparent"
                               RowBackground="Transparent"
                               Foreground="{DynamicResource TextBrush}"
-                              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderLeftStyle}"
                               PreviewMouseLeftButtonDown="SearchDataGrid_PreviewMouseLeftButtonDown"
                               MouseDoubleClick="SearchDataGrid_MouseDoubleClick">
                         <DataGrid.CellStyle>
