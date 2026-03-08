@@ -392,7 +392,6 @@ namespace PlayniteAchievements.ViewModels
             IPlayniteAPI playniteApi,
             bool startAtEditingStage = false)
         {
-            _instanceId = System.Threading.Interlocked.Increment(ref _nextInstanceId);
             _playniteGame = playniteGame ?? throw new ArgumentNullException(nameof(playniteGame));
             _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
             _availableSources = availableSources?.ToList().AsReadOnly() ?? throw new ArgumentNullException(nameof(availableSources));
@@ -405,7 +404,6 @@ namespace PlayniteAchievements.ViewModels
             _language = settings.Persisted.GlobalLanguage ?? "english";
             _startAtEditingStage = startAtEditingStage;
             ManualSourceName = ResolveSourceName(_source?.SourceKey);
-            _logger?.Debug($"[ManualTracking] ViewModel #{_instanceId} created, initialSource={_source?.SourceKey}");
 
             if (startAtEditingStage)
             {
@@ -792,7 +790,6 @@ namespace PlayniteAchievements.ViewModels
         {
             // Use provided source or preserve current source
             var preservedSource = sourceToPreserve ?? _source;
-            _logger?.Debug($"[ManualTracking#{_instanceId}] ResetToSearchStage called from: {new System.Diagnostics.StackTrace().GetFrame(1)?.GetMethod()?.Name}, preserving source={preservedSource?.SourceKey}");
 
             CurrentStage = WizardStage.Search;
             ErrorMessage = string.Empty;
@@ -822,8 +819,6 @@ namespace PlayniteAchievements.ViewModels
 
         private async Task HandleRefreshFailureAsync(string dialogMessage = null)
         {
-            _logger?.Debug($"[ManualTracking#{_instanceId}] HandleRefreshFailureAsync: _source={_source?.SourceKey}, CurrentStage={CurrentStage}");
-
             // Capture the current source before showing dialog
             var currentSource = _source;
 
@@ -836,18 +831,15 @@ namespace PlayniteAchievements.ViewModels
                     () => { },
                     System.Windows.Threading.DispatcherPriority.ContextIdle);
 
-                _logger?.Debug($"[ManualTracking#{_instanceId}] Showing dialog, CurrentStage={CurrentStage}");
                 var result = _playniteApi?.Dialogs?.ShowMessage(
                     dialogMessage,
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
-                _logger?.Debug($"[ManualTracking#{_instanceId}] Dialog returned: {result}");
 
                 // Transition only happens when user explicitly dismisses the dialog
                 if (result == MessageBoxResult.OK)
                 {
-                    _logger?.Debug($"[ManualTracking#{_instanceId}] Transitioning with source={currentSource?.SourceKey}");
                     ResetToSearchStage(currentSource);
 
                     if (!string.IsNullOrWhiteSpace(SearchText))
