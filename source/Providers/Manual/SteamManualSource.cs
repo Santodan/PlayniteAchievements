@@ -293,7 +293,7 @@ namespace PlayniteAchievements.Providers.Manual
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    var url = $"{AppDetailsUrl}?appids={appId}&filters=type";
+                    var url = $"{AppDetailsUrl}?appids={appId}";
 
                     using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                     {
