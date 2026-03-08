@@ -267,7 +267,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocked">Débloqué</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Date">Date</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Time">Heure</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_AppId">App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Platform">Plateforme</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Type">Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_UnlockDate">Débloqué</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">Rareté</sys:String>
@@ -804,7 +805,7 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SaveFailed">Échec de l'enregistrement des succès manuels : {0}</sys:String>
 
     <!-- Schema fetch errors -->
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">Le jeu Steam sélectionné n'a pas de succès.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">Le jeu sélectionné n'a pas de succès.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_FetchFailed">Échec de la récupération des données de succès depuis Steam : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">La clé API Steam est requise pour récupérer les données de succès. Configurez-la dans les paramètres du plugin.</sys:String>
 
