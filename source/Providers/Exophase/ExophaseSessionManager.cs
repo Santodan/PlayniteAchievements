@@ -6,6 +6,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Providers.Exophase
 {
@@ -26,11 +27,13 @@ namespace PlayniteAchievements.Providers.Exophase
         private int _authCheckInProgress;
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
+        private readonly PlayniteAchievementsSettings _settings;
 
-        public ExophaseSessionManager(IPlayniteAPI api, ILogger logger)
+        public ExophaseSessionManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsSettings settings)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger;
+            _settings = settings;
         }
 
         /// <summary>
@@ -42,6 +45,33 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Gets the current username if authenticated.
         /// </summary>
         public string Username => _username;
+
+        /// <summary>
+        /// Checks if any exophase.com session cookies exist.
+        /// Fast check that doesn't require page navigation.
+        /// </summary>
+        public static bool HasExophaseSessionCookies(IPlayniteAPI api, ILogger logger)
+        {
+            try
+            {
+                using (var view = api.WebViews.CreateOffscreenView())
+                {
+                    var cookies = view.GetCookies();
+                    if (cookies == null)
+                        return false;
+
+                    return cookies.Any(c =>
+                        c != null &&
+                        !string.IsNullOrWhiteSpace(c.Domain) &&
+                        c.Domain.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, "[ExophaseAuth] Failed to check session cookies.");
+                return false;
+            }
+        }
 
         /// <summary>
         /// Runs a best-effort background probe to hydrate authentication state from current web session cookies.
@@ -83,9 +113,31 @@ namespace PlayniteAchievements.Providers.Exophase
                         windowOpened: false);
                 }
 
+                // Fast path: check persisted username AND cookies exist (like Steam pattern)
+                var persistedUsername = _settings?.Persisted?.ExophaseUserId;
+                var hasCookies = HasExophaseSessionCookies(_api, _logger);
+
+                if (!string.IsNullOrWhiteSpace(persistedUsername) && hasCookies)
+                {
+                    _username = persistedUsername;
+                    _isSessionAuthenticated = true;
+                    _logger?.Debug("[ExophaseAuth] Restored from persisted settings + cookie check.");
+                    return ExophaseAuthResult.Create(
+                        ExophaseAuthOutcome.AlreadyAuthenticated,
+                        "LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated",
+                        persistedUsername,
+                        windowOpened: false);
+                }
+
+                // No persisted state or no cookies - do full verification
                 var extractedUsername = await QuickAuthCheckAsync(ct).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(extractedUsername))
                 {
+                    // Save to persisted settings
+                    if (_settings?.Persisted != null)
+                    {
+                        _settings.Persisted.ExophaseUserId = extractedUsername;
+                    }
                     return ExophaseAuthResult.Create(
                         ExophaseAuthOutcome.AlreadyAuthenticated,
                         "LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated",
@@ -93,6 +145,11 @@ namespace PlayniteAchievements.Providers.Exophase
                         windowOpened: false);
                 }
 
+                // Verification failed, clear any stale persisted state
+                if (_settings?.Persisted != null)
+                {
+                    _settings.Persisted.ExophaseUserId = null;
+                }
                 _isSessionAuthenticated = false;
 
                 return ExophaseAuthResult.Create(
@@ -214,6 +271,11 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
 
                 _username = extractedUsername;
+                // Save to persisted settings
+                if (_settings?.Persisted != null)
+                {
+                    _settings.Persisted.ExophaseUserId = extractedUsername;
+                }
                 _logger?.Info("[ExophaseAuth] Interactive login succeeded.");
                 progress?.Report(ExophaseAuthProgressStep.Completed);
                 return ExophaseAuthResult.Create(
@@ -287,6 +349,11 @@ namespace PlayniteAchievements.Providers.Exophase
                             {
                                 _isSessionAuthenticated = true;
                                 _username = username;
+                                // Save to persisted settings
+                                if (_settings?.Persisted != null)
+                                {
+                                    _settings.Persisted.ExophaseUserId = username;
+                                }
                                 _logger?.Debug($"[ExophaseAuth] Extracted username: {username}");
                                 return username;
                             }
@@ -352,6 +419,12 @@ namespace PlayniteAchievements.Providers.Exophase
             _username = null;
             _isSessionAuthenticated = false;
             _authResult = (false, null);
+
+            // Clear persisted user ID
+            if (_settings?.Persisted != null)
+            {
+                _settings.Persisted.ExophaseUserId = null;
+            }
 
             // Clear cookies from CEF
             try
