@@ -16,10 +16,12 @@
          ======================= -->
 
     <!-- Shared achievement icon border style with conditional glow -->
+    <!-- Margin provides space for glow effect (BlurRadius=15) -->
     <Style x:Key="AchievementIconBorderStyle" TargetType="Border">
         <Setter Property="CornerRadius" Value="6"/>
         <Setter Property="ClipToBounds" Value="True"/>
         <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+        <Setter Property="Margin" Value="8"/>
         <Setter Property="Effect" Value="{x:Null}"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding Unlocked}" Value="True">
