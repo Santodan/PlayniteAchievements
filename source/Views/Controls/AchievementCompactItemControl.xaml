@@ -95,16 +95,24 @@
             </ToolTip>
         </Grid.ToolTip>
 
-        <!-- Achievement icon with glow effect - uses shared style for conditional glow -->
-        <Border Style="{StaticResource AchievementIconBorderStyle}"
-                Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}">
-            <Border.Background>
-                <ImageBrush Stretch="UniformToFill"
-                            helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                            helpers:AsyncImage.DecodePixel="64"/>
-            </Border.Background>
-        </Border>
+        <!-- Achievement icon with glow effect - Image with conditional glow -->
+        <!-- Border provides rounded corners via opacity mask, Image has glow effect -->
+        <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality"
+               Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+               Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+               helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+               helpers:AsyncImage.DecodePixel="64">
+            <Image.Style>
+                <Style TargetType="Image">
+                    <Setter Property="Effect" Value="{x:Null}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                            <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
+        </Image>
 
         <!-- Lock icon overlay for locked achievements (when not showing hidden icon) -->
         <TextBlock Text="&#xf023;"
