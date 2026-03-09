@@ -174,7 +174,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.OpenFullscreenAchievementWindow = _openSelectedGameCmd;
             _settings.OpenAchievementWindow = _openOverviewCmd;
             _settings.OpenGameAchievementWindow = _openSelectedGameCmd;
-            _settings.RefreshSelectedGameCommand = _singleGameRefreshCmd;
             _settings.SingleGameRefreshCommand = _singleGameRefreshCmd;
             _settings.RecentRefreshCommand = _recentRefreshCmd;
             _settings.FavoritesRefreshCommand = _favoritesRefreshCmd;

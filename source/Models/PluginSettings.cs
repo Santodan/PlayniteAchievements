@@ -383,7 +383,6 @@ namespace PlayniteAchievements.Models
         #region Legacy Theme Compatibility
 
         // === SuccessStory Compatibility ===
-        private ICommand _refreshSelectedGameCommand;
 
         [DontSerialize]
         public bool HasData
@@ -504,13 +503,6 @@ namespace PlayniteAchievements.Models
         {
             get => LegacyTheme.Rank;
             set => LegacyTheme.Rank = value;
-        }
-
-        [DontSerialize]
-        public ICommand RefreshSelectedGameCommand
-        {
-            get => _refreshSelectedGameCommand;
-            set => SetValue(ref _refreshSelectedGameCommand, value);
         }
 
         [DontSerialize]
