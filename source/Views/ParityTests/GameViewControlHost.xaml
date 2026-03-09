@@ -10,8 +10,17 @@
     <Grid>
         <ContentPresenter x:Name="PART_Content" />
 
-        <Border x:Name="PART_Empty" Background="#11000000" BorderBrush="#22000000" BorderThickness="1" CornerRadius="4" Padding="10" Visibility="Collapsed">
-            <TextBlock x:Name="PART_EmptyText" TextWrapping="Wrap" Opacity="0.85">
+        <Border x:Name="PART_Empty"
+                Background="{DynamicResource ControlBackgroundBrush}"
+                BorderBrush="{DynamicResource NormalBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="12"
+                Visibility="Collapsed">
+            <TextBlock x:Name="PART_EmptyText"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextBrush}"
+                       Opacity="0.7">
                 Control not available (returned null).
             </TextBlock>
         </Border>
