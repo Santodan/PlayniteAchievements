@@ -1169,23 +1169,9 @@
                                 </DataGrid.RowStyle>
 
                                 <DataGrid.Columns>
-                                    <!-- Achievement Icon (bigger) -->
-                                    <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"> <!-- was 56 -->
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <Grid Width="56" Height="56" VerticalAlignment="Center" Margin="4,14,0,14" ClipToBounds="False">
-                                                    <Border CornerRadius="6" RenderOptions.BitmapScalingMode="HighQuality"
-                                                            Effect="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}">
-                                                        <Border.Background>
-                                                            <ImageBrush Stretch="UniformToFill"
-                                                                        helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                                                                        helpers:AsyncImage.DecodePixel="64"/>
-                                                        </Border.Background>
-                                                    </Border>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
+                                    <!-- Achievement Icon (uses shared template with conditional glow) -->
+                                    <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
+                                                            CellTemplate="{StaticResource AchievementIconTemplate}"/>
 
                                     <!-- Achievement Info (give a bit more vertical breathing room) -->
                                     <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="Name" helpers:ColumnVisibilityHelper.ColumnKey="Achievement">
