@@ -8,6 +8,15 @@
                    mc:Ignorable="d"
                    d:DesignHeight="200" d:DesignWidth="200">
 
+    <base:ThemeControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/TrophyBadges.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </base:ThemeControlBase.Resources>
+
     <controls:PieChartWithRadialIcons PieSeries="{Binding PieSeries, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWay}"
                                       LegendItems="{Binding LegendItems, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWay}"
                                       IconOffset="12"/>
