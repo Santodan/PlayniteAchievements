@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Views.Converters
 {
     /// <summary>
     /// Single-value converter that returns a DropShadowEffect with color based on achievement rarity.
-    /// Matches SuccessStory glow parameters: BlurRadius=22, ShadowDepth=0, Opacity=1.0
+    /// Matches SuccessStory glow parameters: BlurRadius=15, ShadowDepth=0, Opacity=1.0
     /// Colors:
     /// - Ultra Rare: Light blue (#4FC3F7)
     /// - Rare: Gold (#FFD700)
@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views.Converters
     {
         private static readonly DropShadowEffect UltraRareGlow = new DropShadowEffect
         {
-            BlurRadius = 22,
+            BlurRadius = 15,
             ShadowDepth = 0,
             Color = Color.FromRgb(0x4F, 0xC3, 0xF7),
             Opacity = 1.0
@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Views.Converters
 
         private static readonly DropShadowEffect RareGlow = new DropShadowEffect
         {
-            BlurRadius = 22,
+            BlurRadius = 15,
             ShadowDepth = 0,
             Color = Color.FromRgb(0xFF, 0xD7, 0x00),
             Opacity = 1.0
@@ -36,7 +36,7 @@ namespace PlayniteAchievements.Views.Converters
 
         private static readonly DropShadowEffect UncommonGlow = new DropShadowEffect
         {
-            BlurRadius = 22,
+            BlurRadius = 15,
             ShadowDepth = 0,
             Color = Color.FromRgb(0xC0, 0xC0, 0xC0),
             Opacity = 1.0
