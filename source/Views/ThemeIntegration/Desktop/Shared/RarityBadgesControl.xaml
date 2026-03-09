@@ -43,7 +43,7 @@
                     <TextBlock Text="{Binding Count}"
                                VerticalAlignment="Center"
                                Margin="4,0,0,0"
-                               FontSize="11"
+                               FontSize="{DynamicResource FontSizeSmall}"
                                Foreground="{DynamicResource TextBrush}"
                                Opacity="0.85"/>
                 </StackPanel>
