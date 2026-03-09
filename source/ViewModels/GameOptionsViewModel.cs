@@ -596,8 +596,10 @@ namespace PlayniteAchievements.ViewModels
 
         private void ClearRaOverride()
         {
-            _plugin?.ClearRaGameIdOverrideForGame(_gameId);
-            Reload();
+            if (_plugin?.TryClearRaGameIdOverride(_gameId) == true)
+            {
+                Reload();
+            }
         }
 
         private void UnlinkManualTracking()

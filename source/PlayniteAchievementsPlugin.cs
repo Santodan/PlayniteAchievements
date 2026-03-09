@@ -245,7 +245,18 @@ namespace PlayniteAchievements
 
                     _achievementService = new AchievementService(api, settings, _logger, this, providers, _diskImageService, _providerRegistry);
                     _notifications = new NotificationPublisher(api, settings, _logger);
-                    _refreshCoordinator = new RefreshCoordinator(_achievementService, _logger, ShowRefreshProgressControlAndRun);
+                    _refreshCoordinator = new RefreshCoordinator(
+                        _achievementService,
+                        _logger,
+                        _providerRegistry,
+                        new Dictionary<string, Func<CancellationToken, Task>>
+                        {
+                            ["GOG"] = _gogSessionManager.PrimeAuthenticationStateAsync,
+                            ["Epic"] = _epicSessionManager.PrimeAuthenticationStateAsync,
+                            ["PSN"] = _psnSessionManager.PrimeAuthenticationStateAsync,
+                            ["Xbox"] = _xboxSessionManager.PrimeAuthenticationStateAsync
+                        },
+                        ShowRefreshProgressControlAndRun);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _achievementService, settings, _logger, _notifications, null);
                     _legacyManualLinkImporter = new LegacyManualLinkImporter(
                         () => _settingsViewModel?.Settings?.Persisted,
@@ -879,72 +890,6 @@ namespace PlayniteAchievements
                 MessageBoxImage.Information);
         }
 
-        private void ShowRaGameIdDialog(Game game)
-        {
-            if (game == null)
-            {
-                return;
-            }
-
-            var hasExistingOverride = _settingsViewModel.Settings.Persisted.RaGameIdOverrides.TryGetValue(game.Id, out var existingId);
-            var defaultText = hasExistingOverride ? existingId.ToString() : string.Empty;
-
-            // Use custom text input dialog
-            var inputDialog = new TextInputDialog(
-                ResourceProvider.GetString("LOCPlayAch_Menu_RaGameId_DialogHint"),
-                defaultText);
-
-            var windowOptions = new WindowOptions
-            {
-                ShowMinimizeButton = false,
-                ShowMaximizeButton = false,
-                ShowCloseButton = true,
-                CanBeResizable = false,
-                Width = 450,
-                Height = 200
-            };
-
-            var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_Menu_RaGameId_DialogTitle"),
-                inputDialog,
-                windowOptions);
-
-            try
-            {
-                if (window.Owner == null)
-                {
-                    window.Owner = PlayniteApi?.Dialogs?.GetCurrentAppWindow();
-                }
-            }
-            catch (Exception ex) { _logger?.Debug(ex, "Failed to set window owner"); }
-
-            inputDialog.RequestClose += (s, ev) => window.Close();
-            window.ShowDialog();
-
-            if (inputDialog.DialogResult != true)
-            {
-                return;
-            }
-
-            var inputText = inputDialog.InputText?.Trim();
-            if (string.IsNullOrWhiteSpace(inputText))
-            {
-                return;
-            }
-
-            if (!int.TryParse(inputText, out var newId) || newId <= 0)
-            {
-                PlayniteApi?.Dialogs?.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Menu_RaGameId_InvalidId"),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            TrySetRaGameIdOverride(game.Id, newId);
-        }
-
         public bool TrySetRaGameIdOverride(Guid gameId, int newId)
         {
             var game = PlayniteApi?.Database?.Games?.Get(gameId);
@@ -969,63 +914,28 @@ namespace PlayniteAchievements
             return true;
         }
 
-        private void ClearRaGameIdOverride(Game game)
+        public bool TryClearRaGameIdOverride(Guid gameId)
         {
-            if (game == null)
+            if (!_settingsViewModel.Settings.Persisted.RaGameIdOverrides.ContainsKey(gameId))
             {
-                return;
+                return false;
             }
 
-            if (!_settingsViewModel.Settings.Persisted.RaGameIdOverrides.ContainsKey(game.Id))
-            {
-                return;
-            }
-
-            var result = PlayniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_RaGameId_ClearConfirm"), game.Name),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            _settingsViewModel.Settings.Persisted.RaGameIdOverrides.Remove(game.Id);
+            _settingsViewModel.Settings.Persisted.RaGameIdOverrides.Remove(gameId);
             SavePluginSettings(_settingsViewModel.Settings);
 
-            _logger?.Info($"Cleared RA game ID override for '{game.Name}'");
-
-            PlayniteApi?.Dialogs?.ShowMessage(
-                ResourceProvider.GetString("LOCPlayAch_Menu_RaGameId_Cleared"),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-        }
-
-        /// <summary>
-        /// Shows the RetroAchievements game ID override dialog for a game.
-        /// </summary>
-        public void ShowRaGameIdDialogForGame(Guid gameId)
-        {
             var game = PlayniteApi?.Database?.Games?.Get(gameId);
-            if (game != null)
-            {
-                ShowRaGameIdDialog(game);
-            }
-        }
+            _logger?.Info($"Cleared RA game ID override for '{game?.Name ?? gameId.ToString()}'");
 
-        /// <summary>
-        /// Clears the RetroAchievements game ID override for a game.
-        /// </summary>
-        public void ClearRaGameIdOverrideForGame(Guid gameId)
-        {
-            var game = PlayniteApi?.Database?.Games?.Get(gameId);
-            if (game != null)
-            {
-                ClearRaGameIdOverride(game);
-            }
+            _ = _refreshCoordinator.ExecuteAsync(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.Single,
+                    SingleGameId = gameId
+                },
+                RefreshExecutionPolicy.ProgressWindow(gameId));
+
+            return true;
         }
 
         /// <summary>
@@ -1336,33 +1246,6 @@ namespace PlayniteAchievements
                 {
                     // ignore
                 }
-
-                // Defer authentication probing to avoid WebView disposal race condition during plugin initialization.
-                // This ensures the UI dispatcher is fully ready and serializes WebView creation.
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(1000).ConfigureAwait(false); // Let Playnite fully initialize
-                    try
-                    {
-                        await _gogSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime GOG authentication state"); }
-                    try
-                    {
-                        await _epicSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime Epic authentication state"); }
-                    try
-                    {
-                        await _psnSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime PSN authentication state"); }
-                    try
-                    {
-                        await _xboxSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
-                    }
-                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime Xbox authentication state"); }
-                });
 
                 // Auto-migrate themes that have been updated since the last migration.
                 AutoMigrateUpgradedThemesOnStartup();
