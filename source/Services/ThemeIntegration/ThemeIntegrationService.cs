@@ -411,14 +411,29 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             var errorLogMessage = mode switch
             {
+                RefreshModeType.Full => "Full achievement refresh failed.",
+                RefreshModeType.Installed => "Installed games achievement refresh failed.",
                 RefreshModeType.Single => "Single game achievement refresh failed.",
                 RefreshModeType.Recent => "Recent refresh achievement refresh failed.",
                 RefreshModeType.Favorites => "Favorites achievement refresh failed.",
-                RefreshModeType.Full => "Full achievement refresh failed.",
-                RefreshModeType.Installed => "Installed games achievement refresh failed.",
                 _ => "Achievement refresh failed."
             };
 
+            if (IsFullscreen())
+            {
+                RunAchievementRefreshWithProgressWindow(mode, gameIdForThemeUpdate, errorLogMessage);
+            }
+            else
+            {
+                RunAchievementRefreshWithGlobalProgress(mode, gameIdForThemeUpdate, errorLogMessage);
+            }
+        }
+
+        private void RunAchievementRefreshWithGlobalProgress(
+            RefreshModeType mode,
+            Guid? gameIdForThemeUpdate,
+            string errorLogMessage)
+        {
             var progressOptions = new GlobalProgressOptions(ResourceProvider.GetString("LOCPlayAch_Status_Starting"), true)
             {
                 Cancelable = true,
@@ -482,7 +497,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                                 ValidateAuthentication = false,
                                 UseProgressWindow = false,
                                 SwallowExceptions = false,
-                                ErrorLogMessage = errorLogMessage
+                                ErrorLogMessage = errorLogMessage,
+                                OnRefreshCompleted = (success) =>
+                                {
+                                    if (success)
+                                    {
+                                        if (gameIdForThemeUpdate.HasValue)
+                                        {
+                                            try { _requestSingleGameThemeUpdate(gameIdForThemeUpdate.Value); } catch { }
+                                        }
+                                        try { if (IsFullscreen() && _fullscreenInitialized) RequestRefresh(); } catch { }
+                                    }
+                                }
                             }).ConfigureAwait(false);
 
                         try
@@ -512,14 +538,43 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     finally
                     {
                         _achievementService.RebuildProgress -= progressHandler;
-                        if (gameIdForThemeUpdate.HasValue)
-                        {
-                            try { _requestSingleGameThemeUpdate(gameIdForThemeUpdate.Value); } catch { }
-                        }
-                        try { if (IsFullscreen() && _fullscreenInitialized) RequestRefresh(); } catch { }
                     }
                 });
             }, progressOptions);
+        }
+
+        private void RunAchievementRefreshWithProgressWindow(
+            RefreshModeType mode,
+            Guid? gameIdForThemeUpdate,
+            string errorLogMessage)
+        {
+            var request = new RefreshRequest
+            {
+                Mode = mode,
+                SingleGameId = mode == RefreshModeType.Single ? gameIdForThemeUpdate : null
+            };
+
+            _ = _refreshCoordinator.ExecuteAsync(
+                request,
+                new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = true,
+                    UseProgressWindow = true,
+                    SwallowExceptions = true,
+                    ProgressSingleGameId = gameIdForThemeUpdate,
+                    ErrorLogMessage = errorLogMessage,
+                    OnRefreshCompleted = (success) =>
+                    {
+                        if (success)
+                        {
+                            if (gameIdForThemeUpdate.HasValue)
+                            {
+                                try { _requestSingleGameThemeUpdate(gameIdForThemeUpdate.Value); } catch { }
+                            }
+                            try { if (IsFullscreen()) RequestRefresh(); } catch { }
+                        }
+                    }
+                });
         }
 
         #endregion
