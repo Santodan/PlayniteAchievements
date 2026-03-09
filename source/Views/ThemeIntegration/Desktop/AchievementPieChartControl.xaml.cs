@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Windows;
 using LiveCharts;
 using PlayniteAchievements.Models;
@@ -10,8 +9,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 {
     /// <summary>
     /// Desktop PlayniteAchievements pie chart control for theme integration.
-    /// Displays achievement distribution as a pie chart with radial badge icons.
-    /// Supports Rarity mode (default) and Trophy mode for PSN-style display.
+    /// Displays rarity distribution as a pie chart with radial badge icons.
+    /// Binds directly to Plugin.Settings.Theme properties.
     /// </summary>
     public partial class AchievementPieChartControl : ThemeControlBase
     {
@@ -21,34 +20,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         protected override bool EnableAutomaticThemeDataUpdates => true;
 
         private readonly PieChartViewModel _viewModel = new PieChartViewModel();
-
-        #region DisplayMode Property
-
-        /// <summary>
-        /// Display mode for the pie chart. "Rarity" (default) or "Trophy".
-        /// </summary>
-        public static readonly DependencyProperty DisplayModeProperty =
-            DependencyProperty.Register(
-                nameof(DisplayMode),
-                typeof(string),
-                typeof(AchievementPieChartControl),
-                new PropertyMetadata("Rarity", OnDisplayModeChanged));
-
-        public string DisplayMode
-        {
-            get => (string)GetValue(DisplayModeProperty);
-            set => SetValue(DisplayModeProperty, value);
-        }
-
-        private static void OnDisplayModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            if (d is AchievementPieChartControl control)
-            {
-                control.OnThemeDataUpdated();
-            }
-        }
-
-        #endregion
 
         /// <summary>
         /// Gets the pie series collection for the chart.
@@ -70,13 +41,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
-            // Rarity mode watches these properties
-            if (DisplayMode == "Trophy")
-            {
-                return propertyName == nameof(Models.ThemeIntegration.ThemeData.AllAchievements) ||
-                       propertyName == nameof(Models.ThemeIntegration.ThemeData.LockedCount);
-            }
-
             return propertyName == nameof(Models.ThemeIntegration.ThemeData.Common) ||
                    propertyName == nameof(Models.ThemeIntegration.ThemeData.Uncommon) ||
                    propertyName == nameof(Models.ThemeIntegration.ThemeData.Rare) ||
@@ -92,67 +56,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             var theme = Plugin?.Settings?.Theme;
             if (theme == null) return;
 
-            if (DisplayMode == "Trophy")
-            {
-                UpdateTrophyMode(theme);
-            }
-            else
-            {
-                UpdateRarityMode(theme);
-            }
-        }
-
-        private void UpdateRarityMode(Models.ThemeIntegration.ThemeData theme)
-        {
             _viewModel.SetRarityData(
                 theme.Common.Unlocked, theme.Uncommon.Unlocked, theme.Rare.Unlocked, theme.UltraRare.Unlocked, theme.LockedCount,
                 theme.Common.Total, theme.Uncommon.Total, theme.Rare.Total, theme.UltraRare.Total,
                 "Common", "Uncommon", "Rare", "Ultra Rare", "Locked");
-        }
-
-        private void UpdateTrophyMode(Models.ThemeIntegration.ThemeData theme)
-        {
-            var achievements = theme.AllAchievements;
-            if (achievements == null || achievements.Count == 0)
-            {
-                _viewModel.SetTrophyData(0, 0, 0, 0, 0, 0, 0, 0, "Platinum", "Gold", "Silver", "Bronze", "Locked");
-                return;
-            }
-
-            // Count trophies by type
-            int platinumUnlocked = 0, goldUnlocked = 0, silverUnlocked = 0, bronzeUnlocked = 0;
-            int platinumTotal = 0, goldTotal = 0, silverTotal = 0, bronzeTotal = 0;
-
-            foreach (var achievement in achievements)
-            {
-                var trophyType = achievement.TrophyType?.ToLowerInvariant();
-                var isUnlocked = achievement.Unlocked;
-
-                switch (trophyType)
-                {
-                    case "platinum":
-                        platinumTotal++;
-                        if (isUnlocked) platinumUnlocked++;
-                        break;
-                    case "gold":
-                        goldTotal++;
-                        if (isUnlocked) goldUnlocked++;
-                        break;
-                    case "silver":
-                        silverTotal++;
-                        if (isUnlocked) silverUnlocked++;
-                        break;
-                    case "bronze":
-                        bronzeTotal++;
-                        if (isUnlocked) bronzeUnlocked++;
-                        break;
-                }
-            }
-
-            _viewModel.SetTrophyData(
-                platinumUnlocked, goldUnlocked, silverUnlocked, bronzeUnlocked,
-                platinumTotal, goldTotal, silverTotal, bronzeTotal,
-                "Platinum", "Gold", "Silver", "Bronze", "Locked");
         }
     }
 }

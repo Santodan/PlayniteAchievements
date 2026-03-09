@@ -6,7 +6,6 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Logging;
 using Playnite.SDK;
-using PlayniteAchievements.Views.ThemeIntegration.Desktop;
 
 namespace PlayniteAchievements.Views.ParityTests
 {
@@ -44,22 +43,11 @@ namespace PlayniteAchievements.Views.ParityTests
                 DataContext = this;
 
                 Loaded += NativeParityTestView_Loaded;
-
-                // Set up trophy pie chart mode when host creates control
-                TrophyPieHost.ControlCreated += OnTrophyPieHostControlCreated;
             }
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"Constructor setup failed: {ex.Message}\n\n{ex.StackTrace}", "NativeParityTestView Error");
                 throw;
-            }
-        }
-
-        private void OnTrophyPieHostControlCreated(Control control)
-        {
-            if (control is AchievementPieChartControl pieChart)
-            {
-                pieChart.DisplayMode = "Trophy";
             }
         }
 
