@@ -102,10 +102,15 @@
                 Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}">
             <Border.Style>
                 <Style TargetType="Border">
+                    <Setter Property="Opacity" Value="0.5"/>
                     <Setter Property="Effect" Value="{x:Null}"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                            <Setter Property="Opacity" Value="1"/>
                             <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsIconHidden}" Value="True">
+                            <Setter Property="Opacity" Value="1"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
