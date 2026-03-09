@@ -18,9 +18,7 @@
         <Border Grid.Row="0"
                 Padding="16"
                 CornerRadius="8"
-                Background="{DynamicResource ControlBackgroundBrush}"
-                BorderThickness="1"
-                BorderBrush="{DynamicResource NormalBorderBrush}">
+                Background="{DynamicResource ControlBackgroundBrush}">
             <StackPanel>
                 <TextBlock FontSize="20"
                            FontWeight="SemiBold"
@@ -65,52 +63,68 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- AchievementViewItem -->
-                    <GroupBox Grid.Column="0"
-                              Header="AchievementViewItem"
-                              Margin="0,0,8,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <StackPanel Margin="8">
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,8,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementViewItem"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,4"/>
                             <TextBlock Text="Shows X/Y count in game list views"
                                        Foreground="{DynamicResource TextBrush}" Opacity="0.6"
                                        FontSize="{DynamicResource FontSizeSmall}"
                                        Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementViewItem" />
                         </StackPanel>
-                    </GroupBox>
+                    </Border>
 
                     <!-- AchievementButton -->
-                    <GroupBox Grid.Column="1"
-                              Header="AchievementButton"
-                              Margin="4,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <StackPanel Margin="8">
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="4,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementButton"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementButton" />
                         </StackPanel>
-                    </GroupBox>
+                    </Border>
 
                     <!-- AchievementProgressBar -->
-                    <GroupBox Grid.Column="2"
-                              Header="AchievementProgressBar"
-                              Margin="8,0,0,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <StackPanel Margin="8">
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="8,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementProgressBar"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementProgressBar" />
                         </StackPanel>
-                    </GroupBox>
+                    </Border>
                 </Grid>
 
                 <!-- Row 2: Stats -->
-                <GroupBox Header="AchievementStats"
-                          Margin="0,12,0,0"
-                          Style="{DynamicResource GroupBoxStyle}"
-                          Foreground="{DynamicResource TextBrush}">
-                    <StackPanel Margin="12">
+                <Border Background="{DynamicResource ControlBackgroundBrush}"
+                        CornerRadius="6"
+                        Padding="12"
+                        Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="AchievementStats"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Margin="0,0,0,8"/>
                         <local:GameViewControlHost ControlName="AchievementStats" />
                     </StackPanel>
-                </GroupBox>
+                </Border>
 
                 <!-- Row 3: Charts Side by Side -->
                 <Grid Margin="0,12,0,0">
@@ -120,26 +134,34 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- AchievementBarChart -->
-                    <GroupBox Grid.Column="0"
-                              Header="AchievementBarChart"
-                              Margin="0,0,8,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <Grid Margin="12">
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,8,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementBarChart"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementBarChart" Height="240" />
-                        </Grid>
-                    </GroupBox>
+                        </StackPanel>
+                    </Border>
 
                     <!-- AchievementPieChart -->
-                    <GroupBox Grid.Column="1"
-                              Header="AchievementPieChart"
-                              Margin="8,0,0,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <Grid Margin="12">
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="8,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementPieChart"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementPieChart" Height="240" />
-                        </Grid>
-                    </GroupBox>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <!-- Row 4: Compact Lists Side by Side -->
@@ -151,48 +173,64 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- AchievementCompactList -->
-                    <GroupBox Grid.Column="0"
-                              Header="AchievementCompactList"
-                              Margin="0,0,8,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <Grid Margin="12">
+                    <Border Grid.Column="0"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,8,0">
+                        <StackPanel>
+                            <TextBlock Text="AchievementCompactList"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementCompactList" Height="220" />
-                        </Grid>
-                    </GroupBox>
+                        </StackPanel>
+                    </Border>
 
                     <!-- AchievementCompactLockedList -->
-                    <GroupBox Grid.Column="1"
-                              Header="CompactLocked"
-                              Margin="4,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <Grid Margin="12">
+                    <Border Grid.Column="1"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="4,0">
+                        <StackPanel>
+                            <TextBlock Text="CompactLocked"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementCompactLockedList" Height="220" />
-                        </Grid>
-                    </GroupBox>
+                        </StackPanel>
+                    </Border>
 
                     <!-- AchievementCompactUnlockedList -->
-                    <GroupBox Grid.Column="2"
-                              Header="CompactUnlocked"
-                              Margin="8,0,0,0"
-                              Style="{DynamicResource GroupBoxStyle}"
-                              Foreground="{DynamicResource TextBrush}">
-                        <Grid Margin="12">
+                    <Border Grid.Column="2"
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="8,0,0,0">
+                        <StackPanel>
+                            <TextBlock Text="CompactUnlocked"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       Margin="0,0,0,8"/>
                             <local:GameViewControlHost ControlName="AchievementCompactUnlockedList" Height="220" />
-                        </Grid>
-                    </GroupBox>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <!-- Row 5: Full Achievement List -->
-                <GroupBox Header="AchievementList"
-                          Margin="0,12,0,0"
-                          Style="{DynamicResource GroupBoxStyle}"
-                          Foreground="{DynamicResource TextBrush}">
-                    <Grid Margin="12">
+                <Border Background="{DynamicResource ControlBackgroundBrush}"
+                        CornerRadius="6"
+                        Padding="12"
+                        Margin="0,12,0,0">
+                    <StackPanel>
+                        <TextBlock Text="AchievementList"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Margin="0,0,0,8"/>
                         <local:GameViewControlHost ControlName="AchievementList" Height="400" />
-                    </Grid>
-                </GroupBox>
+                    </StackPanel>
+                </Border>
 
             </StackPanel>
         </ScrollViewer>
