@@ -18,6 +18,7 @@ using PlayniteAchievements.Providers.GOG;
 using PlayniteAchievements.Providers.Epic;
 using PlayniteAchievements.Providers.PSN;
 using PlayniteAchievements.Providers.Xbox;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.ShadPS4;
 using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Providers.Manual;
@@ -63,6 +64,7 @@ namespace PlayniteAchievements
         private readonly EpicSessionManager _epicSessionManager;
         private readonly PsnSessionManager _psnSessionManager;
         private readonly XboxSessionManager _xboxSessionManager;
+        private readonly ExophaseSessionManager _exophaseSessionManager;
         private readonly ProviderRegistry _providerRegistry;
         private readonly ManualAchievementsProvider _manualProvider;
         private readonly LegacyManualLinkImporter _legacyManualLinkImporter;
@@ -113,6 +115,7 @@ namespace PlayniteAchievements
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationUpdateService ThemeUpdateService => _themeUpdateService;
         public SteamSessionManager SteamSessionManager => _steamSessionManager;
+        public ExophaseSessionManager ExophaseSessionManager => _exophaseSessionManager;
         public EpicSessionManager EpicSessionManager => _epicSessionManager;
         internal RefreshCoordinator RefreshCoordinator => _refreshCoordinator;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
@@ -184,12 +187,13 @@ namespace PlayniteAchievements
                     _epicSessionManager = new EpicSessionManager(PlayniteApi, _logger, settings);
                     _psnSessionManager = new PsnSessionManager(PlayniteApi, _logger, settings.Persisted);
                     _xboxSessionManager = new XboxSessionManager(PlayniteApi, _logger, settings.Persisted);
+                    _exophaseSessionManager = new ExophaseSessionManager(PlayniteApi, _logger, settings);
                 }
 
                 List<IDataProvider> providers;
                 using (PerfScope.StartStartup(_logger, "PluginCtor.ProviderCreation", thresholdMs: 50))
                 {
-                    _manualProvider = new ManualAchievementsProvider(_logger, settings, pluginUserDataPath);
+                    _manualProvider = new ManualAchievementsProvider(_logger, settings, pluginUserDataPath, PlayniteApi, _exophaseSessionManager);
                     providers = new List<IDataProvider>
                     {
                         _manualProvider,  // Manual provider first - explicit user overrides take priority
@@ -356,7 +360,7 @@ namespace PlayniteAchievements
             try
             {
                 _logger.Info($"GetSettingsView called, firstRunView={firstRunView}");
-                var control = new SettingsControl(_settingsViewModel, _logger, this, _steamSessionManager, _gogSessionManager, _epicSessionManager, _psnSessionManager, _xboxSessionManager);
+                var control = new SettingsControl(_settingsViewModel, _logger, this, _steamSessionManager, _gogSessionManager, _epicSessionManager, _psnSessionManager, _xboxSessionManager, _exophaseSessionManager);
                 _logger.Info("GetSettingsView succeeded");
                 return control;
             }
@@ -1361,6 +1365,11 @@ namespace PlayniteAchievements
                     try
                     {
                         await _xboxSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
+                    }
+                    catch { }
+                    try
+                    {
+                        await _exophaseSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
                     }
                     catch { }
                 });

@@ -80,7 +80,8 @@ namespace PlayniteAchievements.Services
             _logger = logger;
             _sourceResolver = sourceResolver ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Steam"] = "Steam"
+                ["Steam"] = "Steam",
+                ["Exophase"] = "Exophase"
             };
         }
 
@@ -270,7 +271,14 @@ namespace PlayniteAchievements.Services
         {
             sourceGameId = null;
 
+            // Try Steam stats URL pattern first
             if (TryExtractAppIdFromStatsUrl(sourceUrl, out sourceGameId))
+            {
+                return true;
+            }
+
+            // Try Exophase achievement page URL
+            if (TryExtractExophaseUrl(sourceUrl, out sourceGameId))
             {
                 return true;
             }
@@ -335,6 +343,36 @@ namespace PlayniteAchievements.Services
 
             appId = match.Groups["id"]?.Value;
             return !string.IsNullOrWhiteSpace(appId);
+        }
+
+        private static bool TryExtractExophaseUrl(string url, out string exophaseId)
+        {
+            exophaseId = null;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return false;
+            }
+
+            // Exophase achievement URLs follow patterns like:
+            // https://www.exophase.com/game/<game-slug>/achievements
+            // Extract just the slug for storage (more stable than full URL)
+            if (url.IndexOf("exophase.com/game/", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                url.IndexOf("/achievements", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                // Extract the slug from the URL
+                var match = Regex.Match(url, @"/game/([^/]+)/achievements", RegexOptions.IgnoreCase);
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    exophaseId = match.Groups[1].Value;
+                    return true;
+                }
+
+                // Fallback: store full URL if we can't extract slug (for edge cases)
+                exophaseId = url.Trim();
+                return true;
+            }
+
+            return false;
         }
 
         private static bool TryParseLegacyUnlock(string value, out DateTime? utc)

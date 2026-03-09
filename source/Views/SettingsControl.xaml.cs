@@ -19,6 +19,7 @@ using PlayniteAchievements.Providers.GOG;
 using PlayniteAchievements.Providers.Epic;
 using PlayniteAchievements.Providers.PSN;
 using PlayniteAchievements.Providers.Xbox;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
 using System.Diagnostics;
@@ -220,6 +221,51 @@ namespace PlayniteAchievements.Views
         {
             get => (bool)GetValue(XboxAuthenticatedProperty);
             set => SetValue(XboxAuthenticatedProperty, value);
+        }
+
+        // -----------------------------
+        // Exophase Auth DependencyProperties
+        // -----------------------------
+
+        public static readonly DependencyProperty ExophaseAuthStatusProperty =
+            DependencyProperty.Register(
+                nameof(ExophaseAuthStatus),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotChecked"),
+                    ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"))));
+
+        public string ExophaseAuthStatus
+        {
+            get => (string)GetValue(ExophaseAuthStatusProperty);
+            set => SetValue(ExophaseAuthStatusProperty, value);
+        }
+
+        public static readonly DependencyProperty ExophaseAuthBusyProperty =
+            DependencyProperty.Register(
+                nameof(ExophaseAuthBusy),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool ExophaseAuthBusy
+        {
+            get => (bool)GetValue(ExophaseAuthBusyProperty);
+            set => SetValue(ExophaseAuthBusyProperty, value);
+        }
+
+        public static readonly DependencyProperty ExophaseAuthenticatedProperty =
+            DependencyProperty.Register(
+                nameof(ExophaseAuthenticated),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool ExophaseAuthenticated
+        {
+            get => (bool)GetValue(ExophaseAuthenticatedProperty);
+            set => SetValue(ExophaseAuthenticatedProperty, value);
         }
 
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =
@@ -467,10 +513,11 @@ namespace PlayniteAchievements.Views
         private readonly EpicSessionManager _epicSessionManager;
         private readonly PsnSessionManager _psnSessionManager;
         private readonly XboxSessionManager _xboxSessionManager;
+        private readonly ExophaseSessionManager _exophaseSessionManager;
         private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
         private const string SuccessStoryFolderName = "SuccessStory";
 
-        public SettingsControl(PlayniteAchievementsSettingsViewModel settingsViewModel, ILogger logger, PlayniteAchievementsPlugin plugin, SteamSessionManager steamSessionManager, GogSessionManager gogSessionManager, EpicSessionManager epicSessionManager, PsnSessionManager psnSessionManager, XboxSessionManager xboxSessionManager)
+        public SettingsControl(PlayniteAchievementsSettingsViewModel settingsViewModel, ILogger logger, PlayniteAchievementsPlugin plugin, SteamSessionManager steamSessionManager, GogSessionManager gogSessionManager, EpicSessionManager epicSessionManager, PsnSessionManager psnSessionManager, XboxSessionManager xboxSessionManager, ExophaseSessionManager exophaseSessionManager)
         {
             _settingsViewModel = settingsViewModel ?? throw new ArgumentNullException(nameof(settingsViewModel));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
@@ -480,6 +527,7 @@ namespace PlayniteAchievements.Views
             _epicSessionManager = epicSessionManager ?? throw new ArgumentNullException(nameof(epicSessionManager));
             _psnSessionManager = psnSessionManager ?? throw new ArgumentNullException(nameof(psnSessionManager));
             _xboxSessionManager = xboxSessionManager ?? throw new ArgumentNullException(nameof(xboxSessionManager));
+            _exophaseSessionManager = exophaseSessionManager ?? throw new ArgumentNullException(nameof(exophaseSessionManager));
 
             _themeDiscovery = new ThemeDiscoveryService(_logger, plugin.PlayniteApi);
             _themeMigration = new ThemeMigrationService(
@@ -519,6 +567,7 @@ namespace PlayniteAchievements.Views
                 await CheckEpicAuthAsync().ConfigureAwait(false);
                 await CheckPsnAuthAsync().ConfigureAwait(false);
                 await CheckXboxAuthAsync().ConfigureAwait(false);
+                await CheckExophaseAuthAsync().ConfigureAwait(false);
                 UpdateRaAuthState();
                 CheckShadPS4Auth();
                 CheckRpcs3Auth();
@@ -1957,6 +2006,220 @@ namespace PlayniteAchievements.Views
         }
 
         // -----------------------------
+        // Exophase auth UI
+        // -----------------------------
+
+        private async void ExophaseAuth_Check_Click(object sender, RoutedEventArgs e)
+        {
+            _logger?.Info("[ExophaseAuth] Settings: Check Auth clicked.");
+            await CheckExophaseAuthAsync().ConfigureAwait(false);
+        }
+
+        private async void ExophaseAuth_Login_Click(object sender, RoutedEventArgs e)
+        {
+            _logger?.Info("[ExophaseAuth] Settings: Login clicked.");
+            SetExophaseAuthBusy(true);
+            SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_Checking");
+
+            try
+            {
+                using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180)))
+                {
+                    var progress = new Progress<ExophaseAuthProgressStep>(step =>
+                    {
+                        var msgKey = GetExophaseProgressMessageKey(step);
+                        SetExophaseAuthStatusByKey(msgKey);
+                    });
+
+                    var result = await _exophaseSessionManager.AuthenticateInteractiveAsync(
+                        forceInteractive: true,
+                        ct: cts.Token,
+                        progress: progress).ConfigureAwait(false);
+                    ApplyExophaseAuthResult(result);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                SetExophaseAuthenticated(false);
+                SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_TimedOut");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[ExophaseAuth] Login failed.");
+                SetExophaseAuthenticated(false);
+                SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_Failed");
+            }
+            finally
+            {
+                SetExophaseAuthBusy(false);
+            }
+        }
+
+        private void ExophaseAuth_Clear_Click(object sender, RoutedEventArgs e)
+        {
+            _exophaseSessionManager.ClearSession();
+            SetExophaseAuthenticated(false);
+            SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_NotAuthenticated");
+        }
+
+        private async Task CheckExophaseAuthAsync()
+        {
+            SetExophaseAuthBusy(true);
+            SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_Checking");
+
+            // Small delay to ensure user sees the checking feedback
+            await Task.Delay(300).ConfigureAwait(false);
+
+            try
+            {
+                using (var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                {
+                    var result = await _exophaseSessionManager.ProbeAuthenticationAsync(timeoutCts.Token).ConfigureAwait(false);
+                    ApplyExophaseAuthResult(result);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                SetExophaseAuthenticated(false);
+                SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_TimedOut");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Exophase auth check failed.");
+                SetExophaseAuthenticated(false);
+                SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_ProbeFailed");
+            }
+            finally
+            {
+                SetExophaseAuthBusy(false);
+            }
+        }
+
+        private void ApplyExophaseAuthResult(ExophaseAuthResult result)
+        {
+            if (result == null)
+            {
+                _logger?.Debug("[ExophaseAuth] ApplyExophaseAuthResult: result is null");
+                SetExophaseAuthenticated(false);
+                SetExophaseAuthStatusByKey("LOCPlayAch_Settings_ExophaseAuth_Failed");
+                return;
+            }
+
+            _logger?.Debug($"[ExophaseAuth] ApplyExophaseAuthResult: Outcome={result.Outcome}, IsSuccess={result.IsSuccess}, Username={result.Username}");
+
+            var authenticated =
+                result.Outcome == ExophaseAuthOutcome.Authenticated ||
+                result.Outcome == ExophaseAuthOutcome.AlreadyAuthenticated;
+
+            _logger?.Debug($"[ExophaseAuth] ApplyExophaseAuthResult: authenticated={authenticated}");
+
+            // Set authenticated state
+            SetExophaseAuthenticated(authenticated);
+
+            var statusKey = string.IsNullOrWhiteSpace(result.MessageKey)
+                ? GetDefaultExophaseMessageKeyForOutcome(result.Outcome)
+                : result.MessageKey;
+
+            if (!result.WindowOpened &&
+                !result.IsSuccess &&
+                (result.Outcome == ExophaseAuthOutcome.Failed || result.Outcome == ExophaseAuthOutcome.Cancelled))
+            {
+                statusKey = "LOCPlayAch_Settings_ExophaseAuth_WindowNotOpened";
+            }
+
+            SetExophaseAuthStatusByKey(statusKey);
+        }
+
+        private static string GetDefaultExophaseMessageKeyForOutcome(ExophaseAuthOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case ExophaseAuthOutcome.Authenticated:
+                    return "LOCPlayAch_Settings_Auth_Verified";
+                case ExophaseAuthOutcome.AlreadyAuthenticated:
+                    return "LOCPlayAch_Settings_Auth_AlreadyAuthenticated";
+                case ExophaseAuthOutcome.NotAuthenticated:
+                    return "LOCPlayAch_Settings_Auth_NotAuthenticated";
+                case ExophaseAuthOutcome.Cancelled:
+                    return "LOCPlayAch_Settings_Auth_Cancelled";
+                case ExophaseAuthOutcome.TimedOut:
+                    return "LOCPlayAch_Settings_Auth_TimedOut";
+                case ExophaseAuthOutcome.ProbeFailed:
+                    return "LOCPlayAch_Settings_Auth_ProbeFailed";
+                case ExophaseAuthOutcome.Failed:
+                default:
+                    return "LOCPlayAch_Settings_Auth_Failed";
+            }
+        }
+
+        private static string GetExophaseProgressMessageKey(ExophaseAuthProgressStep step)
+        {
+            switch (step)
+            {
+                case ExophaseAuthProgressStep.CheckingExistingSession:
+                    return "LOCPlayAch_Settings_Auth_CheckingExistingSession";
+                case ExophaseAuthProgressStep.OpeningLoginWindow:
+                    return "LOCPlayAch_Settings_Auth_OpeningWindow";
+                case ExophaseAuthProgressStep.WaitingForUserLogin:
+                    return "LOCPlayAch_Settings_Auth_WaitingForLogin";
+                case ExophaseAuthProgressStep.VerifyingSession:
+                    return "LOCPlayAch_Settings_Auth_VerifyingSession";
+                case ExophaseAuthProgressStep.Completed:
+                    return "LOCPlayAch_Settings_Auth_Completed";
+                case ExophaseAuthProgressStep.Failed:
+                default:
+                    return "LOCPlayAch_Settings_Auth_Failed";
+            }
+        }
+
+        private void SetExophaseAuthStatusByKey(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            var value = ResolveAuthStatusValue(key, "LOCPlayAch_Provider_Exophase");
+            SetExophaseAuthStatus(string.IsNullOrWhiteSpace(value) ? key : value);
+        }
+
+        private void SetExophaseAuthStatus(string status)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ExophaseAuthStatus = status;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => ExophaseAuthStatus = status));
+            }
+        }
+
+        private void SetExophaseAuthBusy(bool busy)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ExophaseAuthBusy = busy;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => ExophaseAuthBusy = busy));
+            }
+        }
+
+        private void SetExophaseAuthenticated(bool authenticated)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                ExophaseAuthenticated = authenticated;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => ExophaseAuthenticated = authenticated));
+            }
+        }
+
+        // -----------------------------
         // Legacy Manual Import actions
         // -----------------------------
 
@@ -2647,6 +2910,11 @@ namespace PlayniteAchievements.Views
             {
                 await CheckXboxAuthAsync().ConfigureAwait(false);
                 _logger?.Info("Checked Xbox auth for Xbox tab.");
+            }
+            else if (string.Equals(name, "ExophaseTab", StringComparison.OrdinalIgnoreCase))
+            {
+                await CheckExophaseAuthAsync().ConfigureAwait(false);
+                _logger?.Info("Checked Exophase auth for Exophase tab.");
             }
             else if (string.Equals(name, "ShadPS4Tab", StringComparison.OrdinalIgnoreCase))
             {

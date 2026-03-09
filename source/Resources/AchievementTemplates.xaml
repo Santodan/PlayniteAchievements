@@ -78,12 +78,19 @@
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Tooltip_RightClickShowHide}"/>
     </Style>
 
+    <!-- Left-aligned column header style for manual tracking search grid -->
+    <Style x:Key="AchievementColumnHeaderLeftStyle"
+           TargetType="DataGridColumnHeader"
+           BasedOn="{StaticResource AchievementColumnHeaderStyle}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    </Style>
+
     <!-- DataGrid Cell Style -->
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Padding" Value="10,0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">

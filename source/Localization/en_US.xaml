@@ -65,6 +65,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
 
@@ -267,7 +268,8 @@
     <sys:String x:Key="LOCPlayAch_Column_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Date">Date</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Time">Time</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_AppId">App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Platform">Platform</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Type">Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_UnlockDate">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
@@ -354,6 +356,21 @@
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Click Login to authenticate with Xbox Live via Microsoft account.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Download Smaller Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Enable if Xbox icon downloads are slow. Requests 128px icons instead of full resolution.</sys:String>
+
+    <!-- Exophase Settings -->
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseConnection">Exophase Connection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Description">Login is optional. Achievement names and descriptions use your Global Language setting.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_ExophaseAuth">Exophase Authentication</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Login to access authenticated-only features. Achievement data is public.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_NotAuthenticated">Not authenticated with Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated">Authenticated with Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Verified">Exophase authentication verified</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Cancelled">Exophase login cancelled</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_TimedOut">Exophase login timed out</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Failed">Exophase authentication failed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_ProbeFailed">Unable to check Exophase authentication status</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Checking">Checking Exophase authentication...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_WindowNotOpened">Failed to open login window</sys:String>
 
     <!-- ShadPS4 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4Connection">ShadPS4 Connection</sys:String>
@@ -765,8 +782,9 @@
 
     <!-- Search dialog -->
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Title">Link Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a Steam game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_GameLabel">Playnite game:</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Source_Label">Source:</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Placeholder">Enter game name to search...</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NothingFound">Nothing was found.</sys:String>
@@ -788,7 +806,7 @@
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SaveFailed">Failed to save manual achievements: {0}</sys:String>
 
     <!-- Schema fetch errors -->
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected Steam game has no achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_FetchFailed">Failed to fetch achievement data from Steam: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">Steam API key is required to fetch achievement data. Configure it in plugin settings.</sys:String>
 

@@ -8,6 +8,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Images;
 
@@ -22,6 +23,8 @@ namespace PlayniteAchievements.Providers.Manual
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly IManualSource _steamManualSource;
+        private readonly IManualSource _exophaseManualSource;
+        private readonly ExophaseSessionManager _exophaseSessionManager;
         private readonly DiskImageService _diskImageService;
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Manual");
@@ -37,11 +40,14 @@ namespace PlayniteAchievements.Providers.Manual
         public ManualAchievementsProvider(
             ILogger logger,
             PlayniteAchievementsSettings settings,
-            string pluginUserDataPath)
+            string pluginUserDataPath,
+            IPlayniteAPI playniteApi,
+            ExophaseSessionManager exophaseSessionManager)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _diskImageService = new DiskImageService(logger, pluginUserDataPath);
+            _exophaseSessionManager = exophaseSessionManager ?? throw new ArgumentNullException(nameof(exophaseSessionManager));
 
             // Create Steam manual source with properly configured HTTP client
             var handler = new System.Net.Http.HttpClientHandler
@@ -59,6 +65,13 @@ namespace PlayniteAchievements.Providers.Manual
                 httpClient,
                 logger,
                 () => settings.Persisted.SteamApiKey);
+
+            // Create Exophase manual source (uses WebView, no HTTP client needed)
+            _exophaseManualSource = new ExophaseManualSource(
+                playniteApi,
+                exophaseSessionManager,
+                logger,
+                () => settings.Persisted.GlobalLanguage);
         }
 
         /// <summary>
@@ -167,8 +180,14 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            // Get the appropriate source (currently only Steam is supported)
-            IManualSource source = link.SourceKey == "Steam" ? _steamManualSource : null;
+            // Get the appropriate source
+            IManualSource source = link.SourceKey switch
+            {
+                "Steam" => _steamManualSource,
+                "Exophase" => _exophaseManualSource,
+                _ => null
+            };
+
             if (source == null)
             {
                 _logger?.Warn($"Unknown manual source key: {link.SourceKey}");
@@ -240,5 +259,44 @@ namespace PlayniteAchievements.Providers.Manual
         /// Gets the Steam manual source for use in dialogs.
         /// </summary>
         public IManualSource GetSteamManualSource() => _steamManualSource;
+
+        /// <summary>
+        /// Gets the Exophase manual source for use in dialogs.
+        /// </summary>
+        public IManualSource GetExophaseManualSource() => _exophaseManualSource;
+
+        /// <summary>
+        /// Gets a manual source by its source key.
+        /// </summary>
+        /// <param name="sourceKey">The source key (e.g., "Steam", "Exophase").</param>
+        /// <returns>The manual source, or null if not found.</returns>
+        public IManualSource GetSourceByKey(string sourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return null;
+            }
+
+            return sourceKey switch
+            {
+                "Steam" => _steamManualSource,
+                "Exophase" => _exophaseManualSource,
+                _ => null
+            };
+        }
+
+        /// <summary>
+        /// Gets all available manual sources.
+        /// </summary>
+        public IReadOnlyList<IManualSource> GetAllSources()
+        {
+            return new List<IManualSource> { _steamManualSource, _exophaseManualSource }
+                .AsReadOnly();
+        }
+
+        /// <summary>
+        /// Gets the Exophase session manager for settings UI.
+        /// </summary>
+        public ExophaseSessionManager GetExophaseSessionManager() => _exophaseSessionManager;
     }
 }

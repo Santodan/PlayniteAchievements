@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Models.Settings
 
         private string _steamUserId;
         private string _gogUserId;
+        private string _exophaseUserId;
         private string _epicAccountId;
         private string _epicAccessToken;
         private string _epicRefreshToken;
@@ -116,6 +117,12 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _gogUserId;
             set => SetValue(ref _gogUserId, value);
+        }
+
+        public string ExophaseUserId
+        {
+            get => _exophaseUserId;
+            set => SetValue(ref _exophaseUserId, value);
         }
 
         public string EpicAccountId

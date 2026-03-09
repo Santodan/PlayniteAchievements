@@ -113,11 +113,12 @@ namespace PlayniteAchievements.Views
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
-                // Do not recreate the manual tab when a link flips false->true mid-flow.
-                // The wizard saves a transient link before refresh starts, and recreating
-                // here resets the stage/progress UI while work is still in flight.
-                // Still recreate when link is removed (true->false) so UI returns to search.
-                if (!_viewModel.HasManualTrackingLink)
+                // Do not recreate the manual tab when a link changes mid-flow.
+                // The wizard saves a transient link before refresh starts, and rolling back
+                // removes it during failure handling. Recreating here resets the stage/progress
+                // UI while work is still in flight.
+                // Only recreate if not currently in a refresh operation.
+                if (!_viewModel.HasManualTrackingLink && !IsManualViewModelRefreshing())
                 {
                     EnsureManualControl(forceRecreate: true);
                 }
@@ -158,6 +159,11 @@ namespace PlayniteAchievements.Views
             {
                 EnsureCategoryControl(forceRecreate: false);
             }
+        }
+
+        private bool IsManualViewModelRefreshing()
+        {
+            return _manualViewModel?.IsRefreshingStage ?? false;
         }
 
         private void EnsureCapstoneControl(bool forceRecreate)
@@ -226,10 +232,34 @@ namespace PlayniteAchievements.Views
 
             _manualStartAtEditing = startAtEditing;
 
+            // Get all available sources
+            var availableSources = _manualProvider.GetAllSources();
+
+            // Determine the initial source based on existing link or default to Steam
+            IManualSource initialSource;
+            if (startAtEditing &&
+                _settings.Persisted.ManualAchievementLinks.TryGetValue(game.Id, out var existingLink) &&
+                existingLink != null)
+            {
+                // Use the source from the existing link
+                initialSource = _manualProvider.GetSourceByKey(existingLink.SourceKey);
+                if (initialSource == null)
+                {
+                    _logger?.Warn($"Unknown manual source key '{existingLink.SourceKey}', falling back to Steam");
+                    initialSource = _manualProvider.GetSteamManualSource();
+                }
+            }
+            else
+            {
+                // Default to Steam for new manual links
+                initialSource = _manualProvider.GetSteamManualSource();
+            }
+
             _manualViewModel = new ManualAchievementsViewModel(
                 game,
                 _achievementService,
-                _manualProvider.GetSteamManualSource(),
+                availableSources,
+                initialSource,
                 _settings,
                 SaveSettings,
                 _logger,

@@ -92,6 +92,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -110,8 +111,29 @@
                                TextWrapping="Wrap"/>
                 </Border>
 
+                <!-- Source Selection -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="{DynamicResource LOCPlayAch_ManualAchievements_Source_Label}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               Foreground="{DynamicResource TextBrush}"/>
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailableSources}"
+                              SelectedValue="{Binding SelectedSourceKey, Mode=TwoWay}"
+                              SelectedValuePath="SourceKey"
+                              DisplayMemberPath="SourceName"
+                              MinWidth="150"
+                              HorizontalAlignment="Left"/>
+                </Grid>
+
                 <!-- Search bar -->
-                <Grid Grid.Row="1" Margin="0,0,0,12">
+                <Grid Grid.Row="2" Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -157,7 +179,7 @@
                 </Grid>
 
                 <!-- Results grid -->
-                <Border Grid.Row="2"
+                <Border Grid.Row="3"
                         Background="Transparent"
                         BorderBrush="Transparent"
                         BorderThickness="0"
@@ -179,7 +201,7 @@
                               Background="Transparent"
                               RowBackground="Transparent"
                               Foreground="{DynamicResource TextBrush}"
-                              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderLeftStyle}"
                               PreviewMouseLeftButtonDown="SearchDataGrid_PreviewMouseLeftButtonDown"
                               MouseDoubleClick="SearchDataGrid_MouseDoubleClick">
                         <DataGrid.CellStyle>
@@ -221,37 +243,37 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_AppId}"
-                                                Binding="{Binding SourceGameId}"
-                                                Width="80">
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Platform}"
+                                                Binding="{Binding Platforms}"
+                                                Width="120"
+                                                Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                                         <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="MaxHeight" Value="60"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_GameOptions_Manual_Source}"
-                                                    Width="140"
-                                                    IsReadOnly="True">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding DataContext.ManualSourceName, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   HorizontalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_AppId}"
+                                                Binding="{Binding SourceGameId}"
+                                                Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>
 
                 <!-- Status -->
-                <TextBlock Grid.Row="3"
+                <TextBlock Grid.Row="4"
                            Text="{Binding SearchStatusMessage}"
                            Foreground="{DynamicResource TextBrush}"
                            Opacity="0.75"

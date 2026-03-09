@@ -39,7 +39,8 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Game _playniteGame;
         private readonly AchievementService _achievementService;
-        private readonly IManualSource _source;
+        private IManualSource _source;
+        private readonly IReadOnlyList<IManualSource> _availableSources;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action<PlayniteAchievementsSettings> _saveSettings;
         private readonly ILogger _logger;
@@ -63,6 +64,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _isSearching;
         private ManualGameSearchResult _selectedResult;
         private string _searchStatusMessage = string.Empty;
+        private IManualSource _selectedSource;
 
         // Edit stage properties
         private string _editSearchFilter = string.Empty;
@@ -109,6 +111,63 @@ namespace PlayniteAchievements.ViewModels
         #region Common Properties
 
         public string PlayniteGameName => _playniteGame?.Name ?? string.Empty;
+
+        /// <summary>
+        /// Gets the list of available manual sources for selection.
+        /// </summary>
+        public IReadOnlyList<IManualSource> AvailableSources => _availableSources;
+
+        /// <summary>
+        /// Gets or sets the currently selected manual source.
+        /// Changing this updates the active source for search operations and triggers a new search.
+        /// </summary>
+        public IManualSource SelectedSource
+        {
+            get => _selectedSource;
+            set
+            {
+                if (_selectedSource != value)
+                {
+                    _logger?.Debug($"[ManualTracking] SelectedSource changing from {_selectedSource?.SourceKey} to {value?.SourceKey}");
+                    _selectedSource = value;
+                    _source = value;
+                    ManualSourceName = ResolveSourceName(_source?.SourceKey);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedSourceKey));
+                    OnPropertyChanged(nameof(ManualSourceName));
+                    OnPropertyChanged(nameof(ShowPlatformColumn));
+
+                    // Clear search results and trigger new search when source changes
+                    SearchResults.Clear();
+                    SelectedResult = null;
+
+                    // Auto-search if there's search text
+                    if (!string.IsNullOrWhiteSpace(SearchText))
+                    {
+                        _ = ExecuteSearchAsync();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the selected source by key. Used for reliable ComboBox binding.
+        /// </summary>
+        public string SelectedSourceKey
+        {
+            get => _source?.SourceKey;
+            set
+            {
+                if (_source?.SourceKey != value)
+                {
+                    var newSource = _availableSources?.FirstOrDefault(s => s?.SourceKey == value);
+                    if (newSource != null)
+                    {
+                        SelectedSource = newSource;
+                    }
+                }
+            }
+        }
 
         public string ErrorMessage
         {
@@ -243,6 +302,12 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _manualSourceName, value);
         }
 
+        /// <summary>
+        /// Gets whether the platform column should be visible in search results.
+        /// Only Exophase provides platform information.
+        /// </summary>
+        public bool ShowPlatformColumn => _source?.SourceKey == "Exophase";
+
         private string _sourceGameId;
 
         public string SourceGameId
@@ -312,10 +377,26 @@ namespace PlayniteAchievements.ViewModels
             ILogger logger,
             IPlayniteAPI playniteApi,
             bool startAtEditingStage = false)
+            : this(playniteGame, achievementService, new[] { source }, source, settings, saveSettings, logger, playniteApi, startAtEditingStage)
+        {
+        }
+
+        public ManualAchievementsViewModel(
+            Game playniteGame,
+            AchievementService achievementService,
+            IEnumerable<IManualSource> availableSources,
+            IManualSource initialSource,
+            PlayniteAchievementsSettings settings,
+            Action<PlayniteAchievementsSettings> saveSettings,
+            ILogger logger,
+            IPlayniteAPI playniteApi,
+            bool startAtEditingStage = false)
         {
             _playniteGame = playniteGame ?? throw new ArgumentNullException(nameof(playniteGame));
             _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
-            _source = source ?? throw new ArgumentNullException(nameof(source));
+            _availableSources = availableSources?.ToList().AsReadOnly() ?? throw new ArgumentNullException(nameof(availableSources));
+            _source = initialSource ?? throw new ArgumentNullException(nameof(initialSource));
+            _selectedSource = _source;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _saveSettings = saveSettings ?? throw new ArgumentNullException(nameof(saveSettings));
             _logger = logger;
@@ -705,12 +786,30 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
-        private void ResetToSearchStage()
+        private void ResetToSearchStage(IManualSource sourceToPreserve = null)
         {
+            // Use provided source or preserve current source
+            var preservedSource = sourceToPreserve ?? _source;
+
             CurrentStage = WizardStage.Search;
             ErrorMessage = string.Empty;
             CanCancelRefresh = false;
             _pendingInheritedUnlocks = null;
+            SearchResults.Clear();
+            SelectedResult = null;
+
+            // Set the preserved source
+            _source = preservedSource;
+            _selectedSource = preservedSource;
+
+            // Ensure source name is updated
+            ManualSourceName = ResolveSourceName(_source?.SourceKey);
+
+            // Notify all source-related properties
+            OnPropertyChanged(nameof(SelectedSourceKey));
+            OnPropertyChanged(nameof(SelectedSource));
+            OnPropertyChanged(nameof(ManualSourceName));
+            OnPropertyChanged(nameof(ShowPlatformColumn));
 
             if (string.IsNullOrWhiteSpace(SearchText))
             {
@@ -720,23 +819,44 @@ namespace PlayniteAchievements.ViewModels
 
         private async Task HandleRefreshFailureAsync(string dialogMessage = null)
         {
-            ResetToSearchStage();
+            // Capture the current source before showing dialog
+            var currentSource = _source;
 
-            if (SearchResults.Count == 0 && !string.IsNullOrWhiteSpace(SearchText))
+            // Show dialog while still on Refreshing stage
+            // User explicitly clicks OK to transition back to search
+            if (!string.IsNullOrWhiteSpace(dialogMessage))
             {
-                await ExecuteSearchAsync();
-            }
+                // Ensure UI has fully rendered before showing dialog
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => { },
+                    System.Windows.Threading.DispatcherPriority.ContextIdle);
 
-            if (string.IsNullOrWhiteSpace(dialogMessage))
+                var result = _playniteApi?.Dialogs?.ShowMessage(
+                    dialogMessage,
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                // Transition only happens when user explicitly dismisses the dialog
+                if (result == MessageBoxResult.OK)
+                {
+                    ResetToSearchStage(currentSource);
+
+                    if (!string.IsNullOrWhiteSpace(SearchText))
+                    {
+                        await ExecuteSearchAsync();
+                    }
+                }
+            }
+            else
             {
-                return;
-            }
+                ResetToSearchStage(currentSource);
 
-            _playniteApi?.Dialogs?.ShowMessage(
-                dialogMessage,
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                if (!string.IsNullOrWhiteSpace(SearchText))
+                {
+                    await ExecuteSearchAsync();
+                }
+            }
         }
 
         private async Task<bool?> SelectedResultHasAchievementsAsync(ManualGameSearchResult selectedResult)

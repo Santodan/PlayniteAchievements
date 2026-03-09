@@ -33,6 +33,7 @@ namespace PlayniteAchievements.Models.Settings
             // Steam Settings
             target.SteamUserId = source.SteamUserId;
             target.GogUserId = source.GogUserId;
+            target.ExophaseUserId = source.ExophaseUserId;
             target.EpicAccountId = source.EpicAccountId;
             target.EpicAccessToken = source.EpicAccessToken;
             target.EpicRefreshToken = source.EpicRefreshToken;
@@ -153,6 +154,7 @@ namespace PlayniteAchievements.Models.Settings
                 // Steam Settings
                 SteamUserId = source.SteamUserId,
                 GogUserId = source.GogUserId,
+                ExophaseUserId = source.ExophaseUserId,
                 EpicAccountId = source.EpicAccountId,
                 EpicAccessToken = source.EpicAccessToken,
                 EpicRefreshToken = source.EpicRefreshToken,
