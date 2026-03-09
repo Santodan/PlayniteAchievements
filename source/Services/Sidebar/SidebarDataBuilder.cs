@@ -336,6 +336,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 LastPlayed = playniteGame?.LastActivity,
                 IsCompleted = gameData.IsCompleted,
                 Provider = gameData.ProviderDisplayName,
+                ProviderKey = providerKey,
                 ProviderIconKey = providerMetadata.iconKey,
                 ProviderColorHex = providerMetadata.colorHex
             };

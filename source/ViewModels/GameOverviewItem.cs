@@ -123,6 +123,9 @@ namespace PlayniteAchievements.ViewModels
         private string _provider;
         public string Provider { get => _provider; set => SetValue(ref _provider, value); }
 
+        private string _providerKey;
+        public string ProviderKey { get => _providerKey; set => SetValue(ref _providerKey, value); }
+
         private string _providerIconKey;
         public string ProviderIconKey { get => _providerIconKey; set => SetValue(ref _providerIconKey, value); }
 

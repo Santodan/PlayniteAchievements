@@ -1286,7 +1286,7 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                var provider = string.IsNullOrWhiteSpace(game.Provider) ? "Unknown" : game.Provider;
+                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
                 if (!snapshot.UnlockedByProvider.ContainsKey(provider))
                 {
                     snapshot.UnlockedByProvider[provider] = 0;
@@ -2071,7 +2071,7 @@ namespace PlayniteAchievements.ViewModels
             var totalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             foreach (var game in gamesList)
             {
-                var provider = string.IsNullOrWhiteSpace(game.Provider) ? "Unknown" : game.Provider;
+                var provider = string.IsNullOrWhiteSpace(game.ProviderKey) ? "Unknown" : game.ProviderKey;
                 if (!unlockedByProvider.ContainsKey(provider))
                 {
                     unlockedByProvider[provider] = 0;
