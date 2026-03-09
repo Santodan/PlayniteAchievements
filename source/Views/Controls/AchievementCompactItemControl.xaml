@@ -101,8 +101,16 @@
         <Border CornerRadius="6" RenderOptions.BitmapScalingMode="HighQuality"
                 Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                 Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                Margin="-6"
-                Effect="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}">
+                Margin="-6">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                            <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <Border.Background>
                 <ImageBrush Stretch="UniformToFill"
                             helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
