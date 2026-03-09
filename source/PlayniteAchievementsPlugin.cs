@@ -1346,22 +1346,22 @@ namespace PlayniteAchievements
                     {
                         await _gogSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
                     }
-                    catch { }
+                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime GOG authentication state"); }
                     try
                     {
                         await _epicSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
                     }
-                    catch { }
+                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime Epic authentication state"); }
                     try
                     {
                         await _psnSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
                     }
-                    catch { }
+                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime PSN authentication state"); }
                     try
                     {
                         await _xboxSessionManager.PrimeAuthenticationStateAsync(default).ConfigureAwait(false);
                     }
-                    catch { }
+                    catch (Exception ex) { _logger.Warn(ex, "Failed to prime Xbox authentication state"); }
                 });
 
                 // Auto-migrate themes that have been updated since the last migration.
