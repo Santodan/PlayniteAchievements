@@ -44,10 +44,14 @@
                 <Image.Style>
                     <Style TargetType="{x:Type Image}">
                         <Style.Triggers>
-                            <!-- Rarity indicator glow effect - color based on achievement rarity -->
-                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True">
-                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Percent, Converter={StaticResource PercentToRarityGlowConverter}}" />
-                            </DataTrigger>
+                            <!-- Rarity indicator glow effect - color based on achievement rarity, only for unlocked -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Percent, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Image.Style>
