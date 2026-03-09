@@ -1,6 +1,8 @@
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Services
@@ -12,6 +14,14 @@ namespace PlayniteAchievements.Services
     /// </summary>
     public class ProviderRegistry
     {
+        private readonly ILogger _logger;
+        private readonly Dictionary<string, Func<CancellationToken, Task>> _authPrimers = new Dictionary<string, Func<CancellationToken, Task>>(StringComparer.OrdinalIgnoreCase);
+
+        public ProviderRegistry(ILogger logger = null)
+        {
+            _logger = logger;
+        }
+
         /// <summary>
         /// Gets the localized display name for a provider key.
         /// Maps ProviderKey to the correct localization resource key.
@@ -31,6 +41,41 @@ namespace PlayniteAchievements.Services
         private static string GetLocalizationKey(string providerKey)
         {
             return $"LOCPlayAch_Provider_{providerKey}";
+        }
+
+        /// <summary>
+        /// Registers an authentication priming function for a provider.
+        /// Call this during plugin initialization for providers with web-based auth.
+        /// </summary>
+        public void RegisterAuthPrimer(string providerKey, Func<CancellationToken, Task> primeAsync)
+        {
+            if (!string.IsNullOrWhiteSpace(providerKey) && primeAsync != null)
+            {
+                _authPrimers[providerKey] = primeAsync;
+            }
+        }
+
+        /// <summary>
+        /// Primes authentication state for all enabled providers that have registered primers.
+        /// </summary>
+        public async Task PrimeEnabledProvidersAsync()
+        {
+            foreach (var kvp in _authPrimers)
+            {
+                if (!IsProviderEnabled(kvp.Key))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await kvp.Value(default).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to prime {kvp.Key} authentication state");
+                }
+            }
         }
 
         private readonly Dictionary<string, bool> _enabledState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)

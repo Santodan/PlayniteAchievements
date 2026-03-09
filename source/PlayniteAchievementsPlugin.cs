@@ -240,8 +240,14 @@ namespace PlayniteAchievements
                     _imageService = new MemoryImageService(_logger, _diskImageService);
 
                     // Create provider registry and sync from persisted settings
-                    _providerRegistry = new ProviderRegistry();
+                    _providerRegistry = new ProviderRegistry(_logger);
                     _providerRegistry.SyncFromSettings(settings.Persisted);
+
+                    // Register auth primers for web-based providers
+                    _providerRegistry.RegisterAuthPrimer("GOG", _gogSessionManager.PrimeAuthenticationStateAsync);
+                    _providerRegistry.RegisterAuthPrimer("Epic", _epicSessionManager.PrimeAuthenticationStateAsync);
+                    _providerRegistry.RegisterAuthPrimer("PSN", _psnSessionManager.PrimeAuthenticationStateAsync);
+                    _providerRegistry.RegisterAuthPrimer("Xbox", _xboxSessionManager.PrimeAuthenticationStateAsync);
 
                     _achievementService = new AchievementService(api, settings, _logger, this, providers, _diskImageService, _providerRegistry);
                     _notifications = new NotificationPublisher(api, settings, _logger);
@@ -249,13 +255,6 @@ namespace PlayniteAchievements
                         _achievementService,
                         _logger,
                         _providerRegistry,
-                        new Dictionary<string, Func<CancellationToken, Task>>
-                        {
-                            ["GOG"] = _gogSessionManager.PrimeAuthenticationStateAsync,
-                            ["Epic"] = _epicSessionManager.PrimeAuthenticationStateAsync,
-                            ["PSN"] = _psnSessionManager.PrimeAuthenticationStateAsync,
-                            ["Xbox"] = _xboxSessionManager.PrimeAuthenticationStateAsync
-                        },
                         ShowRefreshProgressControlAndRun);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _achievementService, settings, _logger, _notifications, null);
                     _legacyManualLinkImporter = new LegacyManualLinkImporter(

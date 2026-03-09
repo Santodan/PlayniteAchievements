@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -39,19 +37,16 @@ namespace PlayniteAchievements.Services
         private readonly ILogger _logger;
         private readonly Action<Func<Task>, Guid?> _runWithProgressWindow;
         private readonly ProviderRegistry _providerRegistry;
-        private readonly Dictionary<string, Func<CancellationToken, Task>> _authPrimers;
 
         public RefreshCoordinator(
             AchievementService achievementService,
             ILogger logger,
             ProviderRegistry providerRegistry,
-            Dictionary<string, Func<CancellationToken, Task>> authPrimers,
             Action<Func<Task>, Guid?> runWithProgressWindow = null)
         {
             _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
             _logger = logger;
             _providerRegistry = providerRegistry;
-            _authPrimers = authPrimers ?? new Dictionary<string, Func<CancellationToken, Task>>();
             _runWithProgressWindow = runWithProgressWindow;
         }
 
@@ -62,7 +57,7 @@ namespace PlayniteAchievements.Services
 
             if (policy.ValidateAuthentication)
             {
-                PrimeEnabledProvidersAuthAsync().GetAwaiter().GetResult();
+                _providerRegistry.PrimeEnabledProvidersAsync().GetAwaiter().GetResult();
 
                 if (!_achievementService.ValidateCanStartRefresh())
                 {
@@ -78,26 +73,6 @@ namespace PlayniteAchievements.Services
             }
 
             return ExecuteCoreAsync(normalizedRequest, policy);
-        }
-
-        private async Task PrimeEnabledProvidersAuthAsync()
-        {
-            foreach (var kvp in _authPrimers)
-            {
-                if (!_providerRegistry.IsProviderEnabled(kvp.Key))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    await kvp.Value(default).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn(ex, $"Failed to prime {kvp.Key} authentication state");
-                }
-            }
         }
 
         private async Task ExecuteCoreAsync(RefreshRequest request, RefreshExecutionPolicy policy)
