@@ -6,7 +6,6 @@ using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Controls;
 using Playnite.SDK.Models;
-using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
@@ -138,6 +137,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         {
             // CacheInvalidated fires when any cache change occurs (throttled).
             // Always refresh this control since we don't know which game changed.
+            _logger.Debug($"CacheInvalidated event received, IsLoaded={IsLoaded}");
             if (!IsLoaded)
             {
                 return;
@@ -161,9 +161,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             var updatedGameId = ParseUpdatedGameId(e);
             if (!updatedGameId.HasValue)
             {
+                _logger.Debug($"GameCacheUpdated event received but GameId was null or invalid");
                 return;
             }
 
+            _logger.Debug($"GameCacheUpdated event received, GameId={updatedGameId.Value}, IsLoaded={IsLoaded}");
             if (!IsLoaded)
             {
                 return;
@@ -210,6 +212,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         private void QueueRefreshIfMatches(Guid updatedGameId)
         {
             var currentGameId = GetCurrentGameIdFromDataContext();
+            _logger.Debug($"QueueRefreshIfMatches: updatedGameId={updatedGameId}, currentGameId={currentGameId}");
             if (!currentGameId.HasValue || currentGameId.Value != updatedGameId)
             {
                 return;
@@ -220,6 +223,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void QueueRefresh()
         {
+            _logger.Debug($"QueueRefresh: IsLoaded={IsLoaded}, _cacheRefreshQueued={_cacheRefreshQueued}");
             if (!IsLoaded || _cacheRefreshQueued)
             {
                 return;
@@ -240,9 +244,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void RunQueuedRefresh()
         {
+            _logger.Debug("RunQueuedRefresh: executing");
             _cacheRefreshQueued = false;
             if (!IsLoaded)
             {
+                _logger.Debug("RunQueuedRefresh: control no longer loaded, skipping");
                 return;
             }
 
@@ -264,17 +270,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void TryUpdateFromDataContext()
         {
-            using (PerfScope.Start(_logger, "Theme.PluginViewItemControl.TryUpdateFromDataContext", thresholdMs: 16))
+            var game = GetGameFromDataContext(DataContext);
+            if (game != null && game.Id != Guid.Empty)
             {
-                var game = GetGameFromDataContext(DataContext);
-                if (game != null && game.Id != Guid.Empty)
-                {
-                    UpdateForGame(game.Id);
-                }
-                else
-                {
-                    ClearData();
-                }
+                UpdateForGame(game.Id);
+            }
+            else
+            {
+                ClearData();
             }
         }
 
@@ -362,28 +365,26 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void UpdateForGame(Guid gameId)
         {
-            using (PerfScope.Start(_logger, "Theme.PluginViewItemControl.UpdateForGame", thresholdMs: 16, context: gameId.ToString()))
+            _logger.Debug($"UpdateForGame called for gameId={gameId}");
+            var gameData = Plugin?.AchievementService?.GetGameAchievementData(gameId);
+
+            if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
             {
-                var gameData = default(GameAchievementData);
-                using (PerfScope.Start(_logger, "Theme.PluginViewItemControl.GetGameAchievementData", thresholdMs: 16, context: gameId.ToString()))
-                {
-                    gameData = Plugin?.AchievementService?.GetGameAchievementData(gameId);
-                }
-
-                if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
-                {
-                    ClearData();
-                    return;
-                }
-
-                var achievements = gameData.Achievements;
-                UnlockedCount = achievements.Count(a => a.Unlocked);
-                AchievementCount = achievements.Count;
-                Visibility = Visibility.Visible;
-
-                // Force visual tree update so WPF re-evaluates bindings
-                InvalidateVisual();
+                _logger.Debug($"UpdateForGame: Clearing data (no achievements)");
+                ClearData();
+                return;
             }
+
+            var achievements = gameData.Achievements;
+            var unlocked = achievements.Count(a => a.Unlocked);
+            var total = achievements.Count;
+            _logger.Debug($"UpdateForGame: Setting UnlockedCount={unlocked}, AchievementCount={total}");
+            UnlockedCount = unlocked;
+            AchievementCount = total;
+            Visibility = Visibility.Visible;
+
+            // Force visual tree update so WPF re-evaluates bindings
+            InvalidateVisual();
         }
 
         private void ClearData()
