@@ -178,6 +178,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Multiplayer">Multiplayer</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Collectable">Collectable</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Missable">Missable</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Difficulty">Difficulty</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">Stackable</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_InputPlaceholder">Saisissez une étiquette pour la sélection (laisser vide = conserver)</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Title">Renommer une étiquette de catégorie</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Hint">Choisissez l'étiquette existante puis saisissez la nouvelle étiquette.</sys:String>
