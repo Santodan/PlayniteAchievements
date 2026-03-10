@@ -90,13 +90,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         #endregion
 
-        #region LabelMode and ProgressBarMode element names (from XAML)
-
-        private FrameworkElement LabelMode => GetTemplateChild("LabelMode") as FrameworkElement;
-        private FrameworkElement ProgressBarMode => GetTemplateChild("ProgressBarMode") as FrameworkElement;
-
-        #endregion
-
         public AchievementViewItemControl()
         {
             InitializeComponent();
