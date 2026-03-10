@@ -13,6 +13,8 @@
 
     <Grid>
         <lvc:PieChart x:Name="Chart"
+                      SnapsToDevicePixels="True"
+                      UseLayoutRounding="True"
                       LegendLocation="None"
                       InnerRadius="30"
                       Margin="10"
