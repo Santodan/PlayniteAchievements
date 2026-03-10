@@ -194,6 +194,16 @@
                                   IsCheckable="True"
                                   StaysOpenOnClick="True"
                                   IsChecked="{Binding TypeFilterMissableSelected, Mode=TwoWay}" />
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Difficulty}"
+                                  Style="{StaticResource AchievementMultiSelectMenuItemStyle}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterDifficultySelected, Mode=TwoWay}" />
+                        <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Stackable}"
+                                  Style="{StaticResource AchievementMultiSelectMenuItemStyle}"
+                                  IsCheckable="True"
+                                  StaysOpenOnClick="True"
+                                  IsChecked="{Binding TypeFilterStackableSelected, Mode=TwoWay}" />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
@@ -421,6 +431,16 @@
                                           IsCheckable="True"
                                           StaysOpenOnClick="True"
                                           IsChecked="{Binding TypeMissableSelected, Mode=TwoWay}" />
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Difficulty}"
+                                          Style="{StaticResource AchievementMultiSelectMenuItemStyle}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeDifficultySelected, Mode=TwoWay}" />
+                                <MenuItem Header="{DynamicResource LOCPlayAch_GameOptions_Category_Type_Stackable}"
+                                          Style="{StaticResource AchievementMultiSelectMenuItemStyle}"
+                                          IsCheckable="True"
+                                          StaysOpenOnClick="True"
+                                          IsChecked="{Binding TypeStackableSelected, Mode=TwoWay}" />
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
