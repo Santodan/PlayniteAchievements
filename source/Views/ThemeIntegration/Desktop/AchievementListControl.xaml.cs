@@ -14,18 +14,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// </summary>
     public partial class AchievementListControl : ThemeControlBase
     {
-        private List<AchievementDisplayItem> _displayItems = new List<AchievementDisplayItem>();
+        /// <summary>
+        /// Identifies the DisplayItems dependency property.
+        /// </summary>
+        public static readonly DependencyProperty DisplayItemsProperty =
+            DependencyProperty.Register(nameof(DisplayItems), typeof(List<AchievementDisplayItem>),
+                typeof(AchievementListControl), new PropertyMetadata(new List<AchievementDisplayItem>()));
 
         /// <summary>
         /// Gets the display items for the list.
         /// </summary>
         public List<AchievementDisplayItem> DisplayItems
         {
-            get => _displayItems;
-            private set
-            {
-                _displayItems = value ?? new List<AchievementDisplayItem>();
-            }
+            get => (List<AchievementDisplayItem>)GetValue(DisplayItemsProperty);
+            private set => SetValue(DisplayItemsProperty, value);
         }
 
         public AchievementListControl()
