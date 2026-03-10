@@ -4,11 +4,13 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
@@ -182,7 +184,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             {
                 dispatcher.BeginInvoke(
                     new Action(QueueRefresh),
-                    DispatcherPriority.Background);
+                    DispatcherPriority.Render);
             }
         }
 
@@ -208,7 +210,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
             dispatcher.BeginInvoke(
                 new Action(() => QueueRefreshIfMatches(updatedGameId.Value)),
-                DispatcherPriority.Background);
+                DispatcherPriority.Render);
         }
 
         private Guid? GetCurrentGameIdFromDataContext()
@@ -265,7 +267,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
             dispatcher.BeginInvoke(
                 new Action(RunQueuedRefresh),
-                DispatcherPriority.Background);
+                DispatcherPriority.Render);
         }
 
         private void RunQueuedRefresh()
@@ -401,6 +403,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             UnlockedCount = achievements.Count(a => a.Unlocked);
             AchievementCount = achievements.Count;
             Visibility = Visibility.Visible;
+
+            // Force visual tree update so WPF re-evaluates bindings
+            InvalidateVisual();
         }
 
         private void ClearData()
