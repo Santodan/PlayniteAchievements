@@ -548,6 +548,7 @@ namespace PlayniteAchievements.Services
             Guid operationId,
             RefreshModeType mode,
             Guid? singleGameId,
+            CancellationToken externalToken,
             out CancellationTokenSource cts)
         {
             lock (_runLock)
@@ -567,7 +568,17 @@ namespace PlayniteAchievements.Services
                 }
 
                 _logger.Info("Starting new refresh.");
-                _activeRunCts = new CancellationTokenSource();
+
+                // Link external token if provided so external cancellation propagates to internal CTS
+                if (externalToken != CancellationToken.None)
+                {
+                    _activeRunCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
+                }
+                else
+                {
+                    _activeRunCts = new CancellationTokenSource();
+                }
+
                 _activeOperationId = operationId;
                 _activeRefreshMode = mode;
                 _activeSingleGameId = singleGameId;
@@ -592,6 +603,7 @@ namespace PlayniteAchievements.Services
         private async Task RunManagedAsync(
             RefreshModeType mode,
             Guid? singleGameId,
+            CancellationToken externalToken,
             Func<Guid, CancellationToken, Task<RebuildPayload>> runner,
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage)
@@ -611,7 +623,7 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            if (!TryBeginRun(operationId, mode, singleGameId, out var cts))
+            if (!TryBeginRun(operationId, mode, singleGameId, externalToken, out var cts))
                 return;
 
             Interlocked.Exchange(ref _processedGamesInRun, 0);
@@ -1533,11 +1545,13 @@ namespace PlayniteAchievements.Services
             CacheRefreshOptions options,
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage,
-            Guid? singleGameId = null)
+            Guid? singleGameId = null,
+            CancellationToken externalToken = default)
         {
             return RunManagedAsync(
                 mode,
                 singleGameId,
+                externalToken,
                 (operationId, cancel) => RefreshAsync(options, cancel, operationId, mode, singleGameId),
                 finalMessage,
                 errorLogMessage
@@ -1550,7 +1564,8 @@ namespace PlayniteAchievements.Services
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage,
             string emptySelectionLogMessage = null,
-            bool bypassExclusions = false)
+            bool bypassExclusions = false,
+            CancellationToken externalToken = default)
         {
             if (gameIds == null || gameIds.Count == 0)
             {
@@ -1567,7 +1582,8 @@ namespace PlayniteAchievements.Services
                 mode,
                 new CacheRefreshOptions { PlayniteGameIds = gameIds, IncludeUnplayedGames = true, BypassExclusions = bypassExclusions },
                 finalMessage,
-                errorLogMessage
+                errorLogMessage,
+                externalToken: externalToken
             );
         }
 
@@ -1864,7 +1880,7 @@ namespace PlayniteAchievements.Services
                 MessageBoxImage.Warning);
         }
 
-        public Task ExecuteRefreshAsync(CustomRefreshOptions options)
+        public Task ExecuteRefreshAsync(CustomRefreshOptions options, CancellationToken externalToken = default)
         {
             var resolution = ResolveCustomRefresh(options);
             if (resolution.Providers.Count == 0)
@@ -1884,6 +1900,7 @@ namespace PlayniteAchievements.Services
             return RunManagedAsync(
                 RefreshModeType.Custom,
                 singleGameId: null,
+                externalToken,
                 (operationId, cancel) => RefreshAsync(
                     new CacheRefreshOptions
                     {
@@ -1901,52 +1918,56 @@ namespace PlayniteAchievements.Services
                 "Custom refresh failed.");
         }
 
-        private async Task StartManagedMissingRefreshAsync()
+        private async Task StartManagedMissingRefreshAsync(CancellationToken externalToken = default)
         {
             var missingGameIds = await Task.Run(() => GetMissingGameIds()).ConfigureAwait(false);
             await StartManagedGameIdRefreshAsync(
                 RefreshModeType.Missing,
                 missingGameIds,
                 payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.Missing, payload?.Summary?.GamesRefreshed ?? 0),
-                "Missing games refresh failed.")
+                "Missing games refresh failed.",
+                externalToken: externalToken)
                 .ConfigureAwait(false);
         }
 
-        private Task StartManagedRebuildAsync()
+        private Task StartManagedRebuildAsync(CancellationToken externalToken = default)
         {
             return StartManagedRefreshCoreAsync(
                 RefreshModeType.Full,
                 FullRefreshOptions(),
                 payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.Full, payload?.Summary?.GamesRefreshed ?? 0),
-                "Full achievement refresh failed."
+                "Full achievement refresh failed.",
+                externalToken: externalToken
             );
         }
 
-        private Task StartManagedSingleGameRefreshAsync(Guid playniteGameId)
+        private Task StartManagedSingleGameRefreshAsync(Guid playniteGameId, CancellationToken externalToken = default)
         {
             return StartManagedRefreshCoreAsync(
                 RefreshModeType.Single,
                 SingleGameOptions(playniteGameId),
                 payload => ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete"),
                 "Single game refresh failed.",
-                playniteGameId
+                playniteGameId,
+                externalToken
             );
         }
 
-        private Task StartManagedRecentRefreshAsync()
+        private Task StartManagedRecentRefreshAsync(CancellationToken externalToken = default)
         {
             return StartManagedRefreshCoreAsync(
                 RefreshModeType.Recent,
                 RecentRefreshOptions(),
                 payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.Recent, payload?.Summary?.GamesRefreshed ?? 0),
-                "Recent refresh failed."
+                "Recent refresh failed.",
+                externalToken: externalToken
             );
         }
 
         /// <summary>
         /// Executes a refresh based on the specified refresh mode key.
         /// </summary>
-        public Task ExecuteRefreshAsync(string modeKey, Guid? singleGameId = null)
+        public Task ExecuteRefreshAsync(string modeKey, Guid? singleGameId = null, CancellationToken externalToken = default)
         {
             // Parse string to enum, default to Recent if invalid
             if (!Enum.TryParse<RefreshModeType>(modeKey, out var mode))
@@ -1957,26 +1978,26 @@ namespace PlayniteAchievements.Services
                 mode = RefreshModeType.Recent;
             }
 
-            return ExecuteRefreshAsync(mode, singleGameId);
+            return ExecuteRefreshAsync(mode, singleGameId, externalToken);
         }
 
-        public Task ExecuteRefreshAsync(RefreshRequest request)
+        public Task ExecuteRefreshAsync(RefreshRequest request, CancellationToken externalToken = default)
         {
             request ??= new RefreshRequest();
 
             if (request.GameIds != null && request.GameIds.Count > 0)
             {
-                return ExecuteRefreshForGamesAsync(request.GameIds);
+                return ExecuteRefreshForGamesAsync(request.GameIds, externalToken);
             }
 
             if (request.Mode.HasValue)
             {
                 if (request.Mode.Value == RefreshModeType.Custom)
                 {
-                    return ExecuteRefreshAsync(request.CustomOptions);
+                    return ExecuteRefreshAsync(request.CustomOptions, externalToken);
                 }
 
-                return ExecuteRefreshAsync(request.Mode.Value, request.SingleGameId);
+                return ExecuteRefreshAsync(request.Mode.Value, request.SingleGameId, externalToken);
             }
 
             if (!string.IsNullOrWhiteSpace(request.ModeKey))
@@ -1984,16 +2005,16 @@ namespace PlayniteAchievements.Services
                 if (Enum.TryParse(request.ModeKey, out RefreshModeType parsedMode) &&
                     parsedMode == RefreshModeType.Custom)
                 {
-                    return ExecuteRefreshAsync(request.CustomOptions);
+                    return ExecuteRefreshAsync(request.CustomOptions, externalToken);
                 }
 
-                return ExecuteRefreshAsync(request.ModeKey, request.SingleGameId);
+                return ExecuteRefreshAsync(request.ModeKey, request.SingleGameId, externalToken);
             }
 
-            return ExecuteRefreshAsync(RefreshModeType.Recent, request.SingleGameId);
+            return ExecuteRefreshAsync(RefreshModeType.Recent, request.SingleGameId, externalToken);
         }
 
-        public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds)
+        public Task ExecuteRefreshForGamesAsync(IEnumerable<Guid> gameIds, CancellationToken externalToken = default)
         {
             var ids = gameIds?
                 .Where(id => id != Guid.Empty)
@@ -2006,21 +2027,22 @@ namespace PlayniteAchievements.Services
                 payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.LibrarySelected, payload?.Summary?.GamesRefreshed ?? 0),
                 "Library selected games refresh failed.",
                 "No games selected in Playnite library for refresh.",
-                bypassExclusions: true);
+                bypassExclusions: true,
+                externalToken: externalToken);
         }
 
         /// <summary>
         /// Executes a refresh based on the specified refresh mode type.
         /// </summary>
-        public Task ExecuteRefreshAsync(RefreshModeType mode, Guid? singleGameId = null)
+        public Task ExecuteRefreshAsync(RefreshModeType mode, Guid? singleGameId = null, CancellationToken externalToken = default)
         {
             switch (mode)
             {
                 case RefreshModeType.Recent:
-                    return StartManagedRecentRefreshAsync();
+                    return StartManagedRecentRefreshAsync(externalToken);
 
                 case RefreshModeType.Full:
-                    return StartManagedRebuildAsync();
+                    return StartManagedRebuildAsync(externalToken);
 
                 case RefreshModeType.Installed:
                     return StartManagedGameIdRefreshAsync(
@@ -2028,7 +2050,8 @@ namespace PlayniteAchievements.Services
                         GetInstalledGameIds(),
                         payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.Installed, payload?.Summary?.GamesRefreshed ?? 0),
                         "Installed games refresh failed.",
-                        "No installed games found for refresh.");
+                        "No installed games found for refresh.",
+                        externalToken: externalToken);
 
                 case RefreshModeType.Favorites:
                     return StartManagedGameIdRefreshAsync(
@@ -2036,11 +2059,12 @@ namespace PlayniteAchievements.Services
                         GetFavoriteGameIds(),
                         payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.Favorites, payload?.Summary?.GamesRefreshed ?? 0),
                         "Favorites refresh failed.",
-                        "No favorite games found for refresh.");
+                        "No favorite games found for refresh.",
+                        externalToken: externalToken);
 
                 case RefreshModeType.Single:
                     if (singleGameId.HasValue)
-                        return StartManagedSingleGameRefreshAsync(singleGameId.Value);
+                        return StartManagedSingleGameRefreshAsync(singleGameId.Value, externalToken);
                     _logger.Info("Single refresh mode requested but no game ID provided.");
                     return Task.CompletedTask;
 
@@ -2051,19 +2075,20 @@ namespace PlayniteAchievements.Services
                         payload => FormatRefreshCompletionWithModeAndCount(RefreshModeType.LibrarySelected, payload?.Summary?.GamesRefreshed ?? 0),
                         "Library selected games refresh failed.",
                         "No games selected in Playnite library for refresh.",
-                        bypassExclusions: true);
+                        bypassExclusions: true,
+                        externalToken: externalToken);
 
                 case RefreshModeType.Missing:
-                    return StartManagedMissingRefreshAsync();
+                    return StartManagedMissingRefreshAsync(externalToken);
 
                 case RefreshModeType.Custom:
-                    return ExecuteRefreshAsync(options: null);
+                    return ExecuteRefreshAsync(options: null, externalToken: externalToken);
 
                 default:
                     _logger.Warn(string.Format(
                         "Unknown refresh mode: {0}. Falling back to Recent.",
                         mode));
-                    return StartManagedRecentRefreshAsync();
+                    return StartManagedRecentRefreshAsync(externalToken);
             }
         }
 
