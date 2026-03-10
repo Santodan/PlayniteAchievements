@@ -257,6 +257,7 @@ namespace PlayniteAchievements
                     _providerRegistry.RegisterAuthPrimer("Epic", _epicSessionManager.PrimeAuthenticationStateAsync);
                     _providerRegistry.RegisterAuthPrimer("PSN", _psnSessionManager.PrimeAuthenticationStateAsync);
                     _providerRegistry.RegisterAuthPrimer("Xbox", _xboxSessionManager.PrimeAuthenticationStateAsync);
+                    _providerRegistry.RegisterAuthPrimer("Exophase", _exophaseSessionManager.PrimeAuthenticationStateAsync);
 
                     _achievementService = new AchievementService(api, settings, _logger, this, providers, _diskImageService, _providerRegistry);
                     _notifications = new NotificationPublisher(api, settings, _logger);
