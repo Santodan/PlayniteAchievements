@@ -563,5 +563,37 @@ namespace PlayniteAchievements.ViewModels
                 return AchievementIconResolver.ApplyGrayPrefix(candidate);
             }
         }
+
+        /// <summary>
+        /// Creates a shallow copy of this display item with independent reveal state.
+        /// Used when controls need their own item instances to avoid shared state.
+        /// </summary>
+        public AchievementDisplayItem Clone()
+        {
+            return new AchievementDisplayItem
+            {
+                GameName = _gameName,
+                SortingName = _sortingName,
+                PlayniteGameId = _playniteGameId,
+                DisplayName = _displayName,
+                Description = _description,
+                IconPath = _iconPath,
+                UnlockTimeUtc = _unlockTimeUtc,
+                GlobalPercentUnlocked = _globalPercentUnlocked,
+                PointsValue = _pointsValue,
+                Unlocked = _unlocked,
+                Hidden = _hidden,
+                ApiName = _apiName,
+                ShowHiddenIcon = _showHiddenIcon,
+                ShowHiddenTitle = _showHiddenTitle,
+                ShowHiddenDescription = _showHiddenDescription,
+                // IsRevealed intentionally not copied - each clone starts unrevealed
+                ProgressNum = _progressNum,
+                ProgressDenom = _progressDenom,
+                TrophyType = _trophyType,
+                CategoryType = _categoryType,
+                CategoryLabel = _categoryLabel
+            };
+        }
     }
 }
