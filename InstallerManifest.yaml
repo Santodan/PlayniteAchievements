@@ -1,6 +1,19 @@
 AddonId: PlayniteAchievements
 Packages:
-
+  - Version: 1.6.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-03-10
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.1/PlayniteAchievements_1_6_1.pext
+    Changelog:
+        - "Manual achievement tracking now supports Exophase linking (with experimental SuccessStory legacy import)"
+        - "New Collectable, Missable, Difficulty, and Stackable category types"
+        - "Sidebar popout window accessible from top panel"
+        - "Sidebar ShowGamesWithNoUnlocks and ShowUnplayedGames options now moved to Display settings"
+        - "ShowGamesWithNoUnlocks and ShowUnplayedGames settings now apply to aggregate pie charts"
+        - "Rare startup crashes should be fixed."
+        - "Daylight Savings Time bugs fixed for Steam achievements, refreshes will fix any incorrect unlock times"
+        - "Additional Fullscreen theme integration implemented for upcoming AnikiReMake update"
+  
   - Version: 1.6.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-01
