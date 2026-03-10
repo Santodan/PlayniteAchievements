@@ -1,9 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Threading;
+using System.Windows.Controls;
+using System.Windows.Input;
 using Playnite.SDK;
-using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -18,6 +19,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// </summary>
     public partial class AchievementViewItemControl : ThemeControlBase
     {
+        private static readonly ILogger _logger = PluginLogger.GetLogger(nameof(AchievementViewItemControl));
         private static readonly string[] DataContextGamePropertyCandidates =
         {
             "Game",
@@ -27,7 +29,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             "Value"
         };
         private bool _isCacheEventSubscribed;
-        private bool _isDatabaseEventSubscribed;
         private bool _cacheRefreshQueued;
 
         #region ShowProgressBar Property
@@ -89,6 +90,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         #endregion
 
+        #region LabelMode and ProgressBarMode element names (from XAML)
+
+        private FrameworkElement LabelMode => GetTemplateChild("LabelMode") as FrameworkElement;
+        private FrameworkElement ProgressBarMode => GetTemplateChild("ProgressBarMode") as FrameworkElement;
+
+        #endregion
+
         public AchievementViewItemControl()
         {
             InitializeComponent();
@@ -142,15 +150,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             service.GameCacheUpdated -= AchievementService_GameCacheUpdated;
             service.GameCacheUpdated += AchievementService_GameCacheUpdated;
             _isCacheEventSubscribed = true;
-
-            // Subscribe to database game updates (fires when game closes)
-            var database = Plugin?.PlayniteApi?.Database?.Games;
-            if (database != null && !_isDatabaseEventSubscribed)
-            {
-                database.ItemUpdated -= Games_ItemUpdated;
-                database.ItemUpdated += Games_ItemUpdated;
-                _isDatabaseEventSubscribed = true;
-            }
         }
 
         private void UnsubscribeFromCacheEvents()
@@ -170,57 +169,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             }
 
             _isCacheEventSubscribed = false;
-
-            // Unsubscribe from database game updates
-            if (_isDatabaseEventSubscribed)
-            {
-                try
-                {
-                    Plugin?.PlayniteApi?.Database?.Games.ItemUpdated -= Games_ItemUpdated;
-                }
-                catch
-                {
-                }
-
-                _isDatabaseEventSubscribed = false;
-            }
-        }
-
-        private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
-        {
-            var currentGameId = GetCurrentGameIdFromDataContext();
-            if (!currentGameId.HasValue)
-            {
-                return;
-            }
-
-            var matches = false;
-            foreach (var update in e.UpdatedItems)
-            {
-                if (update?.NewData?.Id == currentGameId.Value)
-                {
-                    matches = true;
-                    break;
-                }
-            }
-
-            if (!matches)
-            {
-                return;
-            }
-
-            // Marshal to UI thread before checking IsLoaded and refreshing
-            var dispatcher = Dispatcher;
-            if (dispatcher == null || dispatcher.CheckAccess())
-            {
-                QueueRefresh();
-            }
-            else
-            {
-                dispatcher.BeginInvoke(
-                    new Action(QueueRefresh),
-                    DispatcherPriority.Background);
-            }
         }
 
         private void AchievementService_CacheInvalidated(object sender, EventArgs e)
@@ -336,6 +284,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             }
 
             TryUpdateFromDataContext();
+        }
+
+        public override void GameContextChanged(Game oldContext, Game newContext)
+        {
+            // GameContext can be used if DataContext doesn't provide a game
+            if (newContext != null && newContext.Id != Guid.Empty)
+            {
+                UpdateForGame(newContext.Id);
+            }
+            else
+            {
+                TryUpdateFromDataContext();
+            }
         }
 
         private void TryUpdateFromDataContext()

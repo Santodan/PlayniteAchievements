@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Controls;
-using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 
@@ -17,7 +16,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
     public abstract class ThemeControlBase : PluginUserControl
     {
         private bool _isAutoUpdateSubscribed;
-        private bool _isDatabaseEventSubscribed;
         private bool _themeUpdateQueued;
 
         /// <summary>
@@ -49,15 +47,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// Called when watched theme data changes and refresh work should be performed.
         /// </summary>
         protected virtual void OnThemeDataUpdated()
-        {
-        }
-
-        /// <summary>
-        /// Called when a game is updated in the Playnite database.
-        /// Override to refresh when the selected game changes (e.g., after closing a game).
-        /// </summary>
-        /// <param name="gameId">The ID of the updated game.</param>
-        protected virtual void OnGameDatabaseUpdated(Guid gameId)
         {
         }
 
@@ -128,15 +117,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             }
 
             _isAutoUpdateSubscribed = true;
-
-            // Subscribe to database game updates (fires when game closes)
-            var database = Plugin?.PlayniteApi?.Database?.Games;
-            if (database != null && !_isDatabaseEventSubscribed)
-            {
-                database.ItemUpdated -= Games_ItemUpdated;
-                database.ItemUpdated += Games_ItemUpdated;
-                _isDatabaseEventSubscribed = true;
-            }
         }
 
         private void UnsubscribeFromThemeDataUpdates()
@@ -164,31 +144,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
             _isAutoUpdateSubscribed = false;
             _themeUpdateQueued = false;
-
-            // Unsubscribe from database game updates
-            if (_isDatabaseEventSubscribed)
-            {
-                try
-                {
-                    Plugin?.PlayniteApi?.Database?.Games.ItemUpdated -= Games_ItemUpdated;
-                }
-                catch
-                {
-                }
-
-                _isDatabaseEventSubscribed = false;
-            }
-        }
-
-        private void Games_ItemUpdated(object sender, ItemUpdatedEventArgs<Game> e)
-        {
-            foreach (var update in e.UpdatedItems)
-            {
-                if (update?.NewData != null)
-                {
-                    OnGameDatabaseUpdated(update.NewData.Id);
-                }
-            }
         }
 
         private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)

@@ -41,6 +41,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             set => SetValue(IconSizeProperty, value);
         }
 
+        #endregion
+
+        #region VisibleCount Property
+
         /// <summary>
         /// Identifies the VisibleCount dependency property.
         /// </summary>
@@ -139,7 +143,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         {
             _isLoaded = true;
             LoadData();
-
             // Attach mouse wheel handler for horizontal scrolling
             PreviewMouseWheel += OnPreviewMouseWheel;
         }
@@ -277,18 +280,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         {
             // ThemeData is already populated by OnGameSelected in the plugin
             if (_isLoaded)
-            {
-                LoadData();
-            }
-        }
-
-        /// <summary>
-        /// Called when a game is updated in the Playnite database.
-        /// Refreshes the control if the selected game was updated.
-        /// </summary>
-        protected override void OnGameDatabaseUpdated(Guid gameId)
-        {
-            if (_isLoaded && Plugin?.Settings?.SelectedGame?.Id == gameId)
             {
                 LoadData();
             }
