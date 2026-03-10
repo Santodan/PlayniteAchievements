@@ -172,11 +172,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             var updatedGameId = ParseUpdatedGameId(e);
             if (!updatedGameId.HasValue)
             {
-                _logger.Debug("GameCacheUpdated event received but GameId was null or invalid");
                 return;
             }
-
-            _logger.Debug($"GameCacheUpdated event received, GameId={updatedGameId.Value}");
 
             // Must dispatch to UI thread first before accessing IsLoaded
             var dispatcher = Dispatcher;
@@ -237,7 +234,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         private void QueueRefreshIfMatches(Guid updatedGameId)
         {
             var currentGameId = GetCurrentGameIdFromDataContext();
-            _logger.Debug($"QueueRefreshIfMatches: updatedGameId={updatedGameId}, currentGameId={currentGameId}");
             if (!currentGameId.HasValue || currentGameId.Value != updatedGameId)
             {
                 return;
@@ -248,7 +244,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void QueueRefresh()
         {
-            _logger.Debug($"QueueRefresh: IsLoaded={IsLoaded}, _cacheRefreshQueued={_cacheRefreshQueued}");
             if (!IsLoaded || _cacheRefreshQueued)
             {
                 return;
@@ -390,22 +385,17 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void UpdateForGame(Guid gameId)
         {
-            _logger.Debug($"UpdateForGame called for gameId={gameId}");
             var gameData = Plugin?.AchievementService?.GetGameAchievementData(gameId);
 
             if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
             {
-                _logger.Debug($"UpdateForGame: Clearing data (no achievements)");
                 ClearData();
                 return;
             }
 
             var achievements = gameData.Achievements;
-            var unlocked = achievements.Count(a => a.Unlocked);
-            var total = achievements.Count;
-            _logger.Debug($"UpdateForGame: Setting UnlockedCount={unlocked}, AchievementCount={total}");
-            UnlockedCount = unlocked;
-            AchievementCount = total;
+            UnlockedCount = achievements.Count(a => a.Unlocked);
+            AchievementCount = achievements.Count;
             Visibility = Visibility.Visible;
 
             // Force visual tree update so WPF re-evaluates bindings
