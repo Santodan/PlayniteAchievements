@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
@@ -14,6 +15,13 @@ namespace PlayniteAchievements.Services
         public Guid? ProgressSingleGameId { get; set; }
         public string ErrorLogMessage { get; set; }
         public Action<bool> OnRefreshCompleted { get; set; }
+
+        /// <summary>
+        /// External cancellation token to link with internal CTS.
+        /// When provided, creates a linked token source so canceling this token
+        /// will also cancel the refresh operation.
+        /// </summary>
+        public CancellationToken ExternalCancellationToken { get; set; } = CancellationToken.None;
 
         public static RefreshExecutionPolicy Default() => new RefreshExecutionPolicy();
 
@@ -100,7 +108,9 @@ namespace PlayniteAchievements.Services
         {
             try
             {
-                await _achievementService.ExecuteRefreshAsync(request);
+                await _achievementService.ExecuteRefreshAsync(
+                    request,
+                    policy?.ExternalCancellationToken ?? CancellationToken.None);
             }
             catch (Exception ex)
             {
