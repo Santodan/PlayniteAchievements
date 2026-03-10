@@ -1161,7 +1161,10 @@ namespace PlayniteAchievements
 
         public override IEnumerable<TopPanelItem> GetTopPanelItems()
         {
-            yield return _topPanelItem;
+            if (_settingsViewModel?.Settings?.Persisted?.ShowTopMenuBarButton == true)
+            {
+                yield return _topPanelItem;
+            }
         }
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
