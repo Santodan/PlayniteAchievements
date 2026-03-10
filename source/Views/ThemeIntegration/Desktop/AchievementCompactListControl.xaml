@@ -18,9 +18,10 @@
         <ItemsControl.Template>
             <ControlTemplate TargetType="ItemsControl">
                 <!-- Horizontal scroll viewer - shows scrollbar when items overflow -->
-                <ScrollViewer CanContentScroll="True"
+                <ScrollViewer CanContentScroll="False"
                               HorizontalScrollBarVisibility="Auto"
                               VerticalScrollBarVisibility="Disabled"
+                              PanningMode="HorizontalOnly"
                               Padding="0">
                     <ItemsPresenter/>
                 </ScrollViewer>
