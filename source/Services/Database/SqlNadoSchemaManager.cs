@@ -702,13 +702,9 @@ namespace PlayniteAchievements.Services.Database
             var usersColumns = GetColumnNames(db, "Users");
             EnsureRequiredColumn(usersColumns, "ProviderKey", "Users", missing);
 
-            if (IndexExists(db, LegacyGamesProviderGameIdIndexName))
-            {
-                missing.Add($"Unexpected legacy index: {LegacyGamesProviderGameIdIndexName}");
-            }
-
-            EnsureRequiredIndex(db, GamesProviderGameIdNonRaIndexName, missing);
-            EnsureRequiredIndex(db, GamesProviderGameIdLookupIndexName, missing);
+            // Note: Index verification is intentionally NOT done here because indexes are
+            // created in CreateProviderKeyIndexes which runs AFTER this verification passes.
+            // For fresh databases, the indexes don't exist yet at this point.
 
             if (missing.Count > 0)
             {
@@ -727,17 +723,6 @@ namespace PlayniteAchievements.Services.Database
             if (!columns.Contains(columnName))
             {
                 missing.Add($"{tableName}.{columnName}");
-            }
-        }
-
-        private void EnsureRequiredIndex(
-            SQLiteDatabase db,
-            string indexName,
-            List<string> missing)
-        {
-            if (!IndexExists(db, indexName))
-            {
-                missing.Add($"Missing index: {indexName}");
             }
         }
 
