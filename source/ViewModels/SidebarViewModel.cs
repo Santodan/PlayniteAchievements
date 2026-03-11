@@ -1153,6 +1153,7 @@ namespace PlayniteAchievements.ViewModels
 
             RefreshFilter();
             ApplyLeftFilters();
+            UpdateAggregatePieCharts();
 
             if (RecentAchievements is BulkObservableCollection<RecentAchievementItem> bulk)
             {
