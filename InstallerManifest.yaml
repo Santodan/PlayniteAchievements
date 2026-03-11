@@ -1,5 +1,14 @@
 AddonId: PlayniteAchievements
 Packages:
+  - Version: 1.6.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-03-11
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.2/PlayniteAchievements_1_6_2.pext
+    Changelog:
+        - "Fixed issues with new cache creation."
+        - "Fixed issues with Pie Charts and Sidebar Display settings."
+        - "Added option to hide top menu button."
+
   - Version: 1.6.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-10
