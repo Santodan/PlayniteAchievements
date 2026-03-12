@@ -285,6 +285,7 @@
     <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Dernière partie</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Total">Total</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_Points">Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Status">État</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Clic droit pour afficher/masquer</sys:String>
 
     <!-- ================================================================= -->
