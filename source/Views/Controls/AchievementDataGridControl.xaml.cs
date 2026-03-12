@@ -84,6 +84,62 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(ColumnSettingsKeyProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the UseExternalSorting dependency property.
+        /// When true, the control raises the Sorting event but does not perform in-memory sorting.
+        /// </summary>
+        public static readonly DependencyProperty UseExternalSortingProperty =
+            DependencyProperty.Register(nameof(UseExternalSorting), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// Gets or sets whether sorting should be handled externally.
+        /// When true, the Sorting event is raised but in-memory sorting is skipped.
+        /// </summary>
+        public bool UseExternalSorting
+        {
+            get => (bool)GetValue(UseExternalSortingProperty);
+            set => SetValue(UseExternalSortingProperty, value);
+        }
+
+        /// <summary>
+        /// Occurs when a column header is clicked for sorting.
+        /// Subscribe to handle sorting externally when UseExternalSorting is true.
+        /// </summary>
+        public event EventHandler<DataGridSortingEventArgs> Sorting;
+
+        /// <summary>
+        /// Routed event raised when a row receives a right mouse button down.
+        /// </summary>
+        public static readonly RoutedEvent RowPreviewMouseRightButtonDownEvent =
+            EventManager.RegisterRoutedEvent("RowPreviewMouseRightButtonDown", RoutingStrategy.Bubble,
+                typeof(MouseButtonEventHandler), typeof(AchievementDataGridControl));
+
+        /// <summary>
+        /// Occurs when the right mouse button is pressed on a row.
+        /// </summary>
+        public event MouseButtonEventHandler RowPreviewMouseRightButtonDown
+        {
+            add => AddHandler(RowPreviewMouseRightButtonDownEvent, value);
+            remove => RemoveHandler(RowPreviewMouseRightButtonDownEvent, value);
+        }
+
+        /// <summary>
+        /// Routed event raised when a row receives a right mouse button up.
+        /// </summary>
+        public static readonly RoutedEvent RowPreviewMouseRightButtonUpEvent =
+            EventManager.RegisterRoutedEvent("RowPreviewMouseRightButtonUp", RoutingStrategy.Bubble,
+                typeof(MouseButtonEventHandler), typeof(AchievementDataGridControl));
+
+        /// <summary>
+        /// Occurs when the right mouse button is released on a row.
+        /// </summary>
+        public event MouseButtonEventHandler RowPreviewMouseRightButtonUp
+        {
+            add => AddHandler(RowPreviewMouseRightButtonUpEvent, value);
+            remove => RemoveHandler(RowPreviewMouseRightButtonUpEvent, value);
+        }
+
         public AchievementDataGridControl()
         {
             InitializeComponent();
@@ -165,6 +221,7 @@ namespace PlayniteAchievements.Views.Controls
             {
                 "DesktopTheme" => settings.Persisted.DesktopThemeColumnWidths,
                 "SingleGame" => settings.Persisted.SingleGameColumnWidths,
+                "Sidebar" => settings.Persisted.SidebarAchievementColumnWidths,
                 _ => settings.Persisted.SingleGameColumnWidths
             };
         }
@@ -183,6 +240,9 @@ namespace PlayniteAchievements.Views.Controls
                     break;
                 case "SingleGame":
                     settings.Persisted.SingleGameColumnWidths = map;
+                    break;
+                case "Sidebar":
+                    settings.Persisted.SidebarAchievementColumnWidths = map;
                     break;
                 default:
                     settings.Persisted.SingleGameColumnWidths = map;
@@ -215,6 +275,15 @@ namespace PlayniteAchievements.Views.Controls
 
         private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
+            // Raise the Sorting event to allow external handling
+            Sorting?.Invoke(this, e);
+
+            if (e.Handled || UseExternalSorting)
+            {
+                return;
+            }
+
+            // Default: in-memory sorting
             var sortDirection = DataGridSortingHelper.HandleSorting(sender, e);
             if (sortDirection == null)
             {
@@ -276,6 +345,24 @@ namespace PlayniteAchievements.Views.Controls
             }
         }
 
+        private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            RaiseEvent(new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
+            {
+                RoutedEvent = RowPreviewMouseRightButtonDownEvent,
+                Source = sender
+            });
+        }
+
+        private void AchievementRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            RaiseEvent(new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
+            {
+                RoutedEvent = RowPreviewMouseRightButtonUpEvent,
+                Source = sender
+            });
+        }
+
         private void DataGridColumnMenu_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (!(sender is DataGrid grid))
@@ -302,6 +389,45 @@ namespace PlayniteAchievements.Views.Controls
             menu.HorizontalOffset = e.GetPosition(grid).X;
             menu.VerticalOffset = e.GetPosition(grid).Y;
             menu.IsOpen = true;
+        }
+
+        /// <summary>
+        /// Sets the sort indicator on a specific column, clearing others.
+        /// Used for external sorting mode where the parent controls sort order.
+        /// </summary>
+        /// <param name="sortMemberPath">The SortMemberPath of the column to set the indicator on.</param>
+        /// <param name="direction">The sort direction, or null to clear all indicators.</param>
+        public void SetSortIndicator(string sortMemberPath, ListSortDirection? direction)
+        {
+            if (AchievementsDataGrid == null || AchievementsDataGrid.Columns == null)
+            {
+                return;
+            }
+
+            foreach (var column in AchievementsDataGrid.Columns)
+            {
+                column.SortDirection = null;
+            }
+
+            if (direction == null || string.IsNullOrEmpty(sortMemberPath))
+            {
+                return;
+            }
+
+            var targetColumn = AchievementsDataGrid.Columns
+                .FirstOrDefault(c => string.Equals(c.SortMemberPath, sortMemberPath, StringComparison.Ordinal));
+            if (targetColumn != null)
+            {
+                targetColumn.SortDirection = direction;
+            }
+        }
+
+        /// <summary>
+        /// Refreshes column persistence settings from storage.
+        /// </summary>
+        public void Refresh()
+        {
+            _columnPersistence?.Refresh();
         }
 
         public void Dispose()

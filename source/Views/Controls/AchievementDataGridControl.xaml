@@ -54,6 +54,8 @@
             <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
                 <Setter Property="MinHeight" Value="88"/>
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="AchievementRow_PreviewMouseLeftButtonDown"/>
+                <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown"/>
+                <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp"/>
             </Style>
         </DataGrid.RowStyle>
 
