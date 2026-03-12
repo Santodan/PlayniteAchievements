@@ -102,8 +102,11 @@ namespace PlayniteAchievements.Views.Helpers
         {
             if (sender is DependencyObject d)
             {
+                // Cancel any pending load but don't clear the source.
+                // The image is cached by ImageService, so clearing causes
+                // unnecessary visual flash during visibility toggles
+                // without freeing any memory.
                 CancelExisting(d);
-                ApplySource(d, null);
             }
         }
 
@@ -150,8 +153,8 @@ namespace PlayniteAchievements.Views.Helpers
                 uriString = GrayPrefix + uriString;
             }
 
-            // blank while loading
-            ApplySource(d, null);
+            // Don't clear existing source while loading - keep current image visible
+            // until the new one is ready. This prevents flash during visibility toggles.
 
             var cts = new CancellationTokenSource();
             SetLoadCts(d, cts);
