@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls;
 
@@ -60,27 +61,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         #endregion
 
-        #region ShowRarityGlow Property
-
-        public static readonly DependencyProperty ShowRarityGlowProperty = DependencyProperty.Register(
-            nameof(ShowRarityGlow),
-            typeof(bool),
-            typeof(CompactAchievementControlBase),
-            new FrameworkPropertyMetadata(true));
-
-        public bool ShowRarityGlow
-        {
-            get => (bool)GetValue(ShowRarityGlowProperty);
-            set => SetValue(ShowRarityGlowProperty, value);
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Gets the source collection to display. Derived classes implement this to provide
-        /// either the filtered locked achievements or the unlocked achievements.
-        /// </summary>
-
         /// <summary>
         /// Gets the source collection to display. Derived classes implement this to provide
         /// either the filtered locked achievements or the unlocked achievements.
@@ -128,17 +108,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             return false;
         }
 
-        protected override bool ShouldHandleSettingsDataChange(string propertyName)
-        {
-            // Watch for ShowRarityGlow setting changes
-            return propertyName == "Persisted.ShowRarityGlow";
-        }
-
         protected override void OnThemeDataUpdated()
         {
-            // Update ShowRarityGlow from settings in case it changed
-            ShowRarityGlow = Plugin?.Settings?.Persisted?.ShowRarityGlow ?? true;
-
             UpdateFilteredAchievements();
         }
 
@@ -154,31 +125,36 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// </summary>
         protected virtual AchievementImage CreateAchievementImage(AchievementDetail achievement)
         {
-            return new AchievementImage
+            var image = new AchievementImage
             {
                 Width = IconHeight,
                 Height = IconHeight,
                 ToolTip = achievement.DisplayName,
-                // Use UnlockedIconDisplay for both states; grayscale is applied when IsLocked=true
                 Icon = achievement.UnlockedIconDisplay,
                 IconCustom = achievement.UnlockedIconDisplay,
                 IsLocked = false,
                 Percent = achievement.GlobalPercentUnlocked ?? 0,
                 EnableRaretyIndicator = true,
-                ShowRarityGlow = ShowRarityGlow,
                 DisplayRaretyValue = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
+
+            // Bind ShowRarityGlow directly to settings - automatic updates with no manual sync needed
+            var glowBinding = new Binding("Settings.Persisted.ShowRarityGlow")
+            {
+                Source = Plugin,
+                Mode = BindingMode.OneWay,
+                FallbackValue = true
+            };
+            image.SetBinding(AchievementImage.ShowRarityGlowProperty, glowBinding);
+
+            return image;
         }
 
         protected CompactAchievementControlBase()
         {
             IconHeight = 48.0;
-
-            // Initialize ShowRarityGlow from settings
-            ShowRarityGlow = Plugin?.Settings?.Persisted?.ShowRarityGlow ?? true;
-
             SizeChanged += OnSizeChanged;
         }
 
@@ -250,7 +226,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 {
                     if (i < nbGrid - 1)
                     {
-                        // Show achievement image
                         var achievement = _visibleAchievements[i];
                         var achievementImage = CreateAchievementImage(achievement);
                         achievementImage.SetValue(Grid.ColumnProperty, i);
@@ -317,4 +292,3 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         }
     }
 }
-// --END SUCCESSSTORY--

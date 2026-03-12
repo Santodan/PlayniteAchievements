@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
@@ -95,13 +96,21 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 IsLocked = true,
                 Percent = achievement.GlobalPercentUnlocked ?? 0,
                 EnableRaretyIndicator = true,
-                ShowRarityGlow = ShowRarityGlow,
                 DisplayRaretyValue = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = achievement.Hidden && !achievement.Unlocked ? Cursors.Hand : null,
                 Tag = achievement // Store achievement for click handler
             };
+
+            // Bind ShowRarityGlow directly to settings - automatic updates with no manual sync needed
+            var glowBinding = new Binding("Settings.Persisted.ShowRarityGlow")
+            {
+                Source = Plugin,
+                Mode = BindingMode.OneWay,
+                FallbackValue = true
+            };
+            image.SetBinding(AchievementImage.ShowRarityGlowProperty, glowBinding);
 
             // Add click handler for hidden achievements
             if (achievement.Hidden && !achievement.Unlocked)
