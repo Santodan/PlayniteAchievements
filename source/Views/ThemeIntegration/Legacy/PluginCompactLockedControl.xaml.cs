@@ -95,6 +95,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 IsLocked = true,
                 Percent = achievement.GlobalPercentUnlocked ?? 0,
                 EnableRaretyIndicator = true,
+                ShowRarityGlow = ShowRarityGlow,
                 DisplayRaretyValue = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
