@@ -93,6 +93,7 @@
                                 IsLocked="{Binding Unlocked, Converter={StaticResource InvertBoolConverter}}"
                                 Percent="{Binding GlobalPercentUnlocked}"
                                 EnableRaretyIndicator="True"
+                                ShowRarityGlow="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}"
                                 DisplayRaretyValue="True">
                                 <localControls:AchievementImage.Icon>
                                     <MultiBinding Converter="{StaticResource HiddenIconConverter}">
