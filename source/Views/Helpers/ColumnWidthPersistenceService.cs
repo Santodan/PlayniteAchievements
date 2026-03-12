@@ -32,6 +32,7 @@ namespace PlayniteAchievements.Views.Helpers
         private string _lastResizedColumnKey;
         private bool _shouldRescaleAllOnInitialLoad;
         private bool _isAttached;
+        private bool _persistedWidthsApplied;
 
         private const double MinimumColumnWidthRatio = 0.1;
         private const double WidthNormalizationSafetyPadding = 1.0;
@@ -241,6 +242,14 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var isVisibilityActivation = e.PreviousSize.Width <= 1;
+
+            // Skip normalization on visibility activation if persisted widths were already applied
+            // to avoid flicker when switching between visible grids
+            if (isVisibilityActivation && _persistedWidthsApplied && !_shouldRescaleAllOnInitialLoad)
+            {
+                return;
+            }
+
             var shouldRescaleAll = _shouldRescaleAllOnInitialLoad || !isVisibilityActivation;
 
             _grid.Dispatcher.BeginInvoke(
@@ -437,6 +446,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (map == null || map.Count == 0)
             {
                 NormalizeColumnsToContainer();
+                _persistedWidthsApplied = true;
                 return;
             }
 
@@ -467,6 +477,7 @@ namespace PlayniteAchievements.Views.Helpers
                 _isApplyingWidths = false;
             }
 
+            _persistedWidthsApplied = true;
             NormalizeColumnsToContainer();
         }
 
