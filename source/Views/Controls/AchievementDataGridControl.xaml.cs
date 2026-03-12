@@ -195,6 +195,17 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            IsVisibleChanged += OnIsVisibleChanged;
+        }
+
+        private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // When control becomes visible, ensure column visibility is correct
+            // This handles the case where persisted visibility was applied while control was hidden
+            if ((bool)e.NewValue && _isAttached)
+            {
+                UpdateColumnVisibility();
+            }
         }
 
         private static void OnColumnVisibilityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -207,20 +218,20 @@ namespace PlayniteAchievements.Views.Controls
 
         private void UpdateColumnVisibility()
         {
-            if (AchievementsDataGrid == null)
+            if (AchievementsDataGrid == null || AchievementsDataGrid.Columns == null)
             {
                 return;
             }
 
-            // Update Status column visibility
-            var statusColumn = AchievementsDataGrid.Columns?.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "StatusColumn") as DataGridTemplateColumn;
+            // Update Status column visibility - force collapsed when HideStatusColumn is true
+            var statusColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "StatusColumn") as DataGridTemplateColumn;
             if (statusColumn != null)
             {
                 statusColumn.Visibility = HideStatusColumn ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            // Update Game column visibility
-            var gameColumn = AchievementsDataGrid.Columns?.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "GameColumn") as DataGridTemplateColumn;
+            // Update Game column visibility - force collapsed when ShowGameColumn is false
+            var gameColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "GameColumn") as DataGridTemplateColumn;
             if (gameColumn != null)
             {
                 gameColumn.Visibility = ShowGameColumn ? Visibility.Visible : Visibility.Collapsed;
