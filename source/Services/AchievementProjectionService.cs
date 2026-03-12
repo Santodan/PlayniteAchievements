@@ -12,6 +12,7 @@ namespace PlayniteAchievements.Services
         public bool ShowHiddenIcon { get; set; }
         public bool ShowHiddenTitle { get; set; }
         public bool ShowHiddenDescription { get; set; }
+        public bool ShowLockedIcon { get; set; } = true;
         public bool ShowRarityGlow { get; set; } = true;
         public bool UseScaledPoints { get; set; }
         public ISet<string> RevealedKeys { get; set; }
@@ -29,6 +30,7 @@ namespace PlayniteAchievements.Services
                 ShowHiddenIcon = settings?.Persisted?.ShowHiddenIcon ?? false,
                 ShowHiddenTitle = settings?.Persisted?.ShowHiddenTitle ?? false,
                 ShowHiddenDescription = settings?.Persisted?.ShowHiddenDescription ?? false,
+                ShowLockedIcon = settings?.Persisted?.ShowLockedIcon ?? true,
                 ShowRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true,
                 UseScaledPoints = (settings?.Persisted?.RaPointsMode == "scaled") &&
                                   string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase),
@@ -67,6 +69,7 @@ namespace PlayniteAchievements.Services
                 ShowHiddenIcon = options?.ShowHiddenIcon ?? false,
                 ShowHiddenTitle = options?.ShowHiddenTitle ?? false,
                 ShowHiddenDescription = options?.ShowHiddenDescription ?? false,
+                ShowLockedIcon = options?.ShowLockedIcon ?? true,
                 ShowRarityGlow = options?.ShowRarityGlow ?? true,
                 ProgressNum = achievement.ProgressNum,
                 ProgressDenom = achievement.ProgressDenom,
