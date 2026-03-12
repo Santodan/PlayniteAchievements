@@ -430,6 +430,12 @@ namespace PlayniteAchievements.Views.Helpers
                     continue;
                 }
 
+                // Skip columns that are excluded from visibility persistence
+                if (ExcludedVisibilityKeys.Contains(key))
+                {
+                    continue;
+                }
+
                 if (map.TryGetValue(key, out var isVisible))
                 {
                     column.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
