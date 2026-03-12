@@ -952,7 +952,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             foreach (var column in _grid.Columns)
             {
-                var headerText = ResolveHeaderText(column?.Header);
+                var headerText = ResolveColumnDisplayName(column);
                 if (string.IsNullOrWhiteSpace(headerText))
                 {
                     continue;
@@ -991,6 +991,18 @@ namespace PlayniteAchievements.Views.Helpers
                 default:
                     return header?.ToString() ?? string.Empty;
             }
+        }
+
+        private static string ResolveColumnDisplayName(DataGridColumn column)
+        {
+            var headerText = ResolveHeaderText(column?.Header);
+            if (!string.IsNullOrWhiteSpace(headerText))
+            {
+                return headerText;
+            }
+
+            // Fall back to ColumnKey for columns with blank headers
+            return ColumnVisibilityHelper.GetColumnKey(column) ?? string.Empty;
         }
 
         private static string GetColumnKey(DataGridColumn column)
