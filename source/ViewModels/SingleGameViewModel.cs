@@ -727,11 +727,13 @@ namespace PlayniteAchievements.ViewModels
             if (e.PropertyName == "Persisted.ShowHiddenIcon"
                 || e.PropertyName == "Persisted.ShowHiddenTitle"
                 || e.PropertyName == "Persisted.ShowHiddenDescription"
+                || e.PropertyName == "Persisted.ShowRarityGlow"
                 || e.PropertyName == "Persisted")
             {
                 var showIcon = _settings.Persisted.ShowHiddenIcon;
                 var showTitle = _settings.Persisted.ShowHiddenTitle;
                 var showDescription = _settings.Persisted.ShowHiddenDescription;
+                var showRarityGlow = _settings.Persisted.ShowRarityGlow;
 
                 System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
                 {
@@ -740,6 +742,7 @@ namespace PlayniteAchievements.ViewModels
                         item.ShowHiddenIcon = showIcon;
                         item.ShowHiddenTitle = showTitle;
                         item.ShowHiddenDescription = showDescription;
+                        item.ShowRarityGlow = showRarityGlow;
                     }
                 });
             }
