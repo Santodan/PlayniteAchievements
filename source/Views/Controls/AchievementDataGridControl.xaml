@@ -60,6 +60,8 @@
         <DataGrid.Columns>
             <!-- Status: Checkmark (unlocked) or Padlock (locked) -->
             <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserSort="False" CanUserResize="False"
+                                    Header="{DynamicResource LOCPlayAch_Column_Status}"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Status"
                                     CellTemplate="{StaticResource AchievementStatusTemplate}"/>
 
             <!-- Achievement Icon -->
