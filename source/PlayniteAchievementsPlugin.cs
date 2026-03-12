@@ -77,7 +77,7 @@ namespace PlayniteAchievements
         private PlayniteAchievementsTopPanelItem _topPanelItem;
 
         // Theme integration
-        private readonly ThemeIntegrationUpdateService _themeUpdateService;
+        private ThemeIntegrationUpdateService _themeUpdateService;
         private readonly FullscreenWindowService _fullscreenWindowService;
         private readonly ThemeIntegrationService _themeIntegrationService;
 
@@ -288,8 +288,10 @@ namespace PlayniteAchievements
 
                 using (PerfScope.StartStartup(_logger, "PluginCtor.ThemeServicesWiring", thresholdMs: 50))
                 {
-                    ThemeIntegrationUpdateService themeUpdateService = null;
-                    Action<Guid?> requestUpdate = (id) => themeUpdateService?.RequestUpdate(id);
+                    // Defer ThemeIntegrationUpdateService creation to OnApplicationStarted
+                    // to avoid crash when Application.Current is null during early plugin loading
+                    _themeUpdateService = null;
+                    Action<Guid?> requestUpdate = (id) => _themeUpdateService?.RequestUpdate(id);
 
                     _fullscreenWindowService = new FullscreenWindowService(
                         PlayniteApi,
@@ -304,14 +306,6 @@ namespace PlayniteAchievements
                         _fullscreenWindowService,
                         requestUpdate,
                         _logger);
-
-                    themeUpdateService = new ThemeIntegrationUpdateService(
-                        _themeIntegrationService,
-                        _achievementService,
-                        _settingsViewModel.Settings,
-                        _logger,
-                        PlayniteApi?.MainView?.UIDispatcher ?? System.Windows.Application.Current.Dispatcher);
-                    _themeUpdateService = themeUpdateService;
 
                     // Listen for game database changes to auto-refresh new entries and react to hide/unhide edits.
                     PlayniteApi?.Database?.Games?.ItemCollectionChanged += Games_ItemCollectionChanged;
@@ -1199,6 +1193,28 @@ namespace PlayniteAchievements
             using (PerfScope.StartStartup(_logger, "OnApplicationStarted", thresholdMs: 50))
             {
                 _applicationStarted = true;
+
+                // Create ThemeIntegrationUpdateService now that UI dispatcher is guaranteed to be available
+                if (_themeUpdateService == null)
+                {
+                    var dispatcher = PlayniteApi?.MainView?.UIDispatcher
+                        ?? System.Windows.Application.Current?.Dispatcher;
+
+                    if (dispatcher != null)
+                    {
+                        _themeUpdateService = new ThemeIntegrationUpdateService(
+                            _themeIntegrationService,
+                            _achievementService,
+                            _settingsViewModel.Settings,
+                            _logger,
+                            dispatcher);
+                        _logger.Debug("ThemeIntegrationUpdateService created in OnApplicationStarted");
+                    }
+                    else
+                    {
+                        _logger.Warn("Could not obtain UI dispatcher; theme integration updates disabled");
+                    }
+                }
 
                 try
                 {
