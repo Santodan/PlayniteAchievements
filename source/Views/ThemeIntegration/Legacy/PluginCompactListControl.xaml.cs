@@ -65,6 +65,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         #endregion
 
+        #region ShowRarityGlow Property
+
+        public static readonly DependencyProperty ShowRarityGlowProperty = DependencyProperty.Register(
+            nameof(ShowRarityGlow),
+            typeof(bool),
+            typeof(PluginCompactListControl),
+            new FrameworkPropertyMetadata(true));
+
+        public bool ShowRarityGlow
+        {
+            get => (bool)GetValue(ShowRarityGlowProperty);
+            set => SetValue(ShowRarityGlowProperty, value);
+        }
+
+        #endregion
+
         public PluginCompactListControl()
         {
             InitializeComponent();
