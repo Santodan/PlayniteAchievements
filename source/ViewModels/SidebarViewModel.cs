@@ -2821,7 +2821,7 @@ namespace PlayniteAchievements.ViewModels
                 "SortingName" => (a, b) => string.Compare(a.SortingName ?? a.GameName, b.SortingName ?? b.GameName, StringComparison.OrdinalIgnoreCase),
                 "CategoryType" => CompareRecentAchievementsByCategoryTypeThenUnlock,
                 "CategoryLabel" => CompareRecentAchievementsByCategoryLabelThenUnlock,
-                "UnlockTimeUtc" => CompareRecentAchievementsByUnlockColumn,
+                "UnlockTime" => CompareRecentAchievementsByUnlockColumn,
                 "GlobalPercent" => (a, b) => (a.GlobalPercentUnlocked ?? 100).CompareTo(b.GlobalPercentUnlocked ?? 100),
                 "Points" => (a, b) => a.Points.CompareTo(b.Points),
                 "TrophyType" => CompareRecentAchievementsByTrophyType,
