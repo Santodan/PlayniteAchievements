@@ -203,6 +203,13 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private bool _showRarityGlow = true;
+        public bool ShowRarityGlow
+        {
+            get => _showRarityGlow;
+            set => SetValue(ref _showRarityGlow, value);
+        }
+
         private bool _isRevealed;
         public bool IsRevealed
         {
@@ -587,6 +594,7 @@ namespace PlayniteAchievements.ViewModels
                 ShowHiddenIcon = _showHiddenIcon,
                 ShowHiddenTitle = _showHiddenTitle,
                 ShowHiddenDescription = _showHiddenDescription,
+                ShowRarityGlow = _showRarityGlow,
                 // IsRevealed intentionally not copied - each clone starts unrevealed
                 ProgressNum = _progressNum,
                 ProgressDenom = _progressDenom,
