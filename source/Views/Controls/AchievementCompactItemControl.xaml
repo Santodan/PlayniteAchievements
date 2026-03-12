@@ -117,7 +117,7 @@
             </Image.Style>
         </Image>
 
-        <!-- Lock icon overlay for locked achievements (when not showing hidden icon) -->
+        <!-- Lock icon overlay for locked achievements (when not hiding icons) -->
         <TextBlock Text="&#xf023;"
                    FontFamily="{DynamicResource FontIcoFont}"
                    HorizontalAlignment="Center"
@@ -133,6 +133,7 @@
                             <MultiDataTrigger.Conditions>
                                 <Condition Binding="{Binding Unlocked}" Value="False"/>
                                 <Condition Binding="{Binding IsIconHidden}" Value="False"/>
+                                <Condition Binding="{Binding IsLockedIconHidden}" Value="False"/>
                             </MultiDataTrigger.Conditions>
                             <Setter Property="Visibility" Value="Visible"/>
                         </MultiDataTrigger>
