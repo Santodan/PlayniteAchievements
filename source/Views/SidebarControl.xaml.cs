@@ -37,7 +37,6 @@ namespace PlayniteAchievements.Views
         private string _lastAchievementResizedKey;
         private string _lastOverviewResizedKey;
         private Dictionary<string, double> _pendingRecentToggleWidths;
-        private Dictionary<string, double> _pendingGameToggleWidths;
 
         private static readonly IReadOnlyDictionary<string, double> DefaultAchievementWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -145,7 +144,7 @@ namespace PlayniteAchievements.Views
             EnsureDefaultSeeds();
             AttachHandlers(GamesOverviewDataGrid);
             AttachHandlers(RecentAchievementsDataGrid);
-            AttachHandlers(GameAchievementsDataGrid);
+            // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
             ApplyVisibilityToGrids();
             ApplyWidthsToGrids();
             UpdatePieChartLayout();
@@ -193,7 +192,7 @@ namespace PlayniteAchievements.Views
 
             if (shouldNormalizeAchievements)
             {
-                NormalizeSharedAchievementColumns(RecentAchievementsDataGrid);
+                NormalizeRecentAchievementColumns(RecentAchievementsDataGrid);
             }
 
             if (shouldNormalizeOverview)
@@ -516,6 +515,27 @@ namespace PlayniteAchievements.Views
             _viewModel.SortDataGrid((sender as DataGrid), e.Column.SortMemberPath, sortDirection.Value);
         }
 
+        private void GameAchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            if (_viewModel == null) return;
+            e.Handled = true;
+
+            var grid = GameAchievementsGrid?.InternalDataGrid;
+            if (grid == null) return;
+
+            // Toggle sort direction
+            var currentDirection = e.Column.SortDirection;
+            var newDirection = currentDirection == ListSortDirection.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
+            // Update sort indicator via the control
+            GameAchievementsGrid?.SetSortIndicator(e.Column.SortMemberPath, newDirection);
+
+            // Perform the actual sorting
+            _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, newDirection);
+        }
+
         private void OnProviderPieChartSliceClick(object sender, string providerName)
         {
             _viewModel?.ToggleProviderFilterFromPieChart(providerName);
@@ -615,7 +635,7 @@ namespace PlayniteAchievements.Views
 
             DetachGridHandlers(GamesOverviewDataGrid);
             DetachGridHandlers(RecentAchievementsDataGrid);
-            DetachGridHandlers(GameAchievementsDataGrid);
+            // GameAchievementsGrid is managed by AchievementDataGridControl
 
             if (_saveTimer != null)
             {
@@ -658,12 +678,11 @@ namespace PlayniteAchievements.Views
             var width = column.ActualWidth;
             if (!ColumnWidthNormalization.IsValidWidth(width)) return;
 
-            if (grid == RecentAchievementsDataGrid || grid == GameAchievementsDataGrid)
+            if (grid == RecentAchievementsDataGrid)
             {
                 _lastAchievementResizedKey = key;
                 QueueWidthUpdate(_pendingAchievementWidthUpdates, key, width);
-                ApplyWidthToGridByKey(RecentAchievementsDataGrid, key, width);
-                ApplyWidthToGridByKey(GameAchievementsDataGrid, key, width);
+                // GameAchievementsGrid handles its own column widths via ColumnWidthPersistenceService
             }
             else if (grid == GamesOverviewDataGrid)
             {
@@ -726,17 +745,17 @@ namespace PlayniteAchievements.Views
         {
             if (!e.WidthChanged || !(sender is DataGrid grid) || !grid.IsVisible || grid.ActualWidth <= 1) return;
 
-            var isSharedGrid = grid == RecentAchievementsDataGrid || grid == GameAchievementsDataGrid;
+            var isRecentAchievementsGrid = grid == RecentAchievementsDataGrid;
             var isVisibilityActivation = e.PreviousSize.Width <= 1;
-            if (isSharedGrid && isVisibilityActivation && HasPendingToggleWidths()) return;
+            if (isRecentAchievementsGrid && isVisibilityActivation && HasPendingToggleWidths()) return;
 
             grid.Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (grid.IsLoaded && !_isResizeInProgress)
                 {
-                    if (isSharedGrid)
+                    if (isRecentAchievementsGrid)
                     {
-                        NormalizeSharedAchievementColumns(grid);
+                        NormalizeRecentAchievementColumns(grid);
                     }
                     else
                     {
@@ -771,9 +790,9 @@ namespace PlayniteAchievements.Views
             if (grid == null) return;
             grid.Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (grid == RecentAchievementsDataGrid || grid == GameAchievementsDataGrid)
+                if (grid == RecentAchievementsDataGrid)
                 {
-                    NormalizeSharedAchievementColumns(grid);
+                    NormalizeRecentAchievementColumns(grid);
                 }
                 else
                 {
@@ -790,9 +809,9 @@ namespace PlayniteAchievements.Views
         {
             if (grid == null || !grid.IsLoaded) return;
 
-            if (grid == RecentAchievementsDataGrid || grid == GameAchievementsDataGrid)
+            if (grid == RecentAchievementsDataGrid)
             {
-                NormalizeSharedAchievementColumns(grid, rescaleAll);
+                NormalizeRecentAchievementColumns(grid, rescaleAll);
                 return;
             }
 
@@ -806,19 +825,10 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void NormalizeSharedAchievementColumns(DataGrid referenceGrid, bool rescaleAll = false)
+        private void NormalizeRecentAchievementColumns(DataGrid referenceGrid, bool rescaleAll = false)
         {
-            if (!TryBuildSharedWidthPlans(referenceGrid, rescaleAll, out var recentPlan, out var gamePlan)) return;
-            ApplyWidthPlans(recentPlan, gamePlan);
-        }
-
-        private bool TryBuildSharedWidthPlans(DataGrid referenceGrid, bool rescaleAll,
-            out Dictionary<string, double> recentPlan, out Dictionary<string, double> gamePlan)
-        {
-            recentPlan = null;
-            gamePlan = null;
-
-            if (referenceGrid == null || !referenceGrid.IsLoaded) return false;
+            // GameAchievementsGrid manages its own columns via AchievementDataGridControl
+            if (referenceGrid != RecentAchievementsDataGrid || !referenceGrid.IsLoaded) return;
 
             var fallbackWidth = ColumnWidthNormalization.GetGridAvailableWidth(referenceGrid);
             var preferredWidths = CaptureResizableWidths(referenceGrid, fallbackWidth);
@@ -827,46 +837,11 @@ namespace PlayniteAchievements.Views
                 preferredWidths = GetAchievementWidths();
             }
 
-            var hasRecent = ColumnWidthNormalization.TryBuildNormalizedWidths(
+            if (ColumnWidthNormalization.TryBuildNormalizedWidths(
                 RecentAchievementsDataGrid, _lastAchievementResizedKey, rescaleAll,
-                preferredWidths, fallbackWidth, out recentPlan);
-            var hasGame = ColumnWidthNormalization.TryBuildNormalizedWidths(
-                GameAchievementsDataGrid, _lastAchievementResizedKey, rescaleAll,
-                preferredWidths, fallbackWidth, out gamePlan);
-
-            if (!hasRecent && !hasGame)
-            {
-                if (ColumnWidthNormalization.TryBuildNormalizedWidths(referenceGrid, _lastAchievementResizedKey,
-                    rescaleAll, preferredWidths, fallbackWidth, out var fallback))
-                {
-                    if (referenceGrid == RecentAchievementsDataGrid)
-                    {
-                        recentPlan = fallback;
-                        hasRecent = true;
-                    }
-                    else if (referenceGrid == GameAchievementsDataGrid)
-                    {
-                        gamePlan = fallback;
-                        hasGame = true;
-                    }
-                }
-            }
-
-            return hasRecent || hasGame;
-        }
-
-        private void ApplyWidthPlans(Dictionary<string, double> recentPlan, Dictionary<string, double> gamePlan)
-        {
-            if (recentPlan != null && recentPlan.Count > 0 &&
-                RecentAchievementsDataGrid != null && RecentAchievementsDataGrid.IsLoaded)
+                preferredWidths, fallbackWidth, out var recentPlan))
             {
                 ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid, recentPlan, ref _isApplyingWidths);
-            }
-
-            if (gamePlan != null && gamePlan.Count > 0 &&
-                GameAchievementsDataGrid != null && GameAchievementsDataGrid.IsLoaded)
-            {
-                ColumnWidthNormalization.ApplyWidthsByKey(GameAchievementsDataGrid, gamePlan, ref _isApplyingWidths);
             }
         }
 
@@ -899,12 +874,16 @@ namespace PlayniteAchievements.Views
 
         private void QueueActiveGridNormalization(bool rescaleAll)
         {
+            // Only RecentAchievementsDataGrid needs manual normalization
+            // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (_viewModel == null) return;
-                var activeGrid = _viewModel.IsGameSelected ? GameAchievementsDataGrid : RecentAchievementsDataGrid;
-                if (activeGrid == null || !activeGrid.IsLoaded || !activeGrid.IsVisible || activeGrid.ActualWidth <= 1) return;
-                NormalizeSharedAchievementColumns(activeGrid, rescaleAll);
+                if (_viewModel.IsGameSelected) return; // GameAchievementsGrid manages itself
+
+                if (RecentAchievementsDataGrid == null || !RecentAchievementsDataGrid.IsLoaded ||
+                    !RecentAchievementsDataGrid.IsVisible || RecentAchievementsDataGrid.ActualWidth <= 1) return;
+                NormalizeRecentAchievementColumns(RecentAchievementsDataGrid, rescaleAll);
             }), DispatcherPriority.Loaded);
         }
 
@@ -914,41 +893,47 @@ namespace PlayniteAchievements.Views
 
         private bool HasPendingToggleWidths()
         {
-            return (_pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0) ||
-                   (_pendingGameToggleWidths != null && _pendingGameToggleWidths.Count > 0);
+            return _pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0;
         }
 
         private bool TryApplyPendingToggleWidths()
         {
             if (!HasPendingToggleWidths()) return false;
 
-            var hasActivePlan = _viewModel?.IsGameSelected == true
-                ? _pendingGameToggleWidths != null && _pendingGameToggleWidths.Count > 0
-                : _pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0;
+            // Only RecentAchievementsDataGrid needs manual width application
+            // GameAchievementsGrid manages itself via AchievementDataGridControl
+            if (_pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0 &&
+                RecentAchievementsDataGrid != null && RecentAchievementsDataGrid.IsLoaded)
+            {
+                ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid, _pendingRecentToggleWidths, ref _isApplyingWidths);
+            }
 
-            ApplyWidthPlans(_pendingRecentToggleWidths, _pendingGameToggleWidths);
             _pendingRecentToggleWidths = null;
-            _pendingGameToggleWidths = null;
-            return hasActivePlan;
+            return true;
         }
 
         private void PrecomputeToggleWidths(bool toGameSelected)
         {
             _pendingRecentToggleWidths = null;
-            _pendingGameToggleWidths = null;
 
-            var sourceGrid = toGameSelected ? RecentAchievementsDataGrid : GameAchievementsDataGrid;
-            if (sourceGrid == null || !sourceGrid.IsLoaded)
+            // Only precompute for RecentAchievementsDataGrid when switching away from it
+            // GameAchievementsGrid manages itself via AchievementDataGridControl
+            if (toGameSelected && RecentAchievementsDataGrid != null && RecentAchievementsDataGrid.IsLoaded)
             {
-                sourceGrid = toGameSelected ? GameAchievementsDataGrid : RecentAchievementsDataGrid;
-            }
-            if (sourceGrid == null || !sourceGrid.IsLoaded) return;
+                var fallbackWidth = ColumnWidthNormalization.GetGridAvailableWidth(RecentAchievementsDataGrid);
+                var preferredWidths = CaptureResizableWidths(RecentAchievementsDataGrid, fallbackWidth);
+                if (preferredWidths.Count == 0)
+                {
+                    preferredWidths = GetAchievementWidths();
+                }
 
-            if (TryBuildSharedWidthPlans(sourceGrid, rescaleAll: true, out var recentPlan, out var gamePlan))
-            {
-                _pendingRecentToggleWidths = recentPlan;
-                _pendingGameToggleWidths = gamePlan;
-                ApplyWidthPlans(recentPlan, gamePlan);
+                if (ColumnWidthNormalization.TryBuildNormalizedWidths(
+                    RecentAchievementsDataGrid, _lastAchievementResizedKey, rescaleAll: true,
+                    preferredWidths, fallbackWidth, out var recentPlan))
+                {
+                    _pendingRecentToggleWidths = recentPlan;
+                    ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid, recentPlan, ref _isApplyingWidths);
+                }
             }
         }
 
@@ -959,9 +944,9 @@ namespace PlayniteAchievements.Views
         private void ApplyVisibilityToGrids()
         {
             ApplyVisibility(RecentAchievementsDataGrid, _settings?.Persisted?.DataGridColumnVisibility);
-            ApplyVisibility(GameAchievementsDataGrid, _settings?.Persisted?.DataGridColumnVisibility);
+            // GameAchievementsGrid uses AchievementDataGridControl which handles its own visibility
             ApplyVisibility(GamesOverviewDataGrid, _settings?.Persisted?.GamesOverviewColumnVisibility);
-            NormalizeSharedAchievementColumns(RecentAchievementsDataGrid);
+            NormalizeRecentAchievementColumns(RecentAchievementsDataGrid);
             NormalizeGridColumns(GamesOverviewDataGrid);
         }
 
@@ -983,9 +968,9 @@ namespace PlayniteAchievements.Views
             EnsureDefaultSeeds();
             var achievementWidths = GetAchievementWidths();
             ApplyWidths(RecentAchievementsDataGrid, achievementWidths);
-            ApplyWidths(GameAchievementsDataGrid, achievementWidths);
+            // GameAchievementsGrid uses AchievementDataGridControl which handles its own widths
             ApplyWidths(GamesOverviewDataGrid, GetOverviewWidths());
-            NormalizeSharedAchievementColumns(RecentAchievementsDataGrid);
+            NormalizeRecentAchievementColumns(RecentAchievementsDataGrid);
             NormalizeGridColumns(GamesOverviewDataGrid);
         }
 
@@ -1174,12 +1159,11 @@ namespace PlayniteAchievements.Views
                 PersistVisibility(_settings?.Persisted?.GamesOverviewColumnVisibility, key, isVisible);
                 NormalizeGridColumns(GamesOverviewDataGrid);
             }
-            else if (grid == RecentAchievementsDataGrid || grid == GameAchievementsDataGrid)
+            else if (grid == RecentAchievementsDataGrid)
             {
                 PersistVisibility(_settings?.Persisted?.DataGridColumnVisibility, key, isVisible);
-                ApplyVisibilityToGridByKey(RecentAchievementsDataGrid, key, isVisible);
-                ApplyVisibilityToGridByKey(GameAchievementsDataGrid, key, isVisible);
-                NormalizeSharedAchievementColumns(grid);
+                // GameAchievementsGrid handles its own visibility via AchievementDataGridControl
+                NormalizeRecentAchievementColumns(grid);
             }
         }
 
@@ -1388,33 +1372,33 @@ namespace PlayniteAchievements.Views
 
         private void ResetAchievementsScrollPosition()
         {
-            if (GameAchievementsDataGrid == null) return;
+            var grid = GameAchievementsGrid?.InternalDataGrid;
+            if (grid == null) return;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (GameAchievementsDataGrid == null) return;
-                GameAchievementsDataGrid.SelectedIndex = -1;
-                if (GameAchievementsDataGrid.Items.Count > 0)
-                    GameAchievementsDataGrid.ScrollIntoView(GameAchievementsDataGrid.Items[0]);
-                if (VisualTreeHelpers.FindVisualChild<ScrollViewer>(GameAchievementsDataGrid) is ScrollViewer sv)
+                var g = GameAchievementsGrid?.InternalDataGrid;
+                if (g == null) return;
+                g.SelectedIndex = -1;
+                if (g.Items.Count > 0)
+                    g.ScrollIntoView(g.Items[0]);
+                if (VisualTreeHelpers.FindVisualChild<ScrollViewer>(g) is ScrollViewer sv)
                     sv.ScrollToTop();
             }), DispatcherPriority.Loaded);
         }
 
         private void ResetAchievementsSortDirection()
         {
-            if (GameAchievementsDataGrid == null) return;
-            foreach (var c in GameAchievementsDataGrid.Columns) c.SortDirection = null;
+            var grid = GameAchievementsGrid?.InternalDataGrid;
+            if (grid == null) return;
+            foreach (var c in grid.Columns) c.SortDirection = null;
 
             if (_viewModel?.SelectedGameHasCustomAchievementOrder == true)
             {
                 return;
             }
 
-            var unlockCol = GameAchievementsDataGrid.Columns.FirstOrDefault(c => c.SortMemberPath == "UnlockTime");
-            if (unlockCol != null)
-            {
-                unlockCol.SortDirection = ListSortDirection.Descending;
-            }
+            // Use SetSortIndicator on the control for external sorting
+            GameAchievementsGrid?.SetSortIndicator("UnlockTime", ListSortDirection.Descending);
         }
 
         private void ResetRecentAchievementsSortDirection()
