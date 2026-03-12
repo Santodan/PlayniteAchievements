@@ -287,6 +287,7 @@ namespace PlayniteAchievements.ViewModels
                 ShowHiddenIcon = projected.ShowHiddenIcon,
                 ShowHiddenTitle = projected.ShowHiddenTitle,
                 ShowHiddenDescription = projected.ShowHiddenDescription,
+                ShowRarityGlow = projected.ShowRarityGlow,
                 IsRevealed = projected.IsRevealed,
                 IsCapstone = sourceAchievement.IsCapstone,
                 IsCurrentMarker = string.Equals(
