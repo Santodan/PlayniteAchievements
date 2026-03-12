@@ -501,6 +501,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Révéler l'icône cachée</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">Révéler le titre caché</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Révéler la description cachée</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements">Visibilité des succès verrouillés</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements_Description">Contrôlez l'affichage des icônes des succès verrouillés.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">Révéler l'icône verrouillée</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Inclure les jeux non joués</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">Si décoché, les jeux avec 0 temps de jeu seront ignorés lors des actualisations.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Activer l'actualisation parallèle des fournisseurs</sys:String>
