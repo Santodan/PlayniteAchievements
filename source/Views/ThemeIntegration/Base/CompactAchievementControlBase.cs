@@ -60,6 +60,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         #endregion
 
+        #region ShowRarityGlow Property
+
+        public static readonly DependencyProperty ShowRarityGlowProperty = DependencyProperty.Register(
+            nameof(ShowRarityGlow),
+            typeof(bool),
+            typeof(CompactAchievementControlBase),
+            new FrameworkPropertyMetadata(true));
+
+        public bool ShowRarityGlow
+        {
+            get => (bool)GetValue(ShowRarityGlowProperty);
+            set => SetValue(ShowRarityGlowProperty, value);
+        }
+
+        #endregion
+
         /// <summary>
         /// Gets the source collection to display. Derived classes implement this to provide
         /// either the filtered locked achievements or the unlocked achievements.
@@ -135,6 +151,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 IsLocked = false,
                 Percent = achievement.GlobalPercentUnlocked ?? 0,
                 EnableRaretyIndicator = true,
+                ShowRarityGlow = ShowRarityGlow,
                 DisplayRaretyValue = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
