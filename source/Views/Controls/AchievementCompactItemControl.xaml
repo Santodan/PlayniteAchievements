@@ -105,9 +105,13 @@
                 <Style TargetType="Image">
                     <Setter Property="Effect" Value="{x:Null}"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
                             <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}"/>
-                        </DataTrigger>
+                        </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
             </Image.Style>
