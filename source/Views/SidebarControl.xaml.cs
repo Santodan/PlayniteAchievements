@@ -1120,7 +1120,7 @@ namespace PlayniteAchievements.Views
             var menu = new ContextMenu();
             foreach (var column in grid.Columns)
             {
-                var header = ResolveHeaderText(column?.Header);
+                var header = ResolveColumnDisplayName(column);
                 if (string.IsNullOrWhiteSpace(header)) continue;
 
                 var target = column;
@@ -1150,6 +1150,18 @@ namespace PlayniteAchievements.Views
                 case TextBlock tb: return tb.Text;
                 default: return header?.ToString() ?? string.Empty;
             }
+        }
+
+        private static string ResolveColumnDisplayName(DataGridColumn column)
+        {
+            var headerText = ResolveHeaderText(column?.Header);
+            if (!string.IsNullOrWhiteSpace(headerText))
+            {
+                return headerText;
+            }
+
+            // Fall back to ColumnKey for columns with blank headers
+            return ColumnWidthNormalization.GetColumnKey(column) ?? string.Empty;
         }
 
         private void OnColumnVisibilityChanged(DataGrid grid, DataGridColumn column, bool isVisible)
