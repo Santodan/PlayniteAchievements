@@ -103,6 +103,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             set => SetValue(ShowHiddenDescriptionProperty, value);
         }
 
+        public static readonly DependencyProperty ShowRarityGlowProperty = DependencyProperty.Register(
+            nameof(ShowRarityGlow),
+            typeof(bool),
+            typeof(PluginListControl),
+            new FrameworkPropertyMetadata(true));
+
+        public bool ShowRarityGlow
+        {
+            get => (bool)GetValue(ShowRarityGlowProperty);
+            set => SetValue(ShowRarityGlowProperty, value);
+        }
+
         public static readonly DependencyProperty IconHeightProperty = DependencyProperty.Register(
             nameof(IconHeight),
             typeof(double),
