@@ -27,16 +27,13 @@ namespace PlayniteAchievements.Views
         private Guid? _lastSelectedOverviewGameId;
         private DataGridRow _pendingRightClickRow;
 
-        // Column persistence state
+        // Column persistence state (for GamesOverviewDataGrid only - AchievementDataGridControl handles its own)
         private readonly Dictionary<DataGridColumn, EventHandler> _columnWidthChangedHandlers = new Dictionary<DataGridColumn, EventHandler>();
-        private readonly Dictionary<string, double> _pendingAchievementWidthUpdates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, double> _pendingOverviewWidthUpdates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private DispatcherTimer _saveTimer;
         private bool _isApplyingWidths;
         private bool _isResizeInProgress;
-        private string _lastAchievementResizedKey;
         private string _lastOverviewResizedKey;
-        private Dictionary<string, double> _pendingRecentToggleWidths;
 
         private static readonly IReadOnlyDictionary<string, double> DefaultAchievementWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -184,16 +181,10 @@ namespace PlayniteAchievements.Views
         private void SaveTimer_Tick(object sender, EventArgs e)
         {
             _saveTimer?.Stop();
-            var shouldNormalizeAchievements = _pendingAchievementWidthUpdates.Count > 0;
             var shouldNormalizeOverview = _pendingOverviewWidthUpdates.Count > 0;
             FlushPendingUpdates();
 
             if (_isResizeInProgress) return;
-
-            if (shouldNormalizeAchievements)
-            {
-                NormalizeRecentAchievementColumns(RecentAchievementsDataGrid.InternalDataGrid);
-            }
 
             if (shouldNormalizeOverview)
             {
@@ -700,13 +691,8 @@ namespace PlayniteAchievements.Views
             var width = column.ActualWidth;
             if (!ColumnWidthNormalization.IsValidWidth(width)) return;
 
-            if (grid == RecentAchievementsDataGrid.InternalDataGrid)
-            {
-                _lastAchievementResizedKey = key;
-                QueueWidthUpdate(_pendingAchievementWidthUpdates, key, width);
-                // GameAchievementsGrid handles its own column widths via ColumnWidthPersistenceService
-            }
-            else if (grid == GamesOverviewDataGrid)
+            // RecentAchievementsDataGrid and GameAchievementsGrid handle their own column widths via ColumnWidthPersistenceService
+            if (grid == GamesOverviewDataGrid)
             {
                 _lastOverviewResizedKey = key;
                 QueueWidthUpdate(_pendingOverviewWidthUpdates, key, width);
@@ -725,10 +711,7 @@ namespace PlayniteAchievements.Views
             if (_settings?.Persisted == null) return;
 
             var changed = false;
-            if (_pendingAchievementWidthUpdates.Count > 0)
-            {
-                changed |= FlushToMap(_settings.Persisted.SidebarAchievementColumnWidths, _pendingAchievementWidthUpdates);
-            }
+            // AchievementDataGridControl handles its own width persistence
             if (_pendingOverviewWidthUpdates.Count > 0)
             {
                 changed |= FlushToMap(_settings.Persisted.GamesOverviewColumnWidths, _pendingOverviewWidthUpdates);
@@ -849,22 +832,8 @@ namespace PlayniteAchievements.Views
 
         private void NormalizeRecentAchievementColumns(DataGrid referenceGrid, bool rescaleAll = false)
         {
-            // GameAchievementsGrid manages its own columns via AchievementDataGridControl
-            if (referenceGrid != RecentAchievementsDataGrid.InternalDataGrid || !referenceGrid.IsLoaded) return;
-
-            var fallbackWidth = ColumnWidthNormalization.GetGridAvailableWidth(referenceGrid);
-            var preferredWidths = CaptureResizableWidths(referenceGrid, fallbackWidth);
-            if (preferredWidths.Count == 0)
-            {
-                preferredWidths = GetAchievementWidths();
-            }
-
-            if (ColumnWidthNormalization.TryBuildNormalizedWidths(
-                RecentAchievementsDataGrid.InternalDataGrid, _lastAchievementResizedKey, rescaleAll,
-                preferredWidths, fallbackWidth, out var recentPlan))
-            {
-                ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid.InternalDataGrid, recentPlan, ref _isApplyingWidths);
-            }
+            // AchievementDataGridControl handles its own column normalization internally
+            // This method is kept for compatibility but is now a no-op
         }
 
         private Dictionary<string, double> CaptureResizableWidths(DataGrid grid, double fallbackWidth)
@@ -913,50 +882,16 @@ namespace PlayniteAchievements.Views
 
         #region Toggle Precomputation
 
-        private bool HasPendingToggleWidths()
-        {
-            return _pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0;
-        }
+        // RecentAchievementsDataGrid and GameAchievementsGrid now use AchievementDataGridControl
+        // which handles its own column persistence. Toggle width handling is no longer needed.
 
-        private bool TryApplyPendingToggleWidths()
-        {
-            if (!HasPendingToggleWidths()) return false;
+        private bool HasPendingToggleWidths() => false;
 
-            // Only RecentAchievementsDataGrid needs manual width application
-            // GameAchievementsGrid manages itself via AchievementDataGridControl
-            if (_pendingRecentToggleWidths != null && _pendingRecentToggleWidths.Count > 0 &&
-                RecentAchievementsDataGrid != null && RecentAchievementsDataGrid.IsLoaded)
-            {
-                ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid.InternalDataGrid, _pendingRecentToggleWidths, ref _isApplyingWidths);
-            }
-
-            _pendingRecentToggleWidths = null;
-            return true;
-        }
+        private bool TryApplyPendingToggleWidths() => false;
 
         private void PrecomputeToggleWidths(bool toGameSelected)
         {
-            _pendingRecentToggleWidths = null;
-
-            // Only precompute for RecentAchievementsDataGrid when switching away from it
-            // GameAchievementsGrid manages itself via AchievementDataGridControl
-            if (toGameSelected && RecentAchievementsDataGrid != null && RecentAchievementsDataGrid.IsLoaded)
-            {
-                var fallbackWidth = ColumnWidthNormalization.GetGridAvailableWidth(RecentAchievementsDataGrid.InternalDataGrid);
-                var preferredWidths = CaptureResizableWidths(RecentAchievementsDataGrid.InternalDataGrid, fallbackWidth);
-                if (preferredWidths.Count == 0)
-                {
-                    preferredWidths = GetAchievementWidths();
-                }
-
-                if (ColumnWidthNormalization.TryBuildNormalizedWidths(
-                    RecentAchievementsDataGrid.InternalDataGrid, _lastAchievementResizedKey, rescaleAll: true,
-                    preferredWidths, fallbackWidth, out var recentPlan))
-                {
-                    _pendingRecentToggleWidths = recentPlan;
-                    ColumnWidthNormalization.ApplyWidthsByKey(RecentAchievementsDataGrid.InternalDataGrid, recentPlan, ref _isApplyingWidths);
-                }
-            }
+            // No-op: AchievementDataGridControl handles its own column widths
         }
 
         #endregion
@@ -965,10 +900,8 @@ namespace PlayniteAchievements.Views
 
         private void ApplyVisibilityToGrids()
         {
-            ApplyVisibility(RecentAchievementsDataGrid.InternalDataGrid, _settings?.Persisted?.DataGridColumnVisibility);
-            // GameAchievementsGrid uses AchievementDataGridControl which handles its own visibility
+            // RecentAchievementsDataGrid and GameAchievementsGrid use AchievementDataGridControl which handles its own visibility
             ApplyVisibility(GamesOverviewDataGrid, _settings?.Persisted?.GamesOverviewColumnVisibility);
-            // Don't normalize here - ApplyWidthsToGrids will handle it after applying persisted widths
         }
 
         private void ApplyVisibility(DataGrid grid, Dictionary<string, bool> map)
@@ -986,12 +919,9 @@ namespace PlayniteAchievements.Views
 
         private void ApplyWidthsToGrids()
         {
+            // RecentAchievementsDataGrid and GameAchievementsGrid use AchievementDataGridControl which handles its own widths
             EnsureDefaultSeeds();
-            var achievementWidths = GetAchievementWidths();
-            ApplyWidths(RecentAchievementsDataGrid.InternalDataGrid, achievementWidths);
-            // GameAchievementsGrid uses AchievementDataGridControl which handles its own widths
             ApplyWidths(GamesOverviewDataGrid, GetOverviewWidths());
-            NormalizeRecentAchievementColumns(RecentAchievementsDataGrid.InternalDataGrid);
             NormalizeGridColumns(GamesOverviewDataGrid);
         }
 

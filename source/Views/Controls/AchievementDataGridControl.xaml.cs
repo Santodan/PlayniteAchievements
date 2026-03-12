@@ -234,6 +234,7 @@ namespace PlayniteAchievements.Views.Controls
                 return;
             }
 
+            UpdateColumnVisibility();
             AttachColumnPersistence();
             _isAttached = true;
         }

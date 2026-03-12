@@ -71,17 +71,18 @@
             <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
                                     CellTemplate="{StaticResource AchievementIconTemplate}"/>
 
+            <!-- Achievement Info -->
+            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement"
+                                    CellTemplate="{StaticResource AchievementInfoTemplate}"/>
+            
             <!-- Game Column - shown in sidebar recent achievements -->
             <DataGridTemplateColumn x:Name="GameColumn"
                                     Width="64" MinWidth="64" MaxWidth="64" CanUserResize="False"
                                     Header="{DynamicResource LOCPlayAch_Column_Game}"
                                     SortMemberPath="SortingName"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Game"
+                                    Visibility="Collapsed"
                                     CellTemplate="{StaticResource AchievementGameColumnTemplate}"/>
-
-            <!-- Achievement Info -->
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement"
-                                    CellTemplate="{StaticResource AchievementInfoTemplate}"/>
 
             <!-- Unlock Date / Progress -->
             <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"

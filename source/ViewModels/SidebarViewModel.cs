@@ -1137,6 +1137,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _allGamesOverview = snapshot.GamesOverview ?? new List<GameOverviewItem>();
+            _allRecentAchievements = snapshot.RecentAchievements ?? new List<AchievementDisplayItem>();
             _filteredRecentAchievements = new List<AchievementDisplayItem>(_allRecentAchievements);
 
             UpdateProviderFilterOptions(_allGamesOverview);
