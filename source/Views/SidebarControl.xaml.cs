@@ -169,13 +169,18 @@ namespace PlayniteAchievements.Views
 
             if (e.PropertyName != nameof(SidebarViewModel.IsGameSelected)) return;
 
-            if (!_viewModel.IsGameSelected)
+            // Defer grid operations to Render priority to batch with visibility change
+            // This prevents flicker by ensuring all layout happens in one render pass
+            Dispatcher.BeginInvoke(new Action(() =>
             {
-                ResetRecentAchievementsToDefaultSort();
-            }
+                if (!_viewModel.IsGameSelected)
+                {
+                    ResetRecentAchievementsToDefaultSort();
+                }
 
-            if (TryApplyPendingToggleWidths()) return;
-            QueueActiveGridNormalization(rescaleAll: false);
+                if (TryApplyPendingToggleWidths()) return;
+                QueueActiveGridNormalization(rescaleAll: false);
+            }), DispatcherPriority.Render);
         }
 
         private void SaveTimer_Tick(object sender, EventArgs e)
