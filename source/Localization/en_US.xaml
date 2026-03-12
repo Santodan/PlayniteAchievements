@@ -502,6 +502,9 @@
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Reveal hidden icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">Reveal hidden title</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Reveal hidden description</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements">Locked Achievement Visibility</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements_Description">Control how locked achievement icons are displayed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">Reveal locked icon</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Include unplayed games</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">If unchecked, games with 0 playtime will be skipped during refreshes.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>
