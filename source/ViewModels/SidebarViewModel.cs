@@ -2093,7 +2093,12 @@ namespace PlayniteAchievements.ViewModels
             }
             var totalLocked = gamesList.Sum(g => g.TotalAchievements) - gamesList.Sum(g => g.UnlockedAchievements);
             var providerLookup = BuildProviderLookup();
-            ProviderPieChart?.SetProviderData(unlockedByProvider, totalByProvider, totalLocked, lockedLabel, providerLookup, null);
+            var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var providerKey in unlockedByProvider.Keys)
+            {
+                providerDisplayNames[providerKey] = ProviderRegistry.GetLocalizedName(providerKey);
+            }
+            ProviderPieChart?.SetProviderData(unlockedByProvider, totalByProvider, totalLocked, lockedLabel, providerLookup, providerDisplayNames);
 
             // Rarity pie chart
             var totalCommon = gamesList.Sum(g => g.CommonCount);
