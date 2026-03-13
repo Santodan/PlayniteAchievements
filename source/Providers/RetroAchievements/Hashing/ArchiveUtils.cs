@@ -1,3 +1,4 @@
+using PlayniteAchievements.Services.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Archives.SevenZip;
 using SharpCompress.Archives.Zip;
@@ -6,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
 {
@@ -165,16 +167,47 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
 
             public void Dispose()
             {
-                try
+                if (string.IsNullOrWhiteSpace(Path)) return;
+
+                Exception lastError = null;
+                for (var attempt = 0; attempt < 5; attempt++)
                 {
-                    if (!string.IsNullOrWhiteSpace(Path) && File.Exists(Path))
+                    try
                     {
-                        File.Delete(Path);
+                        if (File.Exists(Path))
+                        {
+                            File.Delete(Path);
+                        }
+                        return;
+                    }
+                    catch (IOException ex)
+                    {
+                        lastError = ex;
+                        if (attempt < 4)
+                        {
+                            Thread.Sleep(50 * (1 << attempt)); // 50ms, 100ms, 200ms, 400ms
+                        }
+                    }
+                    catch (UnauthorizedAccessException ex)
+                    {
+                        lastError = ex;
+                        if (attempt < 4)
+                        {
+                            Thread.Sleep(50 * (1 << attempt));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex;
+                        break; // Don't retry for other exceptions
                     }
                 }
-                catch
+
+                // Log failure after all retries exhausted
+                if (lastError != null)
                 {
-                    // ignore cleanup failures
+                    var logger = PluginLogger.GetLogger(nameof(ArchiveUtils));
+                    logger.Warn(lastError, $"Failed to delete temp file '{Path}' after 5 attempts");
                 }
             }
         }
