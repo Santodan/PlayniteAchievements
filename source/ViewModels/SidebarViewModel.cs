@@ -359,27 +359,39 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Toggles a provider filter when a pie slice is clicked.
         /// </summary>
-        /// <param name="providerName">The provider name from the clicked slice</param>
-        public void ToggleProviderFilterFromPieChart(string providerName)
+        /// <param name="sliceLabel">The display label from the clicked slice</param>
+        public void ToggleProviderFilterFromPieChart(string sliceLabel)
         {
-            if (string.IsNullOrWhiteSpace(providerName))
+            if (string.IsNullOrWhiteSpace(sliceLabel))
             {
                 return;
             }
 
-            if (string.Equals(providerName, L("LOCPlayAch_Sidebar_Locked", "Locked"), StringComparison.OrdinalIgnoreCase))
+            // Check if "Locked" was clicked
+            if (string.Equals(sliceLabel, L("LOCPlayAch_Sidebar_Locked", "Locked"), StringComparison.OrdinalIgnoreCase))
             {
                 ClearProviderFilters();
                 return;
             }
 
-            if (ProviderFilterOptions == null || !ProviderFilterOptions.Contains(providerName))
+            // Get the provider key from the pie chart's label mapping
+            var providerKey = ProviderPieChart.GetProviderKeyFromLabel(sliceLabel);
+            if (string.IsNullOrWhiteSpace(providerKey))
             {
                 return;
             }
 
-            var currentlySelected = IsProviderFilterSelected(providerName);
-            SetProviderFilterSelected(providerName, !currentlySelected);
+            // Get the canonical display name from ProviderRegistry
+            var canonicalName = ProviderRegistry.GetLocalizedName(providerKey);
+
+            // Use the canonical name for filtering
+            if (ProviderFilterOptions == null || !ProviderFilterOptions.Any(p => string.Equals(p, canonicalName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            var currentlySelected = IsProviderFilterSelected(canonicalName);
+            SetProviderFilterSelected(canonicalName, !currentlySelected);
         }
 
         private ObservableCollection<string> _completenessFilterOptions;

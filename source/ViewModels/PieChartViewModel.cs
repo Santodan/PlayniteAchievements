@@ -33,6 +33,9 @@ namespace PlayniteAchievements.ViewModels
         public ObservableCollection<LegendItem> LegendItems { get; } = new ObservableCollection<LegendItem>();
 
         private ObservableCollection<string> _highlightedLabels = new ObservableCollection<string>();
+
+        // Maps display labels to provider keys for provider pie chart slice click handling
+        private Dictionary<string, string> _labelToProviderKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public ObservableCollection<string> HighlightedLabels
         {
             get => _highlightedLabels;
@@ -57,6 +60,18 @@ namespace PlayniteAchievements.ViewModels
 
             HighlightedLabels = new ObservableCollection<string>(
                 normalizedLabels.OrderBy(label => label, StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Gets the provider key from a display label.
+        /// Used to translate pie chart slice labels back to stable provider keys for filtering.
+        /// </summary>
+        /// <param name="label">The display label from a clicked pie slice</param>
+        /// <returns>The provider key, or null if not found</returns>
+        public string GetProviderKeyFromLabel(string label)
+        {
+            if (string.IsNullOrWhiteSpace(label)) return null;
+            return _labelToProviderKey.TryGetValue(label, out var key) ? key : null;
         }
 
         /// <summary>
@@ -134,6 +149,9 @@ namespace PlayniteAchievements.ViewModels
             Dictionary<string, (string iconKey, string colorHex)> providerLookup,
             Dictionary<string, string> providerDisplayNames = null)
         {
+            // Clear previous mappings
+            _labelToProviderKey.Clear();
+
             if (unlockedByProvider == null || !unlockedByProvider.Any())
             {
                 SynchronizePieChartAndLegend(new List<PieSliceData>());
@@ -155,6 +173,9 @@ namespace PlayniteAchievements.ViewModels
                 {
                     displayLabel = displayName;
                 }
+
+                // Store mapping from display label to provider key for slice click handling
+                _labelToProviderKey[displayLabel] = providerKey;
 
                 // Look up provider icon and color
                 string colorHex = "#888888";
