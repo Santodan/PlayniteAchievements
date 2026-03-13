@@ -473,6 +473,119 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ================== TAGGING ================== -->
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingHeader}"
+                                           Style="{StaticResource SectionHeaderStyle}"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingDescription}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"
+                                           TextWrapping="Wrap"/>
+
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableTagging}"
+                                          IsChecked="{Binding Persisted.TaggingSettings.EnableTagging, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Margin="0,0,0,12"/>
+
+                                <!-- Tag Configuration Grid - only visible when tagging is enabled -->
+                                <StackPanel Margin="18,0,0,0"
+                                            Visibility="{Binding Persisted.TaggingSettings.EnableTagging, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TaggingSection}"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Margin="0,0,0,12"/>
+
+                                    <!-- Tag List -->
+                                    <Grid Margin="0,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Has Achievements Tag -->
+                                        <CheckBox Grid.Row="0" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.HasAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBox Grid.Row="0" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.HasAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- In Progress Tag -->
+                                        <CheckBox Grid.Row="1" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.InProgressConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.InProgressConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Completed Tag -->
+                                        <CheckBox Grid.Row="2" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.CompletedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBox Grid.Row="2" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.CompletedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- No Achievements Tag -->
+                                        <CheckBox Grid.Row="3" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.NoAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Excluded Tag -->
+                                        <CheckBox Grid.Row="4" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBox Grid.Row="4" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Excluded from Summaries Tag -->
+                                        <CheckBox Grid.Row="5" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,0"/>
+                                        <TextBox Grid.Row="5" Grid.Column="1"
+                                                 Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Margin="0,0,0,0"/>
+                                    </Grid>
+
+                                    <!-- Completion Status -->
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_SetCompletionStatus}"
+                                              IsChecked="{Binding Persisted.TaggingSettings.SetCompletionStatus, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              Margin="0,12,0,8"/>
+
+                                    <!-- Action Buttons -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                        <Button Content="{DynamicResource LOCPlayAch_Settings_SyncAllTags}"
+                                                Click="SyncAllTags_Click"
+                                                Margin="0,0,8,0"
+                                                Padding="12,6"/>
+                                        <Button Content="{DynamicResource LOCPlayAch_Settings_RemoveAllTags}"
+                                                Click="RemoveAllTags_Click"
+                                                Padding="12,6"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <!-- ================== LANGUAGE ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>

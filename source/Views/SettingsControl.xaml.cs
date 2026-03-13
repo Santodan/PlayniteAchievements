@@ -2876,6 +2876,69 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        // -----------------------------
+        // Tagging Methods
+        // -----------------------------
+
+        private void SyncAllTags_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var tagSyncService = _plugin.TagSyncService;
+                if (tagSyncService == null)
+                {
+                    _logger?.Warn("TagSyncService not available");
+                    return;
+                }
+
+                tagSyncService.SyncAllTags();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to sync tags.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Tagging_SyncFailed", "Failed to sync tags: {0}", ex.Message),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void RemoveAllTags_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var result = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_Tagging_RemoveAllConfirm", "Remove all Playnite Achievements tags from all games?"),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                var tagSyncService = _plugin.TagSyncService;
+                if (tagSyncService == null)
+                {
+                    _logger?.Warn("TagSyncService not available");
+                    return;
+                }
+
+                tagSyncService.RemoveAllTags();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to remove tags.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Tagging_RemoveFailed", "Failed to remove tags: {0}", ex.Message),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
         private async void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var tc = sender as TabControl;

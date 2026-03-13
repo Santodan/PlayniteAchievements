@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
-using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Models.Settings
 {
+    using ObservableObject = Common.ObservableObject;
+
     /// <summary>
     /// Settings for Playnite tag integration, allowing games to be tagged
     /// based on their achievement status for filtering and organization.
@@ -52,6 +53,33 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _tagConfigs;
             set => SetValue(ref _tagConfigs, value);
+        }
+
+        // Individual tag config properties for WPF binding convenience
+        public TagConfig HasAchievementsConfig => GetOrCreateTagConfig(TagType.HasAchievements);
+        public TagConfig InProgressConfig => GetOrCreateTagConfig(TagType.InProgress);
+        public TagConfig CompletedConfig => GetOrCreateTagConfig(TagType.Completed);
+        public TagConfig NoAchievementsConfig => GetOrCreateTagConfig(TagType.NoAchievements);
+        public TagConfig ExcludedConfig => GetOrCreateTagConfig(TagType.Excluded);
+        public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
+
+        private TagConfig GetOrCreateTagConfig(TagType tagType)
+        {
+            if (TagConfigs == null)
+            {
+                TagConfigs = new Dictionary<TagType, TagConfig>();
+            }
+
+            if (!TagConfigs.ContainsKey(tagType))
+            {
+                TagConfigs[tagType] = new TagConfig
+                {
+                    DisplayName = GetDefaultDisplayName(tagType),
+                    IsEnabled = true
+                };
+            }
+
+            return TagConfigs[tagType];
         }
 
         /// <summary>
