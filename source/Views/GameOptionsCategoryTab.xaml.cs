@@ -90,9 +90,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            var selectedRows = ViewModel.AchievementRows
-                .Where(item => item != null && item.IsSelected)
-                .ToList();
+            var selectedRows = ViewModel.GetAllSelectedRows();
             if (selectedRows.Count == 0)
             {
                 return;
@@ -114,9 +112,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            var selectedRows = ViewModel.AchievementRows
-                .Where(item => item != null && item.IsSelected)
-                .ToList();
+            var selectedRows = ViewModel.GetAllSelectedRows();
             if (selectedRows.Count == 0)
             {
                 return;
@@ -392,9 +388,7 @@ namespace PlayniteAchievements.Views
                 return new List<GameOptionsCategoryItem>();
             }
 
-            var selectedRows = ViewModel.AchievementRows
-                .Where(item => item != null && item.IsSelected)
-                .ToList();
+            var selectedRows = ViewModel.GetAllSelectedRows();
             if (selectedRows.Count == 0)
             {
                 return contextItem == null

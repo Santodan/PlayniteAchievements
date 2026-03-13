@@ -852,6 +852,13 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public List<GameOptionsCategoryItem> GetAllSelectedRows()
+        {
+            return _allRows
+                .Where(item => item != null && item.IsSelected)
+                .ToList();
+        }
+
         private void ApplyFilter()
         {
             var filtered = _allRows.AsEnumerable();
