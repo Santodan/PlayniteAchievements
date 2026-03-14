@@ -206,6 +206,11 @@ namespace PlayniteAchievements
                     providers = new List<IDataProvider>
                     {
                         _manualProvider,  // Manual provider first - explicit user overrides take priority
+                        new ExophaseDataProvider(
+                            _logger,
+                            settings,
+                            PlayniteApi,
+                            _exophaseSessionManager),  // Exophase can claim games from other providers
                         new SteamDataProvider(
                             _logger,
                             settings,
