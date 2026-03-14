@@ -9,6 +9,9 @@
                    mc:Ignorable="d"
                    d:DesignHeight="300" d:DesignWidth="600">
 
-    <controls:AchievementDataGridControl ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=desktop:AchievementListControl}}"
-                                         ColumnSettingsKey="DesktopTheme"/>
+    <controls:AchievementDataGridControl x:Name="AchievementsGrid"
+                                         ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=desktop:AchievementListControl}}"
+                                         ColumnSettingsKey="DesktopTheme"
+                                         UseExternalSorting="True"
+                                         Sorting="AchievementsGrid_Sorting"/>
 </base:ThemeControlBase>

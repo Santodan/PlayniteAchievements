@@ -1,8 +1,11 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using Playnite.SDK.Models;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
@@ -16,6 +19,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     {
         // Cache the source reference to avoid unnecessary cloning when data hasn't changed
         private List<AchievementDisplayItem> _lastSourceItems;
+
+        // Sort state tracking
+        private string _currentSortPath;
+        private ListSortDirection? _currentSortDirection;
 
         /// <summary>
         /// Identifies the DisplayItems dependency property.
@@ -67,6 +74,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
             _lastSourceItems = sourceItems;
             DisplayItems = sourceItems.Select(item => item.Clone()).ToList();
+
+            // Reapply current sort if active
+            if (!string.IsNullOrWhiteSpace(_currentSortPath) && _currentSortDirection.HasValue)
+            {
+                ApplySorting(_currentSortPath, _currentSortDirection.Value);
+            }
         }
 
         /// <summary>
@@ -94,6 +107,34 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             {
                 LoadData();
             }
+        }
+
+        private void AchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e);
+            if (sortDirection == null) return;
+
+            // Update sort indicator via the control
+            AchievementsGrid?.SetSortIndicator(e.Column.SortMemberPath, sortDirection.Value);
+
+            // Perform the actual sorting
+            ApplySorting(e.Column.SortMemberPath, sortDirection.Value);
+        }
+
+        private void ApplySorting(string sortMemberPath, ListSortDirection direction)
+        {
+            var items = DisplayItems;
+            if (items == null || items.Count == 0) return;
+
+            AchievementDisplayItemSorter.SortItems(
+                items,
+                sortMemberPath,
+                direction,
+                ref _currentSortPath,
+                ref _currentSortDirection);
+
+            // Trigger property change notification
+            DisplayItems = new List<AchievementDisplayItem>(items);
         }
     }
 }
