@@ -347,6 +347,8 @@ namespace PlayniteAchievements.Services.Tagging
         /// <summary>
         /// Determines all applicable tag types for a game.
         /// A game can have multiple tags (e.g., HasAchievements + InProgress).
+        /// Excluded is exclusive and removes other tags.
+        /// ExcludedFromSummaries can coexist with achievement status tags.
         /// </summary>
         private List<TagType> DetermineTagTypes(Game game)
         {
@@ -360,17 +362,18 @@ namespace PlayniteAchievements.Services.Tagging
 
             var gameId = game.Id;
 
-            // Check exclusion states first (highest priority - exclusive)
+            // Full exclusion is exclusive - no other tags
             if (_settings.ExcludedGameIds.Contains(gameId))
             {
                 types.Add(TagType.Excluded);
                 return types;
             }
 
-            if (_settings.ExcludedFromSummariesGameIds.Contains(gameId))
+            // Check if excluded from summaries (can coexist with other tags)
+            var excludedFromSummaries = _settings.ExcludedFromSummariesGameIds.Contains(gameId);
+            if (excludedFromSummaries)
             {
                 types.Add(TagType.ExcludedFromSummaries);
-                return types;
             }
 
             // Load the cached achievement data
@@ -391,8 +394,23 @@ namespace PlayniteAchievements.Services.Tagging
             // Game has achievements - add HasAchievements tag
             types.Add(TagType.HasAchievements);
 
+            // Check if completed (all unlocked OR manual capstone unlocked)
+            var isCompleted = data.IsCompleted;
+
+            // Also check for manual capstone override from settings
+            // (raw cached data doesn't have IsCapstone set - that's applied during hydration)
+            if (!isCompleted && _settings.ManualCapstones.TryGetValue(gameId, out var capstoneApiName))
+            {
+                var capstoneAchievement = data.Achievements?.FirstOrDefault(a =>
+                    a?.ApiName?.Equals(capstoneApiName, StringComparison.OrdinalIgnoreCase) == true);
+                if (capstoneAchievement?.Unlocked == true)
+                {
+                    isCompleted = true;
+                }
+            }
+
             // Add status tag based on progress
-            if (data.IsCompleted)
+            if (isCompleted)
             {
                 types.Add(TagType.Completed);
             }
