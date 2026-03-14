@@ -502,6 +502,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
             result = result.Replace("{Binding SelectedGame.CoverImageObjectCached}", "{PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameCoverPath}");
             replacements += CountOccurrences(originalContent, "{Binding SelectedGame.CoverImageObjectCached}");
 
+            // Convert SuccessStory trophy icon (U+F820) to PlayniteAchievements trophy icon (U+EDD7)
+            result = result.Replace("&#xF820;", "&#xEDD7;");
+            replacements += CountOccurrences(originalContent, "&#xF820;");
+
             return result;
         }
 
