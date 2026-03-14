@@ -47,6 +47,12 @@ namespace PlayniteAchievements.Services
         /// </summary>
         public List<Guid> LastRefreshedGameIds { get; private set; } = new List<Guid>();
 
+        /// <summary>
+        /// Raised after each individual game is refreshed and cached.
+        /// Argument is the game ID that was refreshed.
+        /// </summary>
+        public event Action<Guid> GameRefreshed;
+
         // Progress throttling
         private ProgressReport _pendingReport;
         private bool _pendingReportIsPriority;
@@ -1134,6 +1140,9 @@ namespace PlayniteAchievements.Services
 
                 Interlocked.Increment(ref _savedGamesInCurrentRun);
                 NotifyCacheInvalidatedThrottled(force: false);
+
+                // Fire per-game refresh event for amortized tag syncing
+                try { GameRefreshed?.Invoke(game.Id); } catch { }
             }
         }
 
