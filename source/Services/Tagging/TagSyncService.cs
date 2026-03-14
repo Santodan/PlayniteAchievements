@@ -83,8 +83,29 @@ namespace PlayniteAchievements.Services.Tagging
 
         private void ExecuteSyncAllTags(GlobalProgressActionArgs progress)
         {
+            // Capture old tag IDs BEFORE we update them, so we can remove old tags from games
+            var oldTagIds = new HashSet<Guid>();
+            if (_settings.TaggingSettings?.TagConfigs != null)
+            {
+                foreach (var config in _settings.TaggingSettings.TagConfigs.Values)
+                {
+                    if (config?.TagId.HasValue == true)
+                    {
+                        oldTagIds.Add(config.TagId.Value);
+                    }
+                }
+            }
+
             // Step 1: Ensure all configured tags exist in the database
+            // This updates TagConfig.TagId to the new tag IDs
             EnsureAllTagsExist();
+
+            // Combine old and new tag IDs for removal (handles renames)
+            var allManagedTagIds = new HashSet<Guid>(oldTagIds);
+            foreach (var tagId in _tagIdCache.Values)
+            {
+                allManagedTagIds.Add(tagId);
+            }
 
             var games = _api.Database.Games.ToList();
             if (progress != null)
@@ -116,7 +137,7 @@ namespace PlayniteAchievements.Services.Tagging
 
                 try
                 {
-                    if (SyncGameTags(game, tagConfigs))
+                    if (SyncGameTags(game, tagConfigs, allManagedTagIds))
                     {
                         updatedCount++;
                     }
@@ -138,15 +159,14 @@ namespace PlayniteAchievements.Services.Tagging
                 }
             }
 
-            // Step 2: Clean up orphan PA tags from the database AFTER games are synced
+            // Step 2: Clean up orphan tags from the database AFTER games are synced
             // This must come after syncing so we don't delete tags that games still reference
-            CleanupOrphanTags();
+            // Pass only the NEW tag IDs as current - old tags not in new set should be deleted
+            var newTagIds = new HashSet<Guid>(_tagIdCache.Values);
+            CleanupOrphanTags(oldTagIds, newTagIds);
 
             _logger.Info($"Tag sync complete: {updatedCount} games updated");
         }
-
-        /// <summary>
-        /// Syncs tags for specific games (called after refreshes).
         /// Does not show a progress dialog - runs silently in background.
         /// </summary>
         public void SyncTagsForGames(List<Guid> gameIds)
@@ -224,60 +244,53 @@ namespace PlayniteAchievements.Services.Tagging
 
         /// <summary>
         /// Removes orphan tags from the database.
-        /// These are tags that were previously tracked but no longer match any current TagConfig.
-        /// Uses tracked TagIds rather than prefix matching.
+        /// These are tags that were previously used but are no longer in the current config.
         /// </summary>
-        private void CleanupOrphanTags()
+        /// <param name="oldTagIds">Tag IDs that were captured before the sync (for rename detection).</param>
+        /// <param name="currentManagedTagIds">All tag IDs currently managed by this plugin.</param>
+        private void CleanupOrphanTags(HashSet<Guid> oldTagIds, HashSet<Guid> currentManagedTagIds)
         {
-            if (_settings.TaggingSettings?.TagConfigs == null) return;
+            // Tags to delete: old tags that are no longer in current managed set
+            var tagsToDelete = new HashSet<Guid>();
 
-            // Get all current tag IDs (the ones we just synced)
-            var currentTagIds = new HashSet<Guid>(
-                _settings.TaggingSettings.TagConfigs.Values
-                    .Where(c => c != null && c.TagId.HasValue)
-                    .Select(c => c.TagId.Value));
-
-            // Get all tracked tag IDs from configs (including ones that might have been renamed)
-            var trackedTagIds = _settings.TaggingSettings.TagConfigs.Values
-                .Where(c => c != null && c.TagId.HasValue)
-                .Select(c => c.TagId.Value)
-                .ToHashSet();
-
-            // Find tags in the database that match our tracked IDs but aren't current
-            // (These are old tags from renames that should be cleaned up)
-            var tagsToDelete = new List<Tag>();
-            foreach (var tag in _api.Database.Tags)
+            foreach (var oldId in oldTagIds)
             {
-                // Skip if this is a current tag
-                if (currentTagIds.Contains(tag.Id)) continue;
-
-                // If we have a tracked ID for this tag type but the tag doesn't match current name, it's an orphan
-                // Also clean up any old [PA] prefix tags that are no longer in use
-                if (trackedTagIds.Contains(tag.Id))
+                if (!currentManagedTagIds.Contains(oldId))
                 {
-                    tagsToDelete.Add(tag);
+                    tagsToDelete.Add(oldId);
                 }
             }
 
-            foreach (var orphanTag in tagsToDelete)
+            if (!tagsToDelete.Any())
+            {
+                return;
+            }
+
+            var deletedCount = 0;
+            foreach (var tagId in tagsToDelete)
             {
                 try
                 {
-                    _logger.Debug($"Deleting orphan tag: {orphanTag.Name}");
-                    _api.Database.Tags.Remove(orphanTag);
+                    var tag = _api.Database.Tags.Get(tagId);
+                    if (tag != null)
+                    {
+                        _logger.Debug($"Deleting orphan tag: {tag.Name}");
+                        _api.Database.Tags.Remove(tag);
+                        deletedCount++;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Failed to delete orphan tag: {orphanTag.Name}");
+                    _logger.Error(ex, $"Failed to delete orphan tag with ID {tagId}");
                 }
             }
 
             // Clear the cache since tags may have been deleted
             _tagIdCache.Clear();
 
-            if (tagsToDelete.Any())
+            if (deletedCount > 0)
             {
-                _logger.Info($"Cleaned up {tagsToDelete.Count} orphan tags");
+                _logger.Info($"Cleaned up {deletedCount} orphan tags");
             }
         }
 
@@ -304,28 +317,29 @@ namespace PlayniteAchievements.Services.Tagging
         /// Syncs tags for a single game based on its achievement status.
         /// </summary>
         /// <param name="game">The game to sync tags for.</param>
+        /// <param name="tagIdsToRemove">Optional set of tag IDs to remove. If null, uses current tracked IDs.</param>
         /// <returns>True if any tags were changed.</returns>
-        public bool SyncGameTags(Game game)
+        public bool SyncGameTags(Game game, HashSet<Guid> tagIdsToRemove = null)
         {
             if (!_settings.TaggingSettings?.EnableTagging ?? true)
             {
                 return false;
             }
 
-            return SyncGameTags(game, _settings.TaggingSettings.TagConfigs);
+            return SyncGameTags(game, _settings.TaggingSettings.TagConfigs, tagIdsToRemove);
         }
 
         /// <summary>
         /// Syncs tags for a single game based on its achievement status.
         /// </summary>
-        private bool SyncGameTags(Game game, Dictionary<TagType, TagConfig> tagConfigs)
+        private bool SyncGameTags(Game game, Dictionary<TagType, TagConfig> tagConfigs, HashSet<Guid> tagIdsToRemove = null)
         {
             if (game == null) return false;
 
             var changed = false;
 
-            // First, remove all PA tags from the game
-            changed |= RemoveAllPATags(game);
+            // First, remove all managed tags from the game
+            changed |= RemoveManagedTags(game, tagIdsToRemove);
 
             // Determine all applicable tag types (can be multiple)
             var tagTypes = DetermineTagTypes(game);
@@ -485,7 +499,7 @@ namespace PlayniteAchievements.Services.Tagging
 
                     try
                     {
-                        if (RemoveAllPATags(game))
+                        if (RemoveManagedTags(game))
                         {
                             _api.Database.Games.Update(game);
                             removedCount++;
@@ -533,22 +547,24 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Removes all tracked achievement tags from a single game.
-        /// Uses both current config tag IDs and previously tracked tag IDs.
+        /// Removes all managed achievement tags from a single game.
+        /// Uses provided tag IDs or falls back to currently tracked IDs.
         /// </summary>
+        /// <param name="game">The game to remove tags from.</param>
+        /// <param name="tagIdsToRemove">Specific tag IDs to remove. If null, uses GetAllTrackedTagIds().</param>
         /// <returns>True if any tags were removed.</returns>
-        private bool RemoveAllPATags(Game game)
+        private bool RemoveManagedTags(Game game, HashSet<Guid> tagIdsToRemove = null)
         {
             if (game?.TagIds == null || game.TagIds.Count == 0)
             {
                 return false;
             }
 
-            var trackedTagIds = GetAllTrackedTagIds();
+            var idsToRemove = tagIdsToRemove ?? GetAllTrackedTagIds();
             var originalCount = game.TagIds.Count;
 
-            // Remove all tracked tag IDs from the game
-            game.TagIds.RemoveAll(id => trackedTagIds.Contains(id));
+            // Remove all managed tag IDs from the game
+            game.TagIds.RemoveAll(id => idsToRemove.Contains(id));
 
             return game.TagIds.Count != originalCount;
         }
