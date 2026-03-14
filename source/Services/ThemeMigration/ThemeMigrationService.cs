@@ -298,7 +298,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 int pluginIdCount = CountOccurrences(content, "playnite-successstory-plugin");
                 int helperCount = CountOccurrences(content, "SSHelper");
                 int successStoryCount = CountOccurrences(content, "SuccessStory");
-                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount;
+                int iconCount = CountOccurrences(content, "\uF820");  // SuccessStory trophy icon
+                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount;
 
                 return (totalCount > 0, totalCount);
             }
@@ -503,8 +504,18 @@ namespace PlayniteAchievements.Services.ThemeMigration
             replacements += CountOccurrences(originalContent, "{Binding SelectedGame.CoverImageObjectCached}");
 
             // Convert SuccessStory trophy icon (U+F820) to PlayniteAchievements trophy icon (U+EDD7)
+            // Handle both XML entity form and raw UTF-8 character form
             result = result.Replace("&#xF820;", "&#xEDD7;");
             replacements += CountOccurrences(originalContent, "&#xF820;");
+
+            // Also replace raw Unicode character U+F820 -> U+EDD7
+            var sourceChar = "\uF820";
+            var targetChar = "\uEDD7";
+            if (result.Contains(sourceChar))
+            {
+                result = result.Replace(sourceChar, targetChar);
+                replacements += CountOccurrences(originalContent, sourceChar);
+            }
 
             return result;
         }
