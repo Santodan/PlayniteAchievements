@@ -48,75 +48,103 @@ namespace PlayniteAchievements.Services.Tagging
         /// </summary>
         public void SyncAllTags()
         {
+            SyncAllTags(silent: false);
+        }
+
+        /// <summary>
+        /// Synchronizes tags for all games in the library based on their achievement status.
+        /// Also cleans up orphan PA tags (tags that no longer match current config names).
+        /// </summary>
+        /// <param name="silent">If true, runs without showing a progress dialog.</param>
+        public void SyncAllTags(bool silent)
+        {
             if (!_settings.TaggingSettings?.EnableTagging ?? true)
             {
                 _logger.Info("Tag sync skipped: tagging is disabled");
                 return;
             }
 
-            var progressOptions = new GlobalProgressOptions(
-                ResourceProvider.GetString("LOCPlayAch_Tagging_SyncingProgress"))
+            if (silent)
             {
-                Cancelable = false,
-                IsIndeterminate = false
-            };
-
-            _api.Dialogs.ActivateGlobalProgress((progress) =>
+                ExecuteSyncAllTags(null);
+            }
+            else
             {
-                // Step 1: Ensure all configured tags exist in the database
-                EnsureAllTagsExist();
+                var progressOptions = new GlobalProgressOptions(
+                    ResourceProvider.GetString("LOCPlayAch_Tagging_SyncingProgress"))
+                {
+                    Cancelable = false,
+                    IsIndeterminate = false
+                };
 
-                // Step 2: Clean up orphan PA tags from the database
-                CleanupOrphanTags();
+                _api.Dialogs.ActivateGlobalProgress((progress) =>
+                {
+                    ExecuteSyncAllTags(progress);
+                }, progressOptions);
+            }
+        }
 
-                var games = _api.Database.Games.ToList();
+        private void ExecuteSyncAllTags(GlobalProgressActionArgs progress)
+        {
+            // Step 1: Ensure all configured tags exist in the database
+            EnsureAllTagsExist();
+
+            // Step 2: Clean up orphan PA tags from the database
+            CleanupOrphanTags();
+
+            var games = _api.Database.Games.ToList();
+            if (progress != null)
+            {
                 progress.ProgressMaxValue = games.Count;
                 progress.CurrentProgressValue = 0;
+            }
 
-                var tagConfigs = _settings.TaggingSettings.TagConfigs;
-                var updatedCount = 0;
+            var tagConfigs = _settings.TaggingSettings.TagConfigs;
+            var updatedCount = 0;
 
-                // Pre-compute completion status target if needed
-                Guid? targetCompletionStatusId = null;
-                var setCompletionStatus = _settings.TaggingSettings?.SetCompletionStatus ?? false;
-                if (setCompletionStatus)
+            // Pre-compute completion status target if needed
+            Guid? targetCompletionStatusId = null;
+            var setCompletionStatus = _settings.TaggingSettings?.SetCompletionStatus ?? false;
+            if (setCompletionStatus)
+            {
+                targetCompletionStatusId = GetCompletionStatusId();
+            }
+
+            foreach (var game in games)
+            {
+                if (game == null) continue;
+
+                if (progress != null)
                 {
-                    targetCompletionStatusId = GetCompletionStatusId();
-                }
-
-                foreach (var game in games)
-                {
-                    if (game == null) continue;
-
                     progress.Text = $"{ResourceProvider.GetString("LOCPlayAch_Tagging_SyncingProgress")}: {game.Name}";
                     progress.CurrentProgressValue++;
-
-                    try
-                    {
-                        if (SyncGameTags(game, tagConfigs))
-                        {
-                            updatedCount++;
-                        }
-
-                        // Also update completion status in the same pass
-                        if (targetCompletionStatusId.HasValue)
-                        {
-                            var tagType = DetermineTagType(game);
-                            if (tagType == TagType.Completed && game.CompletionStatusId != targetCompletionStatusId.Value)
-                            {
-                                game.CompletionStatusId = targetCompletionStatusId.Value;
-                                _api.Database.Games.Update(game);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Error(ex, $"Failed to sync tags for game {game.Name}");
-                    }
                 }
 
-                _logger.Info($"Tag sync complete: {updatedCount} games updated");
-            }, progressOptions);
+                try
+                {
+                    if (SyncGameTags(game, tagConfigs))
+                    {
+                        updatedCount++;
+                    }
+
+                    // Also update completion status in the same pass
+                    if (targetCompletionStatusId.HasValue)
+                    {
+                        var tagType = DetermineTagType(game);
+                        if (tagType == TagType.Completed && game.CompletionStatusId != targetCompletionStatusId.Value)
+                        {
+                            game.CompletionStatusId = targetCompletionStatusId.Value;
+                            _api.Database.Games.Update(game);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Failed to sync tags for game {game.Name}");
+                }
+            }
+
+            _logger.Info($"Tag sync complete: {updatedCount} games updated");
         }
 
         /// <summary>

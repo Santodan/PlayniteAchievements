@@ -293,7 +293,13 @@ namespace PlayniteAchievements
                     {
                         if (gameIds != null && gameIds.Count > 0)
                         {
+                            // Specific games were refreshed - sync just those (silent)
                             _tagSyncService?.SyncTagsForGames(gameIds);
+                        }
+                        else
+                        {
+                            // Bulk refresh - sync all tags (silent, no progress dialog)
+                            _tagSyncService?.SyncAllTags(silent: true);
                         }
                     };
 
