@@ -501,6 +501,7 @@
                                     <Grid Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
@@ -517,7 +518,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.HasAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
-                                        <TextBox Grid.Row="0" Grid.Column="1"
+                                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_HasAchievements}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="0" Grid.Column="2"
                                                  x:Name="HasAchievementsTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.HasAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
@@ -527,7 +532,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.InProgressConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_InProgress}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="1" Grid.Column="2"
                                                  x:Name="InProgressTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.InProgressConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
@@ -537,7 +546,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.CompletedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
-                                        <TextBox Grid.Row="2" Grid.Column="1"
+                                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_Completed}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="2" Grid.Column="2"
                                                  x:Name="CompletedTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.CompletedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
@@ -547,7 +560,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.NoAchievementsConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
-                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                        <TextBlock Grid.Row="3" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_NoAchievements}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="3" Grid.Column="2"
                                                  x:Name="NoAchievementsTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
@@ -557,7 +574,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
-                                        <TextBox Grid.Row="4" Grid.Column="1"
+                                        <TextBlock Grid.Row="4" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_Excluded}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="4" Grid.Column="2"
                                                  x:Name="ExcludedTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
@@ -567,7 +588,11 @@
                                                   IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,0"/>
-                                        <TextBox Grid.Row="5" Grid.Column="1"
+                                        <TextBlock Grid.Row="5" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_ExcludedFromSummaries}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+                                        <TextBox Grid.Row="5" Grid.Column="2"
                                                  x:Name="ExcludedFromSummariesTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,0"/>

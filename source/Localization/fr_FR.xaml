@@ -848,6 +848,14 @@
     <sys:String x:Key="LOCPlayAch_Settings_TagEnabled">Activé</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_TagName">Nom de l'étiquette</sys:String>
 
+    <!-- Tag Labels -->
+    <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">A des succès</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_InProgress">En cours</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Completed">Terminé</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">Pas de succès</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Excluded">Exclu</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_ExcludedFromSummaries">Exclu des résumés</sys:String>
+
     <!-- Default Tag Names -->
     <sys:String x:Key="LOCPlayAch_Tag_HasAchievements">[PA] A des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Tag_InProgress">[PA] En cours</sys:String>
