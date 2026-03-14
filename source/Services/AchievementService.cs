@@ -33,6 +33,12 @@ namespace PlayniteAchievements.Services
 
         public event EventHandler<ProgressReport> RebuildProgress;
 
+        /// <summary>
+        /// Event raised when game data changes (exclusions, capstones, etc.).
+        /// Argument is the list of game IDs that were affected.
+        /// </summary>
+        public event Action<List<Guid>> GameDataChanged;
+
         private ProgressReport _lastProgress;
         private string _lastStatus;
 
@@ -2175,6 +2181,9 @@ namespace PlayniteAchievements.Services
                 TryPersistSettings(notifySettingsSaved: true);
                 NotifyCacheInvalidatedThrottled(force: true);
 
+                // Notify that game data changed for tag syncing
+                GameDataChanged?.Invoke(new List<Guid> { playniteGameId });
+
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
             catch (Exception ex)
@@ -2342,6 +2351,9 @@ namespace PlayniteAchievements.Services
 
             TryPersistSettings(notifySettingsSaved: true);
             NotifyCacheInvalidatedThrottled(force: true);
+
+            // Notify that game data changed for tag syncing
+            GameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         /// <summary>
@@ -2367,6 +2379,9 @@ namespace PlayniteAchievements.Services
 
             TryPersistSettings(notifySettingsSaved: true);
             NotifyCacheInvalidatedThrottled(force: true);
+
+            // Notify that game data changed for tag syncing
+            GameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         /// <summary>
@@ -2391,6 +2406,9 @@ namespace PlayniteAchievements.Services
 
             TryPersistSettings(notifySettingsSaved: true);
             NotifyCacheInvalidatedThrottled(force: true);
+
+            // Notify that game data changed for tag syncing
+            GameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         // -----------------------------

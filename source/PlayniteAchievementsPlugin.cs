@@ -298,6 +298,15 @@ namespace PlayniteAchievements
                         }
                     };
 
+                    // Subscribe to game data changes (exclusions, capstones) for auto tag syncing
+                    _achievementService.GameDataChanged += (gameIds) =>
+                    {
+                        if (gameIds != null && gameIds.Count > 0)
+                        {
+                            _tagSyncService?.SyncTagsForGames(gameIds);
+                        }
+                    };
+
                     try
                     {
                         if (settings?.Persisted != null)
