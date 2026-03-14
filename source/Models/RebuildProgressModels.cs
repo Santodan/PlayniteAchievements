@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Models
 {
@@ -10,6 +11,11 @@ namespace PlayniteAchievements.Models
         public int GamesRefreshed { get; set; }
         public int GamesWithAchievements { get; set; }
         public int GamesWithoutAchievements { get; set; }
+
+        /// <summary>
+        /// List of game IDs that were actually refreshed.
+        /// </summary>
+        public List<Guid> RefreshedGameIds { get; set; } = new List<Guid>();
     }
 
     /// <summary>

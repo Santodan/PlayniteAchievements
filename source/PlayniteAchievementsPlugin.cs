@@ -291,15 +291,10 @@ namespace PlayniteAchievements
                     // Subscribe to refresh completion for auto tag syncing
                     _refreshCoordinator.RefreshCompleted += (gameIds) =>
                     {
+                        // Sync tags for the specific games that were refreshed (silent)
                         if (gameIds != null && gameIds.Count > 0)
                         {
-                            // Specific games were refreshed - sync just those (silent)
                             _tagSyncService?.SyncTagsForGames(gameIds);
-                        }
-                        else
-                        {
-                            // Bulk refresh - sync all tags (silent, no progress dialog)
-                            _tagSyncService?.SyncAllTags(silent: true);
                         }
                     };
 

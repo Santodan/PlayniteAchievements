@@ -100,31 +100,13 @@ namespace PlayniteAchievements.Services
                 {
                     try
                     {
-                        var gameIds = GetRefreshedGameIds(request);
+                        // Get the actual refreshed game IDs from the achievement service
+                        var gameIds = _achievementService.LastRefreshedGameIds;
                         RefreshCompleted?.Invoke(gameIds);
                     }
                     catch { }
                 }
             }
-        }
-
-        private List<Guid> GetRefreshedGameIds(RefreshRequest request)
-        {
-            var ids = new List<Guid>();
-
-            // Single game refresh
-            if (request.SingleGameId.HasValue && request.SingleGameId.Value != Guid.Empty)
-            {
-                ids.Add(request.SingleGameId.Value);
-            }
-
-            // Specific game IDs
-            if (request.GameIds != null)
-            {
-                ids.AddRange(request.GameIds.Where(id => id != Guid.Empty));
-            }
-
-            return ids;
         }
 
         private async Task ExecuteWithPrimingAsync(RefreshRequest request, RefreshExecutionPolicy policy)

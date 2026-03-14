@@ -36,6 +36,11 @@ namespace PlayniteAchievements.Services
         private ProgressReport _lastProgress;
         private string _lastStatus;
 
+        /// <summary>
+        /// Gets the list of game IDs that were refreshed in the most recent refresh operation.
+        /// </summary>
+        public List<Guid> LastRefreshedGameIds { get; private set; } = new List<Guid>();
+
         // Progress throttling
         private ProgressReport _pendingReport;
         private bool _pendingReportIsPriority;
@@ -649,6 +654,16 @@ namespace PlayniteAchievements.Services
                 payload = await Task.Run(
                     async () => await runner(operationId, cts.Token).ConfigureAwait(false),
                     cts.Token).ConfigureAwait(false);
+
+                // Store refreshed game IDs for subscribers (e.g., tag syncing)
+                if (payload?.Summary?.RefreshedGameIds != null)
+                {
+                    LastRefreshedGameIds = new List<Guid>(payload.Summary.RefreshedGameIds);
+                }
+                else
+                {
+                    LastRefreshedGameIds = new List<Guid>();
+                }
             }
             catch (OperationCanceledException)
             {
@@ -919,6 +934,11 @@ namespace PlayniteAchievements.Services
                 mergedSummary.GamesRefreshed += result.Payload.Summary.GamesRefreshed;
                 mergedSummary.GamesWithAchievements += result.Payload.Summary.GamesWithAchievements;
                 mergedSummary.GamesWithoutAchievements += result.Payload.Summary.GamesWithoutAchievements;
+
+                if (result.Payload.Summary.RefreshedGameIds != null)
+                {
+                    mergedSummary.RefreshedGameIds.AddRange(result.Payload.Summary.RefreshedGameIds);
+                }
             }
 
             return new RebuildPayload

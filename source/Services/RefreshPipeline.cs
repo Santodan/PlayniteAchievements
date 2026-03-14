@@ -105,6 +105,8 @@ namespace PlayniteAchievements.Services
                     }
 
                     summary.GamesRefreshed++;
+                    summary.RefreshedGameIds.Add(game.Id);
+
                     if (result.Data != null && result.Data.HasAchievements)
                     {
                         summary.GamesWithAchievements++;
