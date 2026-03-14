@@ -518,7 +518,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBox Grid.Row="0" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.HasAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="HasAchievementsTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.HasAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- In Progress Tag -->
@@ -527,7 +528,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBox Grid.Row="1" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.InProgressConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="InProgressTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.InProgressConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- Completed Tag -->
@@ -536,7 +538,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBox Grid.Row="2" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.CompletedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="CompletedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.CompletedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- No Achievements Tag -->
@@ -545,7 +548,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBox Grid.Row="3" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="NoAchievementsTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- Excluded Tag -->
@@ -554,7 +558,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBox Grid.Row="4" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="ExcludedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- Excluded from Summaries Tag -->
@@ -563,7 +568,8 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,0"/>
                                         <TextBox Grid.Row="5" Grid.Column="1"
-                                                 Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 x:Name="ExcludedFromSummariesTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,0"/>
                                     </Grid>
 
@@ -574,8 +580,8 @@
 
                                     <!-- Action Buttons -->
                                     <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                                        <Button Content="{DynamicResource LOCPlayAch_Settings_SyncAllTags}"
-                                                Click="SyncAllTags_Click"
+                                        <Button Content="{DynamicResource LOCPlayAch_Settings_ApplyAndSync}"
+                                                Click="ApplyAndSync_Click"
                                                 Margin="0,0,8,0"
                                                 Padding="12,6"/>
                                         <Button Content="{DynamicResource LOCPlayAch_Settings_RemoveAllTags}"
