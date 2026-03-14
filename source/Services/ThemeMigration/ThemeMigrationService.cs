@@ -298,7 +298,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 int pluginIdCount = CountOccurrences(content, "playnite-successstory-plugin");
                 int helperCount = CountOccurrences(content, "SSHelper");
                 int successStoryCount = CountOccurrences(content, "SuccessStory");
-                int iconCount = CountOccurrences(content, "\uF820");  // SuccessStory trophy icon
+                int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
                 int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount;
 
                 return (totalCount > 0, totalCount);
@@ -503,19 +503,19 @@ namespace PlayniteAchievements.Services.ThemeMigration
             result = result.Replace("{Binding SelectedGame.CoverImageObjectCached}", "{PluginSettings Plugin=PlayniteAchievements, Path=SelectedGameCoverPath}");
             replacements += CountOccurrences(originalContent, "{Binding SelectedGame.CoverImageObjectCached}");
 
-            // Convert SuccessStory trophy icon (U+F820) to PlayniteAchievements trophy icon (U+EDD7)
-            // Handle both XML entity form and raw UTF-8 character form
-            result = result.Replace("&#xF820;", "&#xEDD7;");
-            replacements += CountOccurrences(originalContent, "&#xF820;");
-
-            // Also replace raw Unicode character U+F820 -> U+EDD7
-            var sourceChar = "\uF820";
-            var targetChar = "\uEDD7";
-            if (result.Contains(sourceChar))
+            // Convert SuccessStory trophy icon (U+E820) to PlayniteAchievements trophy icon (U+EDD7)
+            // Note: The actual character in theme files is U+E820 (UTF-8: EE A0 A0), not U+F820
+            var trophySource = "\uE820";
+            var trophyTarget = "\uEDD7";
+            if (result.Contains(trophySource))
             {
-                result = result.Replace(sourceChar, targetChar);
-                replacements += CountOccurrences(originalContent, sourceChar);
+                result = result.Replace(trophySource, trophyTarget);
+                replacements += CountOccurrences(originalContent, trophySource);
             }
+
+            // Also handle XML entity form just in case
+            result = result.Replace("&#xE820;", "&#xEDD7;");
+            replacements += CountOccurrences(originalContent, "&#xE820;");
 
             return result;
         }
