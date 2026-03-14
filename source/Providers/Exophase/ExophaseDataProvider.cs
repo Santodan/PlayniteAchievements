@@ -93,18 +93,14 @@ namespace PlayniteAchievements.Providers.Exophase
         /// </summary>
         private string GetExophasePlatformSlug(Game game)
         {
-            if (game?.PlatformIds == null || game.PlatformIds.Count == 0)
+            if (game?.Platforms == null || game.Platforms.Count == 0)
             {
                 return null;
             }
 
-            var platforms = game.PlatformIds
-                .Select(id => _playniteApi?.Database?.GetPlatform(id))
-                .Where(p => p != null)
-                .ToList();
-
-            foreach (var platform in platforms)
+            foreach (var platform in game.Platforms)
             {
+                if (platform == null) continue;
                 var slug = MapPlaynitePlatformToExophaseSlug(platform);
                 if (!string.IsNullOrWhiteSpace(slug))
                 {
