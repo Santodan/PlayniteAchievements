@@ -288,13 +288,12 @@ namespace PlayniteAchievements
                         settings.Persisted,
                         _achievementService);
 
-                    // Subscribe to refresh completion for auto tag syncing
-                    _refreshCoordinator.RefreshCompleted += (gameIds) =>
+                    // Subscribe to per-game refresh for amortized tag syncing
+                    _achievementService.GameRefreshed += (gameId) =>
                     {
-                        // Sync tags for the specific games that were refreshed (silent)
-                        if (gameIds != null && gameIds.Count > 0)
+                        if (_tagSyncService != null && settings.Persisted.TaggingSettings?.EnableTagging == true)
                         {
-                            _tagSyncService?.SyncTagsForGames(gameIds);
+                            _tagSyncService.SyncTagsForGames(new List<Guid> { gameId });
                         }
                     };
 
