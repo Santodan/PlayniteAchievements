@@ -1082,14 +1082,14 @@
                     </Grid>
                     
                     <!-- RIGHT: Content (Recent List OR Game Details) -->
-                    <Grid Grid.Row="2" Grid.Column="2" ClipToBounds="True">
+                    <Grid Grid.Row="2" Grid.Column="2" ClipToBounds="False">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Content Area: Recent List OR Game Details -->
-                        <Grid Grid.Row="0" ClipToBounds="True">
+                        <Grid Grid.Row="0" ClipToBounds="False">
                             <!-- Default Panel: When no game selected -->
                             <Grid Visibility="{Binding IsGameSelected, Converter={StaticResource InverseBoolToVis}}">
                                 <Grid.RowDefinitions>

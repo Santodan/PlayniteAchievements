@@ -468,18 +468,24 @@
             <Image Width="52" Height="52"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="HighQuality"
+                   RenderOptions.BitmapScalingMode="Fant"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                   helpers:AsyncImage.DecodePixel="64">
+                   helpers:AsyncImage.DecodePixel="128">
                 <Image.Style>
                     <Style TargetType="Image">
-                        <Setter Property="Effect" Value="{x:Null}"/>
+                        <!-- Minimal invisible shadow ensures clean edge rendering when no rarity glow -->
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="1" ShadowDepth="0" Opacity="0.001" Color="White"/>
+                            </Setter.Value>
+                        </Setter>
                         <Style.Triggers>
                             <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
                                     <Condition Binding="{Binding Unlocked}" Value="True"/>
                                     <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
+                                <!-- Rarity glow overrides invisible shadow -->
                                 <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
