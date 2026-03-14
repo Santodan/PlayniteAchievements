@@ -111,11 +111,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         private void AchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
-            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e);
+            // Pass the internal DataGrid to ensure sort indicators are properly cleared/updated
+            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, AchievementsGrid?.InternalDataGrid);
             if (sortDirection == null) return;
-
-            // Update sort indicator via the control
-            AchievementsGrid?.SetSortIndicator(e.Column.SortMemberPath, sortDirection.Value);
 
             // Perform the actual sorting
             ApplySorting(e.Column.SortMemberPath, sortDirection.Value);
@@ -133,8 +131,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
                 ref _currentSortPath,
                 ref _currentSortDirection);
 
-            // Trigger property change notification
+            // Trigger property change notification with a new list
             DisplayItems = new List<AchievementDisplayItem>(items);
+
+            // Explicitly refresh the DataGrid to ensure it picks up the reordered items
+            AchievementsGrid?.InternalDataGrid?.Items.Refresh();
         }
     }
 }

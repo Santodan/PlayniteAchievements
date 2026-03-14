@@ -581,25 +581,19 @@ namespace PlayniteAchievements.ViewModels
 
                 // Exophase inclusion toggle
                 // Check if Exophase provider is enabled and game has platforms
-                var exophaseProvider = _achievementService?.GetProviders()?
-                    .FirstOrDefault(p => p.ProviderKey == "Exophase");
                 var exophaseEnabled = _settings?.Persisted?.ExophaseEnabled == true;
 
                 if (exophaseEnabled && game != null)
                 {
-                    // Check if the game's platform is in the managed platforms
                     var gamePlatformSlug = ExophaseDataProvider.GetExophasePlatformSlug(game);
-                    var isManagedByPlatform = !string.IsNullOrWhiteSpace(gamePlatformSlug) &&
-                        _settings.Persisted.ExophaseManagedPlatforms.Contains(gamePlatformSlug);
 
-                    IsExophaseManagedByPlatform = isManagedByPlatform;
+                    // Show toggle whenever Exophase is enabled and game has a supported platform
+                    // Toggle controls explicit inclusion; unchecked games follow platform settings
+                    ShowExophaseToggle = !string.IsNullOrWhiteSpace(gamePlatformSlug);
+                    IsExophaseManagedByPlatform = false; // Not used - toggle handles all cases
 
-                    // Show toggle if:
-                    // 1. Platform is NOT in managed platforms AND
-                    // 2. Game has a platform that Exophase supports
-                    ShowExophaseToggle = !isManagedByPlatform && !string.IsNullOrWhiteSpace(gamePlatformSlug);
-
-                    // Check if game is explicitly included
+                    // Toggle reflects explicit inclusion only
+                    // Game uses Exophase if explicitly included OR platform is managed
                     UseExophaseForGame = _settings.Persisted.ExophaseIncludedGames.Contains(_gameId);
                 }
                 else
