@@ -649,7 +649,17 @@ namespace PlayniteAchievements.Views
             ShowNoRevertableThemesMessage = !hasRevertable;
         }
 
-        private async void MigrateTheme_Click(object sender, RoutedEventArgs e)
+        private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
+        {
+            await ExecuteThemeMigrationAsync(MigrationMode.Limited);
+        }
+
+        private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
+        {
+            await ExecuteThemeMigrationAsync(MigrationMode.Full);
+        }
+
+        private async Task ExecuteThemeMigrationAsync(MigrationMode mode)
         {
             if (string.IsNullOrWhiteSpace(SelectedThemePath))
             {
@@ -657,15 +667,15 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            _logger.Info($"User requested theme migration for: {SelectedThemePath}");
+            _logger.Info($"User requested {mode} theme migration for: {SelectedThemePath}");
 
             try
             {
-                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath);
+                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode);
 
                 if (result.Success)
                 {
-                    _logger.Info($"Theme migration successful: {SelectedThemePath}");
+                    _logger.Info($"Theme migration ({mode}) successful: {SelectedThemePath}");
 
                     // Only show restart dialog if files were actually modified
                     if (result.FilesBackedUp > 0)

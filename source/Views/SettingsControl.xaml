@@ -2628,29 +2628,50 @@
                                     <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_BackupNote}"/>
                                 </TextBlock>
 
-                                <!-- Theme Dropdown and Migration Button -->
+                                <!-- Theme Dropdown -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <ComboBox Grid.Column="0"
-                                              ItemsSource="{Binding AvailableThemes, ElementName=SettingsControlRoot}"
+                                    <ComboBox ItemsSource="{Binding AvailableThemes, ElementName=SettingsControlRoot}"
                                               DisplayMemberPath="BestDisplayName"
                                               SelectedValuePath="Path"
                                               SelectedValue="{Binding SelectedThemePath, ElementName=SettingsControlRoot}"
                                               VerticalContentAlignment="Center"
                                               IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"/>
-
-                                    <Button Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_ThemeMigration_Migration}"
-                                            Click="MigrateTheme_Click"
-                                            Padding="14,6"
-                                            Margin="16,0,0,0"
-                                            MinWidth="100"
-                                            IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"/>
                                 </Grid>
+
+                                <!-- Migration Buttons -->
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            Margin="0,12,0,0">
+                                    <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_MigrationLimited}"
+                                            Click="MigrateThemeLimited_Click"
+                                            Padding="14,6"
+                                            Margin="0,0,8,0"
+                                            MinWidth="100"
+                                            IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"
+                                            ToolTipService.ShowOnDisabled="True">
+                                        <Button.ToolTip>
+                                            <ToolTip>
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_LimitedTooltip}"
+                                                           TextWrapping="Wrap"
+                                                           MaxWidth="250"/>
+                                            </ToolTip>
+                                        </Button.ToolTip>
+                                    </Button>
+                                    <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_MigrationFull}"
+                                            Click="MigrateThemeFull_Click"
+                                            Padding="14,6"
+                                            MinWidth="100"
+                                            IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"
+                                            ToolTipService.ShowOnDisabled="True">
+                                        <Button.ToolTip>
+                                            <ToolTip>
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_FullTooltip}"
+                                                           TextWrapping="Wrap"
+                                                           MaxWidth="250"/>
+                                            </ToolTip>
+                                        </Button.ToolTip>
+                                    </Button>
+                                </StackPanel>
 
                                 <!-- No themes message -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_NoThemesMessage}"
