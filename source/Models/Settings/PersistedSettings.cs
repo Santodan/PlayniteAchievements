@@ -107,6 +107,9 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private TaggingSettings _taggingSettings;
+        private bool _exophaseEnabled = false;
+        private HashSet<string> _exophaseManagedPlatforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private HashSet<Guid> _exophaseIncludedGames = new HashSet<Guid>();
 
         #endregion
 
@@ -1089,6 +1092,41 @@ namespace PlayniteAchievements.Models.Settings
 
         #endregion
 
+        #region Exophase Provider Settings
+
+        /// <summary>
+        /// Master toggle for the Exophase achievement provider.
+        /// When false, ExophaseDataProvider will not claim any games.
+        /// </summary>
+        public bool ExophaseEnabled
+        {
+            get => _exophaseEnabled;
+            set => SetValue(ref _exophaseEnabled, value);
+        }
+
+        /// <summary>
+        /// Platform slugs that Exophase should automatically claim.
+        /// Games on these platforms will use Exophase instead of native providers.
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "ea", "blizzard", "nintendo", "retro"
+        /// </summary>
+        public HashSet<string> ExophaseManagedPlatforms
+        {
+            get => _exophaseManagedPlatforms;
+            set => SetValue(ref _exophaseManagedPlatforms, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Individual game IDs that should use Exophase even if their platform is not in ManagedPlatforms.
+        /// Allows per-game override for platforms not globally enabled.
+        /// </summary>
+        public HashSet<Guid> ExophaseIncludedGames
+        {
+            get => _exophaseIncludedGames;
+            set => SetValue(ref _exophaseIncludedGames, value ?? new HashSet<Guid>());
+        }
+
+        #endregion
+
         #region Clone Method
 
         /// <summary>
@@ -1241,7 +1279,14 @@ namespace PlayniteAchievements.Models.Settings
                         kvp => kvp.Value?.Clone())
                     : new Dictionary<Guid, ManualAchievementLink>(),
                 ManualEnabled = this.ManualEnabled,
-                TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
+                TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings(),
+                ExophaseEnabled = this.ExophaseEnabled,
+                ExophaseManagedPlatforms = this.ExophaseManagedPlatforms != null
+                    ? new HashSet<string>(this.ExophaseManagedPlatforms, StringComparer.OrdinalIgnoreCase)
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                ExophaseIncludedGames = this.ExophaseIncludedGames != null
+                    ? new HashSet<Guid>(this.ExophaseIncludedGames)
+                    : new HashSet<Guid>()
             };
         }
 
