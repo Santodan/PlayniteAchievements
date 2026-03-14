@@ -395,8 +395,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Nintendo">Nintendo</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Retro">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Exophase Managed Platforms</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Select which platforms Exophase should manage. Games on these platforms will use Exophase instead of native providers.</sys:String>
 
     <!-- Game Options - Exophase -->
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>

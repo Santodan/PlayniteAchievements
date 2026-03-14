@@ -7,6 +7,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
@@ -50,6 +51,9 @@ namespace PlayniteAchievements.ViewModels
         private bool _cachedHasAchievements;
         private string _manualTrackingWarningAcceptedForProvider;
         private bool _showManualTrackingTab = true;
+        private bool _showExophaseToggle;
+        private bool _useExophaseForGame;
+        private bool _isExophaseManagedByPlatform;
 
         public RelayCommand OpenAchievementsCommand { get; }
         public RelayCommand ToggleExclusionCommand { get; }
@@ -151,6 +155,48 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _showManualTrackingTab;
             private set => SetValue(ref _showManualTrackingTab, value);
+        }
+
+        public bool ShowExophaseToggle
+        {
+            get => _showExophaseToggle;
+            private set => SetValue(ref _showExophaseToggle, value);
+        }
+
+        public bool UseExophaseForGame
+        {
+            get => _useExophaseForGame;
+            set
+            {
+                if (SetValueAndReturn(ref _useExophaseForGame, value))
+                {
+                    // Update the persisted settings
+                    if (value)
+                    {
+                        if (!_settings.Persisted.ExophaseIncludedGames.Contains(_gameId))
+                        {
+                            _settings.Persisted.ExophaseIncludedGames.Add(_gameId);
+                            _logger?.Info($"Added game '{GameName}' to Exophase included games");
+                        }
+                    }
+                    else
+                    {
+                        if (_settings.Persisted.ExophaseIncludedGames.Remove(_gameId))
+                        {
+                            _logger?.Info($"Removed game '{GameName}' from Exophase included games");
+                        }
+                    }
+
+                    _achievementService?.PersistSettingsForUi();
+                    TriggerRefresh();
+                }
+            }
+        }
+
+        public bool IsExophaseManagedByPlatform
+        {
+            get => _isExophaseManagedByPlatform;
+            private set => SetValue(ref _isExophaseManagedByPlatform, value);
         }
 
         public bool HasGame
@@ -531,6 +577,36 @@ namespace PlayniteAchievements.ViewModels
                 else
                 {
                     ManualTrackingSummary = L("LOCPlayAch_GameOptions_Manual_LinkSummary_None", "No manual link configured.");
+                }
+
+                // Exophase inclusion toggle
+                // Check if Exophase provider is enabled and game has platforms
+                var exophaseProvider = _achievementService?.GetProviders()?
+                    .FirstOrDefault(p => p.ProviderKey == "Exophase");
+                var exophaseEnabled = _settings?.Persisted?.ExophaseEnabled == true;
+
+                if (exophaseEnabled && game != null)
+                {
+                    // Check if the game's platform is in the managed platforms
+                    var gamePlatformSlug = ExophaseDataProvider.GetExophasePlatformSlug(game);
+                    var isManagedByPlatform = !string.IsNullOrWhiteSpace(gamePlatformSlug) &&
+                        _settings.Persisted.ExophaseManagedPlatforms.Contains(gamePlatformSlug);
+
+                    IsExophaseManagedByPlatform = isManagedByPlatform;
+
+                    // Show toggle if:
+                    // 1. Platform is NOT in managed platforms AND
+                    // 2. Game has a platform that Exophase supports
+                    ShowExophaseToggle = !isManagedByPlatform && !string.IsNullOrWhiteSpace(gamePlatformSlug);
+
+                    // Check if game is explicitly included
+                    UseExophaseForGame = _settings.Persisted.ExophaseIncludedGames.Contains(_gameId);
+                }
+                else
+                {
+                    ShowExophaseToggle = false;
+                    IsExophaseManagedByPlatform = false;
+                    UseExophaseForGame = false;
                 }
 
                 if (!ShowManualTrackingTab && SelectedTab == GameOptionsTab.ManualTracking)

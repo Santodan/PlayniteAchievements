@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Gets the Exophase platform slug for a game based on its Playnite platforms.
         /// Returns the first matching platform slug.
         /// </summary>
-        private string GetExophasePlatformSlug(Game game)
+        public static string GetExophasePlatformSlug(Game game)
         {
             if (game?.Platforms == null || game.Platforms.Count == 0)
             {
@@ -114,7 +114,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Maps a Playnite platform to an Exophase platform slug.
         /// </summary>
-        private static string MapPlaynitePlatformToExophaseSlug(Platform platform)
+        public static string MapPlaynitePlatformToExophaseSlug(Platform platform)
         {
             if (platform == null || string.IsNullOrWhiteSpace(platform.Name))
             {
