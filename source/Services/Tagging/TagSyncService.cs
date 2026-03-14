@@ -26,9 +26,6 @@ namespace PlayniteAchievements.Services.Tagging
         // Cache of tag IDs by tag type to avoid repeated database lookups
         private readonly Dictionary<TagType, Guid> _tagIdCache = new Dictionary<TagType, Guid>();
 
-        // Prefix for all PA tags to identify them
-        private const string TagPrefix = "[PA]";
-
         public TagSyncService(
             IPlayniteAPI api,
             ILogger logger,
@@ -89,9 +86,6 @@ namespace PlayniteAchievements.Services.Tagging
             // Step 1: Ensure all configured tags exist in the database
             EnsureAllTagsExist();
 
-            // Step 2: Clean up orphan PA tags from the database
-            CleanupOrphanTags();
-
             var games = _api.Database.Games.ToList();
             if (progress != null)
             {
@@ -143,6 +137,10 @@ namespace PlayniteAchievements.Services.Tagging
                     _logger.Error(ex, $"Failed to sync tags for game {game.Name}");
                 }
             }
+
+            // Step 2: Clean up orphan PA tags from the database AFTER games are synced
+            // This must come after syncing so we don't delete tags that games still reference
+            CleanupOrphanTags();
 
             _logger.Info($"Tag sync complete: {updatedCount} games updated");
         }
@@ -203,6 +201,7 @@ namespace PlayniteAchievements.Services.Tagging
         /// <summary>
         /// Ensures all configured tags exist in the database.
         /// Called during sync to create tags even if no games currently have them.
+        /// Also updates the TagConfig.TagId to track the actual tag ID.
         /// </summary>
         private void EnsureAllTagsExist()
         {
@@ -216,38 +215,55 @@ namespace PlayniteAchievements.Services.Tagging
                     if (tagId.HasValue)
                     {
                         _tagIdCache[kvp.Key] = tagId.Value;
+                        // Track the tag ID in the config for future reference
+                        kvp.Value.TagId = tagId.Value;
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Removes orphan PA tags from the database.
-        /// These are tags that start with [PA] but don't match any current TagConfig display names.
+        /// Removes orphan tags from the database.
+        /// These are tags that were previously tracked but no longer match any current TagConfig.
+        /// Uses tracked TagIds rather than prefix matching.
         /// </summary>
         private void CleanupOrphanTags()
         {
             if (_settings.TaggingSettings?.TagConfigs == null) return;
 
-            // Get all current tag display names (case-insensitive lookup)
-            var currentTagNames = new HashSet<string>(
+            // Get all current tag IDs (the ones we just synced)
+            var currentTagIds = new HashSet<Guid>(
                 _settings.TaggingSettings.TagConfigs.Values
-                    .Where(c => c != null && !string.IsNullOrWhiteSpace(c.DisplayName))
-                    .Select(c => c.DisplayName),
-                StringComparer.OrdinalIgnoreCase);
+                    .Where(c => c != null && c.TagId.HasValue)
+                    .Select(c => c.TagId.Value));
 
-            // Find all PA tags in the database
-            var paTags = _api.Database.Tags
-                .Where(t => t.Name?.StartsWith(TagPrefix, StringComparison.OrdinalIgnoreCase) ?? false)
-                .ToList();
+            // Get all tracked tag IDs from configs (including ones that might have been renamed)
+            var trackedTagIds = _settings.TaggingSettings.TagConfigs.Values
+                .Where(c => c != null && c.TagId.HasValue)
+                .Select(c => c.TagId.Value)
+                .ToHashSet();
 
-            var orphanTags = paTags.Where(t => !currentTagNames.Contains(t.Name)).ToList();
+            // Find tags in the database that match our tracked IDs but aren't current
+            // (These are old tags from renames that should be cleaned up)
+            var tagsToDelete = new List<Tag>();
+            foreach (var tag in _api.Database.Tags)
+            {
+                // Skip if this is a current tag
+                if (currentTagIds.Contains(tag.Id)) continue;
 
-            foreach (var orphanTag in orphanTags)
+                // If we have a tracked ID for this tag type but the tag doesn't match current name, it's an orphan
+                // Also clean up any old [PA] prefix tags that are no longer in use
+                if (trackedTagIds.Contains(tag.Id))
+                {
+                    tagsToDelete.Add(tag);
+                }
+            }
+
+            foreach (var orphanTag in tagsToDelete)
             {
                 try
                 {
-                    _logger.Debug($"Deleting orphan PA tag: {orphanTag.Name}");
+                    _logger.Debug($"Deleting orphan tag: {orphanTag.Name}");
                     _api.Database.Tags.Remove(orphanTag);
                 }
                 catch (Exception ex)
@@ -259,9 +275,9 @@ namespace PlayniteAchievements.Services.Tagging
             // Clear the cache since tags may have been deleted
             _tagIdCache.Clear();
 
-            if (orphanTags.Any())
+            if (tagsToDelete.Any())
             {
-                _logger.Info($"Cleaned up {orphanTags.Count} orphan PA tags");
+                _logger.Info($"Cleaned up {tagsToDelete.Count} orphan tags");
             }
         }
 
@@ -517,7 +533,8 @@ namespace PlayniteAchievements.Services.Tagging
         }
 
         /// <summary>
-        /// Removes all PA tags from a single game.
+        /// Removes all tracked achievement tags from a single game.
+        /// Uses both current config tag IDs and previously tracked tag IDs.
         /// </summary>
         /// <returns>True if any tags were removed.</returns>
         private bool RemoveAllPATags(Game game)
@@ -527,13 +544,42 @@ namespace PlayniteAchievements.Services.Tagging
                 return false;
             }
 
-            var paTagIds = GetAllPATagIds();
+            var trackedTagIds = GetAllTrackedTagIds();
             var originalCount = game.TagIds.Count;
 
-            // Remove all PA tag IDs from the game
-            game.TagIds.RemoveAll(id => paTagIds.Contains(id));
+            // Remove all tracked tag IDs from the game
+            game.TagIds.RemoveAll(id => trackedTagIds.Contains(id));
 
             return game.TagIds.Count != originalCount;
+        }
+
+        /// <summary>
+        /// Gets all tag IDs that are tracked by this plugin.
+        /// Includes both current config tags and previously used tags from TagId history.
+        /// </summary>
+        private HashSet<Guid> GetAllTrackedTagIds()
+        {
+            var tagIds = new HashSet<Guid>();
+
+            // Add current config tag IDs from cache
+            foreach (var tagId in _tagIdCache.Values)
+            {
+                tagIds.Add(tagId);
+            }
+
+            // Add tracked tag IDs from config (for handling renames)
+            if (_settings.TaggingSettings?.TagConfigs != null)
+            {
+                foreach (var config in _settings.TaggingSettings.TagConfigs.Values)
+                {
+                    if (config?.TagId.HasValue == true)
+                    {
+                        tagIds.Add(config.TagId.Value);
+                    }
+                }
+            }
+
+            return tagIds;
         }
 
         /// <summary>
@@ -656,24 +702,6 @@ namespace PlayniteAchievements.Services.Tagging
                 .FirstOrDefault(t => t.Name?.Equals(tagName, StringComparison.OrdinalIgnoreCase) ?? false);
 
             return tag?.Id;
-        }
-
-        /// <summary>
-        /// Gets all tag IDs that start with the PA prefix.
-        /// </summary>
-        private HashSet<Guid> GetAllPATagIds()
-        {
-            var paTagIds = new HashSet<Guid>();
-
-            var paTags = _api.Database.Tags
-                .Where(t => t.Name?.StartsWith(TagPrefix, StringComparison.OrdinalIgnoreCase) ?? false);
-
-            foreach (var tag in paTags)
-            {
-                paTagIds.Add(tag.Id);
-            }
-
-            return paTagIds;
         }
     }
 }

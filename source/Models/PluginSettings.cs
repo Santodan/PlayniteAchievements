@@ -521,6 +521,15 @@ namespace PlayniteAchievements.Models
         public bool EnableIntegrationCompactLocked => true;
 
         [DontSerialize]
+        public bool EnableIntegrationList => true;
+
+        [DontSerialize]
+        public bool EnableIntegrationUserStats => true;
+
+        [DontSerialize]
+        public bool EnableIntegrationChart => true;
+
+        [DontSerialize]
         public bool Is100Percent => LegacyTheme.Is100Percent;
 
         [DontSerialize]
