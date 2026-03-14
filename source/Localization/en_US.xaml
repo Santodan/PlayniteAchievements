@@ -380,6 +380,26 @@
     <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Checking">Checking Exophase authentication...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_WindowNotOpened">Failed to open login window</sys:String>
 
+    <!-- Exophase Provider Settings -->
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider">Enable Exophase Provider</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of native providers. Check platforms you want Exophase to manage.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Steam">Steam</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_PSN">PlayStation</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Xbox">Xbox</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GOG">GOG</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Epic">Epic Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_EA">EA App</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Blizzard">Battle.net</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Nintendo">Nintendo</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Retro">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
+
+    <!-- Game Options - Exophase -->
+    <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseManagedByPlatform">Managed by Exophase (via platform setting)</sys:String>
+
     <!-- ShadPS4 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4Connection">ShadPS4 Connection</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_Description">Configure ShadPS4 emulator integration to track trophies from PlayStation 4 games played in the emulator.</sys:String>
