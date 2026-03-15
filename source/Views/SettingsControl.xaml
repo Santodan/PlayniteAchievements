@@ -951,7 +951,53 @@
                                 <!-- Other Desktop Controls Info -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OtherDesktopControls}"
                                            FontWeight="SemiBold" Margin="0,16,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_OtherDesktopControls_Description}"
+
+                                <!-- Compact Unlocked List -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Compact Locked List -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Progress Bar -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Stats -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Button -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- View Item -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Pie Chart -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
+
+                                <!-- Bar Chart -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview}"
+                                           FontWeight="Medium" Margin="0,8,0,4"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview_Description}"
                                            Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
