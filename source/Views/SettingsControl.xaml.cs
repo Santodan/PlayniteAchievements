@@ -285,10 +285,51 @@ namespace PlayniteAchievements.Views
                 {
                     _mockCompactListItems = new System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem>(
                         MockDataHelper.CreateMockCompactListItems(
-                            _settingsViewModel?.Settings?.Persisted?.ShowCompactListRarityBar ?? true,
-                            _settingsViewModel?.Settings?.Persisted?.ShowRarityGlow ?? true));
+                            GetShowRarityBar(), GetShowRarityGlow(),
+                            GetShowHiddenIcon(), GetShowHiddenTitle(),
+                            GetShowHiddenDescription(), GetShowLockedIcon()));
                 }
                 return _mockCompactListItems;
+            }
+        }
+
+        private System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem> _mockCompactUnlockedListItems;
+
+        /// <summary>
+        /// Gets mock unlocked achievement items for unlocked list preview.
+        /// </summary>
+        public System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem> MockCompactUnlockedListItems
+        {
+            get
+            {
+                if (_mockCompactUnlockedListItems == null)
+                {
+                    _mockCompactUnlockedListItems = new System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem>(
+                        MockDataHelper.CreateMockUnlockedListItems(
+                            GetShowRarityBar(), GetShowRarityGlow(), GetShowLockedIcon()));
+                }
+                return _mockCompactUnlockedListItems;
+            }
+        }
+
+        private System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem> _mockCompactLockedListItems;
+
+        /// <summary>
+        /// Gets mock locked achievement items for locked list preview.
+        /// </summary>
+        public System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem> MockCompactLockedListItems
+        {
+            get
+            {
+                if (_mockCompactLockedListItems == null)
+                {
+                    _mockCompactLockedListItems = new System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem>(
+                        MockDataHelper.CreateMockLockedListItems(
+                            GetShowRarityBar(), GetShowRarityGlow(),
+                            GetShowHiddenIcon(), GetShowHiddenTitle(),
+                            GetShowHiddenDescription(), GetShowLockedIcon()));
+                }
+                return _mockCompactLockedListItems;
             }
         }
 
@@ -303,24 +344,76 @@ namespace PlayniteAchievements.Views
             {
                 if (_mockDataGridItems == null)
                 {
-                    _mockDataGridItems = MockDataHelper.CreateMockDataGridItems();
+                    _mockDataGridItems = MockDataHelper.CreateMockDataGridItems(
+                        GetShowRarityBar(), GetShowRarityGlow(),
+                        GetShowHiddenIcon(), GetShowHiddenTitle(),
+                        GetShowHiddenDescription(), GetShowLockedIcon());
                 }
                 return _mockDataGridItems;
             }
         }
+
+        private MockThemeData _mockThemeData;
+
+        /// <summary>
+        /// Gets mock theme data for controls that bind to ThemeData properties.
+        /// </summary>
+        public MockThemeData MockThemeData
+        {
+            get
+            {
+                if (_mockThemeData == null)
+                {
+                    _mockThemeData = MockDataHelper.GetMockThemeData();
+                }
+                return _mockThemeData;
+            }
+        }
+
+        // Helper methods to get settings values with defaults
+        private bool GetShowRarityBar() => _settingsViewModel?.Settings?.Persisted?.ShowCompactListRarityBar ?? true;
+        private bool GetShowRarityGlow() => _settingsViewModel?.Settings?.Persisted?.ShowRarityGlow ?? true;
+        private bool GetShowHiddenIcon() => _settingsViewModel?.Settings?.Persisted?.ShowHiddenIcon ?? true;
+        private bool GetShowHiddenTitle() => _settingsViewModel?.Settings?.Persisted?.ShowHiddenTitle ?? true;
+        private bool GetShowHiddenDescription() => _settingsViewModel?.Settings?.Persisted?.ShowHiddenDescription ?? true;
+        private bool GetShowLockedIcon() => _settingsViewModel?.Settings?.Persisted?.ShowLockedIcon ?? true;
 
         /// <summary>
         /// Refreshes mock preview items to reflect current settings.
         /// </summary>
         public void RefreshMockPreviews()
         {
-            if (_mockCompactListItems == null) return;
-
             var settings = _settingsViewModel?.Settings?.Persisted;
             if (settings == null) return;
 
-            MockDataHelper.UpdateRarityBarVisibility(_mockCompactListItems, settings.ShowCompactListRarityBar);
-            MockDataHelper.UpdateRarityGlowVisibility(_mockCompactListItems, settings.ShowRarityGlow);
+            // Update all mock item collections
+            MockDataHelper.UpdateVisibilitySettings(
+                _mockCompactListItems,
+                settings.ShowCompactListRarityBar, settings.ShowRarityGlow,
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle,
+                settings.ShowHiddenDescription, settings.ShowLockedIcon);
+
+            MockDataHelper.UpdateVisibilitySettings(
+                _mockCompactUnlockedListItems,
+                settings.ShowCompactListRarityBar, settings.ShowRarityGlow,
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle,
+                settings.ShowHiddenDescription, settings.ShowLockedIcon);
+
+            MockDataHelper.UpdateVisibilitySettings(
+                _mockCompactLockedListItems,
+                settings.ShowCompactListRarityBar, settings.ShowRarityGlow,
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle,
+                settings.ShowHiddenDescription, settings.ShowLockedIcon);
+
+            MockDataHelper.UpdateVisibilitySettings(
+                _mockDataGridItems,
+                settings.ShowCompactListRarityBar, settings.ShowRarityGlow,
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle,
+                settings.ShowHiddenDescription, settings.ShowLockedIcon);
+
+            // Update mock theme data
+            MockDataHelper.UpdateMockThemeData(
+                settings.ShowCompactListRarityBar, settings.ShowRarityGlow);
         }
 
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =
