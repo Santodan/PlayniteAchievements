@@ -28,15 +28,13 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
-            var sortMemberPath = column.SortMemberPath;
             var sortDirection = ListSortDirection.Ascending;
             if (column.SortDirection == ListSortDirection.Ascending)
             {
                 sortDirection = ListSortDirection.Descending;
             }
 
-            // Clear all columns' sort direction first, then set the target column
-            // Use provided dataGrid parameter, or fall back to sender if it's a DataGrid
+            // Clear all columns' sort direction on the DataGrid if provided
             var targetGrid = dataGrid ?? (sender as DataGrid);
             if (targetGrid != null)
             {
@@ -44,39 +42,12 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     c.SortDirection = null;
                 }
+            }
 
-                // Find and set the target column by SortMemberPath to ensure we update the correct column
-                var targetColumn = FindColumnBySortMemberPath(targetGrid, sortMemberPath);
-                if (targetColumn != null)
-                {
-                    targetColumn.SortDirection = sortDirection;
-                }
-            }
-            else
-            {
-                // Fallback: set directly on e.Column
-                column.SortDirection = sortDirection;
-            }
+            // Always set the sort direction on the column that was clicked
+            column.SortDirection = sortDirection;
 
             return sortDirection;
-        }
-
-        private static DataGridColumn FindColumnBySortMemberPath(DataGrid grid, string sortMemberPath)
-        {
-            if (grid == null || string.IsNullOrEmpty(sortMemberPath))
-            {
-                return null;
-            }
-
-            foreach (var column in grid.Columns)
-            {
-                if (column.SortMemberPath == sortMemberPath)
-                {
-                    return column;
-                }
-            }
-
-            return null;
         }
     }
 }
