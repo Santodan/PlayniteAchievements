@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
@@ -28,15 +31,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// Identifies the DisplayItems dependency property.
         /// </summary>
         public static readonly DependencyProperty DisplayItemsProperty =
-            DependencyProperty.Register(nameof(DisplayItems), typeof(List<AchievementDisplayItem>),
-                typeof(AchievementListControl), new PropertyMetadata(new List<AchievementDisplayItem>()));
+            DependencyProperty.Register(nameof(DisplayItems), typeof(ObservableCollection<AchievementDisplayItem>),
+                typeof(AchievementListControl), new PropertyMetadata(null));
 
         /// <summary>
         /// Gets the display items for the list.
         /// </summary>
-        public List<AchievementDisplayItem> DisplayItems
+        public ObservableCollection<AchievementDisplayItem> DisplayItems
         {
-            get => (List<AchievementDisplayItem>)GetValue(DisplayItemsProperty);
+            get => (ObservableCollection<AchievementDisplayItem>)GetValue(DisplayItemsProperty);
             private set => SetValue(DisplayItemsProperty, value);
         }
 
@@ -62,7 +65,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             if (sourceItems == null)
             {
                 _lastSourceItems = null;
-                DisplayItems = new List<AchievementDisplayItem>();
+                if (DisplayItems == null)
+                {
+                    DisplayItems = new ObservableCollection<AchievementDisplayItem>();
+                }
+                else
+                {
+                    DisplayItems.Clear();
+                }
                 return;
             }
 
@@ -73,12 +83,27 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             }
 
             _lastSourceItems = sourceItems;
-            DisplayItems = sourceItems.Select(item => item.Clone()).ToList();
+            var clonedItems = sourceItems.Select(item => item.Clone()).ToList();
 
             // Reapply current sort if active
             if (!string.IsNullOrWhiteSpace(_currentSortPath) && _currentSortDirection.HasValue)
             {
-                ApplySorting(_currentSortPath, _currentSortDirection.Value);
+                AchievementDisplayItemSorter.SortItems(
+                    clonedItems,
+                    _currentSortPath,
+                    _currentSortDirection.Value,
+                    ref _currentSortPath,
+                    ref _currentSortDirection);
+            }
+
+            // Initialize or synchronize collection
+            if (DisplayItems == null)
+            {
+                DisplayItems = new ObservableCollection<AchievementDisplayItem>(clonedItems);
+            }
+            else
+            {
+                CollectionHelper.SynchronizeCollection(DisplayItems, clonedItems);
             }
         }
 
@@ -111,19 +136,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         private void AchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
-            // Pass the internal DataGrid to ensure sort indicators are properly cleared/updated
+            // Handle sort indicators
             var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, AchievementsGrid?.InternalDataGrid);
             if (sortDirection == null) return;
 
             // Perform the actual sorting
             ApplySorting(e.Column.SortMemberPath, sortDirection.Value);
+
+            // Mark as handled to prevent DataGrid's default sorting
+            e.Handled = true;
         }
 
         private void ApplySorting(string sortMemberPath, ListSortDirection direction)
         {
-            var items = DisplayItems;
-            if (items == null || items.Count == 0) return;
+            if (DisplayItems == null || DisplayItems.Count == 0) return;
 
+            // Sort to a new list
+            var items = DisplayItems.ToList();
             AchievementDisplayItemSorter.SortItems(
                 items,
                 sortMemberPath,
@@ -131,11 +160,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
                 ref _currentSortPath,
                 ref _currentSortDirection);
 
-            // Trigger property change notification with a new list
-            DisplayItems = new List<AchievementDisplayItem>(items);
-
-            // Explicitly refresh the DataGrid to ensure it picks up the reordered items
-            AchievementsGrid?.InternalDataGrid?.Items.Refresh();
+            // Synchronize in place to trigger efficient UI updates
+            CollectionHelper.SynchronizeCollection(DisplayItems, items);
         }
     }
 }
