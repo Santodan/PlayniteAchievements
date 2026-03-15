@@ -155,21 +155,21 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
-        /// Identifies the MaxHeight dependency property.
-        /// When set, limits the maximum height of the DataGrid.
+        /// Identifies the DataGridMaxHeight dependency property.
+        /// When set, limits the maximum height of the internal DataGrid.
         /// </summary>
-        public static readonly DependencyProperty MaxHeightProperty =
-            DependencyProperty.Register(nameof(MaxHeight), typeof(double),
+        public static readonly DependencyProperty DataGridMaxHeightProperty =
+            DependencyProperty.Register(nameof(DataGridMaxHeight), typeof(double),
                 typeof(AchievementDataGridControl), new PropertyMetadata(double.NaN));
 
         /// <summary>
-        /// Gets or sets the maximum height of the DataGrid.
+        /// Gets or sets the maximum height of the internal DataGrid.
         /// Default is double.NaN (unlimited).
         /// </summary>
-        public double MaxHeight
+        public double DataGridMaxHeight
         {
-            get => (double)GetValue(MaxHeightProperty);
-            set => SetValue(MaxHeightProperty, value);
+            get => (double)GetValue(DataGridMaxHeightProperty);
+            set => SetValue(DataGridMaxHeightProperty, value);
         }
 
         /// <summary>

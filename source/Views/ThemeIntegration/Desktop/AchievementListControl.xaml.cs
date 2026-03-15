@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             }
 
             // Convert nullable double to double (null = NaN means unlimited)
-            AchievementsGrid.MaxHeight = settings.AchievementListMaxHeight ?? double.NaN;
+            AchievementsGrid.DataGridMaxHeight = settings.AchievementListMaxHeight ?? double.NaN;
         }
 
         private void LoadData()
