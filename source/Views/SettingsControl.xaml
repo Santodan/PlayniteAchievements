@@ -6,6 +6,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -891,6 +892,47 @@
                                 <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
                                           IsChecked="{Binding Persisted.UseCoverImages}"
                                           Margin="0,0,0,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ================== THEME CONTROLS PREVIEW SECTION ================== -->
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_ThemeControlsSection}"
+                                           Style="{StaticResource SectionHeaderStyle}"
+                                           Margin="0,0,0,12"/>
+
+                                <!-- Compact List Preview Subsection -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
+                                           FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <!-- Mockup control with mock data -->
+                                <ItemsControl ItemsSource="{Binding MockCompactListItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <controls:AchievementCompactItemControl IconSize="48" Margin="4"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Show Rarity Bar setting -->
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
+                                          IsChecked="{Binding Persisted.ShowCompactListRarityBar}"
+                                          Margin="0,8,0,0"/>
+
+                                <!-- AchievementList Preview Subsection -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementListPreview}"
+                                           FontWeight="SemiBold" Margin="0,16,0,8"/>
+
+                                <!-- Max Height setting -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementListMaxHeight}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding Persisted.AchievementListMaxHeight, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="80" Margin="8,0,0,0"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsUnit}"
+                                               VerticalAlignment="Center" Margin="4,0,0,0" Opacity="0.6"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 

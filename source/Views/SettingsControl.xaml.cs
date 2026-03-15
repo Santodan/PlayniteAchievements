@@ -268,6 +268,27 @@ namespace PlayniteAchievements.Views
             set => SetValue(ExophaseAuthenticatedProperty, value);
         }
 
+        // -----------------------------
+        // Mock data for settings preview
+        // -----------------------------
+
+        private List<AchievementDisplayItem> _mockCompactListItems;
+
+        /// <summary>
+        /// Gets mock achievement items for compact list preview in settings.
+        /// </summary>
+        public List<AchievementDisplayItem> MockCompactListItems
+        {
+            get
+            {
+                if (_mockCompactListItems == null)
+                {
+                    _mockCompactListItems = MockDataHelper.CreateMockCompactListItems(5);
+                }
+                return _mockCompactListItems;
+            }
+        }
+
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =
             DependencyProperty.Register(
                 nameof(ShadPS4AuthStatus),
