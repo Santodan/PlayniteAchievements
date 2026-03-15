@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Models.ThemeIntegration;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -16,6 +17,63 @@ namespace PlayniteAchievements.Views.Helpers
         private const string UnlockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
         private const string LockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
 
+        // Cache for standard mock data to ensure consistency across previews
+        private static List<AchievementDisplayItem> _standardMockItems;
+        private static MockThemeData _mockThemeData;
+
+        /// <summary>
+        /// Gets standard mock achievements used across all previews.
+        /// Contains: 2 unlocked (ultra rare, rare), 1 locked, 2 locked+hidden
+        /// </summary>
+        public static List<AchievementDisplayItem> GetStandardMockAchievements(
+            bool showRarityBar = true,
+            bool showRarityGlow = true,
+            bool showHiddenIcon = true,
+            bool showHiddenTitle = true,
+            bool showHiddenDescription = true,
+            bool showLockedIcon = true)
+        {
+            // Always create fresh items to reflect current settings
+            var items = new List<AchievementDisplayItem>();
+
+            // Unlocked Ultra Rare (2.5%)
+            items.Add(CreateMockAchievement(
+                unlocked: true, hidden: false, globalPercent: 2.5,
+                displayName: "Ultra Rare Victory", description: "An incredibly rare feat",
+                showRarityBar: showRarityBar, showRarityGlow: showRarityGlow));
+
+            // Unlocked Rare (8.0%)
+            items.Add(CreateMockAchievement(
+                unlocked: true, hidden: false, globalPercent: 8.0,
+                displayName: "Gold Medal Run", description: "Earned a prestigious gold medal",
+                showRarityBar: showRarityBar, showRarityGlow: showRarityGlow));
+
+            // Locked (25.0%)
+            items.Add(CreateMockAchievement(
+                unlocked: false, hidden: false, globalPercent: 25.0,
+                displayName: "Locked Challenge", description: "Complete this task to unlock",
+                showRarityBar: showRarityBar, showRarityGlow: showRarityGlow,
+                showLockedIcon: showLockedIcon));
+
+            // Locked Hidden (15.0%)
+            items.Add(CreateMockAchievement(
+                unlocked: false, hidden: true, globalPercent: 15.0,
+                displayName: "Hidden Secret", description: "Discover the hidden mystery",
+                showRarityBar: showRarityBar, showRarityGlow: showRarityGlow,
+                showHiddenIcon: showHiddenIcon, showHiddenTitle: showHiddenTitle,
+                showHiddenDescription: showHiddenDescription, showLockedIcon: showLockedIcon));
+
+            // Locked Hidden Common (75.0%)
+            items.Add(CreateMockAchievement(
+                unlocked: false, hidden: true, globalPercent: 75.0,
+                displayName: "Common Secret", description: "A straightforward hidden objective",
+                showRarityBar: showRarityBar, showRarityGlow: showRarityGlow,
+                showHiddenIcon: showHiddenIcon, showHiddenTitle: showHiddenTitle,
+                showHiddenDescription: showHiddenDescription, showLockedIcon: showLockedIcon));
+
+            return items;
+        }
+
         /// <summary>
         /// Creates a mock AchievementDisplayItem for preview purposes.
         /// </summary>
@@ -26,6 +84,10 @@ namespace PlayniteAchievements.Views.Helpers
         /// <param name="description">Description for the achievement.</param>
         /// <param name="showRarityBar">Whether to show the rarity bar.</param>
         /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
+        /// <param name="showHiddenIcon">Whether to show hidden icons.</param>
+        /// <param name="showHiddenTitle">Whether to show hidden titles.</param>
+        /// <param name="showHiddenDescription">Whether to show hidden descriptions.</param>
+        /// <param name="showLockedIcon">Whether to show locked icons.</param>
         /// <returns>A mock AchievementDisplayItem.</returns>
         public static AchievementDisplayItem CreateMockAchievement(
             bool unlocked = true,
@@ -34,7 +96,11 @@ namespace PlayniteAchievements.Views.Helpers
             string displayName = "Mock Achievement",
             string description = "Mock description for preview",
             bool showRarityBar = true,
-            bool showRarityGlow = true)
+            bool showRarityGlow = true,
+            bool showHiddenIcon = true,
+            bool showHiddenTitle = true,
+            bool showHiddenDescription = true,
+            bool showLockedIcon = true)
         {
             var item = new AchievementDisplayItem
             {
@@ -44,10 +110,10 @@ namespace PlayniteAchievements.Views.Helpers
                 Hidden = hidden,
                 GlobalPercentUnlocked = globalPercent,
                 IconPath = unlocked ? UnlockedIconPath : LockedIconPath,
-                ShowHiddenIcon = true,
-                ShowHiddenTitle = true,
-                ShowHiddenDescription = true,
-                ShowLockedIcon = true,
+                ShowHiddenIcon = showHiddenIcon,
+                ShowHiddenTitle = showHiddenTitle,
+                ShowHiddenDescription = showHiddenDescription,
+                ShowLockedIcon = showLockedIcon,
                 ShowRarityGlow = showRarityGlow,
                 ShowRarityBar = showRarityBar,
                 GameName = "Preview Game"
@@ -63,48 +129,141 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// Creates a list of mock AchievementDisplayItems for compact list preview.
-        /// 2 hidden, 2 locked, 1 unlocked.
+        /// Uses the standard mock achievements.
         /// </summary>
         /// <param name="showRarityBar">Whether to show the rarity bar.</param>
         /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
+        /// <param name="showHiddenIcon">Whether to show hidden icons.</param>
+        /// <param name="showHiddenTitle">Whether to show hidden titles.</param>
+        /// <param name="showHiddenDescription">Whether to show hidden descriptions.</param>
+        /// <param name="showLockedIcon">Whether to show locked icons.</param>
         /// <returns>List of mock achievement items.</returns>
-        public static List<AchievementDisplayItem> CreateMockCompactListItems(bool showRarityBar = true, bool showRarityGlow = true)
+        public static List<AchievementDisplayItem> CreateMockCompactListItems(
+            bool showRarityBar = true,
+            bool showRarityGlow = true,
+            bool showHiddenIcon = true,
+            bool showHiddenTitle = true,
+            bool showHiddenDescription = true,
+            bool showLockedIcon = true)
         {
-            var items = new List<AchievementDisplayItem>();
-
-            // 2 Hidden achievements (locked)
-            items.Add(CreateMockAchievement(false, true, 15.0, "Hidden Secret #1", "Discover the hidden mystery", showRarityBar, showRarityGlow));
-            items.Add(CreateMockAchievement(false, true, 8.0, "Hidden Secret #2", "Another hidden challenge", showRarityBar, showRarityGlow));
-
-            // 2 Locked achievements (not hidden)
-            items.Add(CreateMockAchievement(false, false, 25.0, "Locked Challenge", "Complete this task to unlock", showRarityBar, showRarityGlow));
-            items.Add(CreateMockAchievement(false, false, 75.0, "Common Task", "A straightforward objective", showRarityBar, showRarityGlow));
-
-            // 1 Unlocked achievement
-            items.Add(CreateMockAchievement(true, false, 2.5, "Ultra Rare Victory", "An incredibly rare feat", showRarityBar, showRarityGlow));
-
-            return items;
+            return GetStandardMockAchievements(
+                showRarityBar, showRarityGlow,
+                showHiddenIcon, showHiddenTitle, showHiddenDescription, showLockedIcon);
         }
 
         /// <summary>
         /// Creates a list of mock AchievementDisplayItems for datagrid preview.
-        /// 2 unlocked (1 ultra rare, 1 gold), 1 locked.
+        /// Uses the standard mock achievements.
         /// </summary>
         /// <returns>List of mock achievement items for datagrid.</returns>
-        public static List<AchievementDisplayItem> CreateMockDataGridItems()
+        public static List<AchievementDisplayItem> CreateMockDataGridItems(
+            bool showRarityBar = true,
+            bool showRarityGlow = true,
+            bool showHiddenIcon = true,
+            bool showHiddenTitle = true,
+            bool showHiddenDescription = true,
+            bool showLockedIcon = true)
         {
-            var items = new List<AchievementDisplayItem>();
+            return GetStandardMockAchievements(
+                showRarityBar, showRarityGlow,
+                showHiddenIcon, showHiddenTitle, showHiddenDescription, showLockedIcon);
+        }
 
-            // Unlocked - Ultra Rare
-            items.Add(CreateMockAchievement(true, false, 2.5, "Ultra Rare Victory", "Completed an incredibly difficult challenge", true, true));
+        /// <summary>
+        /// Creates a list of mock unlocked AchievementDisplayItems for unlocked list preview.
+        /// Filters standard mock items to only include unlocked.
+        /// </summary>
+        /// <param name="showRarityBar">Whether to show the rarity bar.</param>
+        /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
+        /// <returns>List of mock unlocked achievement items.</returns>
+        public static List<AchievementDisplayItem> CreateMockUnlockedListItems(
+            bool showRarityBar = true,
+            bool showRarityGlow = true,
+            bool showLockedIcon = true)
+        {
+            var all = GetStandardMockAchievements(showRarityBar, showRarityGlow, true, true, true, showLockedIcon);
+            return all.FindAll(item => item.Unlocked);
+        }
 
-            // Unlocked - Rare (Gold badge)
-            items.Add(CreateMockAchievement(true, false, 8.0, "Gold Medal Run", "Earned a prestigious gold medal", true, true));
+        /// <summary>
+        /// Creates a list of mock locked AchievementDisplayItems for locked list preview.
+        /// Filters standard mock items to only include locked.
+        /// </summary>
+        /// <param name="showRarityBar">Whether to show the rarity bar.</param>
+        /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
+        /// <param name="showHiddenIcon">Whether to show hidden icons.</param>
+        /// <param name="showHiddenTitle">Whether to show hidden titles.</param>
+        /// <param name="showHiddenDescription">Whether to show hidden descriptions.</param>
+        /// <param name="showLockedIcon">Whether to show locked icons.</param>
+        /// <returns>List of mock locked achievement items.</returns>
+        public static List<AchievementDisplayItem> CreateMockLockedListItems(
+            bool showRarityBar = true,
+            bool showRarityGlow = true,
+            bool showHiddenIcon = true,
+            bool showHiddenTitle = true,
+            bool showHiddenDescription = true,
+            bool showLockedIcon = true)
+        {
+            var all = GetStandardMockAchievements(
+                showRarityBar, showRarityGlow,
+                showHiddenIcon, showHiddenTitle, showHiddenDescription, showLockedIcon);
+            return all.FindAll(item => !item.Unlocked);
+        }
 
-            // Locked
-            items.Add(CreateMockAchievement(false, false, 45.0, "Locked Achievement", "This achievement is still locked", true, true));
+        /// <summary>
+        /// Creates mock theme data for previewing controls that bind to ThemeData.
+        /// </summary>
+        /// <returns>A MockThemeData object with standard preview values.</returns>
+        public static MockThemeData GetMockThemeData()
+        {
+            if (_mockThemeData == null)
+            {
+                _mockThemeData = new MockThemeData();
+            }
+            return _mockThemeData;
+        }
 
-            return items;
+        /// <summary>
+        /// Updates mock theme data with current settings.
+        /// </summary>
+        public static void UpdateMockThemeData(
+            bool showRarityBar = true,
+            bool showRarityGlow = true)
+        {
+            var data = GetMockThemeData();
+            data.ShowRarityBar = showRarityBar;
+            data.ShowRarityGlow = showRarityGlow;
+        }
+
+        /// <summary>
+        /// Updates visibility settings on all items in the list.
+        /// </summary>
+        /// <param name="items">The list of items to update.</param>
+        /// <param name="showRarityBar">Whether to show the rarity bar.</param>
+        /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
+        /// <param name="showHiddenIcon">Whether to show hidden icons.</param>
+        /// <param name="showHiddenTitle">Whether to show hidden titles.</param>
+        /// <param name="showHiddenDescription">Whether to show hidden descriptions.</param>
+        /// <param name="showLockedIcon">Whether to show locked icons.</param>
+        public static void UpdateVisibilitySettings(
+            IList<AchievementDisplayItem> items,
+            bool showRarityBar,
+            bool showRarityGlow,
+            bool showHiddenIcon,
+            bool showHiddenTitle,
+            bool showHiddenDescription,
+            bool showLockedIcon)
+        {
+            if (items == null) return;
+            foreach (var item in items)
+            {
+                item.ShowRarityBar = showRarityBar;
+                item.ShowRarityGlow = showRarityGlow;
+                item.ShowHiddenIcon = showHiddenIcon;
+                item.ShowHiddenTitle = showHiddenTitle;
+                item.ShowHiddenDescription = showHiddenDescription;
+                item.ShowLockedIcon = showLockedIcon;
+            }
         }
 
         /// <summary>
@@ -133,6 +292,106 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 item.ShowRarityGlow = showRarityGlow;
             }
+        }
+    }
+
+    /// <summary>
+    /// Mock theme data for settings preview controls.
+    /// Mimics the structure of ThemeData for preview purposes.
+    /// </summary>
+    public class MockThemeData : ObservableObject
+    {
+        private int _unlockedCount = 2;
+        private int _achievementCount = 5;
+        private double _progressPercentage = 40.0;
+        private bool _isCompleted = false;
+        private bool _showRarityBar = true;
+        private bool _showRarityGlow = true;
+
+        private RarityStats _ultraRare = new RarityStats { Unlocked = 1, Total = 1 };
+        private RarityStats _rare = new RarityStats { Unlocked = 1, Total = 1 };
+        private RarityStats _uncommon = new RarityStats { Unlocked = 0, Total = 1 };
+        private RarityStats _common = new RarityStats { Unlocked = 0, Total = 2 };
+
+        public int UnlockedCount
+        {
+            get => _unlockedCount;
+            set => SetValue(ref _unlockedCount, value);
+        }
+
+        public int AchievementCount
+        {
+            get => _achievementCount;
+            set => SetValue(ref _achievementCount, value);
+        }
+
+        public double ProgressPercentage
+        {
+            get => _progressPercentage;
+            set => SetValue(ref _progressPercentage, value);
+        }
+
+        public bool IsCompleted
+        {
+            get => _isCompleted;
+            set => SetValue(ref _isCompleted, value);
+        }
+
+        public bool ShowRarityBar
+        {
+            get => _showRarityBar;
+            set => SetValue(ref _showRarityBar, value);
+        }
+
+        public bool ShowRarityGlow
+        {
+            get => _showRarityGlow;
+            set => SetValue(ref _showRarityGlow, value);
+        }
+
+        public RarityStats UltraRare
+        {
+            get => _ultraRare;
+            set => SetValue(ref _ultraRare, value);
+        }
+
+        public RarityStats Rare
+        {
+            get => _rare;
+            set => SetValue(ref _rare, value);
+        }
+
+        public RarityStats Uncommon
+        {
+            get => _uncommon;
+            set => SetValue(ref _uncommon, value);
+        }
+
+        public RarityStats Common
+        {
+            get => _common;
+            set => SetValue(ref _common, value);
+        }
+    }
+
+    /// <summary>
+    /// Rarity statistics for mock theme data.
+    /// </summary>
+    public class RarityStats : ObservableObject
+    {
+        private int _unlocked;
+        private int _total;
+
+        public int Unlocked
+        {
+            get => _unlocked;
+            set => SetValue(ref _unlocked, value);
+        }
+
+        public int Total
+        {
+            get => _total;
+            set => SetValue(ref _total, value);
         }
     }
 }
