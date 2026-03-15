@@ -109,7 +109,7 @@ namespace PlayniteAchievements
             { "AchievementBarChart", () => new Views.ThemeIntegration.Desktop.AchievementBarChartControl() },
             { "AchievementPieChart", () => new Views.ThemeIntegration.Desktop.AchievementPieChartControl() },
             { "AchievementStats", () => new Views.ThemeIntegration.Desktop.AchievementStatsControl() },
-            { "AchievementList", () => new Views.ThemeIntegration.Desktop.AchievementDataGridControl() },
+            { "AchievementDataGrid", () => new Views.ThemeIntegration.Desktop.AchievementDataGridControl() },
             { "AchievementViewItem", () => new Views.ThemeIntegration.Desktop.AchievementViewItemControl() }
         };
 
@@ -379,7 +379,7 @@ namespace PlayniteAchievements
                             "AchievementCompactUnlockedList",
                             "AchievementChart",
                             "AchievementStats",
-                            "AchievementList",
+                            "AchievementDataGrid",
                             "AchievementViewItem"
                         },
                         SourceName = "PlayniteAchievements"

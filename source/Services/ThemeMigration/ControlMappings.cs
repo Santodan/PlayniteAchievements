@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             { "PluginCompactList", "AchievementCompactList" },
             { "PluginCompactLocked", "AchievementCompactLockedList" },
             { "PluginCompactUnlocked", "AchievementCompactUnlockedList" },
-            { "PluginList", "AchievementList" },
+            { "PluginList", "AchievementDataGrid" },
             { "PluginProgressBar", "AchievementProgressBar" },
             { "PluginUserStats", "AchievementStats" },
             { "PluginViewItem", "AchievementViewItem" }

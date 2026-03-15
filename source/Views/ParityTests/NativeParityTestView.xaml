@@ -224,11 +224,11 @@
                         Padding="12"
                         Margin="0,12,0,0">
                     <StackPanel>
-                        <TextBlock Text="AchievementList"
+                        <TextBlock Text="AchievementDataGrid"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextBrush}"
                                    Margin="0,0,0,8"/>
-                        <local:GameViewControlHost ControlName="AchievementList" Height="400" />
+                        <local:GameViewControlHost ControlName="AchievementDataGrid" Height="400" />
                     </StackPanel>
                 </Border>
 
