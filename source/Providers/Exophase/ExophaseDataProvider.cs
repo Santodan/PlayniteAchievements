@@ -208,6 +208,74 @@ namespace PlayniteAchievements.Providers.Exophase
         #endregion
 
         /// <summary>
+        /// Generates a preview slug for display purposes.
+        /// Format: normalized-game-name-platform-slug
+        /// This is the expected format Exophase uses for game slugs.
+        /// </summary>
+        public static string GeneratePreviewSlug(Game game)
+        {
+            if (game == null || string.IsNullOrWhiteSpace(game.Name))
+            {
+                return null;
+            }
+
+            var platformSlug = GetExophasePlatformSlug(game);
+            if (string.IsNullOrWhiteSpace(platformSlug))
+            {
+                return null;
+            }
+
+            // Normalize game name for slug format
+            var normalizedName = NormalizeGameNameForSlug(game.Name);
+            return $"{normalizedName}-{platformSlug}";
+        }
+
+        /// <summary>
+        /// Normalizes a game name for use in a slug.
+        /// Lowercase, spaces/special chars to hyphens, remove consecutive hyphens.
+        /// </summary>
+        private static string NormalizeGameNameForSlug(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            // First remove edition suffixes
+            var normalized = NormalizeGameName(name);
+
+            // Convert to lowercase
+            normalized = normalized.ToLowerInvariant();
+
+            // Replace spaces and special characters with hyphens
+            var chars = new char[normalized.Length];
+            var charIndex = 0;
+            var lastWasHyphen = false;
+
+            foreach (var c in normalized)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    chars[charIndex++] = c;
+                    lastWasHyphen = false;
+                }
+                else if (!lastWasHyphen)
+                {
+                    chars[charIndex++] = '-';
+                    lastWasHyphen = true;
+                }
+            }
+
+            // Trim trailing hyphen
+            if (charIndex > 0 && chars[charIndex - 1] == '-')
+            {
+                charIndex--;
+            }
+
+            return new string(chars, 0, charIndex);
+        }
+
+        /// <summary>
         /// Resolves an Exophase game slug for a Playnite game using deterministic linking.
         /// Priority: Manual override -> Cache -> API search
         /// </summary>

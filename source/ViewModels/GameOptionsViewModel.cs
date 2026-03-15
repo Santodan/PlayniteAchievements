@@ -646,8 +646,8 @@ namespace PlayniteAchievements.ViewModels
                     // Game uses Exophase if explicitly included OR platform is managed
                     UseExophaseForGame = _settings.Persisted.ExophaseIncludedGames.Contains(_gameId);
 
-                    // Slug override state
-                    ExophaseAutoSlug = gamePlatformSlug;
+                    // Slug override state - show full preview slug (game-name-platform)
+                    ExophaseAutoSlug = ExophaseDataProvider.GeneratePreviewSlug(game);
                     var hasSlugOverride = _settings.Persisted.ExophaseSlugOverrides.TryGetValue(_gameId, out var overrideSlug);
                     HasExophaseSlugOverride = hasSlugOverride;
                     ExophaseSlugOverrideValue = hasSlugOverride ? overrideSlug : null;
