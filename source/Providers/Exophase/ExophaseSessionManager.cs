@@ -65,17 +65,8 @@ namespace PlayniteAchievements.Providers.Exophase
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    // Stage 1: Try to hydrate from CEF cookies directly (like Steam pattern)
-                    // This is fast and doesn't require network navigation
-                    TryHydrateFromCefCookies();
-
-                    if (!string.IsNullOrWhiteSpace(_username))
-                    {
-                        _logger?.Debug($"[ExophaseAuth] Primed username from CEF cookies: {_username}");
-                        return;
-                    }
-
-                    // Stage 2: If no username found, do a full probe with navigation
+                    // Exophase session verification requires navigation - unlike Steam, we cannot
+                    // extract username from cookies directly. Always verify via account page.
                     var result = await ProbeAuthenticationAsync(ct).ConfigureAwait(false);
                     _logger?.Debug($"[ExophaseAuth] Startup auth probe completed with outcome={result?.Outcome}.");
                 }
@@ -87,47 +78,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 {
                     _logger?.Debug(ex, "[ExophaseAuth] Startup auth probe failed.");
                 }
-            }
-        }
-
-        /// <summary>
-        /// Attempts to read Exophase cookies directly from CEF without navigation.
-        /// </summary>
-        private void TryHydrateFromCefCookies()
-        {
-            try
-            {
-                using (var view = _api.WebViews.CreateOffscreenView())
-                {
-                    var cookies = view.GetCookies();
-                    if (cookies == null)
-                    {
-                        return;
-                    }
-
-                    // Check for any exophase.com cookies (indicates session exists)
-                    var hasExophaseCookies = cookies.Any(c =>
-                        c != null &&
-                        !string.IsNullOrWhiteSpace(c.Domain) &&
-                        c.Domain.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                    if (!hasExophaseCookies)
-                    {
-                        _logger?.Debug("[ExophaseAuth] No exophase.com cookies found in CEF.");
-                        return;
-                    }
-
-                    // If we have cookies AND a persisted username, trust the session
-                    if (!string.IsNullOrWhiteSpace(_username))
-                    {
-                        _isSessionAuthenticated = true;
-                        _logger?.Debug($"[ExophaseAuth] Restored session from CEF cookies + persisted username: {_username}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[ExophaseAuth] Failed to hydrate from CEF cookies.");
             }
         }
 
