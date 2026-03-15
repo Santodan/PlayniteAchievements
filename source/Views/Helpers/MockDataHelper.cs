@@ -63,38 +63,46 @@ namespace PlayniteAchievements.Views.Helpers
 
         /// <summary>
         /// Creates a list of mock AchievementDisplayItems for compact list preview.
+        /// 2 hidden, 2 locked, 1 unlocked.
         /// </summary>
-        /// <param name="count">Number of items to create.</param>
         /// <param name="showRarityBar">Whether to show the rarity bar.</param>
         /// <param name="showRarityGlow">Whether to show the rarity glow.</param>
         /// <returns>List of mock achievement items.</returns>
-        public static List<AchievementDisplayItem> CreateMockCompactListItems(int count = 5, bool showRarityBar = true, bool showRarityGlow = true)
+        public static List<AchievementDisplayItem> CreateMockCompactListItems(bool showRarityBar = true, bool showRarityGlow = true)
         {
             var items = new List<AchievementDisplayItem>();
 
-            // Create varied achievements for preview
-            var achievements = new[]
-            {
-                new { Name = "Ultra Rare Victory", Percent = 2.5, Unlocked = true, Hidden = false },
-                new { Name = "Rare Challenge", Percent = 8.0, Unlocked = true, Hidden = false },
-                new { Name = "Uncommon Feat", Percent = 25.0, Unlocked = true, Hidden = false },
-                new { Name = "Hidden Secret", Percent = 15.0, Unlocked = false, Hidden = true },
-                new { Name = "Common Task", Percent = 75.0, Unlocked = true, Hidden = false }
-            };
+            // 2 Hidden achievements (locked)
+            items.Add(CreateMockAchievement(false, true, 15.0, "Hidden Secret #1", "Discover the hidden mystery", showRarityBar, showRarityGlow));
+            items.Add(CreateMockAchievement(false, true, 8.0, "Hidden Secret #2", "Another hidden challenge", showRarityBar, showRarityGlow));
 
-            for (int i = 0; i < count && i < achievements.Length; i++)
-            {
-                var a = achievements[i];
-                items.Add(CreateMockAchievement(
-                    unlocked: a.Unlocked,
-                    hidden: a.Hidden,
-                    globalPercent: a.Percent,
-                    displayName: a.Name,
-                    description: $"Preview description for {a.Name}",
-                    showRarityBar: showRarityBar,
-                    showRarityGlow: showRarityGlow
-                ));
-            }
+            // 2 Locked achievements (not hidden)
+            items.Add(CreateMockAchievement(false, false, 25.0, "Locked Challenge", "Complete this task to unlock", showRarityBar, showRarityGlow));
+            items.Add(CreateMockAchievement(false, false, 75.0, "Common Task", "A straightforward objective", showRarityBar, showRarityGlow));
+
+            // 1 Unlocked achievement
+            items.Add(CreateMockAchievement(true, false, 2.5, "Ultra Rare Victory", "An incredibly rare feat", showRarityBar, showRarityGlow));
+
+            return items;
+        }
+
+        /// <summary>
+        /// Creates a list of mock AchievementDisplayItems for datagrid preview.
+        /// 2 unlocked (1 ultra rare, 1 gold), 1 locked.
+        /// </summary>
+        /// <returns>List of mock achievement items for datagrid.</returns>
+        public static List<AchievementDisplayItem> CreateMockDataGridItems()
+        {
+            var items = new List<AchievementDisplayItem>();
+
+            // Unlocked - Ultra Rare
+            items.Add(CreateMockAchievement(true, false, 2.5, "Ultra Rare Victory", "Completed an incredibly difficult challenge", true, true));
+
+            // Unlocked - Rare (Gold badge)
+            items.Add(CreateMockAchievement(true, false, 8.0, "Gold Medal Run", "Earned a prestigious gold medal", true, true));
+
+            // Locked
+            items.Add(CreateMockAchievement(false, false, 45.0, "Locked Achievement", "This achievement is still locked", true, true));
 
             return items;
         }
