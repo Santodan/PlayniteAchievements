@@ -110,6 +110,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _exophaseEnabled = false;
         private HashSet<string> _exophaseManagedPlatforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private HashSet<Guid> _exophaseIncludedGames = new HashSet<Guid>();
+        private Dictionary<Guid, string> _exophaseSlugOverrides = new Dictionary<Guid, string>();
 
         #endregion
 
@@ -1125,6 +1126,17 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _exophaseIncludedGames, value ?? new HashSet<Guid>());
         }
 
+        /// <summary>
+        /// Per-game Exophase slug overrides.
+        /// Key is Playnite Game ID, value is the Exophase game slug (e.g., "game-name-gog").
+        /// When set, this slug is used directly instead of auto-detection.
+        /// </summary>
+        public Dictionary<Guid, string> ExophaseSlugOverrides
+        {
+            get => _exophaseSlugOverrides;
+            set => SetValue(ref _exophaseSlugOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
         #endregion
 
         #region Clone Method
@@ -1286,7 +1298,10 @@ namespace PlayniteAchievements.Models.Settings
                     : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 ExophaseIncludedGames = this.ExophaseIncludedGames != null
                     ? new HashSet<Guid>(this.ExophaseIncludedGames)
-                    : new HashSet<Guid>()
+                    : new HashSet<Guid>(),
+                ExophaseSlugOverrides = this.ExophaseSlugOverrides != null
+                    ? new Dictionary<Guid, string>(this.ExophaseSlugOverrides)
+                    : new Dictionary<Guid, string>()
             };
         }
 

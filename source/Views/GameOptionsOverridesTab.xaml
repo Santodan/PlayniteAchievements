@@ -125,6 +125,68 @@
                               IsChecked="{Binding UseExophaseForGame}"
                               FontWeight="SemiBold"
                               Margin="0,10,0,0" />
+
+                    <!-- Slug Override -->
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_ExophaseSlugLabel}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Margin="0,12,0,0" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_ExophaseSlugHint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.6"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0" />
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MaxWidth="300" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding ExophaseSlugInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6"
+                                 ToolTip="{Binding ExophaseAutoSlug}">
+                            <TextBox.Resources>
+                                <VisualBrush x:Key="PlaceholderBrush"
+                                             AlignmentX="Left"
+                                             AlignmentY="Center"
+                                             Stretch="None">
+                                    <VisualBrush.Visual>
+                                        <TextBlock Text="{Binding ExophaseAutoSlug}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   Opacity="0.4"
+                                                   Padding="8,0,0,0" />
+                                    </VisualBrush.Visual>
+                                </VisualBrush>
+                            </TextBox.Resources>
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ExophaseSlugInput}" Value="">
+                                            <Setter Property="Background" Value="{StaticResource PlaceholderBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                Command="{Binding ApplyExophaseSlugOverrideCommand}"
+                                Padding="12,6"
+                                Margin="8,0,0,0" />
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                Command="{Binding ClearExophaseSlugOverrideCommand}"
+                                Padding="12,6"
+                                Margin="8,0,0,0" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding ExophaseSlugOverrideValue, StringFormat='Current override: {0}'}"
+                               Visibility="{Binding HasExophaseSlugOverride, Converter={StaticResource BoolToVis}}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               Margin="0,6,0,0" />
                 </StackPanel>
             </Border>
 
