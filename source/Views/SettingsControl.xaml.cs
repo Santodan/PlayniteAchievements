@@ -284,11 +284,28 @@ namespace PlayniteAchievements.Views
                 if (_mockCompactListItems == null)
                 {
                     _mockCompactListItems = new System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem>(
-                        MockDataHelper.CreateMockCompactListItems(5,
+                        MockDataHelper.CreateMockCompactListItems(
                             _settingsViewModel?.Settings?.Persisted?.ShowCompactListRarityBar ?? true,
                             _settingsViewModel?.Settings?.Persisted?.ShowRarityGlow ?? true));
                 }
                 return _mockCompactListItems;
+            }
+        }
+
+        private List<AchievementDisplayItem> _mockDataGridItems;
+
+        /// <summary>
+        /// Gets mock achievement items for datagrid preview in settings.
+        /// </summary>
+        public List<AchievementDisplayItem> MockDataGridItems
+        {
+            get
+            {
+                if (_mockDataGridItems == null)
+                {
+                    _mockDataGridItems = MockDataHelper.CreateMockDataGridItems();
+                }
+                return _mockDataGridItems;
             }
         }
 

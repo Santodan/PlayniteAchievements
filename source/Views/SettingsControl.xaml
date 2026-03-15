@@ -905,6 +905,8 @@
                                 <!-- Compact List Preview Subsection -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
                                            FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,8,8"/>
 
                                 <!-- Mockup control with mock data - horizontal layout -->
                                 <ItemsControl ItemsSource="{Binding MockCompactListItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
@@ -928,6 +930,13 @@
                                 <!-- AchievementDataGrid Preview Subsection -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
                                            FontWeight="SemiBold" Margin="0,16,0,8"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview_Description}"
+                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,8,8"/>
+
+                                <!-- Mock DataGrid -->
+                                <controls:AchievementDataGridControl ItemsSource="{Binding MockDataGridItems, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                          MaxHeight="200"
+                                          Margin="0,0,0,8"/>
 
                                 <!-- Max Height setting -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
