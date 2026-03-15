@@ -449,7 +449,7 @@ namespace PlayniteAchievements.ViewModels
         /// Updates this item's properties from a source Achievement object.
         /// This is used to synchronize data without recreating the entire object, preventing UI flicker.
         /// </summary>
-        public void UpdateFrom(Models.Achievements.AchievementDetail source, string gameName, Guid? playniteGameId, bool hideIcon, bool hideTitle, bool hideDescription, bool hideLockedIcon, string sortingName = null, string gameIconPath = null, string gameCoverPath = null)
+        public void UpdateFrom(Models.Achievements.AchievementDetail source, string gameName, Guid? playniteGameId, bool hideIcon, bool hideTitle, bool hideDescription, bool hideLockedIcon, bool showRarityGlow, string sortingName = null, string gameIconPath = null, string gameCoverPath = null)
         {
             GameName = gameName;
             SortingName = sortingName ?? gameName;
@@ -466,6 +466,7 @@ namespace PlayniteAchievements.ViewModels
             ShowHiddenTitle = !hideTitle;
             ShowHiddenDescription = !hideDescription;
             ShowLockedIcon = !hideLockedIcon;
+            ShowRarityGlow = showRarityGlow;
             ProgressNum = source.ProgressNum;
             ProgressDenom = source.ProgressDenom;
             PointsValue = source.Points;
