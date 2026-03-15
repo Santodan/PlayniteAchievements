@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// Displays achievements in a DataGrid with sorting and virtualization.
     /// Clones items to maintain independent reveal state per control instance.
     /// </summary>
-    public partial class AchievementListControl : ThemeControlBase
+    public partial class AchievementDataGridControl : ThemeControlBase
     {
         // Cache the source reference to avoid unnecessary cloning when data hasn't changed
         private List<AchievementDisplayItem> _lastSourceItems;
@@ -32,7 +32,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         public static readonly DependencyProperty DisplayItemsProperty =
             DependencyProperty.Register(nameof(DisplayItems), typeof(ObservableCollection<AchievementDisplayItem>),
-                typeof(AchievementListControl), new PropertyMetadata(null));
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
 
         /// <summary>
         /// Gets the display items for the list.
@@ -43,7 +43,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             private set => SetValue(DisplayItemsProperty, value);
         }
 
-        public AchievementListControl()
+        public AchievementDataGridControl()
         {
             InitializeComponent();
             Loaded += OnLoaded;

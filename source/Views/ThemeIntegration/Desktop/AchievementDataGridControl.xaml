@@ -1,4 +1,4 @@
-<base:ThemeControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Desktop.AchievementListControl"
+<base:ThemeControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Desktop.AchievementDataGridControl"
                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -10,7 +10,7 @@
                    d:DesignHeight="300" d:DesignWidth="600">
 
     <controls:AchievementDataGridControl x:Name="AchievementsGrid"
-                                         ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=desktop:AchievementListControl}}"
+                                         ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=desktop:AchievementDataGridControl}}"
                                          ColumnSettingsKey="DesktopTheme"
                                          UseExternalSorting="True"
                                          Sorting="AchievementsGrid_Sorting"/>
