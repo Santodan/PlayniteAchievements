@@ -56,7 +56,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdateMaxHeight();
             LoadData();
+        }
+
+        private void UpdateMaxHeight()
+        {
+            var settings = Plugin?.Settings?.Persisted;
+            if (settings == null || AchievementsGrid == null)
+            {
+                return;
+            }
+
+            // Convert nullable double to double (null = NaN means unlimited)
+            AchievementsGrid.MaxHeight = settings.AchievementListMaxHeight ?? double.NaN;
         }
 
         private void LoadData()
