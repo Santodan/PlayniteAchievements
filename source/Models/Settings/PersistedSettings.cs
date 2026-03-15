@@ -66,6 +66,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showGamesWithNoUnlocks = false;
         private bool _showUnplayedGames = false;
         private bool _showTopMenuBarButton = true;
+        private bool _showCompactListRarityBar = true;
+        private double? _achievementListMaxHeight = null;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
         private int _maxRetryAttempts = 3;
@@ -595,6 +597,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showTopMenuBarButton;
             set => SetValue(ref _showTopMenuBarButton, value);
+        }
+
+        /// <summary>
+        /// When true, shows the rarity bar at the bottom of compact list achievement items.
+        /// </summary>
+        public bool ShowCompactListRarityBar
+        {
+            get => _showCompactListRarityBar;
+            set => SetValue(ref _showCompactListRarityBar, value);
+        }
+
+        /// <summary>
+        /// Maximum height for AchievementList controls (null = unlimited).
+        /// </summary>
+        public double? AchievementListMaxHeight
+        {
+            get => _achievementListMaxHeight;
+            set => SetValue(ref _achievementListMaxHeight, value);
         }
 
         /// <summary>
