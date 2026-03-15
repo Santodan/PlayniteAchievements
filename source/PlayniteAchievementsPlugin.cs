@@ -41,6 +41,7 @@ using System.Windows.Threading;
 using LiveCharts;
 using LiveCharts.Configurations;
 using LiveCharts.Wpf;
+using PlayniteAchievements.Providers.Xenia;
 
 namespace PlayniteAchievements
 {
@@ -243,7 +244,12 @@ namespace PlayniteAchievements
                         new Rpcs3DataProvider(
                             _logger,
                             settings,
-                            PlayniteApi)
+                            PlayniteApi),
+                        new XeniaDataProvider(
+                            _logger,
+                            settings,
+                            PlayniteApi,
+                            pluginUserDataPath)
                     };
                 }
 
