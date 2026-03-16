@@ -16,16 +16,17 @@
 
         <!-- Actual pie chart control -->
         <controls:PieChartWithRadialIcons Grid.Column="0"
-                                          Width="80" Height="80"
+                                          Width="120" Height="120"
                                           PieSeries="{Binding PieSeries, ElementName=Root}"
                                           LegendItems="{Binding LegendItems, ElementName=Root}"
-                                          IconOffset="8"/>
+                                          IconOffset="12"/>
 
-        <!-- Legend -->
+        <!-- Legend (collapsible) -->
         <ItemsControl Grid.Column="1"
                       ItemsSource="{Binding LegendItems, ElementName=Root}"
                       Margin="8,0,0,0"
-                      VerticalAlignment="Center">
+                      VerticalAlignment="Center"
+                      Visibility="{Binding ShowLegend, ElementName=Root, Converter={StaticResource BooleanToVisibilityConverter}}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">

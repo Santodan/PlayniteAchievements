@@ -98,6 +98,16 @@ namespace PlayniteAchievements.Views.Controls
             set => SetValue(CommonTotalProperty, value);
         }
 
+        public static readonly DependencyProperty ShowLegendProperty =
+            DependencyProperty.Register(nameof(ShowLegend), typeof(bool),
+                typeof(PreviewPieChartControl), new PropertyMetadata(true));
+
+        public bool ShowLegend
+        {
+            get => (bool)GetValue(ShowLegendProperty);
+            set => SetValue(ShowLegendProperty, value);
+        }
+
         private static void OnDataChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var control = (PreviewPieChartControl)d;
