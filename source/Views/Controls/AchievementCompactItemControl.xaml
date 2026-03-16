@@ -117,31 +117,6 @@
             </Image.Style>
         </Image>
 
-        <!-- Lock icon overlay for locked achievements (when not hiding icons) -->
-        <TextBlock Text="&#xf023;"
-                   FontFamily="{DynamicResource FontIcoFont}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   FontSize="16"
-                   Foreground="{DynamicResource TextBrush}"
-                   Opacity="0.7">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding Unlocked}" Value="False"/>
-                                <Condition Binding="{Binding IsIconHidden}" Value="False"/>
-                                <Condition Binding="{Binding IsLockedIconHidden}" Value="False"/>
-                            </MultiDataTrigger.Conditions>
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </MultiDataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-
         <!-- Rarity bar overlay at bottom - shows global unlock percentage -->
         <Grid VerticalAlignment="Bottom">
             <Grid.Style>
