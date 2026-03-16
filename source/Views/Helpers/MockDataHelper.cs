@@ -17,8 +17,6 @@ namespace PlayniteAchievements.Views.Helpers
         private const string UnlockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
         private const string LockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
 
-        // Cache for standard mock data to ensure consistency across previews
-        private static List<AchievementDisplayItem> _standardMockItems;
         private static MockThemeData _mockThemeData;
 
         /// <summary>
