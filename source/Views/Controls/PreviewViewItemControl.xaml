@@ -12,8 +12,17 @@
         <TextBlock x:Name="LabelMode"
                    VerticalAlignment="Center"
                    Foreground="{DynamicResource TextBrush}"
-                   FontSize="{DynamicResource FontSize}"
-                   Visibility="{Binding ShowProgressBar, ElementName=Root, Converter={StaticResource InvertedBooleanToVisibility}}">
+                   FontSize="{DynamicResource FontSize}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowProgressBar, ElementName=Root}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
             <TextBlock.Text>
                 <MultiBinding StringFormat="{}{0}/{1}">
                     <Binding Path="UnlockedCount" ElementName="Root" FallbackValue="0" />
