@@ -269,6 +269,49 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         /// <summary>
+        /// Refreshes the cached display items using custom visibility settings.
+        /// Used by settings preview to update display items when settings change.
+        /// </summary>
+        /// <param name="showHiddenIcon">Whether to show hidden achievement icons.</param>
+        /// <param name="showHiddenTitle">Whether to show hidden achievement titles.</param>
+        /// <param name="showHiddenDescription">Whether to show hidden achievement descriptions.</param>
+        /// <param name="showLockedIcon">Whether to show locked achievement icons.</param>
+        /// <param name="showRarityGlow">Whether to show rarity glow effects.</param>
+        /// <param name="showRarityBar">Whether to show rarity bars.</param>
+        public void RefreshDisplayItems(
+            bool showHiddenIcon,
+            bool showHiddenTitle,
+            bool showHiddenDescription,
+            bool showLockedIcon,
+            bool showRarityGlow,
+            bool showRarityBar)
+        {
+            if (_allAchievements == null || _allAchievements.Count == 0)
+            {
+                _allAchievementDisplayItems = new List<AchievementDisplayItem>();
+                return;
+            }
+
+            var hideIcon = !showHiddenIcon;
+            var hideTitle = !showHiddenTitle;
+            var hideDescription = !showHiddenDescription;
+            var hideLockedIcon = !showLockedIcon;
+
+            var items = new List<AchievementDisplayItem>(_allAchievements.Count);
+            foreach (var achievement in _allAchievements)
+            {
+                var item = new AchievementDisplayItem();
+                var gameName = achievement.Game?.Name ?? "Unknown";
+                var gameId = achievement.Game?.Id;
+                item.UpdateFrom(achievement, gameName, gameId, hideIcon, hideTitle, hideDescription, hideLockedIcon, showRarityGlow, showRarityBar);
+                items.Add(item);
+            }
+
+            _allAchievementDisplayItems = items;
+            OnPropertyChanged(nameof(AllAchievementDisplayItems));
+        }
+
+        /// <summary>
         /// Achievements sorted by unlock date descending (newest first) for the currently selected game.
         /// </summary>
         [DontSerialize]
