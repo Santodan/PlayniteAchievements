@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.ComponentModel;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Common;
@@ -370,6 +371,24 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private ThemeData _previewThemeData;
+
+        /// <summary>
+        /// Gets a ThemeData populated with mock achievements for desktop control previews.
+        /// Used by desktop controls via ThemeDataOverride binding.
+        /// </summary>
+        public ThemeData PreviewThemeData
+        {
+            get
+            {
+                if (_previewThemeData == null)
+                {
+                    _previewThemeData = MockDataHelper.GetPreviewThemeData();
+                }
+                return _previewThemeData;
+            }
+        }
+
         // Helper methods to get settings values with defaults
         private bool GetShowRarityBar() => _settingsViewModel?.Settings?.Persisted?.ShowCompactListRarityBar ?? true;
         private bool GetShowRarityGlow() => _settingsViewModel?.Settings?.Persisted?.ShowRarityGlow ?? true;
@@ -432,6 +451,11 @@ namespace PlayniteAchievements.Views
                 // For List<T>, need to raise property changed - but since binding uses ItemsSource,
                 // we'll assign a new list which triggers refresh
             }
+
+            // Refresh the preview ThemeData used by desktop controls
+            _previewThemeData?.RefreshDisplayItems(
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
+                settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
         }
 
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =
