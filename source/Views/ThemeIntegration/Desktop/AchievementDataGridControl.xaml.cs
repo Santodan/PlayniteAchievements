@@ -140,10 +140,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
 
         /// <summary>
+        /// Determines whether a settings change should trigger a refresh.
+        /// </summary>
+        protected override bool ShouldHandleSettingsDataChange(string propertyName)
+        {
+            return propertyName == nameof(PersistedSettings.AchievementDataGridMaxHeight);
+        }
+
+        /// <summary>
         /// Called when theme data changes and the list should be refreshed.
         /// </summary>
         protected override void OnThemeDataUpdated()
         {
+            UpdateMaxHeight();
             LoadData();
         }
 
