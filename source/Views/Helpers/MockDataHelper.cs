@@ -4,8 +4,9 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -230,6 +231,131 @@ namespace PlayniteAchievements.Views.Helpers
                 _mockThemeData = new MockThemeData();
             }
             return _mockThemeData;
+        }
+
+        private static ThemeData _previewThemeData;
+
+        /// <summary>
+        /// Gets a ThemeData populated with mock achievements for settings preview.
+        /// Used by desktop controls via ThemeDataOverride.
+        /// </summary>
+        /// <returns>A ThemeData with mock achievement data.</returns>
+        public static ThemeData GetPreviewThemeData()
+        {
+            if (_previewThemeData == null)
+            {
+                _previewThemeData = CreatePreviewThemeData();
+            }
+            return _previewThemeData;
+        }
+
+        /// <summary>
+        /// Refreshes the preview theme data by recreating it.
+        /// Call this when settings change to update the preview.
+        /// </summary>
+        public static void RefreshPreviewThemeData()
+        {
+            _previewThemeData = CreatePreviewThemeData();
+        }
+
+        private static ThemeData CreatePreviewThemeData()
+        {
+            var themeData = new ThemeData
+            {
+                HasAchievements = true,
+                IsCompleted = false,
+                AchievementCount = 5,
+                UnlockedCount = 2,
+                LockedCount = 3,
+                ProgressPercentage = 40.0,
+                AllAchievements = CreateMockAchievementDetails()
+            };
+
+            // Set rarity stats
+            themeData.UltraRare = new AchievementRarityStats { Unlocked = 1, Total = 1 };
+            themeData.Rare = new AchievementRarityStats { Unlocked = 1, Total = 1 };
+            themeData.Uncommon = new AchievementRarityStats { Unlocked = 0, Total = 1 };
+            themeData.Common = new AchievementRarityStats { Unlocked = 0, Total = 2 };
+
+            return themeData;
+        }
+
+        /// <summary>
+        /// Creates standard mock AchievementDetail objects for preview.
+        /// Contains: 2 unlocked (ultra rare, rare), 1 locked, 2 locked+hidden
+        /// </summary>
+        private static List<AchievementDetail> CreateMockAchievementDetails()
+        {
+            var achievements = new List<AchievementDetail>();
+
+            // Unlocked Ultra Rare (2.5%)
+            achievements.Add(new AchievementDetail
+            {
+                ApiName = "mock_ultra_rare",
+                DisplayName = "Ultra Rare Victory",
+                Description = "An incredibly rare feat",
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = true,
+                Hidden = false,
+                GlobalPercentUnlocked = 2.5,
+                UnlockTimeUtc = DateTime.UtcNow.AddDays(-1)
+            });
+
+            // Unlocked Rare (8.0%)
+            achievements.Add(new AchievementDetail
+            {
+                ApiName = "mock_rare",
+                DisplayName = "Gold Medal Run",
+                Description = "Earned a prestigious gold medal",
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = true,
+                Hidden = false,
+                GlobalPercentUnlocked = 8.0,
+                UnlockTimeUtc = DateTime.UtcNow.AddDays(-2)
+            });
+
+            // Locked (25.0%)
+            achievements.Add(new AchievementDetail
+            {
+                ApiName = "mock_locked",
+                DisplayName = "Locked Challenge",
+                Description = "Complete this task to unlock",
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = false,
+                Hidden = false,
+                GlobalPercentUnlocked = 25.0
+            });
+
+            // Locked Hidden (15.0%)
+            achievements.Add(new AchievementDetail
+            {
+                ApiName = "mock_hidden_rare",
+                DisplayName = "Hidden Secret",
+                Description = "Discover the hidden mystery",
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = false,
+                Hidden = true,
+                GlobalPercentUnlocked = 15.0
+            });
+
+            // Locked Hidden Common (75.0%)
+            achievements.Add(new AchievementDetail
+            {
+                ApiName = "mock_hidden_common",
+                DisplayName = "Common Secret",
+                Description = "A straightforward hidden objective",
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = false,
+                Hidden = true,
+                GlobalPercentUnlocked = 75.0
+            });
+
+            return achievements;
         }
     }
 
