@@ -3239,9 +3239,18 @@ namespace PlayniteAchievements.Views
 
         private void OnSettingsPropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            // Refresh mock previews when relevant settings change
-            if (e.PropertyName == nameof(Models.Settings.PersistedSettings.ShowCompactListRarityBar) ||
-                e.PropertyName == nameof(Models.Settings.PersistedSettings.ShowRarityGlow))
+            // Refresh mock previews when display-affecting settings change
+            var refreshProperties = new[]
+            {
+                nameof(Models.Settings.PersistedSettings.ShowCompactListRarityBar),
+                nameof(Models.Settings.PersistedSettings.ShowRarityGlow),
+                nameof(Models.Settings.PersistedSettings.ShowHiddenIcon),
+                nameof(Models.Settings.PersistedSettings.ShowHiddenTitle),
+                nameof(Models.Settings.PersistedSettings.ShowHiddenDescription),
+                nameof(Models.Settings.PersistedSettings.ShowLockedIcon)
+            };
+
+            if (refreshProperties.Contains(e.PropertyName))
             {
                 RefreshMockPreviews();
             }
