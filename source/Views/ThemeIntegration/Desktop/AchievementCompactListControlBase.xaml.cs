@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
@@ -39,6 +40,37 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         {
             get => (double)GetValue(IconSizeProperty);
             set => SetValue(IconSizeProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the ThemeDataOverride dependency property.
+        /// When set, this override is used instead of Plugin.Settings.Theme for data binding.
+        /// Used by settings preview to inject mock data.
+        /// </summary>
+        public static readonly DependencyProperty ThemeDataOverrideProperty =
+            DependencyProperty.Register(nameof(ThemeDataOverride), typeof(ThemeData),
+                typeof(AchievementCompactListControlBase),
+                new PropertyMetadata(null, OnThemeDataOverrideChanged));
+
+        /// <summary>
+        /// Gets or sets a ThemeData override for preview purposes.
+        /// When null (default), uses Plugin.Settings.Theme.
+        /// When set, uses this instance instead (for settings preview).
+        /// </summary>
+        public ThemeData ThemeDataOverride
+        {
+            get => (ThemeData)GetValue(ThemeDataOverrideProperty);
+            set => SetValue(ThemeDataOverrideProperty, value);
+        }
+
+        private static void OnThemeDataOverrideChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is AchievementCompactListControlBase control && control._isLoaded)
+            {
+                control._lastAllItems = null;  // Clear cache to force refresh
+                control._lastAllAchievements = null;
+                control.LoadData();
+            }
         }
 
         #endregion
@@ -168,7 +200,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected virtual void LoadData()
         {
-            var theme = Plugin?.Settings?.Theme;
+            var theme = ThemeDataOverride ?? Plugin?.Settings?.Theme;
             if (theme == null || !theme.HasAchievements)
             {
                 _lastAllItems = null;
