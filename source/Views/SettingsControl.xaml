@@ -903,9 +903,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <!-- Desktop control with preview theme data -->
                                 <desktop:AchievementCompactListControl
@@ -925,9 +923,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <!-- Desktop DataGrid control with preview theme data -->
                                 <desktop:AchievementDataGridControl
@@ -951,9 +947,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <!-- Desktop unlocked list control with preview theme data -->
                                 <desktop:AchievementCompactUnlockedListControl
@@ -968,9 +962,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <!-- Desktop locked list control with preview theme data -->
                                 <desktop:AchievementCompactLockedListControl
@@ -985,9 +977,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <desktop:AchievementProgressBarControl Width="280"
                                     ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
@@ -999,9 +989,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <desktop:AchievementStatsControl Width="200"
                                     ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
@@ -1013,9 +1001,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <StackPanel Orientation="Horizontal">
                                     <desktop:AchievementButtonControl Width="40" DisplayDetails="False" Margin="0,0,16,0"
@@ -1031,9 +1017,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <StackPanel Orientation="Horizontal">
                                     <desktop:AchievementViewItemControl Width="60" ShowProgressBar="False" Margin="0,0,16,0"
@@ -1049,9 +1033,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <desktop:AchievementPieChartControl
                                     ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
@@ -1063,9 +1045,7 @@
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,12"/>
+                                           Margin="0,0,0,12"/>
 
                                 <desktop:AchievementBarChartControl Width="280" Height="120"
                                     ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
