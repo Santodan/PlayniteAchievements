@@ -372,6 +372,9 @@ namespace PlayniteAchievements.Views
         }
 
         private ThemeData _previewThemeData;
+        private ThemeData _unlockedPreviewThemeData;
+        private ThemeData _hiddenPreviewThemeData;
+        private ThemeData _lockedPreviewThemeData;
 
         /// <summary>
         /// Gets a ThemeData populated with mock achievements for desktop control previews.
@@ -386,6 +389,51 @@ namespace PlayniteAchievements.Views
                     _previewThemeData = MockDataHelper.GetPreviewThemeData();
                 }
                 return _previewThemeData;
+            }
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single unlocked achievement for visibility preview.
+        /// </summary>
+        public ThemeData UnlockedPreviewThemeData
+        {
+            get
+            {
+                if (_unlockedPreviewThemeData == null)
+                {
+                    _unlockedPreviewThemeData = MockDataHelper.GetUnlockedPreviewThemeData();
+                }
+                return _unlockedPreviewThemeData;
+            }
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single hidden achievement for visibility preview.
+        /// </summary>
+        public ThemeData HiddenPreviewThemeData
+        {
+            get
+            {
+                if (_hiddenPreviewThemeData == null)
+                {
+                    _hiddenPreviewThemeData = MockDataHelper.GetHiddenPreviewThemeData();
+                }
+                return _hiddenPreviewThemeData;
+            }
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single locked achievement for visibility preview.
+        /// </summary>
+        public ThemeData LockedPreviewThemeData
+        {
+            get
+            {
+                if (_lockedPreviewThemeData == null)
+                {
+                    _lockedPreviewThemeData = MockDataHelper.GetLockedPreviewThemeData();
+                }
+                return _lockedPreviewThemeData;
             }
         }
 
@@ -456,6 +504,11 @@ namespace PlayniteAchievements.Views
             _previewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
                 settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+
+            // Clear single-achievement preview caches to force refresh on next access
+            _unlockedPreviewThemeData = null;
+            _hiddenPreviewThemeData = null;
+            _lockedPreviewThemeData = null;
         }
 
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =

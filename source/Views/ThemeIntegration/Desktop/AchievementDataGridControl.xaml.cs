@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;

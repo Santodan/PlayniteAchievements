@@ -548,6 +548,7 @@
     <!-- ================================================================= -->
     <!-- APPEARANCE                                                         -->
     <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockedAchievements">Unlocked Achievement Visibility</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Hidden Achievement Visibility</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Control which elements of hidden achievements are obscured before you reveal them.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Reveal hidden icon</sys:String>

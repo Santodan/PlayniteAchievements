@@ -529,6 +529,7 @@
     <!-- ================================================================= -->
     <!-- APPEARANCE                                                         -->
     <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockedAchievements">Visibilité des succès débloqués</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Visibilité des succès cachés</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Contrôlez quels éléments des succès cachés sont masqués avant de les révéler.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Révéler l'icône cachée</sys:String>

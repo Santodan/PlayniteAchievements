@@ -836,31 +836,64 @@
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
-                                          IsChecked="{Binding Persisted.ShowRarityGlow}"
-                                          Margin="0,0,0,8"/>
+                                <!-- Unlocked Achievement Visibility -->
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockedAchievements}"
+                                           FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
+                                              IsChecked="{Binding Persisted.ShowRarityGlow}"
+                                              VerticalAlignment="Center"/>
+                                    <desktop:AchievementDataGridControl Grid.Column="1"
+                                        ThemeDataOverride="{Binding UnlockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
+                                </Grid>
 
                                 <!-- Hidden Achievement Visibility -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements}"
                                            FontWeight="SemiBold" Margin="0,8,0,4"/>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
                                            Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenIcon}"
-                                          IsChecked="{Binding Persisted.ShowHiddenIcon}" Margin="18,0,0,6"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenTitle}"
-                                          IsChecked="{Binding Persisted.ShowHiddenTitle}" Margin="18,0,0,6"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenDescription}"
-                                          IsChecked="{Binding Persisted.ShowHiddenDescription}" Margin="18,0,0,6"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}"
-                                          IsChecked="{Binding Persisted.ShowHiddenSuffix}" Margin="18,0,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenIcon}"
+                                                  IsChecked="{Binding Persisted.ShowHiddenIcon}" Margin="0,0,0,6"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenTitle}"
+                                                  IsChecked="{Binding Persisted.ShowHiddenTitle}" Margin="0,0,0,6"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenDescription}"
+                                                  IsChecked="{Binding Persisted.ShowHiddenDescription}" Margin="0,0,0,6"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}"
+                                                  IsChecked="{Binding Persisted.ShowHiddenSuffix}"/>
+                                    </StackPanel>
+                                    <desktop:AchievementDataGridControl Grid.Column="1"
+                                        ThemeDataOverride="{Binding HiddenPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
+                                </Grid>
 
                                 <!-- Locked Achievement Visibility -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements}"
                                            FontWeight="SemiBold" Margin="0,12,0,4"/>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements_Description}"
                                            Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
-                                          IsChecked="{Binding Persisted.ShowLockedIcon}" Margin="18,0,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
+                                              IsChecked="{Binding Persisted.ShowLockedIcon}"
+                                              VerticalAlignment="Center"/>
+                                    <desktop:AchievementDataGridControl Grid.Column="1"
+                                        ThemeDataOverride="{Binding LockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
+                                </Grid>
                             </StackPanel>
                         </Border>
 

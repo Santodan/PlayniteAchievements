@@ -234,6 +234,9 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         private static ThemeData _previewThemeData;
+        private static ThemeData _unlockedPreviewThemeData;
+        private static ThemeData _hiddenPreviewThemeData;
+        private static ThemeData _lockedPreviewThemeData;
 
         /// <summary>
         /// Gets a ThemeData populated with mock achievements for settings preview.
@@ -256,6 +259,74 @@ namespace PlayniteAchievements.Views.Helpers
         public static void RefreshPreviewThemeData()
         {
             _previewThemeData = CreatePreviewThemeData();
+            _unlockedPreviewThemeData = null;
+            _hiddenPreviewThemeData = null;
+            _lockedPreviewThemeData = null;
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single unlocked achievement for preview.
+        /// </summary>
+        public static ThemeData GetUnlockedPreviewThemeData()
+        {
+            if (_unlockedPreviewThemeData == null)
+            {
+                _unlockedPreviewThemeData = CreateSingleAchievementThemeData(unlocked: true, hidden: false);
+            }
+            return _unlockedPreviewThemeData;
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single locked+hidden achievement for preview.
+        /// </summary>
+        public static ThemeData GetHiddenPreviewThemeData()
+        {
+            if (_hiddenPreviewThemeData == null)
+            {
+                _hiddenPreviewThemeData = CreateSingleAchievementThemeData(unlocked: false, hidden: true);
+            }
+            return _hiddenPreviewThemeData;
+        }
+
+        /// <summary>
+        /// Gets a ThemeData with a single locked (non-hidden) achievement for preview.
+        /// </summary>
+        public static ThemeData GetLockedPreviewThemeData()
+        {
+            if (_lockedPreviewThemeData == null)
+            {
+                _lockedPreviewThemeData = CreateSingleAchievementThemeData(unlocked: false, hidden: false);
+            }
+            return _lockedPreviewThemeData;
+        }
+
+        private static ThemeData CreateSingleAchievementThemeData(bool unlocked, bool hidden)
+        {
+            var achievement = new AchievementDetail
+            {
+                ApiName = unlocked ? "preview_unlocked" : (hidden ? "preview_hidden" : "preview_locked"),
+                DisplayName = unlocked ? "Unlocked Achievement" : (hidden ? "Hidden Secret" : "Locked Challenge"),
+                Description = unlocked ? "You accomplished this goal" : (hidden ? "Discover the mystery" : "Complete this to unlock"),
+                UnlockedIconPath = UnlockedIconPath,
+                LockedIconPath = UnlockedIconPath,
+                Unlocked = unlocked,
+                Hidden = hidden,
+                GlobalPercentUnlocked = unlocked ? 8.0 : (hidden ? 15.0 : 25.0),
+                UnlockTimeUtc = unlocked ? DateTime.UtcNow.AddDays(-1) : (DateTime?)null
+            };
+
+            var themeData = new ThemeData
+            {
+                HasAchievements = true,
+                IsCompleted = unlocked,
+                AchievementCount = 1,
+                UnlockedCount = unlocked ? 1 : 0,
+                LockedCount = unlocked ? 0 : 1,
+                ProgressPercentage = unlocked ? 100.0 : 0.0,
+                AllAchievements = new List<AchievementDetail> { achievement }
+            };
+
+            return themeData;
         }
 
         private static ThemeData CreatePreviewThemeData()
