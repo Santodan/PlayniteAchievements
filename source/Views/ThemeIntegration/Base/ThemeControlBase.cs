@@ -53,6 +53,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 control.UpdateDataContext();
                 control.OnThemeDataOverrideChangedInternal();
+
+                // Re-subscribe to theme data updates if auto-update is enabled
+                if (control._isAutoUpdateSubscribed)
+                {
+                    control.UnsubscribeFromThemeDataUpdates();
+                    control.SubscribeToThemeDataUpdates();
+                }
+
                 if (control.IsLoaded)
                 {
                     control.OnThemeDataUpdated();
@@ -170,10 +178,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             settings.PropertyChanged -= Settings_PropertyChanged;
             settings.PropertyChanged += Settings_PropertyChanged;
 
-            if (settings.Theme != null)
+            // Subscribe to ThemeDataOverride if set, otherwise subscribe to settings.Theme
+            var effectiveTheme = ThemeDataOverride ?? settings.Theme;
+            if (effectiveTheme != null)
             {
-                settings.Theme.PropertyChanged -= Theme_PropertyChanged;
-                settings.Theme.PropertyChanged += Theme_PropertyChanged;
+                effectiveTheme.PropertyChanged -= Theme_PropertyChanged;
+                effectiveTheme.PropertyChanged += Theme_PropertyChanged;
             }
 
             if (settings.LegacyTheme != null)
@@ -197,9 +207,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 settings.PropertyChanged -= Settings_PropertyChanged;
 
-                if (settings.Theme != null)
+                // Unsubscribe from the effective theme (override or settings)
+                var effectiveTheme = ThemeDataOverride ?? settings.Theme;
+                if (effectiveTheme != null)
                 {
-                    settings.Theme.PropertyChanged -= Theme_PropertyChanged;
+                    effectiveTheme.PropertyChanged -= Theme_PropertyChanged;
                 }
 
                 if (settings.LegacyTheme != null)
