@@ -14,8 +14,8 @@ namespace PlayniteAchievements.Views.Helpers
     /// </summary>
     public static class MockDataHelper
     {
+        // Use the same icon for all achievements - grayscale is applied by AchievementDisplayItem.DisplayIcon
         private const string UnlockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/UnlockedAchIcon.png";
-        private const string LockedIconPath = "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
 
         private static MockThemeData _mockThemeData;
 
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Unlocked = unlocked,
                 Hidden = hidden,
                 GlobalPercentUnlocked = globalPercent,
-                IconPath = unlocked ? UnlockedIconPath : LockedIconPath,
+                IconPath = UnlockedIconPath, // Same icon for all - grayscale applied by DisplayIcon when locked
                 ShowHiddenIcon = showHiddenIcon,
                 ShowHiddenTitle = showHiddenTitle,
                 ShowHiddenDescription = showHiddenDescription,
