@@ -3,96 +3,43 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              x:Name="Root"
              mc:Ignorable="d"
-             d:DesignHeight="120" d:DesignWidth="120">
-
-    <UserControl.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </UserControl.Resources>
+             d:DesignHeight="120" d:DesignWidth="200">
 
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Mock pie chart using clipped ellipses -->
-        <Grid Grid.Column="0" Width="80" Height="80">
-            <!-- Background circle -->
-            <Ellipse Fill="#C0C0C0" Width="80" Height="80"/>
-
-            <!-- Ultra rare slice (gold) -->
-            <Ellipse Fill="#FFD700" Width="80" Height="80">
-                <Ellipse.Clip>
-                    <RectangleGeometry Rect="0,0,40,80"/>
-                </Ellipse.Clip>
-            </Ellipse>
-
-            <!-- Rare slice (platinum hexagon color approximation) -->
-            <Ellipse Fill="#E5E4E2" Width="80" Height="80">
-                <Ellipse.Clip>
-                    <RectangleGeometry Rect="40,0,40,40"/>
-                </Ellipse.Clip>
-            </Ellipse>
-
-            <!-- Uncommon slice (silver) -->
-            <Ellipse Fill="#808080" Width="80" Height="80">
-                <Ellipse.Clip>
-                    <RectangleGeometry Rect="0,0,40,40"/>
-                </Ellipse.Clip>
-            </Ellipse>
-
-            <!-- Inner circle for donut effect -->
-            <Ellipse Fill="{DynamicResource ControlBackgroundBrush}" Width="32" Height="32"/>
-        </Grid>
+        <!-- Actual pie chart control -->
+        <controls:PieChartWithRadialIcons Grid.Column="0"
+                                          Width="80" Height="80"
+                                          PieSeries="{Binding PieSeries, ElementName=Root}"
+                                          LegendItems="{Binding LegendItems, ElementName=Root}"
+                                          IconOffset="8"/>
 
         <!-- Legend -->
-        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Image Source="{StaticResource BadgePlatinumHexagon}"
-                       Width="12" Height="12"
-                       Style="{StaticResource RarityIcon}"
-                       VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <TextBlock Text="{Binding UltraRareTotal, ElementName=Root}"
-                           FontSize="{DynamicResource FontSizeTiny}"
-                           Foreground="{DynamicResource TextBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Image Source="{StaticResource BadgeGoldPentagon}"
-                       Width="12" Height="12"
-                       Style="{StaticResource RarityIcon}"
-                       VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <TextBlock Text="{Binding RareTotal, ElementName=Root}"
-                           FontSize="{DynamicResource FontSizeTiny}"
-                           Foreground="{DynamicResource TextBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                <Image Source="{StaticResource BadgeSilverSquare}"
-                       Width="12" Height="12"
-                       Style="{StaticResource RarityIcon}"
-                       VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <TextBlock Text="{Binding UncommonTotal, ElementName=Root}"
-                           FontSize="{DynamicResource FontSizeTiny}"
-                           Foreground="{DynamicResource TextBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal">
-                <Image Source="{StaticResource BadgeBronzeTriangle}"
-                       Width="12" Height="12"
-                       Style="{StaticResource RarityIcon}"
-                       VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <TextBlock Text="{Binding CommonTotal, ElementName=Root}"
-                           FontSize="{DynamicResource FontSizeTiny}"
-                           Foreground="{DynamicResource TextBrush}"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-        </StackPanel>
+        <ItemsControl Grid.Column="1"
+                      ItemsSource="{Binding LegendItems, ElementName=Root}"
+                      Margin="8,0,0,0"
+                      VerticalAlignment="Center">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <Border Width="12" Height="12"
+                                Background="{Binding ColorHex}"
+                                CornerRadius="2"
+                                Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Count}"
+                                   FontSize="{DynamicResource FontSizeTiny}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </Grid>
 </UserControl>
