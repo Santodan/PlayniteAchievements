@@ -179,7 +179,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected virtual void LoadData()
         {
-            var theme = ThemeDataOverride ?? Plugin?.Settings?.Theme;
+            var theme = EffectiveTheme;
             if (theme == null || !theme.HasAchievements)
             {
                 _lastAllItems = null;
@@ -199,6 +199,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
             _lastAllItems = allItems;
             _lastAllAchievements = allAchievements;
+            var revealedKeys = GetRevealedKeys(DisplayItems);
 
             // Build filtered display items
             var displayItems = new List<AchievementDisplayItem>();
@@ -207,7 +208,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             {
                 if (FilterAchievement(allAchievements[i]))
                 {
-                    displayItems.Add(allItems[i].Clone());
+                    var clonedItem = allItems[i].Clone();
+                    var key = GetRevealKey(clonedItem);
+                    if (revealedKeys?.Contains(key) == true)
+                    {
+                        clonedItem.IsRevealed = true;
+                    }
+
+                    displayItems.Add(clonedItem);
                 }
             }
 
@@ -250,8 +258,35 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             // Derived classes should override this to refresh their ItemsControl
         }
 
+        private static HashSet<string> GetRevealedKeys(IEnumerable<AchievementDisplayItem> items)
+        {
+            if (items == null)
+            {
+                return null;
+            }
+
+            var revealedKeys = new HashSet<string>(
+                items
+                .Where(item => item?.IsRevealed == true)
+                .Select(GetRevealKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.OrdinalIgnoreCase);
+
+            return revealedKeys.Count > 0 ? revealedKeys : null;
+        }
+
+        private static string GetRevealKey(AchievementDisplayItem item)
+        {
+            if (item == null)
+            {
+                return null;
+            }
+
+            return $"{item.PlayniteGameId:N}|{item.ApiName}|{item.DisplayName}|{item.GameName}";
+        }
+
         /// <summary>
-        /// Handles mouse wheel for horizontal scrolling.
+        /// Handles mouse wheel scrolling, preferring horizontal movement for compact list hosts.
         /// </summary>
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
@@ -260,8 +295,16 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
                 var scrollViewer = FindScrollViewer(this);
                 if (scrollViewer != null)
                 {
-                    e.Handled = true;
-                    scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - e.Delta);
+                    if (scrollViewer.ScrollableWidth > 0)
+                    {
+                        e.Handled = true;
+                        scrollViewer.ScrollToHorizontalOffset(scrollViewer.HorizontalOffset - (e.Delta / 3.0));
+                    }
+                    else if (scrollViewer.ScrollableHeight > 0)
+                    {
+                        e.Handled = true;
+                        scrollViewer.ScrollToVerticalOffset(scrollViewer.VerticalOffset - (e.Delta / 3.0));
+                    }
                 }
             }
         }

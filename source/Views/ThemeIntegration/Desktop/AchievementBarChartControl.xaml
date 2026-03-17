@@ -7,7 +7,10 @@
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    mc:Ignorable="d"
-                   d:DesignHeight="200" d:DesignWidth="300">
+                   d:DesignHeight="200" d:DesignWidth="300"
+                   MinHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MinHeight, FallbackValue=200}"
+                   Height="200"
+                   MaxHeight="{Binding RelativeSource={RelativeSource AncestorType=ContentControl}, Path=MaxHeight}">
 
     <base:ThemeControlBase.Resources>
         <ResourceDictionary>

@@ -28,6 +28,43 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         #region ThemeDataOverride Dependency Property
 
         /// <summary>
+        /// Identifies the SettingsOverride dependency property.
+        /// When set, this settings instance is used instead of Plugin.Settings.
+        /// Used by settings preview to bind preview controls to the editable settings object.
+        /// </summary>
+        public static readonly DependencyProperty SettingsOverrideProperty =
+            DependencyProperty.Register(nameof(SettingsOverride), typeof(PlayniteAchievementsSettings),
+                typeof(ThemeControlBase), new PropertyMetadata(null, OnSettingsOverrideChanged));
+
+        /// <summary>
+        /// Gets or sets a settings override for preview purposes.
+        /// </summary>
+        public PlayniteAchievementsSettings SettingsOverride
+        {
+            get => (PlayniteAchievementsSettings)GetValue(SettingsOverrideProperty);
+            set => SetValue(SettingsOverrideProperty, value);
+        }
+
+        private static void OnSettingsOverrideChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is ThemeControlBase control)
+            {
+                control.UpdateDataContext();
+
+                if (control._isAutoUpdateSubscribed)
+                {
+                    control.UnsubscribeFromThemeDataUpdates();
+                    control.SubscribeToThemeDataUpdates();
+                }
+
+                if (control.IsLoaded)
+                {
+                    control.OnThemeDataUpdated();
+                }
+            }
+        }
+
+        /// <summary>
         /// Identifies the ThemeDataOverride dependency property.
         /// When set, this override is used instead of Plugin.Settings.Theme for data binding.
         /// Used by settings preview to inject mock data.
@@ -77,21 +114,28 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         }
 
         /// <summary>
+        /// Gets the effective settings object to use for binding and update subscriptions.
+        /// Returns SettingsOverride if set, otherwise Plugin.Settings.
+        /// </summary>
+        protected PlayniteAchievementsSettings EffectiveSettings => SettingsOverride ?? Plugin?.Settings;
+
+        /// <summary>
         /// Gets the effective ThemeData to use for binding.
         /// Returns ThemeDataOverride if set, otherwise Plugin.Settings.Theme.
         /// </summary>
-        protected ThemeData EffectiveTheme => ThemeDataOverride ?? Plugin?.Settings?.Theme;
+        protected ThemeData EffectiveTheme => ThemeDataOverride ?? EffectiveSettings?.Theme;
 
         private void UpdateDataContext()
         {
+            var settings = EffectiveSettings;
             if (ThemeDataOverride != null)
             {
                 // Use a wrapper that returns the override for Theme property
-                DataContext = new ThemeDataOverrideContext(Plugin.Settings, ThemeDataOverride);
+                DataContext = new ThemeDataOverrideContext(settings, ThemeDataOverride);
             }
             else
             {
-                DataContext = Plugin.Settings;
+                DataContext = settings;
             }
         }
 
@@ -136,7 +180,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             Plugin = PlayniteAchievementsPlugin.Instance
                 ?? throw new InvalidOperationException("Plugin instance not available");
 
-            DataContext = Plugin.Settings;
+            DataContext = EffectiveSettings;
             Loaded += ThemeControlBase_Loaded;
             Unloaded += ThemeControlBase_Unloaded;
         }
@@ -169,7 +213,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 return;
             }
 
-            var settings = Plugin?.Settings;
+            var settings = EffectiveSettings;
             if (settings == null)
             {
                 return;
@@ -177,6 +221,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
             settings.PropertyChanged -= Settings_PropertyChanged;
             settings.PropertyChanged += Settings_PropertyChanged;
+
+            if (settings.Persisted != null)
+            {
+                settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
+                settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
+            }
 
             // Subscribe to ThemeDataOverride if set, otherwise subscribe to settings.Theme
             var effectiveTheme = ThemeDataOverride ?? settings.Theme;
@@ -202,10 +252,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 return;
             }
 
-            var settings = Plugin?.Settings;
+            var settings = EffectiveSettings;
             if (settings != null)
             {
                 settings.PropertyChanged -= Settings_PropertyChanged;
+
+                if (settings.Persisted != null)
+                {
+                    settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
+                }
 
                 // Unsubscribe from the effective theme (override or settings)
                 var effectiveTheme = ThemeDataOverride ?? settings.Theme;
@@ -228,14 +283,25 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         {
             var propertyName = e?.PropertyName;
             if (propertyName == nameof(PlayniteAchievementsSettings.Theme) ||
-                propertyName == nameof(PlayniteAchievementsSettings.LegacyTheme))
+                propertyName == nameof(PlayniteAchievementsSettings.LegacyTheme) ||
+                propertyName == nameof(PlayniteAchievementsSettings.Persisted))
             {
+                UpdateDataContext();
+
                 // Keep nested subscriptions valid if either child object is replaced.
                 UnsubscribeFromThemeDataUpdates();
                 SubscribeToThemeDataUpdates();
             }
 
             if (ShouldHandleChange(propertyName, ShouldHandleSettingsDataChange))
+            {
+                QueueThemeDataUpdate();
+            }
+        }
+
+        private void Persisted_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (ShouldHandleChange(e?.PropertyName, ShouldHandleSettingsDataChange))
             {
                 QueueThemeDataUpdate();
             }
@@ -282,9 +348,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 return;
             }
 
+            var priority = ThemeDataOverride != null
+                ? DispatcherPriority.DataBind
+                : DispatcherPriority.Background;
+
             dispatcher.BeginInvoke(
                 new Action(ExecuteQueuedThemeDataUpdate),
-                DispatcherPriority.Background);
+                priority);
         }
 
         private void ExecuteQueuedThemeDataUpdate()
@@ -334,6 +404,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// Returns the override ThemeData as LegacyTheme for compatibility.
         /// </summary>
         public ThemeData LegacyTheme => _themeOverride;
+
+        /// <summary>
+        /// Returns the effective settings object backing this preview context.
+        /// </summary>
+        public PlayniteAchievementsSettings Settings => _settings;
 
         // Forward other common settings properties
         public PersistedSettings Persisted => _settings?.Persisted;

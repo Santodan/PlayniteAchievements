@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -503,12 +504,16 @@ namespace PlayniteAchievements.Views
             // Refresh the preview ThemeData used by desktop controls
             _previewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
-
-            // Clear single-achievement preview caches to force refresh on next access
-            _unlockedPreviewThemeData = null;
-            _hiddenPreviewThemeData = null;
-            _lockedPreviewThemeData = null;
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+            _unlockedPreviewThemeData?.RefreshDisplayItems(
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+            _hiddenPreviewThemeData?.RefreshDisplayItems(
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+            _lockedPreviewThemeData?.RefreshDisplayItems(
+                settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
         }
 
         public static readonly DependencyProperty ShadPS4AuthStatusProperty =
@@ -720,6 +725,9 @@ namespace PlayniteAchievements.Views
             set => SetValue(ShowNoRevertableThemesMessageProperty, value);
         }
 
+        public ObservableCollection<ThemeMigrationElementOption> ThemeMigrationCustomOptions { get; } =
+            new ObservableCollection<ThemeMigrationElementOption>();
+
         public static readonly DependencyProperty LegacyManualImportStatusProperty =
             DependencyProperty.Register(
                 nameof(LegacyManualImportStatus),
@@ -787,6 +795,7 @@ namespace PlayniteAchievements.Views
             // Initialize theme collections
             AvailableThemes = new System.Collections.ObjectModel.ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
             RevertableThemes = new System.Collections.ObjectModel.ObservableCollection<ThemeDiscoveryService.ThemeInfo>();
+            InitializeThemeMigrationCustomOptions();
 
             // Subscribe to settings property changes to refresh mock previews
             _settingsViewModel.Settings.Persisted.PropertyChanged += OnSettingsPropertyChanged;
@@ -905,7 +914,32 @@ namespace PlayniteAchievements.Views
             await ExecuteThemeMigrationAsync(MigrationMode.Full);
         }
 
-        private async Task ExecuteThemeMigrationAsync(MigrationMode mode)
+        private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
+        {
+            await ExecuteThemeMigrationAsync(MigrationMode.Custom, BuildCustomMigrationSelection());
+        }
+
+        private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)
+        {
+            UpdateThemeMigrationModeButtonState();
+        }
+
+        private void ThemeMigrationCustomExpander_Collapsed(object sender, RoutedEventArgs e)
+        {
+            UpdateThemeMigrationModeButtonState();
+        }
+
+        private void ThemeMigrationSetAllLegacy_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllThemeMigrationCustomOptions(false);
+        }
+
+        private void ThemeMigrationSetAllModern_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllThemeMigrationCustomOptions(true);
+        }
+
+        private async Task ExecuteThemeMigrationAsync(MigrationMode mode, CustomMigrationSelection customSelection = null)
         {
             if (string.IsNullOrWhiteSpace(SelectedThemePath))
             {
@@ -917,7 +951,7 @@ namespace PlayniteAchievements.Views
 
             try
             {
-                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode);
+                var result = await _themeMigration.MigrateThemeAsync(SelectedThemePath, mode, customSelection);
 
                 if (result.Success)
                 {
@@ -1010,6 +1044,102 @@ namespace PlayniteAchievements.Views
                     L("LOCPlayAch_ThemeMigration_Revert", "Revert Theme"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+        }
+
+        private void InitializeThemeMigrationCustomOptions()
+        {
+            ThemeMigrationCustomOptions.Clear();
+
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginButton",
+                "LOCPlayAch_ThemeMigration_Custom_Button",
+                "Button"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginChart",
+                "LOCPlayAch_ThemeMigration_Custom_Chart",
+                "Bar Chart"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactList",
+                "LOCPlayAch_ThemeMigration_Custom_CompactList",
+                "Compact List"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactLocked",
+                "LOCPlayAch_ThemeMigration_Custom_CompactLocked",
+                "Compact Locked List"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactUnlocked",
+                "LOCPlayAch_ThemeMigration_Custom_CompactUnlocked",
+                "Compact Unlocked List"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginList",
+                "LOCPlayAch_ThemeMigration_Custom_List",
+                "Achievement Grid"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginProgressBar",
+                "LOCPlayAch_ThemeMigration_Custom_ProgressBar",
+                "Progress Bar"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginUserStats",
+                "LOCPlayAch_ThemeMigration_Custom_UserStats",
+                "Stats Panel"));
+            ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginViewItem",
+                "LOCPlayAch_ThemeMigration_Custom_ViewItem",
+                "View Item"));
+        }
+
+        private ThemeMigrationElementOption CreateThemeMigrationControlOption(
+            string key,
+            string resourceKey,
+            string fallback)
+        {
+            return new ThemeMigrationElementOption(
+                key,
+                L(resourceKey, fallback),
+                isBindingOption: false,
+                isModern: true);
+        }
+
+        private CustomMigrationSelection BuildCustomMigrationSelection()
+        {
+            var modernControlNames = ThemeMigrationCustomOptions
+                .Where(option => option.IsModern)
+                .Select(option => option.Key)
+                .ToList();
+
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
+        }
+
+        private void ThemeMigrationRowSetLegacy_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { CommandParameter: ThemeMigrationElementOption option })
+            {
+                option.IsModern = false;
+            }
+        }
+
+        private void ThemeMigrationRowSetModern_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { CommandParameter: ThemeMigrationElementOption option })
+            {
+                option.IsModern = true;
+            }
+        }
+
+        private void SetAllThemeMigrationCustomOptions(bool isModern)
+        {
+            foreach (var option in ThemeMigrationCustomOptions)
+            {
+                option.IsModern = isModern;
+            }
+        }
+
+        private void UpdateThemeMigrationModeButtonState()
+        {
+            if (ThemeMigrationPresetButtons != null && ThemeMigrationCustomExpander != null)
+            {
+                ThemeMigrationPresetButtons.IsEnabled = !ThemeMigrationCustomExpander.IsExpanded;
             }
         }
 
@@ -3376,6 +3506,40 @@ namespace PlayniteAchievements.Views
             Process.Start(e.Uri.AbsoluteUri);
             e.Handled = true;
         }
+    }
+
+    public sealed class ThemeMigrationElementOption : INotifyPropertyChanged
+    {
+        private bool _isModern;
+
+        public ThemeMigrationElementOption(string key, string displayName, bool isBindingOption, bool isModern)
+        {
+            Key = key;
+            DisplayName = displayName;
+            IsBindingOption = isBindingOption;
+            _isModern = isModern;
+        }
+
+        public string Key { get; }
+
+        public string DisplayName { get; }
+
+        public bool IsBindingOption { get; }
+
+        public bool IsModern
+        {
+            get => _isModern;
+            set
+            {
+                if (_isModern != value)
+                {
+                    _isModern = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsModern)));
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
     }
 }
 

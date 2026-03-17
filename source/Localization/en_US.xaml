@@ -774,8 +774,25 @@
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Please restart Playnite to apply the changes.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">Limited Migration</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Full Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">Custom Migration</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_LimitedTooltip">Text replacements only. Preserves existing control structures and bindings.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_FullTooltip">Complete modernization. Replaces Legacy controls with Native controls and LegacyData bindings with Theme bindings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">Custom</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_CustomDescription">Select which theme elements stay Legacy and which are modernized during migration.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">All Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">All Modern</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeLegacy">Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeModern">Modern</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Button">Button</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Chart">Bar Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactList">Compact List</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactLocked">Compact Locked List</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactUnlocked">Compact Unlocked List</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_List">Achievement Grid</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ProgressBar">Progress Bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_UserStats">Stats Panel</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ViewItem">View Item</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Bindings">Theme Bindings</sys:String>
 
     <!-- ================================================================= -->
     <!-- SINGLE GAME VIEW                                                   -->

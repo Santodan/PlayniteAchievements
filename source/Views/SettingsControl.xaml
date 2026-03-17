@@ -6,6 +6,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:conv="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:desktop="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Desktop"
              mc:Ignorable="d"
@@ -14,6 +15,14 @@
 
     <UserControl.Resources>
         <ResourceDictionary>
+            <conv:NullableDoubleTextConverter x:Key="NullableDoubleTextConverter"/>
+
+            <Style x:Key="PreviewThemeControlStyle"
+                   TargetType="{x:Type base:ThemeControlBase}">
+                <Setter Property="SettingsOverride"
+                        Value="{Binding DataContext, ElementName=SettingsControlRoot}"/>
+            </Style>
+
             <!-- Disable Steam auth buttons while busy -->
             <Style x:Key="SteamAuthActionButtonStyle"
                    TargetType="Button"
@@ -88,11 +97,45 @@
 
             <!-- Section header style -->
             <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Margin" Value="0,0,0,12"/>
+                <Setter Property="Opacity" Value="1"/>
+            </Style>
+
+            <!-- Subsection header style -->
+            <Style x:Key="SubSectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Opacity" Value="0.96"/>
+            </Style>
+
+            <Style x:Key="SectionAccentRuleStyle" TargetType="Border">
+                <Setter Property="Height" Value="2"/>
+                <Setter Property="Width" Value="44"/>
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="CornerRadius" Value="1"/>
+                <Setter Property="Background" Value="{DynamicResource HighlightGlyphBrush}"/>
                 <Setter Property="Margin" Value="0,0,0,14"/>
-                <Setter Property="Opacity" Value="0.9"/>
+            </Style>
+
+            <Style x:Key="ContextLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
+            </Style>
+
+            <Style x:Key="SettingGroupCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="Padding" Value="14"/>
+                <Setter Property="Margin" Value="0,0,0,14"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
             </Style>
 
             <!-- Accent text style -->
@@ -131,6 +174,198 @@
             <!-- Setting row style -->
             <Style x:Key="SettingRowStyle" TargetType="Grid">
                 <Setter Property="Margin" Value="0,0,0,14"/>
+            </Style>
+
+            <Style x:Key="MigrationModeToggleStyle"
+                   TargetType="ToggleButton"
+                   BasedOn="{StaticResource {x:Type ToggleButton}}">
+                <Setter Property="MinWidth" Value="88"/>
+                <Setter Property="Padding" Value="12,4"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Content" Value="{DynamicResource LOCPlayAch_ThemeMigration_ModeLegacy}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsChecked" Value="True">
+                        <Setter Property="Content" Value="{DynamicResource LOCPlayAch_ThemeMigration_ModeModern}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MigrationChoiceButtonBaseStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinWidth" Value="100"/>
+                <Setter Property="Padding" Value="12,5"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background" Value="#32000000"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chrome"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Chrome" Property="Opacity" Value="0.45"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="MigrationChoiceLegacyButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource MigrationChoiceButtonBaseStyle}">
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="True"/>
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#42000000"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="True"/>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#54000000"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                    </MultiDataTrigger>
+                    <DataTrigger Binding="{Binding IsModern}" Value="False">
+                        <Setter Property="Background" Value="{DynamicResource HighlightGlyphBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="False"/>
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#FF37A7C8"/>
+                        <Setter Property="BorderBrush" Value="#FF37A7C8"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="False"/>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#FF2D8FAB"/>
+                        <Setter Property="BorderBrush" Value="#FF2D8FAB"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MigrationChoiceModernButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource MigrationChoiceButtonBaseStyle}">
+                <Style.Triggers>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="False"/>
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#42000000"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="False"/>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#54000000"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                    </MultiDataTrigger>
+                    <DataTrigger Binding="{Binding IsModern}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource HighlightGlyphBrush}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="True"/>
+                            <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#FF37A7C8"/>
+                        <Setter Property="BorderBrush" Value="#FF37A7C8"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </MultiDataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsModern}" Value="True"/>
+                            <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Background" Value="#FF2D8FAB"/>
+                        <Setter Property="BorderBrush" Value="#FF2D8FAB"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="MigrationSwitchToggleStyle"
+                   TargetType="ToggleButton"
+                   BasedOn="{StaticResource {x:Type ToggleButton}}">
+                <Setter Property="Width" Value="46"/>
+                <Setter Property="Height" Value="22"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Background" Value="#22000000"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border x:Name="Track"
+                                    Width="{TemplateBinding Width}"
+                                    Height="{TemplateBinding Height}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="11">
+                                <Grid Margin="2">
+                                    <Ellipse x:Name="Thumb"
+                                             Width="16"
+                                             Height="16"
+                                             Fill="{DynamicResource TextBrush}"
+                                             HorizontalAlignment="Left"
+                                             VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Track" Property="Background" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                    <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                    <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter TargetName="Thumb" Property="Fill" Value="White"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Track" Property="Opacity" Value="0.45"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <!-- Muted text style -->
@@ -800,32 +1035,58 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">
 
-                        <!-- Plugin Header -->
-                        <StackPanel Margin="0,0,0,24">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Style="{DynamicResource BaseTextBlockStyle}"
-                                       FontWeight="SemiBold"
-                                       Margin="0,0,0,6" />
-                            <!-- Decorative accent line -->
-                            <Border Height="2"
-                                    Width="60"
-                                    HorizontalAlignment="Left"
-                                    Background="#4CC9F0"
-                                    CornerRadius="1"
-                                    Margin="0,8,0,0"/>
-                        </StackPanel>
-
-                        <!-- ================== GENERAL SECTION ================== -->
+                        <!-- ================== DISPLAY OPTIONS SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GeneralSection}"
+                                <TextBlock Text="Display Options"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
-                                          IsChecked="{Binding Persisted.ShowTopMenuBarButton}"
-                                          Margin="0,0,0,8"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GeneralSection}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,10"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCompactGridMode}"
+                                                  IsChecked="{Binding Persisted.EnableCompactGridMode}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
+                                                  IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_SidebarSection}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,10"/>
+
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarGamesPieChart}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarGamesPieChart}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarProviderPieChart}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarProviderPieChart}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarRarityPieChart}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarRarityPieChart}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarTrophyPieChart}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarTrophyPieChart}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarBarCharts}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarBarCharts}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGamesWithNoUnlocks}"
+                                                  IsChecked="{Binding Persisted.ShowGamesWithNoUnlocks}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowUnplayedGames}"
+                                                  IsChecked="{Binding Persisted.ShowUnplayedGames}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
+                                                  IsChecked="{Binding Persisted.UseCoverImages}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -835,99 +1096,81 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_AchievementsSection}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
 
                                 <!-- Unlocked Achievement Visibility -->
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockedAchievements}"
-                                           FontWeight="SemiBold" Margin="0,0,0,8"/>
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
-                                              IsChecked="{Binding Persisted.ShowRarityGlow}"
-                                              VerticalAlignment="Center"/>
-                                    <desktop:AchievementDataGridControl Grid.Column="1"
-                                        ThemeDataOverride="{Binding UnlockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
-                                </Grid>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockedAchievements}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,8"/>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementDataGridControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding UnlockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            PreviewMaxHeightOverride="122"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowRarityGlow}"
+                                                  IsChecked="{Binding Persisted.ShowRarityGlow}"
+                                                  VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- Hidden Achievement Visibility -->
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements}"
-                                           FontWeight="SemiBold" Margin="0,8,0,4"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenIcon}"
-                                                  IsChecked="{Binding Persisted.ShowHiddenIcon}" Margin="0,0,0,6"/>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenTitle}"
-                                                  IsChecked="{Binding Persisted.ShowHiddenTitle}" Margin="0,0,0,6"/>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenDescription}"
-                                                  IsChecked="{Binding Persisted.ShowHiddenDescription}" Margin="0,0,0,6"/>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}"
-                                                  IsChecked="{Binding Persisted.ShowHiddenSuffix}"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
+                                                   Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementDataGridControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding HiddenPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            PreviewMaxHeightOverride="122"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <StackPanel>
+                                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenIcon}"
+                                                      IsChecked="{Binding Persisted.ShowHiddenIcon}" Margin="0,0,0,6"/>
+                                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenTitle}"
+                                                      IsChecked="{Binding Persisted.ShowHiddenTitle}" Margin="0,0,0,6"/>
+                                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenDescription}"
+                                                      IsChecked="{Binding Persisted.ShowHiddenDescription}" Margin="0,0,0,6"/>
+                                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}"
+                                                      IsChecked="{Binding Persisted.ShowHiddenSuffix}"/>
+                                        </StackPanel>
                                     </StackPanel>
-                                    <desktop:AchievementDataGridControl Grid.Column="1"
-                                        ThemeDataOverride="{Binding HiddenPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
-                                </Grid>
+                                </Border>
 
                                 <!-- Locked Achievement Visibility -->
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements}"
-                                           FontWeight="SemiBold" Margin="0,12,0,4"/>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements_Description}"
-                                           Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
-                                              IsChecked="{Binding Persisted.ShowLockedIcon}"
-                                              VerticalAlignment="Center"/>
-                                    <desktop:AchievementDataGridControl Grid.Column="1"
-                                        ThemeDataOverride="{Binding LockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        Width="320" MaxHeight="50" Margin="16,0,0,0"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ================== SIDEBAR SECTION ================== -->
-                        <Border Style="{StaticResource SectionBorderStyle}">
-                            <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_SidebarSection}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
-
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarGamesPieChart}"
-                                          IsChecked="{Binding Persisted.ShowSidebarGamesPieChart}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarProviderPieChart}"
-                                          IsChecked="{Binding Persisted.ShowSidebarProviderPieChart}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarRarityPieChart}"
-                                          IsChecked="{Binding Persisted.ShowSidebarRarityPieChart}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarTrophyPieChart}"
-                                          IsChecked="{Binding Persisted.ShowSidebarTrophyPieChart}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarBarCharts}"
-                                          IsChecked="{Binding Persisted.ShowSidebarBarCharts}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGamesWithNoUnlocks}"
-                                          IsChecked="{Binding Persisted.ShowGamesWithNoUnlocks}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowUnplayedGames}"
-                                          IsChecked="{Binding Persisted.ShowUnplayedGames}"
-                                          Margin="0,0,0,8"/>
-                                <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
-                                          IsChecked="{Binding Persisted.UseCoverImages}"
-                                          Margin="0,0,0,8"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LockedAchievements_Description}"
+                                                   Style="{StaticResource MutedTextStyle}" Margin="0,0,0,8"/>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementDataGridControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding LockedPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            PreviewMaxHeightOverride="122"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
+                                                  IsChecked="{Binding Persisted.ShowLockedIcon}"
+                                                  VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -937,17 +1180,22 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <!-- Desktop control with preview theme data -->
-                                <desktop:AchievementCompactListControl
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    IconSize="48"
-                                    Margin="0,0,0,8"/>
-
-                                <!-- Settings -->
-                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
-                                          IsChecked="{Binding Persisted.ShowCompactListRarityBar}"
-                                          Margin="0,8,0,0"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementCompactListControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            IconSize="48"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
+                                                  IsChecked="{Binding Persisted.ShowCompactListRarityBar}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -957,53 +1205,72 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <!-- Desktop DataGrid control with preview theme data -->
-                                <desktop:AchievementDataGridControl
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    Margin="0,0,0,8"/>
-
-                                <!-- Max Height setting -->
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridMaxHeight}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBox Text="{Binding Persisted.AchievementDataGridMaxHeight, UpdateSourceTrigger=PropertyChanged}"
-                                             Width="80" Margin="8,0,0,0"/>
-                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsUnit}"
-                                               VerticalAlignment="Center" Margin="4,0,0,0" Opacity="0.6"/>
-                                </StackPanel>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementDataGridControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            PreviewMinimumMaxHeight="220"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridMaxHeight}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBox Text="{Binding Persisted.AchievementDataGridMaxHeight, UpdateSourceTrigger=LostFocus, Converter={StaticResource NullableDoubleTextConverter}, ConverterParameter=88}"
+                                                     Width="80" Margin="8,0,0,0"/>
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PixelsUnit}"
+                                                       VerticalAlignment="Center" Margin="4,0,0,0" Opacity="0.6"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
                         <!-- ================== COMPACT UNLOCKED LIST PREVIEW SECTION ================== -->
+                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <!-- Desktop unlocked list control with preview theme data -->
-                                <desktop:AchievementCompactUnlockedListControl
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    IconSize="48"
-                                    Margin="0,0,0,8"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementCompactUnlockedListControl
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            IconSize="48"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
+                        -->
 
                         <!-- ================== COMPACT LOCKED LIST PREVIEW SECTION ================== -->
+                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <!-- Desktop locked list control with preview theme data -->
-                                <desktop:AchievementCompactLockedListControl
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    IconSize="48"
-                                    Margin="0,0,0,8"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementCompactLockedListControl
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            IconSize="48"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
+                        -->
 
                         <!-- ================== PROGRESS BAR PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
@@ -1011,9 +1278,16 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <desktop:AchievementProgressBarControl Width="280"
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementProgressBarControl Width="280"
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -1023,9 +1297,16 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <desktop:AchievementStatsControl Width="200"
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementStatsControl Width="200"
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -1035,31 +1316,49 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <desktop:AchievementButtonControl Width="40" DisplayDetails="False" Margin="0,0,16,0"
-                                        ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <desktop:AchievementButtonControl Width="200" DisplayDetails="True"
-                                        ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                </StackPanel>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <desktop:AchievementButtonControl Width="40" DisplayDetails="False" Margin="0,0,16,0"
+                                                Style="{StaticResource PreviewThemeControlStyle}"
+                                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            <desktop:AchievementButtonControl Width="200" DisplayDetails="True"
+                                                Style="{StaticResource PreviewThemeControlStyle}"
+                                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
                         <!-- ================== VIEW ITEM PREVIEW SECTION ================== -->
+                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <desktop:AchievementViewItemControl Width="60" ShowProgressBar="False" Margin="0,0,16,0"
-                                        ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                    <desktop:AchievementViewItemControl Width="100" ShowProgressBar="True"
-                                        ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                </StackPanel>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <desktop:AchievementViewItemControl Width="60" ShowProgressBar="False" Margin="0,0,16,0"
+                                                Style="{StaticResource PreviewThemeControlStyle}"
+                                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            <desktop:AchievementViewItemControl Width="100" ShowProgressBar="True"
+                                                Style="{StaticResource PreviewThemeControlStyle}"
+                                                ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
+                        -->
 
                         <!-- ================== PIE CHART PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
@@ -1067,9 +1366,18 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <desktop:AchievementPieChartControl
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementPieChartControl
+                                            Width="260"
+                                            Height="260"
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -1079,9 +1387,16 @@
                                 <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
-
-                                <desktop:AchievementBarChartControl Width="280" Height="120"
-                                    ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="PREVIEW"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <desktop:AchievementBarChartControl Width="280" Height="120"
+                                            Style="{StaticResource PreviewThemeControlStyle}"
+                                            ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -2937,6 +3252,7 @@
                                 <!-- Migration Buttons -->
                                 <StackPanel Orientation="Horizontal"
                                             HorizontalAlignment="Right"
+                                            x:Name="ThemeMigrationPresetButtons"
                                             Margin="0,12,0,0">
                                     <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_MigrationLimited}"
                                             Click="MigrateThemeLimited_Click"
@@ -2968,6 +3284,103 @@
                                         </Button.ToolTip>
                                     </Button>
                                 </StackPanel>
+
+                                <Border Background="#12000000"
+                                        BorderBrush="{DynamicResource NormalBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,16,0,0"
+                                        Padding="0"
+                                        IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}">
+                                    <Expander x:Name="ThemeMigrationCustomExpander"
+                                              IsExpanded="False"
+                                              Expanded="ThemeMigrationCustomExpander_Expanded"
+                                              Collapsed="ThemeMigrationCustomExpander_Collapsed"
+                                              Background="Transparent"
+                                              BorderThickness="0">
+                                        <Expander.Header>
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Custom}"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontWeight="SemiBold"
+                                                       Margin="-4,8,0,8"/>
+                                        </Expander.Header>
+
+                                        <StackPanel Margin="12,0,12,12">
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_CustomDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       HorizontalAlignment="Left"
+                                                       Margin="0,0,0,12"
+                                                       MaxWidth="520"/>
+
+                                            <Grid Margin="0,0,0,12"
+                                                  HorizontalAlignment="Left">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="176"/>
+                                                    <ColumnDefinition Width="108"/>
+                                                    <ColumnDefinition Width="54"/>
+                                                    <ColumnDefinition Width="108"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Button Grid.Column="1"
+                                                        Content="{DynamicResource LOCPlayAch_ThemeMigration_AllLegacy}"
+                                                        Click="ThemeMigrationSetAllLegacy_Click"
+                                                        Style="{StaticResource MigrationChoiceButtonBaseStyle}"
+                                                        Margin="0,0,8,0"/>
+                                                <Button Grid.Column="3"
+                                                        Content="{DynamicResource LOCPlayAch_ThemeMigration_AllModern}"
+                                                        Click="ThemeMigrationSetAllModern_Click"
+                                                        Style="{StaticResource MigrationChoiceButtonBaseStyle}"/>
+                                            </Grid>
+
+                                            <ItemsControl ItemsSource="{Binding ThemeMigrationCustomOptions, ElementName=SettingsControlRoot}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,0,0,10"
+                                                              HorizontalAlignment="Left">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="176"/>
+                                                                <ColumnDefinition Width="108"/>
+                                                                <ColumnDefinition Width="54"/>
+                                                                <ColumnDefinition Width="108"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       Foreground="{DynamicResource TextBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,12,0"/>
+
+                                                            <Button Grid.Column="1"
+                                                                    Content="{DynamicResource LOCPlayAch_ThemeMigration_ModeLegacy}"
+                                                                    Style="{StaticResource MigrationChoiceLegacyButtonStyle}"
+                                                                    Click="ThemeMigrationRowSetLegacy_Click"
+                                                                    CommandParameter="{Binding}"
+                                                                    Margin="0,0,8,0"/>
+
+                                                            <ToggleButton Grid.Column="2"
+                                                                          Style="{StaticResource MigrationSwitchToggleStyle}"
+                                                                          IsChecked="{Binding IsModern, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                            <Button Grid.Column="3"
+                                                                    Content="{DynamicResource LOCPlayAch_ThemeMigration_ModeModern}"
+                                                                    Style="{StaticResource MigrationChoiceModernButtonStyle}"
+                                                                    Click="ThemeMigrationRowSetModern_Click"
+                                                                    CommandParameter="{Binding}"
+                                                                    Margin="8,0,0,0"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_MigrationCustom}"
+                                                    Click="MigrateThemeCustom_Click"
+                                                    Padding="14,6"
+                                                    Margin="0,6,0,0"
+                                                    MinWidth="100"
+                                                    HorizontalAlignment="Right"
+                                                    IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"/>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
 
                                 <!-- No themes message -->
                                 <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_NoThemesMessage}"

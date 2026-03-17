@@ -19,92 +19,76 @@
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
-    <Button x:Name="PART_PluginButton" Click="PART_PluginButton_Click"
-            Background="Transparent" BorderBrush="Transparent"
-            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-        <Button.Style>
-            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <ContentPresenter Content="{TemplateBinding Content}"
-                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </Button.Style>
-
+    <Button x:Name="PART_PluginButton" Click="PART_PluginButton_Click">
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- Trophy icon (shown when DisplayDetails=False) -->
             <TextBlock Grid.Column="0"
                        Text="&#xedd7;" FontFamily="{DynamicResource FontIcoFont}"
-                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
                        Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
-                       FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"
-                       Foreground="{DynamicResource TextBrush}"
-                       Margin="0,0,4,0"/>
+                       FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
 
             <!-- Details grid (shown when DisplayDetails=True) -->
             <Grid Grid.Column="1" HorizontalAlignment="Stretch"
                   Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="4" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="3"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="2" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="3"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Completed game indicator (checkmark) -->
                 <TextBlock Grid.Column="0" Grid.Row="0" Grid.RowSpan="3"
-                           Text="&#xe8c7;" FontFamily="{DynamicResource FontIcoFont}"
+                           Text="&#xea33;" FontFamily="{DynamicResource CommonFont}"
                            Visibility="{Binding Theme.IsCompleted, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}"
-                           VerticalAlignment="Center" Padding="0,0,4,0"
-                           FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"
-                           Foreground="{DynamicResource TextBrush}"
-                           Opacity="0.8"/>
+                           VerticalAlignment="Center" Padding="5,3,5,5"
+                           FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
 
                 <!-- "Achievements" label -->
                 <TextBlock Grid.Column="1" Grid.Row="0" Grid.ColumnSpan="3"
-                           Text="{DynamicResource LOCPlayAch_Achievements}"
-                           Padding="0" Margin="0,-2,0,-2"
-                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}"
-                           Foreground="{DynamicResource TextBrush}"/>
+                           Margin="0,-3,0,-3"
+                           Text="{DynamicResource LOCPlayAch_Achievements}" Padding="5,3,5,5"
+                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}"/>
 
                 <!-- Progress count (X/Y) -->
                 <TextBlock Grid.Column="1" Grid.Row="2"
-                           Padding="0" Margin="0,-2,0,-2"
-                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}"
-                           Foreground="{DynamicResource TextBrush}">
+                           Margin="0,-3,0,-3" Padding="5,3,5,5"
+                           FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}">
                     <TextBlock.Text>
                         <MultiBinding StringFormat="{}{0}/{1}">
-                            <Binding Path="Theme.UnlockedCount" FallbackValue="0" />
-                            <Binding Path="Theme.AchievementCount" FallbackValue="0" />
+                            <Binding Path="Theme.UnlockedCount" FallbackValue="0"/>
+                            <Binding Path="Theme.AchievementCount" FallbackValue="0"/>
                         </MultiBinding>
                     </TextBlock.Text>
                 </TextBlock>
 
                 <!-- Progress bar -->
-                <ProgressBar Grid.Column="3" Grid.Row="2"
-                             Height="10"
-                             Maximum="{Binding Theme.AchievementCount, Mode=OneWay, FallbackValue=100}"
-                             Value="{Binding Theme.UnlockedCount, Mode=OneWay, FallbackValue=0}"
-                             Foreground="{DynamicResource HighlightGlyphBrush}"
-                             Background="{DynamicResource ControlBackgroundBrush}"
-                             BorderBrush="{DynamicResource NormalBorderBrush}"
-                             BorderThickness="1"/>
+                <StackPanel Grid.Column="3" Grid.Row="2" x:Name="PART_GridProgressBar">
+                    <ProgressBar Height="12" Width="{Binding ElementName=PART_GridProgressBar, Path=ActualWidth}"
+                                 Maximum="{Binding Theme.AchievementCount, Mode=OneWay, FallbackValue=100}"
+                                 Value="{Binding Theme.UnlockedCount, Mode=OneWay, FallbackValue=30}">
+                        <ProgressBar.Style>
+                            <Style TargetType="{x:Type ProgressBar}" BasedOn="{StaticResource {x:Type ProgressBar}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsMouseOver}" Value="True">
+                                        <Setter Property="Foreground" Value="{Binding ElementName=PART_PluginButton, Path=Foreground}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ProgressBar.Style>
+                    </ProgressBar>
+                </StackPanel>
             </Grid>
         </Grid>
     </Button>

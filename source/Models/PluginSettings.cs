@@ -673,6 +673,7 @@ namespace PlayniteAchievements.Models
 
             // Copy the entire PersistedSettings object
             Persisted = other.Persisted?.Clone() ?? new PersistedSettings();
+            OnPropertyChanged(nameof(Persisted));
         }
 
         /// <summary>

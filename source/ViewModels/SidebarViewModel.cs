@@ -496,6 +496,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool UseCoverImages => _settings?.Persisted?.UseCoverImages ?? false;
 
+        public bool EnableCompactGridMode => _settings?.Persisted?.EnableCompactGridMode ?? false;
+
         public bool ShowSidebarPieCharts =>
             ShowSidebarGamesPieChart ||
             ShowSidebarProviderPieChart ||
@@ -1472,9 +1474,23 @@ namespace PlayniteAchievements.ViewModels
 
         private void OnSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == "Persisted.UseCoverImages")
+            if (e.PropertyName == "Persisted")
+            {
+                if (_settings?.Persisted != null)
+                {
+                    _settings.Persisted.PropertyChanged -= OnPersistedSettingsChanged;
+                    _settings.Persisted.PropertyChanged += OnPersistedSettingsChanged;
+                }
+
+                OnPropertyChanged(nameof(EnableCompactGridMode));
+            }
+            else if (e.PropertyName == "Persisted.UseCoverImages")
             {
                 OnPropertyChanged(nameof(UseCoverImages));
+            }
+            else if (e.PropertyName == "Persisted.EnableCompactGridMode")
+            {
+                OnPropertyChanged(nameof(EnableCompactGridMode));
             }
             else if (e.PropertyName == "Persisted.IncludeUnplayedGames")
             {
@@ -1539,6 +1555,10 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(ShowUnplayedGames));
                 ApplyLeftFilters();
                 UpdateAggregatePieCharts();
+            }
+            else if (e.PropertyName == nameof(PersistedSettings.EnableCompactGridMode))
+            {
+                OnPropertyChanged(nameof(EnableCompactGridMode));
             }
         }
 

@@ -183,6 +183,68 @@ namespace PlayniteAchievements.Views.Converters
     }
 
     /// <summary>
+    /// Converts a TextBox string to nullable double, treating blank input as null.
+    /// This is used for settings fields where an empty string means "unlimited".
+    /// </summary>
+    public class NullableDoubleTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is double doubleValue)
+            {
+                return doubleValue.ToString(culture);
+            }
+
+            return string.Empty;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var parsed))
+            {
+                var minimum = ParseMinimum(parameter, culture);
+                if (minimum > 0 && parsed > 0 && parsed < minimum)
+                {
+                    return minimum;
+                }
+
+                return parsed;
+            }
+
+            return Binding.DoNothing;
+        }
+
+        private static double ParseMinimum(object parameter, CultureInfo culture)
+        {
+            if (parameter == null)
+            {
+                return 0;
+            }
+
+            var parameterText = parameter.ToString();
+            if (string.IsNullOrWhiteSpace(parameterText))
+            {
+                return 0;
+            }
+
+            if (double.TryParse(parameterText, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var invariantValue))
+            {
+                return invariantValue;
+            }
+
+            return double.TryParse(parameterText, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var cultureValue)
+                ? cultureValue
+                : 0;
+        }
+    }
+
+    /// <summary>
     /// Converts pie chart tooltip data to display string.
     /// For locked slices: shows just the count.
     /// For completed-games slices: shows just the count.

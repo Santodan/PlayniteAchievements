@@ -9,8 +9,7 @@
                    mc:Ignorable="d"
                    d:DesignHeight="82" d:DesignWidth="600">
 
-    <!-- Horizontal scrolling row of unlocked achievement compact items -->
-    <!-- Uses ScrollViewer with horizontal orientation for overflow -->
+    <!-- Virtualized horizontal compact list -->
     <ItemsControl x:Name="AchievementsList"
                   ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControlBase}}"
                   VirtualizingPanel.IsVirtualizing="True"
@@ -18,9 +17,8 @@
                   VirtualizingPanel.ScrollUnit="Pixel">
         <ItemsControl.Template>
             <ControlTemplate TargetType="ItemsControl">
-                <!-- Horizontal scroll viewer - shows scrollbar when items overflow -->
                 <ScrollViewer CanContentScroll="True"
-                              HorizontalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Disabled"
                               Padding="0"
                               ClipToBounds="False">
@@ -31,7 +29,6 @@
 
         <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-                <!-- Horizontal stack panel for single-row layout -->
                 <VirtualizingStackPanel Orientation="Horizontal"
                                         IsItemsHost="True"
                                         VirtualizationMode="Recycling"
@@ -50,7 +47,7 @@
                 <!-- Use shared compact item control -->
                 <controls:AchievementCompactItemControl
                     IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=desktop:AchievementCompactListControlBase}}"
-                    Margin="4,12,4,12"/>
+                    Margin="4"/>
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>

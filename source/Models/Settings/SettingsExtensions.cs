@@ -204,6 +204,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart,
                 ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart,
                 ShowSidebarBarCharts = source.ShowSidebarBarCharts,
+                EnableCompactGridMode = source.EnableCompactGridMode,
 
                 // RetroAchievements Settings
                 RaUsername = source.RaUsername,

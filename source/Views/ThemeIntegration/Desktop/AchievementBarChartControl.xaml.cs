@@ -8,7 +8,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// <summary>
     /// Desktop PlayniteAchievements bar chart control for theme integration.
     /// Displays unlock timeline using LiveCharts with the same TimelineViewModel as the sidebar.
-    /// Binds directly to Plugin.Settings.Theme properties.
+    /// Uses the effective theme source so settings previews can inject mock data.
     /// </summary>
     public partial class AchievementBarChartControl : ThemeControlBase
     {
@@ -41,7 +41,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected override void OnThemeDataUpdated()
         {
-            var allAchievements = Plugin?.Settings?.Theme?.AllAchievements;
+            var allAchievements = EffectiveTheme?.AllAchievements;
             if (allAchievements == null || !allAchievements.Any())
             {
                 TimelineViewModel.SetCounts(null);

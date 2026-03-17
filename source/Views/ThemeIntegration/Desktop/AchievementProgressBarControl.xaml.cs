@@ -5,7 +5,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// <summary>
     /// Desktop PlayniteAchievements progress bar control for theme integration.
     /// Displays progress bar with percentage overlay and rarity badges.
-    /// Binds directly to Plugin.Settings.Theme properties.
+    /// Uses the effective theme source so settings previews can inject mock data.
     /// </summary>
     public partial class AchievementProgressBarControl : ThemeControlBase
     {
@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected override void OnThemeDataUpdated()
         {
-            var theme = Plugin?.Settings?.Theme;
+            var theme = EffectiveTheme;
             if (theme != null)
             {
                 Badges?.UpdateFromRarityStats(theme.UltraRare, theme.Rare, theme.Uncommon, theme.Common);

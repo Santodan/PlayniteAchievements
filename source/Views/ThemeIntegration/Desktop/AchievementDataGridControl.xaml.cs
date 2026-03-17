@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
@@ -22,6 +23,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// </summary>
     public partial class AchievementDataGridControl : ThemeControlBase
     {
+        private static readonly ILogger Logger = LogManager.GetLogger();
+
         // Cache the source reference to avoid unnecessary cloning when data hasn't changed
         private List<AchievementDisplayItem> _lastSourceItems;
 
@@ -45,10 +48,52 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             private set => SetValue(DisplayItemsProperty, value);
         }
 
+        /// <summary>
+        /// Identifies the PreviewMaxHeightOverride dependency property.
+        /// When set, preview controls use this value instead of the persisted max height.
+        /// </summary>
+        public static readonly DependencyProperty PreviewMaxHeightOverrideProperty =
+            DependencyProperty.Register(nameof(PreviewMaxHeightOverride), typeof(double?),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null, OnPreviewSizingChanged));
+
+        /// <summary>
+        /// Gets or sets a preview-only max height override.
+        /// </summary>
+        public double? PreviewMaxHeightOverride
+        {
+            get => (double?)GetValue(PreviewMaxHeightOverrideProperty);
+            set => SetValue(PreviewMaxHeightOverrideProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the PreviewMinimumMaxHeight dependency property.
+        /// When set, preview controls clamp persisted max height up to this minimum.
+        /// </summary>
+        public static readonly DependencyProperty PreviewMinimumMaxHeightProperty =
+            DependencyProperty.Register(nameof(PreviewMinimumMaxHeight), typeof(double),
+                typeof(AchievementDataGridControl), new PropertyMetadata(0d, OnPreviewSizingChanged));
+
+        /// <summary>
+        /// Gets or sets the minimum visible max height for preview controls.
+        /// </summary>
+        public double PreviewMinimumMaxHeight
+        {
+            get => (double)GetValue(PreviewMinimumMaxHeightProperty);
+            set => SetValue(PreviewMinimumMaxHeightProperty, value);
+        }
+
         public AchievementDataGridControl()
         {
             InitializeComponent();
             Loaded += OnLoaded;
+        }
+
+        private static void OnPreviewSizingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is AchievementDataGridControl control && control.IsLoaded)
+            {
+                control.UpdateMaxHeight();
+            }
         }
 
         /// <summary>
@@ -62,25 +107,49 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         protected override void OnThemeDataOverrideChangedInternal()
         {
             _lastSourceItems = null;
+            UpdatePreviewBehavior();
             base.OnThemeDataOverrideChangedInternal();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            UpdatePreviewBehavior();
             UpdateMaxHeight();
             LoadData();
         }
 
         private void UpdateMaxHeight()
         {
-            var settings = Plugin?.Settings?.Persisted;
+            var settings = EffectiveSettings?.Persisted;
             if (settings == null || AchievementsGrid == null)
             {
                 return;
             }
 
-            // Convert nullable double to double (null = NaN means unlimited)
-            AchievementsGrid.DataGridMaxHeight = settings.AchievementDataGridMaxHeight ?? double.NaN;
+            var isPreview = ThemeDataOverride != null;
+            var persistedMaxHeight = settings.AchievementDataGridMaxHeight;
+            var resolvedMaxHeight = AchievementDataGridPreviewHeightResolver.Resolve(
+                persistedMaxHeight,
+                isPreview,
+                PreviewMaxHeightOverride,
+                PreviewMinimumMaxHeight);
+
+            AchievementsGrid.DataGridMaxHeight = resolvedMaxHeight;
+
+            if (isPreview)
+            {
+                var persistedText = persistedMaxHeight?.ToString("0.##") ?? "unlimited";
+                var appliedText = double.IsNaN(resolvedMaxHeight) ? "unlimited" : resolvedMaxHeight.ToString("0.##");
+                var overrideText = PreviewMaxHeightOverride?.ToString("0.##") ?? "none";
+                Logger.Debug(
+                    $"[SettingsPreviewGrid] UpdateMaxHeight kind={GetPreviewKind()}, persisted={persistedText}, " +
+                    $"override={overrideText}, min={PreviewMinimumMaxHeight:0.##}, applied={appliedText}");
+
+                if (!double.IsNaN(resolvedMaxHeight) && !double.IsInfinity(resolvedMaxHeight) && resolvedMaxHeight < 88)
+                {
+                    Logger.Warn($"[SettingsPreviewGrid] Applied preview max height is below one-row height: {resolvedMaxHeight:0.##}");
+                }
+            }
         }
 
         private void LoadData()
@@ -108,7 +177,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
             }
 
             _lastSourceItems = sourceItems;
+            var revealedKeys = GetRevealedKeys(DisplayItems);
             var clonedItems = sourceItems.Select(item => item.Clone()).ToList();
+            RestoreRevealedState(clonedItems, revealedKeys);
 
             // Reapply current sort if active
             if (!string.IsNullOrWhiteSpace(_currentSortPath) && _currentSortDirection.HasValue)
@@ -196,6 +267,77 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 
             // Synchronize in place to trigger efficient UI updates
             CollectionHelper.SynchronizeCollection(DisplayItems, items);
+        }
+
+        private void UpdatePreviewBehavior()
+        {
+            if (AchievementsGrid == null)
+            {
+                return;
+            }
+
+            var isPreview = ThemeDataOverride != null;
+            AchievementsGrid.AllowLayoutPersistence = !isPreview;
+            AchievementsGrid.AllowColumnVisibilityMenu = !isPreview;
+        }
+
+        private string GetPreviewKind()
+        {
+            if (PreviewMaxHeightOverride.HasValue)
+            {
+                return "settings-inline";
+            }
+
+            if (ThemeDataOverride != null && PreviewMinimumMaxHeight > 0)
+            {
+                return "settings-main";
+            }
+
+            return ThemeDataOverride != null ? "settings-generic" : "standard";
+        }
+
+        private static HashSet<string> GetRevealedKeys(IEnumerable<AchievementDisplayItem> items)
+        {
+            if (items == null)
+            {
+                return null;
+            }
+
+            var revealedKeys = new HashSet<string>(
+                items
+                .Where(item => item?.IsRevealed == true)
+                .Select(GetRevealKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.OrdinalIgnoreCase);
+
+            return revealedKeys.Count > 0 ? revealedKeys : null;
+        }
+
+        private static void RestoreRevealedState(IEnumerable<AchievementDisplayItem> items, HashSet<string> revealedKeys)
+        {
+            if (items == null || revealedKeys == null || revealedKeys.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                var key = GetRevealKey(item);
+                if (!string.IsNullOrWhiteSpace(key) && revealedKeys.Contains(key))
+                {
+                    item.IsRevealed = true;
+                }
+            }
+        }
+
+        private static string GetRevealKey(AchievementDisplayItem item)
+        {
+            if (item == null)
+            {
+                return null;
+            }
+
+            return $"{item.PlayniteGameId:N}|{item.ApiName}|{item.DisplayName}|{item.GameName}";
         }
     }
 }

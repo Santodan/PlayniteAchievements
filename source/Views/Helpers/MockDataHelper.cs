@@ -233,11 +233,6 @@ namespace PlayniteAchievements.Views.Helpers
             return _mockThemeData;
         }
 
-        private static ThemeData _previewThemeData;
-        private static ThemeData _unlockedPreviewThemeData;
-        private static ThemeData _hiddenPreviewThemeData;
-        private static ThemeData _lockedPreviewThemeData;
-
         /// <summary>
         /// Gets a ThemeData populated with mock achievements for settings preview.
         /// Used by desktop controls via ThemeDataOverride.
@@ -245,23 +240,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// <returns>A ThemeData with mock achievement data.</returns>
         public static ThemeData GetPreviewThemeData()
         {
-            if (_previewThemeData == null)
-            {
-                _previewThemeData = CreatePreviewThemeData();
-            }
-            return _previewThemeData;
-        }
-
-        /// <summary>
-        /// Refreshes the preview theme data by recreating it.
-        /// Call this when settings change to update the preview.
-        /// </summary>
-        public static void RefreshPreviewThemeData()
-        {
-            _previewThemeData = CreatePreviewThemeData();
-            _unlockedPreviewThemeData = null;
-            _hiddenPreviewThemeData = null;
-            _lockedPreviewThemeData = null;
+            return CreatePreviewThemeData();
         }
 
         /// <summary>
@@ -269,11 +248,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static ThemeData GetUnlockedPreviewThemeData()
         {
-            if (_unlockedPreviewThemeData == null)
-            {
-                _unlockedPreviewThemeData = CreateSingleAchievementThemeData(unlocked: true, hidden: false);
-            }
-            return _unlockedPreviewThemeData;
+            return CreateSingleAchievementThemeData(unlocked: true, hidden: false);
         }
 
         /// <summary>
@@ -281,11 +256,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static ThemeData GetHiddenPreviewThemeData()
         {
-            if (_hiddenPreviewThemeData == null)
-            {
-                _hiddenPreviewThemeData = CreateSingleAchievementThemeData(unlocked: false, hidden: true);
-            }
-            return _hiddenPreviewThemeData;
+            return CreateSingleAchievementThemeData(unlocked: false, hidden: true);
         }
 
         /// <summary>
@@ -293,11 +264,7 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static ThemeData GetLockedPreviewThemeData()
         {
-            if (_lockedPreviewThemeData == null)
-            {
-                _lockedPreviewThemeData = CreateSingleAchievementThemeData(unlocked: false, hidden: false);
-            }
-            return _lockedPreviewThemeData;
+            return CreateSingleAchievementThemeData(unlocked: false, hidden: false);
         }
 
         private static ThemeData CreateSingleAchievementThemeData(bool unlocked, bool hidden)

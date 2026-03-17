@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
@@ -53,9 +54,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// Migrates a theme from SuccessStory to PlayniteAchievements.
         /// </summary>
         /// <param name="themePath">Full path to the theme directory.</param>
-        /// <param name="mode">The migration mode to use (Limited for text-only, Full for complete modernization).</param>
+        /// <param name="mode">The migration mode to use (Limited for text-only, Full for complete modernization, Custom for partial modernization).</param>
+        /// <param name="customSelection">Selected modern elements when using Custom mode.</param>
         /// <returns>Migration result with status and details.</returns>
-        public async Task<MigrationResult> MigrateThemeAsync(string themePath, MigrationMode mode = MigrationMode.Limited)
+        public async Task<MigrationResult> MigrateThemeAsync(
+            string themePath,
+            MigrationMode mode = MigrationMode.Limited,
+            CustomMigrationSelection customSelection = null)
         {
             if (string.IsNullOrWhiteSpace(themePath))
             {
@@ -93,7 +98,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
                 var result = await Task.Run(() =>
                 {
-                    return PerformMigration(themePath, backupPath, mode);
+                    return PerformMigration(themePath, backupPath, mode, customSelection);
                 });
 
                 // If no files needed changes, report success but note no backup was created
@@ -205,7 +210,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Performs the migration: backs up modified files and applies replacements.
         /// </summary>
-        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode)
+        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode, CustomMigrationSelection customSelection)
         {
             var backedUpFiles = new List<string>();
             int filesProcessed = 0;
@@ -216,7 +221,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
             var themeDir = new DirectoryInfo(themePath);
 
-            _logger.Info($"Scanning theme for SuccessStory references: {themePath}");
+            _logger.Info($"Scanning theme for migration references: {themePath}");
 
             // First pass: find files that need replacement and back them up
             foreach (var file in themeDir.GetFiles("*.*", SearchOption.AllDirectories))
@@ -232,11 +237,11 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     continue;
                 }
 
-                var (needsReplacement, replacementCount) = CheckIfNeedsReplacement(file, mode);
+                var (needsReplacement, replacementCount) = CheckIfNeedsReplacement(file, mode, customSelection);
                 if (!needsReplacement)
                 {
                     filesSkipped++;
-                    _logger.Debug($"Skipped file (no SuccessStory): {GetRelativePath(file.FullName, themePath)}");
+                    _logger.Debug($"Skipped file (no migration references): {GetRelativePath(file.FullName, themePath)}");
                     continue;
                 }
 
@@ -245,7 +250,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 _logger.Info($"Backing up file with {replacementCount} references: {GetRelativePath(file.FullName, themePath)}");
 
                 // Apply replacements
-                var (processed, textCount, ctrlCount, bindCount) = ProcessFile(file, mode);
+                var (processed, textCount, ctrlCount, bindCount) = ProcessFile(file, mode, customSelection);
                 if (processed)
                 {
                     filesProcessed++;
@@ -258,7 +263,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
             // Only create backup folder and manifest if we actually backed up files
             if (backedUpFiles.Count > 0)
             {
-                WriteManifest(backupPath, backedUpFiles, mode);
+                WriteManifest(backupPath, backedUpFiles, mode, customSelection);
             }
             else
             {
@@ -290,37 +295,34 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Checks if a file contains SuccessStory references (and Legacy elements in Full mode).
+        /// Checks if a file contains migration references for the selected mode.
         /// </summary>
-        private (bool needsReplacement, int count) CheckIfNeedsReplacement(FileInfo file, MigrationMode mode)
+        private (bool needsReplacement, int count) CheckIfNeedsReplacement(
+            FileInfo file,
+            MigrationMode mode,
+            CustomMigrationSelection customSelection)
         {
             try
             {
                 var content = File.ReadAllText(file.FullName, Encoding.UTF8);
-
-                // Skip files that are already converted (contain PlayniteAchievements)
-                if (content.IndexOf("PlayniteAchievements", StringComparison.Ordinal) >= 0)
-                {
-                    _logger.Debug($"Skipping already converted file: {file.Name}");
-                    return (false, 0);
-                }
 
                 int fullscreenHelperCount = CountOccurrences(content, "SuccessStoryFullscreenHelper");
                 int pluginIdCount = CountOccurrences(content, "playnite-successstory-plugin");
                 int helperCount = CountOccurrences(content, "SSHelper");
                 int successStoryCount = CountOccurrences(content, "SuccessStory");
                 int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
-                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount;
+                int iconEntityCount = CountOccurrences(content, "&#xE820;");
+                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount + iconEntityCount;
 
-                // In Full mode, also check for Legacy controls and bindings
-                if (mode == MigrationMode.Full)
+                foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                 {
-                    foreach (var controlName in ControlMappings.LegacyToNativeControlNames.Keys)
-                    {
-                        // Check for element names like x:Name="_PluginButton" or just "_PluginButton"
-                        totalCount += CountOccurrences(content, $"_{controlName}");
-                    }
+                    totalCount += CountStandaloneControlNameOccurrences(content, mapping.Key);
+                    totalCount += CountOccurrences(content, $"SuccessStory_{mapping.Key}");
+                    totalCount += CountOccurrences(content, $"PlayniteAchievements_{mapping.Key}");
+                }
 
+                if (ShouldModernizeBindings(mode, customSelection))
+                {
                     foreach (var bindingPath in ControlMappings.LegacyToNativeBindingPaths.Keys)
                     {
                         totalCount += CountOccurrences(content, $"LegacyData.{bindingPath}");
@@ -357,16 +359,26 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Writes the backup manifest file with migration metadata.
         /// </summary>
-        private void WriteManifest(string backupPath, List<string> backedUpFiles, MigrationMode mode)
+        private void WriteManifest(string backupPath, List<string> backedUpFiles, MigrationMode mode, CustomMigrationSelection customSelection)
         {
             string manifestPath = Path.Combine(backupPath, ManifestFileName);
 
             var lines = new List<string>
             {
                 $"# Mode: {mode}",
-                $"# Date: {DateTime.UtcNow:O}",
-                string.Empty
+                $"# Date: {DateTime.UtcNow:O}"
             };
+
+            if (mode == MigrationMode.Custom)
+            {
+                var modernControls = GetSelectedControlMappings(mode, customSelection)
+                    .Select(mapping => mapping.Key)
+                    .ToList();
+                lines.Add($"# Modern controls: {(modernControls.Count > 0 ? string.Join(", ", modernControls) : "None")}");
+                lines.Add($"# Modern bindings: {ShouldModernizeBindings(mode, customSelection)}");
+            }
+
+            lines.Add(string.Empty);
             lines.AddRange(backedUpFiles);
 
             File.WriteAllLines(manifestPath, lines);
@@ -393,7 +405,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Processes a single file, performing replacements.
         /// </summary>
-        private (bool processed, int textReplacements, int controlReplacements, int bindingReplacements) ProcessFile(FileInfo file, MigrationMode mode)
+        private (bool processed, int textReplacements, int controlReplacements, int bindingReplacements) ProcessFile(
+            FileInfo file,
+            MigrationMode mode,
+            CustomMigrationSelection customSelection)
         {
             string content;
             try
@@ -422,10 +437,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 content = ProcessStandardFile(content, originalContent, ref textReplacements);
             }
 
-            // Apply Full mode replacements if enabled
-            if (mode == MigrationMode.Full)
+            // Apply selected modernization replacements if enabled
+            if (ShouldApplyModernization(mode, customSelection))
             {
-                content = ApplyFullReplacements(content, originalContent, ref controlReplacements, ref bindingReplacements);
+                content = ApplyModernizationReplacements(content, mode, customSelection, ref controlReplacements, ref bindingReplacements);
             }
 
             if (content != originalContent)
@@ -564,39 +579,109 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Applies Full mode replacements: control element names and binding paths.
+        /// Applies modernization replacements: selected control element names and binding paths.
         /// </summary>
-        private string ApplyFullReplacements(string content, string originalContent, ref int controlReplacements, ref int bindingReplacements)
+        private string ApplyModernizationReplacements(
+            string content,
+            MigrationMode mode,
+            CustomMigrationSelection customSelection,
+            ref int controlReplacements,
+            ref int bindingReplacements)
         {
             string result = content;
 
-            // Replace Legacy control element names with Native control names
-            // These appear in XAML as x:Name="_PluginButton" or references to "_PluginButton"
-            foreach (var mapping in ControlMappings.LegacyToNativeControlNames)
+            // Replace only the PlayniteAchievements/SuccessStory host names or exact standalone placeholders.
+            // Do not touch unrelated plugin hosts like ScreenshotsVisualizer_PluginButton.
+            foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
             {
-                string legacyName = $"_{mapping.Key}";
-                string nativeName = $"_{mapping.Value}";
-                if (result.Contains(legacyName))
-                {
-                    result = result.Replace(legacyName, nativeName);
-                    controlReplacements += CountOccurrences(originalContent, legacyName);
-                }
+                controlReplacements += ReplacePrefixedControlName(ref result, "PlayniteAchievements", mapping.Key, mapping.Value);
+                controlReplacements += ReplacePrefixedControlName(ref result, "SuccessStory", mapping.Key, mapping.Value);
+                controlReplacements += ReplaceStandaloneControlName(ref result, mapping.Key, mapping.Value);
             }
 
             // Replace LegacyData binding paths with Theme binding paths
             // These appear in XAML as {Binding LegacyData.HasData} etc.
-            foreach (var mapping in ControlMappings.LegacyToNativeBindingPaths)
+            if (ShouldModernizeBindings(mode, customSelection))
             {
-                string legacyBinding = $"LegacyData.{mapping.Key}";
-                string nativeBinding = $"Theme.{mapping.Value}";
-                if (result.Contains(legacyBinding))
+                foreach (var mapping in ControlMappings.LegacyToNativeBindingPaths)
                 {
-                    result = result.Replace(legacyBinding, nativeBinding);
-                    bindingReplacements += CountOccurrences(originalContent, legacyBinding);
+                    string legacyBinding = $"LegacyData.{mapping.Key}";
+                    string nativeBinding = $"Theme.{mapping.Value}";
+                    int replacements = CountOccurrences(result, legacyBinding);
+                    if (replacements > 0)
+                    {
+                        result = result.Replace(legacyBinding, nativeBinding);
+                        bindingReplacements += replacements;
+                    }
                 }
             }
 
             return result;
+        }
+
+        private static bool ShouldApplyModernization(MigrationMode mode, CustomMigrationSelection customSelection)
+        {
+            return GetSelectedControlMappings(mode, customSelection).Any() ||
+                   ShouldModernizeBindings(mode, customSelection);
+        }
+
+        private static bool ShouldModernizeBindings(MigrationMode mode, CustomMigrationSelection customSelection)
+        {
+            return mode == MigrationMode.Full ||
+                   (mode == MigrationMode.Custom && customSelection?.ModernizeBindings == true);
+        }
+
+        private static IEnumerable<KeyValuePair<string, string>> GetSelectedControlMappings(
+            MigrationMode mode,
+            CustomMigrationSelection customSelection)
+        {
+            if (mode == MigrationMode.Full)
+            {
+                return ControlMappings.LegacyToNativeControlNames;
+            }
+
+            if (mode != MigrationMode.Custom || customSelection == null)
+            {
+                return Enumerable.Empty<KeyValuePair<string, string>>();
+            }
+
+            return ControlMappings.LegacyToNativeControlNames
+                .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key));
+        }
+
+        private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string nativeName)
+        {
+            string legacyToken = $"{prefix}_{legacyName}";
+            string nativeToken = $"{prefix}_{nativeName}";
+            int replacements = CountOccurrences(content, legacyToken);
+            if (replacements > 0)
+            {
+                content = content.Replace(legacyToken, nativeToken);
+            }
+
+            return replacements;
+        }
+
+        private static int ReplaceStandaloneControlName(ref string content, string legacyName, string nativeName)
+        {
+            string pattern = GetStandaloneControlNamePattern(legacyName);
+            var matches = Regex.Matches(content, pattern);
+            if (matches.Count > 0)
+            {
+                content = Regex.Replace(content, pattern, $"_{nativeName}");
+            }
+
+            return matches.Count;
+        }
+
+        private static int CountStandaloneControlNameOccurrences(string content, string controlName)
+        {
+            return Regex.Matches(content, GetStandaloneControlNamePattern(controlName)).Count;
+        }
+
+        private static string GetStandaloneControlNamePattern(string controlName)
+        {
+            return $@"(?<![A-Za-z0-9])_{Regex.Escape(controlName)}(?![A-Za-z0-9])";
         }
 
         /// <summary>
@@ -608,10 +693,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
             {
                 return $"Theme migrated successfully (Limited). {result.FilesBackedUp} files backed up, {result.FilesProcessed} files modified.";
             }
-            else
+
+            if (mode == MigrationMode.Full)
             {
                 return $"Theme migrated successfully (Full). {result.FilesBackedUp} files backed up, {result.FilesProcessed} files modified, {result.ControlReplacementsMade} control replacements, {result.BindingReplacementsMade} binding replacements.";
             }
+
+            return $"Theme migrated successfully (Custom). {result.FilesBackedUp} files backed up, {result.FilesProcessed} files modified, {result.ControlReplacementsMade} control replacements, {result.BindingReplacementsMade} binding replacements.";
         }
 
         /// <summary>
@@ -633,7 +721,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Counts non-overlapping occurrences of a substring in text.
         /// </summary>
-        private int CountOccurrences(string text, string pattern)
+        private static int CountOccurrences(string text, string pattern)
         {
             if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(pattern))
             {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 
@@ -226,14 +227,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Checks if a theme directory contains SuccessStory references.
+        /// Checks if a theme directory contains migratable legacy references.
         /// </summary>
         private (bool needsMigration, bool couldNotScan) CheckIfNeedsMigration(string themePath)
         {
             int filesRead = 0;
             int filesSkipped = 0;
-            bool foundSuccessStory = false;
-            bool foundPlayniteAchievements = false;
+            bool foundMigratableReference = false;
 
             try
             {
@@ -284,18 +284,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var content = File.ReadAllText(file);
                         filesRead++;
 
-                        // Check if theme already uses PlayniteAchievements (already migrated)
-                        if (content.IndexOf("PlayniteAchievements", StringComparison.OrdinalIgnoreCase) >= 0)
+                        if (ContainsMigratableReference(content))
                         {
-                            foundPlayniteAchievements = true;
-                            // _logger.Debug($"Found PlayniteAchievements reference in: {file} - theme already migrated");
+                            foundMigratableReference = true;
                             break;
-                        }
-
-                        if (content.IndexOf("SuccessStory", StringComparison.OrdinalIgnoreCase) >= 0)
-                        {
-                            foundSuccessStory = true;
-                            // _logger.Debug($"Found SuccessStory reference in: {file}");
                         }
                     }
                     catch (Exception ex)
@@ -303,22 +295,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         filesSkipped++;
                         _logger.Debug(ex, $"Could not read file while checking theme: {file}");
                     }
-
-                    // Exit early if we found PlayniteAchievements (already migrated)
-                    if (foundPlayniteAchievements)
-                    {
-                        break;
-                    }
                 }
 
-                // If theme already uses PlayniteAchievements, it doesn't need migration
-                if (foundPlayniteAchievements)
-                {
-                    // _logger.Info($"Theme {Path.GetFileName(themePath)} already uses PlayniteAchievements - skipping");
-                    return (false, false);
-                }
-
-                // _logger.Info($"Theme scan for {Path.GetFileName(themePath)}: {filesRead} files read, {filesSkipped} files skipped, found SuccessStory: {foundSuccessStory}");
+                // _logger.Info($"Theme scan for {Path.GetFileName(themePath)}: {filesRead} files read, {filesSkipped} files skipped, found migratable references: {foundMigratableReference}");
 
                 // If we couldn't read ANY files, conservatively assume it needs migration
                 // This handles the case where the theme is currently running and files are locked
@@ -328,13 +307,56 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     return (true, true); // Conservative: assume it needs migration, mark as could not scan
                 }
 
-                return (foundSuccessStory, false);
+                return (foundMigratableReference, false);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, $"Failed to check if theme needs migration: {themePath}");
                 return (true, true); // Conservative: assume it needs migration on error, mark as could not scan
             }
+        }
+
+        private static bool ContainsMigratableReference(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                return false;
+            }
+
+            if (content.IndexOf("SuccessStoryFullscreenHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("playnite-successstory-plugin", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("SSHelper", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("SuccessStory", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                content.IndexOf("\uE820", StringComparison.Ordinal) >= 0 ||
+                content.IndexOf("&#xE820;", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            foreach (var controlName in ControlMappings.LegacyToNativeControlNames.Keys)
+            {
+                if (content.IndexOf($"SuccessStory_{controlName}", StringComparison.Ordinal) >= 0 ||
+                    content.IndexOf($"PlayniteAchievements_{controlName}", StringComparison.Ordinal) >= 0 ||
+                    Regex.IsMatch(content, GetStandaloneControlNamePattern(controlName)))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var bindingPath in ControlMappings.LegacyToNativeBindingPaths.Keys)
+            {
+                if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string GetStandaloneControlNamePattern(string controlName)
+        {
+            return $@"(?<![A-Za-z0-9])_{Regex.Escape(controlName)}(?![A-Za-z0-9])";
         }
     }
 }

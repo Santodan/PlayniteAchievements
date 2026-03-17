@@ -674,6 +674,7 @@ namespace PlayniteAchievements.ViewModels
                 ShowHiddenIcon = _showHiddenIcon,
                 ShowHiddenTitle = _showHiddenTitle,
                 ShowHiddenDescription = _showHiddenDescription,
+                ShowHiddenSuffix = _showHiddenSuffix,
                 ShowLockedIcon = _showLockedIcon,
                 ShowRarityGlow = _showRarityGlow,
                 ShowRarityBar = _showRarityBar,

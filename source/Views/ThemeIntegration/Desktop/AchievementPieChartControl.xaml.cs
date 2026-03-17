@@ -10,7 +10,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
     /// <summary>
     /// Desktop PlayniteAchievements pie chart control for theme integration.
     /// Displays rarity distribution as a pie chart with radial badge icons.
-    /// Binds directly to Plugin.Settings.Theme properties.
+    /// Uses the effective theme source so settings previews can inject mock data.
     /// </summary>
     public partial class AchievementPieChartControl : ThemeControlBase
     {
@@ -53,7 +53,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         protected override void OnThemeDataUpdated()
         {
-            var theme = Plugin?.Settings?.Theme;
+            var theme = EffectiveTheme;
             if (theme == null) return;
 
             _viewModel.SetRarityData(

@@ -116,6 +116,9 @@
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
                 <Setter Property="Background" Value="#40FFFFFF"/>
             </DataTrigger>
+            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                <Setter Property="Padding" Value="8,0"/>
+            </DataTrigger>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
                     <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True"/>
@@ -148,6 +151,11 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="MinHeight" Value="66"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                <Setter Property="MinHeight" Value="50"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <!-- Shared selector button + menu item styles (sidebar/single-game/game-options) -->
@@ -457,6 +465,18 @@
                                     </Setter.Value>
                                 </Setter>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="Width" Value="36"/>
+                                <Setter Property="Height" Value="36"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Width" Value="32"/>
+                                <Setter Property="Height" Value="48"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
@@ -468,6 +488,24 @@
     <!-- Fits in 78px column with 10px cell padding each side = 58px available -->
     <DataTemplate x:Key="AchievementIconTemplate">
         <Grid Width="56" Height="72" VerticalAlignment="Center" HorizontalAlignment="Center" ClipToBounds="False">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="LayoutTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                            <Setter Property="LayoutTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.75" ScaleY="0.75"/>
+                                </Setter.Value>
+                            </Setter>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <Image Width="52" Height="52"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Stretch="Uniform"
@@ -500,7 +538,17 @@
 
     <!-- Achievement Info Template with Hidden Styling -->
     <DataTemplate x:Key="AchievementInfoTemplate">
-        <StackPanel Margin="12,10" VerticalAlignment="Center" Background="Transparent">
+        <StackPanel VerticalAlignment="Center" Background="Transparent">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Margin" Value="12,10"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                            <Setter Property="Margin" Value="8,6"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
             <TextBlock FontWeight="SemiBold"
                        Foreground="{DynamicResource TextBrush}"
                        TextWrapping="Wrap">
@@ -529,14 +577,18 @@
                        Foreground="{DynamicResource TextBrush}"
                        Opacity="0.7"
                        TextWrapping="Wrap"
-                       MaxHeight="44"
-                       TextTrimming="CharacterEllipsis"
-                       Margin="0,3,0,0">
+                       TextTrimming="CharacterEllipsis">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,0,0"/>
+                        <Setter Property="MaxHeight" Value="44"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="Margin" Value="0,1,0,0"/>
+                                <Setter Property="MaxHeight" Value="32"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -558,10 +610,20 @@
             <Grid Visibility="{Binding Unlocked, Converter={StaticResource InverseBoolToVis}}" Margin="4,0">
                 <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}"
                              Minimum="0" Maximum="100"
-                             Height="18"
                              Background="{DynamicResource ControlBackgroundBrush}"
                              Foreground="{DynamicResource HighlightGlyphBrush}"
-                             Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+                             Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar">
+                            <Setter Property="Height" Value="18"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                    <Setter Property="Height" Value="14"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
                 <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
@@ -598,17 +660,25 @@
         <Setter Property="Maximum" Value="100"/>
         <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ProgressBar">
-                    <Grid>
-                        <Border Background="{TemplateBinding Background}" CornerRadius="2"/>
-                        <Border x:Name="PART_Track"/>
-                        <Border x:Name="PART_Indicator"
-                                Background="{TemplateBinding Foreground}"
-                                HorizontalAlignment="Left"
-                                CornerRadius="2"/>
-                    </Grid>
+                    <Border BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="2"
+                            SnapsToDevicePixels="True">
+                        <Grid Margin="1">
+                            <Border x:Name="PART_Track"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="1"/>
+                            <Border x:Name="PART_Indicator"
+                                    Background="{TemplateBinding Foreground}"
+                                    HorizontalAlignment="Left"
+                                    CornerRadius="1"/>
+                        </Grid>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

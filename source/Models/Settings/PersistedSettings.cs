@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showUnplayedGames = false;
         private bool _showTopMenuBarButton = true;
         private bool _showCompactListRarityBar = true;
+        private bool _enableCompactGridMode = false;
         private double? _achievementDataGridMaxHeight = null;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
@@ -616,6 +617,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showCompactListRarityBar;
             set => SetValue(ref _showCompactListRarityBar, value);
+        }
+
+        /// <summary>
+        /// When true, shared achievement DataGrid rows use a tighter compact layout.
+        /// </summary>
+        public bool EnableCompactGridMode
+        {
+            get => _enableCompactGridMode;
+            set => SetValue(ref _enableCompactGridMode, value);
         }
 
         /// <summary>
@@ -1228,6 +1238,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowGamesWithNoUnlocks = this.ShowGamesWithNoUnlocks,
                 ShowUnplayedGames = this.ShowUnplayedGames,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
+                EnableCompactGridMode = this.EnableCompactGridMode,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
                 MaxRetryAttempts = this.MaxRetryAttempts,

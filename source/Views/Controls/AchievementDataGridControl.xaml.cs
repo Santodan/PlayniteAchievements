@@ -8,8 +8,10 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.Controls
 {
@@ -22,6 +24,8 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private ColumnWidthPersistenceService _columnPersistence;
         private bool _isAttached;
+        private PlayniteAchievementsSettings _settingsSource;
+        private PersistedSettings _persistedSettingsSource;
 
         private static readonly IReadOnlyDictionary<string, double> DefaultColumnWidthSeeds =
             new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -173,6 +177,57 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the IsCompactMode dependency property.
+        /// When true, the shared DataGrid applies tighter row sizing.
+        /// </summary>
+        public static readonly DependencyProperty IsCompactModeProperty =
+            DependencyProperty.Register(nameof(IsCompactMode), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// Gets or sets whether compact row sizing is enabled.
+        /// </summary>
+        public bool IsCompactMode
+        {
+            get => (bool)GetValue(IsCompactModeProperty);
+            set => SetValue(IsCompactModeProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the AllowLayoutPersistence dependency property.
+        /// When false, the control reads persisted layout state but never writes changes back.
+        /// </summary>
+        public static readonly DependencyProperty AllowLayoutPersistenceProperty =
+            DependencyProperty.Register(nameof(AllowLayoutPersistence), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether column widths and visibility changes can be persisted.
+        /// </summary>
+        public bool AllowLayoutPersistence
+        {
+            get => (bool)GetValue(AllowLayoutPersistenceProperty);
+            set => SetValue(AllowLayoutPersistenceProperty, value);
+        }
+
+        /// <summary>
+        /// Identifies the AllowColumnVisibilityMenu dependency property.
+        /// When false, the right-click column visibility menu is suppressed.
+        /// </summary>
+        public static readonly DependencyProperty AllowColumnVisibilityMenuProperty =
+            DependencyProperty.Register(nameof(AllowColumnVisibilityMenu), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(true));
+
+        /// <summary>
+        /// Gets or sets whether the right-click column visibility menu is enabled.
+        /// </summary>
+        public bool AllowColumnVisibilityMenu
+        {
+            get => (bool)GetValue(AllowColumnVisibilityMenuProperty);
+            set => SetValue(AllowColumnVisibilityMenuProperty, value);
+        }
+
+        /// <summary>
         /// Occurs when a column header is clicked for sorting.
         /// Subscribe to handle sorting externally when UseExternalSorting is true.
         /// </summary>
@@ -213,6 +268,8 @@ namespace PlayniteAchievements.Views.Controls
         public AchievementDataGridControl()
         {
             InitializeComponent();
+            DataContextChanged += OnDataContextChanged;
+            Unloaded += OnUnloaded;
         }
 
         private static void OnColumnVisibilityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -247,6 +304,9 @@ namespace PlayniteAchievements.Views.Controls
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            AttachSettingsSubscriptions();
+            UpdateCompactMode();
+
             if (_isAttached)
             {
                 return;
@@ -255,6 +315,99 @@ namespace PlayniteAchievements.Views.Controls
             AttachColumnPersistence();
             // Column visibility is now handled by ForcedCollapsedKeys during Attach()
             _isAttached = true;
+        }
+
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            AttachSettingsSubscriptions();
+            UpdateCompactMode();
+        }
+
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            DetachSettingsSubscriptions();
+        }
+
+        private void AttachSettingsSubscriptions()
+        {
+            var settings = ResolveSettingsSource();
+            var persisted = settings?.Persisted;
+
+            if (ReferenceEquals(settings, _settingsSource) &&
+                ReferenceEquals(persisted, _persistedSettingsSource))
+            {
+                return;
+            }
+
+            DetachSettingsSubscriptions();
+
+            _settingsSource = settings;
+            _persistedSettingsSource = persisted;
+
+            if (_settingsSource != null)
+            {
+                _settingsSource.PropertyChanged += SettingsSource_PropertyChanged;
+            }
+
+            if (_persistedSettingsSource != null)
+            {
+                _persistedSettingsSource.PropertyChanged += PersistedSettingsSource_PropertyChanged;
+            }
+        }
+
+        private void DetachSettingsSubscriptions()
+        {
+            if (_settingsSource != null)
+            {
+                _settingsSource.PropertyChanged -= SettingsSource_PropertyChanged;
+            }
+
+            if (_persistedSettingsSource != null)
+            {
+                _persistedSettingsSource.PropertyChanged -= PersistedSettingsSource_PropertyChanged;
+            }
+
+            _settingsSource = null;
+            _persistedSettingsSource = null;
+        }
+
+        private PlayniteAchievementsSettings ResolveSettingsSource()
+        {
+            if (DataContext is PlayniteAchievementsSettings settings)
+            {
+                return settings;
+            }
+
+            if (DataContext is ThemeDataOverrideContext previewContext)
+            {
+                return previewContext.Settings;
+            }
+
+            return PlayniteAchievementsPlugin.Instance?.Settings;
+        }
+
+        private void SettingsSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
+            {
+                AttachSettingsSubscriptions();
+                UpdateCompactMode();
+            }
+        }
+
+        private void PersistedSettingsSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(e?.PropertyName) ||
+                e.PropertyName == nameof(PersistedSettings.EnableCompactGridMode))
+            {
+                UpdateCompactMode();
+            }
+        }
+
+        private void UpdateCompactMode()
+        {
+            IsCompactMode = _persistedSettingsSource?.EnableCompactGridMode ?? false;
         }
 
         private void AttachColumnPersistence()
@@ -269,10 +422,28 @@ namespace PlayniteAchievements.Views.Controls
                 AchievementsDataGrid,
                 Logger,
                 () => GetMergedWidths(settings),
-                map => SetWidthsByKey(settings, map),
-                () => settings.Persisted.DataGridColumnVisibility,
-                map => settings.Persisted.DataGridColumnVisibility = map,
-                () => SavePluginSettings(settings),
+                map =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        SetWidthsByKey(settings, map);
+                    }
+                },
+                () => GetVisibilityMap(settings),
+                map =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        settings.Persisted.DataGridColumnVisibility = map;
+                    }
+                },
+                () =>
+                {
+                    if (AllowLayoutPersistence)
+                    {
+                        SavePluginSettings(settings);
+                    }
+                },
                 DefaultColumnWidthSeeds);
 
             // Force collapse Game column when not shown (prevents flicker by applying during persistence)
@@ -324,6 +495,17 @@ namespace PlayniteAchievements.Views.Controls
             }
 
             return merged;
+        }
+
+        private Dictionary<string, bool> GetVisibilityMap(PlayniteAchievementsSettings settings)
+        {
+            var map = settings?.Persisted?.DataGridColumnVisibility;
+            if (AllowLayoutPersistence || map == null)
+            {
+                return map;
+            }
+
+            return new Dictionary<string, bool>(map, StringComparer.OrdinalIgnoreCase);
         }
 
         private Dictionary<string, double> GetWidthsByKey(PlayniteAchievementsSettings settings)
@@ -485,6 +667,12 @@ namespace PlayniteAchievements.Views.Controls
 
         private void DataGridColumnMenu_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (!AllowColumnVisibilityMenu)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (!(sender is DataGrid grid))
             {
                 return;
@@ -558,6 +746,8 @@ namespace PlayniteAchievements.Views.Controls
 
         public void Dispose()
         {
+            DetachSettingsSubscriptions();
+
             if (!_isAttached)
             {
                 return;

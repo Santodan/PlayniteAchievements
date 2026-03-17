@@ -24,13 +24,20 @@
           Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
           ClipToBounds="False">
         <Grid.ToolTip>
-            <ToolTip MaxWidth="300">
+            <ToolTip x:Name="ItemToolTip"
+                     MaxWidth="300"
+                     Closed="ItemToolTip_OnClosed">
                 <ToolTip.Content>
                     <StackPanel>
                         <!-- Title with hidden indicator -->
                         <TextBlock FontWeight="SemiBold"
-                                   Text="{Binding DisplayNameResolved, Mode=OneWay}"
-                                   TextWrapping="Wrap"/>
+                                   TextWrapping="Wrap">
+                            <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                            <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                                 FontStyle="Italic"
+                                 FontSize="{DynamicResource FontSizeSmall}"
+                                 Foreground="{DynamicResource TextBrushDarker}"/>
+                        </TextBlock>
 
                         <!-- Description -->
                         <TextBlock Text="{Binding DescriptionResolved, Mode=OneWay}"

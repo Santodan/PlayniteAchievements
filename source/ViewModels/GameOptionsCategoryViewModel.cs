@@ -29,6 +29,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedCategoryLabelFilters =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _hasCustomOverrides;
+        private bool _typeDefaultSelected;
         private bool _typeBaseSelected;
         private bool _typeDlcSelected;
         private bool _typeSingleplayerSelected;
@@ -37,6 +38,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _typeMissableSelected;
         private bool _typeDifficultySelected;
         private bool _typeStackableSelected;
+        private bool _typeFilterDefaultSelected;
         private bool _typeFilterBaseSelected;
         private bool _typeFilterDlcSelected;
         private bool _typeFilterSingleplayerSelected;
@@ -120,6 +122,18 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _showHidden, value))
                 {
                     ApplyFilter();
+                }
+            }
+        }
+
+        public bool TypeDefaultSelected
+        {
+            get => _typeDefaultSelected;
+            set
+            {
+                if (SetValueAndReturn(ref _typeDefaultSelected, value))
+                {
+                    OnPropertyChanged(nameof(SelectedTypeSelectionText));
                 }
             }
         }
@@ -228,6 +242,19 @@ namespace PlayniteAchievements.ViewModels
                 return selected.Count == 0
                     ? L("LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder", "Type")
                     : string.Join(", ", selected);
+            }
+        }
+
+        public bool TypeFilterDefaultSelected
+        {
+            get => _typeFilterDefaultSelected;
+            set
+            {
+                if (SetValueAndReturn(ref _typeFilterDefaultSelected, value))
+                {
+                    OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
+                    ApplyFilter();
+                }
             }
         }
 
@@ -834,6 +861,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void ResetBulkEditorInputs()
         {
+            TypeDefaultSelected = false;
             TypeBaseSelected = false;
             TypeDlcSelected = false;
             TypeSingleplayerSelected = false;
@@ -1008,6 +1036,11 @@ namespace PlayniteAchievements.ViewModels
         private List<string> GetSelectedCategoryTypeFilterValues()
         {
             var selected = new List<string>();
+            if (TypeFilterDefaultSelected)
+            {
+                selected.Add("Default");
+            }
+
             if (TypeFilterBaseSelected)
             {
                 selected.Add("Base");
@@ -1054,6 +1087,11 @@ namespace PlayniteAchievements.ViewModels
         private string GetSelectedCategoryTypeValue()
         {
             var selected = new List<string>();
+            if (TypeDefaultSelected)
+            {
+                selected.Add("Default");
+            }
+
             if (TypeBaseSelected)
             {
                 selected.Add("Base");

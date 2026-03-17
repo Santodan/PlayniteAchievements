@@ -249,6 +249,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 var hideIcon = !(settings?.Persisted?.ShowHiddenIcon ?? false);
                 var hideTitle = !(settings?.Persisted?.ShowHiddenTitle ?? false);
                 var hideDescription = !(settings?.Persisted?.ShowHiddenDescription ?? false);
+                var showHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true;
                 var hideLockedIcon = !(settings?.Persisted?.ShowLockedIcon ?? true);
                 var showRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true;
                 var showRarityBar = settings?.Persisted?.ShowCompactListRarityBar ?? true;
@@ -260,6 +261,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                     var gameName = achievement.Game?.Name ?? "Unknown";
                     var gameId = achievement.Game?.Id;
                     item.UpdateFrom(achievement, gameName, gameId, hideIcon, hideTitle, hideDescription, hideLockedIcon, showRarityGlow, showRarityBar);
+                    item.ShowHiddenSuffix = showHiddenSuffix;
                     items.Add(item);
                 }
 
@@ -275,6 +277,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         /// <param name="showHiddenIcon">Whether to show hidden achievement icons.</param>
         /// <param name="showHiddenTitle">Whether to show hidden achievement titles.</param>
         /// <param name="showHiddenDescription">Whether to show hidden achievement descriptions.</param>
+        /// <param name="showHiddenSuffix">Whether to show the hidden achievement suffix.</param>
         /// <param name="showLockedIcon">Whether to show locked achievement icons.</param>
         /// <param name="showRarityGlow">Whether to show rarity glow effects.</param>
         /// <param name="showRarityBar">Whether to show rarity bars.</param>
@@ -282,6 +285,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             bool showHiddenIcon,
             bool showHiddenTitle,
             bool showHiddenDescription,
+            bool showHiddenSuffix,
             bool showLockedIcon,
             bool showRarityGlow,
             bool showRarityBar)
@@ -304,6 +308,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 var gameName = achievement.Game?.Name ?? "Unknown";
                 var gameId = achievement.Game?.Id;
                 item.UpdateFrom(achievement, gameName, gameId, hideIcon, hideTitle, hideDescription, hideLockedIcon, showRarityGlow, showRarityBar);
+                item.ShowHiddenSuffix = showHiddenSuffix;
                 items.Add(item);
             }
 

@@ -755,8 +755,25 @@
     <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">Rétablir</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">Migration limitée</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Migration complète</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">Migration personnalisée</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_LimitedTooltip">Remplacements de texte uniquement. Préserve les structures de contrôle et les liaisons existantes.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_FullTooltip">Modernisation complète. Remplace les contrôles Legacy par des contrôles Natifs et les liaisons LegacyData par des liaisons Theme.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">Personnalisé</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_CustomDescription">Sélectionnez quels éléments du thème restent Legacy et lesquels sont modernisés pendant la migration.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">Tout Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">Tout moderne</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeLegacy">Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeModern">Moderne</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Button">Bouton</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Chart">Graphique en barres</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactList">Liste compacte</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactLocked">Liste compacte verrouillée</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactUnlocked">Liste compacte déverrouillée</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_List">Grille des succès</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ProgressBar">Barre de progression</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_UserStats">Panneau de statistiques</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ViewItem">Élément de vue</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Bindings">Liaisons Theme</sys:String>
 
     <!-- ================================================================= -->
     <!-- SINGLE GAME VIEW                                                   -->

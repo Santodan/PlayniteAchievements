@@ -247,17 +247,17 @@
                         </Setter>
                     </DataTrigger>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                        <Setter Property="Width" Value="52"/>
-                        <Setter Property="Height" Value="52"/>
-                        <Setter Property="Margin" Value="4,6"/>
+                        <Setter Property="Width" Value="48"/>
+                        <Setter Property="Height" Value="48"/>
+                        <Setter Property="Margin" Value="4,4"/>
                     </DataTrigger>
                     <MultiDataTrigger>
                         <MultiDataTrigger.Conditions>
                             <Condition Binding="{Binding DataContext.UseCoverImages, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
                             <Condition Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
                         </MultiDataTrigger.Conditions>
-                        <Setter Property="Width" Value="52"/>
-                        <Setter Property="Height" Value="76"/>
+                        <Setter Property="Width" Value="48"/>
+                        <Setter Property="Height" Value="68"/>
                         <Setter Property="Margin" Value="4,4"/>
                     </MultiDataTrigger>
                 </Style.Triggers>
@@ -298,7 +298,7 @@
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="DataGridRow_PreviewMouseRightButtonUp"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                        <Setter Property="Height" Value="88"/>
+                        <Setter Property="Height" Value="80"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -329,12 +329,12 @@
                 </Style.Triggers>
             </Style>
 
-            <Style x:Key="OverviewProgressContainerStyle" TargetType="StackPanel">
-                <Setter Property="Margin" Value="2,6,10,6"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
+            <Style x:Key="OverviewProgressContainerStyle" TargetType="Grid">
+                <Setter Property="Margin" Value="2,4,10,4"/>
+                <Setter Property="VerticalAlignment" Value="Stretch"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                        <Setter Property="Margin" Value="2,4,8,4"/>
+                        <Setter Property="Margin" Value="2,1,6,1"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -343,7 +343,84 @@
                 <Setter Property="Height" Value="22"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                        <Setter Property="Height" Value="18"/>
+                        <Setter Property="Height" Value="16"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewProgressPercentTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="HorizontalAlignment" Value="Right"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="OverviewProgressFooterStyle" TargetType="Grid">
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="Margin" Value="0,0,4,16"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="0,0,2,10"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewMiniBadgeItemStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="Margin" Value="4,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="2,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewMiniBadgeImageStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
+                <Setter Property="Width" Value="18"/>
+                <Setter Property="Height" Value="18"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Width" Value="14"/>
+                        <Setter Property="Height" Value="14"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewMiniBadgeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="3,0,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="FontSize" Value="10"/>
+                        <Setter Property="Margin" Value="2,0,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource OverviewMiniBadgeImageStyle}">
+                <Setter Property="HorizontalAlignment" Value="Left"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="4,0,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="2,0,0,0"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -713,42 +790,12 @@
                                        BasedOn="{StaticResource GamesOverviewDataGridRowStyle}"/>
                             </DataGrid.RowStyle>
                            <DataGrid.Columns>
-                            <!-- Completed indicator (slightly larger) -->
-                            <DataGridTemplateColumn Width="34" MinWidth="34" MaxWidth="34" CanUserResize="False" Header="" helpers:ColumnVisibilityHelper.ColumnKey="Completed">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Border BorderBrush="#2196F3" BorderThickness="2,2,0,2">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                            </Border>
-                                            <Image Source="{StaticResource BadgeCompletedGame}"
-                                                Style="{StaticResource RarityIcon}"
-                                                Effect="{StaticResource BadgeShadow}"
-                                                Width="20" Height="20"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                ToolTip="Completed Game"
-                                                Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-
                             <!-- Game Icon/Cover (BIGGER) -->
                             <DataGridTemplateColumn Width="92" MinWidth="92" MaxWidth="92" CanUserResize="False" Header="" helpers:ColumnVisibilityHelper.ColumnKey="Cover"> <!-- was 56 -->
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
-                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                            <Border BorderBrush="#2196F3" BorderThickness="2,2,0,2">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -879,169 +926,112 @@
                                                         </Style>
                                                     </Border.Style>
                                                 </Border>
-                                                <StackPanel Style="{StaticResource OverviewProgressContainerStyle}">
+                                                <Grid Style="{StaticResource OverviewProgressContainerStyle}">
+                                                    <!-- Centered progress bar -->
+                                                    <Grid VerticalAlignment="Center">
+                                                        <ProgressBar Value="{Binding Progression, Mode=OneWay}"
+                                                                    Style="{StaticResource OverviewProgressBarStyle}"/>
 
-                                                <!-- Row 1: Progress bar with % text -->
-                                                <Grid>
-                                                    <ProgressBar Value="{Binding Progression, Mode=OneWay}"
-                                                                Style="{StaticResource OverviewProgressBarStyle}"/>
+                                                        <TextBlock Text="{Binding ProgressionText}"
+                                                                   Style="{StaticResource OverviewProgressPercentTextStyle}"/>
+                                                    </Grid>
 
-                                                    <!-- Percentage text (left) -->
-                                                    <TextBlock Text="{Binding ProgressionText}"
-                                                            Style="{DynamicResource BaseTextBlockStyle}"
-                                                            FontWeight="SemiBold"
-                                                            Foreground="White"
-                                                            VerticalAlignment="Center"
-                                                            HorizontalAlignment="Left"
-                                                            Margin="6,0,0,0"/>
+                                                    <!-- Footer icons under the bar -->
+                                                    <Grid Style="{StaticResource OverviewProgressFooterStyle}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Image Grid.Column="0"
+                                                               Source="{StaticResource BadgeCompletedGame}"
+                                                               Style="{StaticResource OverviewCompletedFooterIconStyle}"
+                                                               ToolTip="{DynamicResource LOCPlayAch_Completed}"
+                                                               Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Style="{StaticResource OverviewProgressMetaRowStyle}"
+                                                                    Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Ultra Rare">
+                                                                <Image Source="{StaticResource BadgePlatinumHexagon}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding UltraRareCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Rare">
+                                                                <Image Source="{StaticResource BadgeGoldPentagon}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding RareCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Uncommon">
+                                                                <Image Source="{StaticResource BadgeSilverSquare}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding UncommonCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Common">
+                                                                <Image Source="{StaticResource BadgeBronzeTriangle}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding CommonCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Style="{StaticResource OverviewProgressMetaRowStyle}"
+                                                                    Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Platinum">
+                                                                <Image Source="{StaticResource TrophyPlatinum}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyPlatinumCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyGoldCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Gold">
+                                                                <Image Source="{StaticResource TrophyGold}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyGoldCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophySilverCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Silver">
+                                                                <Image Source="{StaticResource TrophySilver}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophySilverCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyBronzeCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Bronze">
+                                                                <Image Source="{StaticResource TrophyBronze}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyBronzeCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </Grid>
-
-                                                <!-- Row 2: Rarity mini-badges (shown when no trophy types) -->
-                                                <StackPanel Orientation="Horizontal"
-                                                            HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,6,4,0"
-                                                            Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Ultra Rare"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource BadgePlatinumHexagon}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding UltraRareCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Rare"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource BadgeGoldPentagon}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding RareCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Uncommon"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource BadgeSilverSquare}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding UncommonCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Common"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource BadgeBronzeTriangle}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding CommonCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                </StackPanel>
-
-                                                <!-- Row 2b: Trophy mini-badges (shown when trophy types exist) -->
-                                                <StackPanel Orientation="Horizontal"
-                                                            HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,6,4,0"
-                                                            Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Platinum"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource TrophyPlatinum}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding TrophyPlatinumCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding TrophyGoldCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Gold"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource TrophyGold}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding TrophyGoldCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding TrophySilverCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Silver"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource TrophySilver}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding TrophySilverCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal"
-                                                                Visibility="{Binding TrophyBronzeCount, Converter={StaticResource IntToVis}}"
-                                                                ToolTip="Bronze"
-                                                                Margin="4,0">
-                                                        <Image Source="{StaticResource TrophyBronze}"
-                                                            Style="{StaticResource RarityIcon}"
-                                                            Effect="{StaticResource BadgeShadow}"
-                                                            Width="18" Height="18"/>
-                                                        <TextBlock Text="{Binding TrophyBronzeCount}"
-                                                                FontSize="{DynamicResource FontSizeSmall}"
-                                                                FontWeight="Bold"
-                                                                Foreground="White"
-                                                                VerticalAlignment="Center"
-                                                                Margin="3,0,0,0"/>
-                                                    </StackPanel>
-
-                                                </StackPanel>
-                                            </StackPanel>
                                             </Grid>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
