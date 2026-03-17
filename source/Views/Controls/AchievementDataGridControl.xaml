@@ -76,7 +76,7 @@
 
             <!-- Achievement Icon -->
             <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
-                                    Header="{DynamicResource LOCPlayAch_Column_Icon}"
+                                    Header=""
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
                                     CellStyle="{StaticResource AchievementIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}"/>

@@ -714,7 +714,7 @@
                             </DataGrid.RowStyle>
                            <DataGrid.Columns>
                             <!-- Completed indicator (slightly larger) -->
-                            <DataGridTemplateColumn Width="34" MinWidth="34" MaxWidth="34" CanUserResize="False" Header="{DynamicResource LOCPlayAch_Completed}" helpers:ColumnVisibilityHelper.ColumnKey="Completed">
+                            <DataGridTemplateColumn Width="34" MinWidth="34" MaxWidth="34" CanUserResize="False" Header="" helpers:ColumnVisibilityHelper.ColumnKey="Completed">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
@@ -744,7 +744,7 @@
                             </DataGridTemplateColumn>
 
                             <!-- Game Icon/Cover (BIGGER) -->
-                            <DataGridTemplateColumn Width="92" MinWidth="92" MaxWidth="92" CanUserResize="False" Header="{DynamicResource LOCPlayAch_Column_Cover}" helpers:ColumnVisibilityHelper.ColumnKey="Cover"> <!-- was 56 -->
+                            <DataGridTemplateColumn Width="92" MinWidth="92" MaxWidth="92" CanUserResize="False" Header="" helpers:ColumnVisibilityHelper.ColumnKey="Cover"> <!-- was 56 -->
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <Grid>
