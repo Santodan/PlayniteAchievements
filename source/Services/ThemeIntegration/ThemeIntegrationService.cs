@@ -59,11 +59,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.GoldTrophies),
             nameof(PlayniteAchievementsSettings.SilverTrophies),
             nameof(PlayniteAchievementsSettings.BronzeTrophies),
-            nameof(PlayniteAchievementsSettings.TotalUnlockCount),
-            nameof(PlayniteAchievementsSettings.TotalCommonUnlockCount),
-            nameof(PlayniteAchievementsSettings.TotalUncommonUnlockCount),
-            nameof(PlayniteAchievementsSettings.TotalRareUnlockCount),
-            nameof(PlayniteAchievementsSettings.TotalUltraRareUnlockCount),
+            nameof(PlayniteAchievementsSettings.TotalCommon),
+            nameof(PlayniteAchievementsSettings.TotalUncommon),
+            nameof(PlayniteAchievementsSettings.TotalRare),
+            nameof(PlayniteAchievementsSettings.TotalUltraRare),
+            nameof(PlayniteAchievementsSettings.TotalRareAndUltraRare),
+            nameof(PlayniteAchievementsSettings.TotalOverall),
             nameof(PlayniteAchievementsSettings.Level),
             nameof(PlayniteAchievementsSettings.LevelProgress),
             nameof(PlayniteAchievementsSettings.Rank),
@@ -117,6 +118,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.Uncommon),
             nameof(PlayniteAchievementsSettings.Rare),
             nameof(PlayniteAchievementsSettings.UltraRare),
+            nameof(PlayniteAchievementsSettings.RareAndUltraRare),
             nameof(PlayniteAchievementsSettings.ListAchievements),
             nameof(PlayniteAchievementsSettings.ListAchUnlockDateAsc),
             nameof(PlayniteAchievementsSettings.ListAchUnlockDateDesc)
@@ -320,7 +322,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                    propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.RareThreshold)}" ||
                    propertyName == nameof(PersistedSettings.RareThreshold) ||
                    propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.UncommonThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.UncommonThreshold);
+                   propertyName == nameof(PersistedSettings.UncommonThreshold) ||
+                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxUltraRarePointsThreshold)}" ||
+                   propertyName == nameof(PersistedSettings.XboxUltraRarePointsThreshold) ||
+                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxRarePointsThreshold)}" ||
+                   propertyName == nameof(PersistedSettings.XboxRarePointsThreshold) ||
+                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxUncommonPointsThreshold)}" ||
+                   propertyName == nameof(PersistedSettings.XboxUncommonPointsThreshold);
         }
 
         private void RefreshCachedThresholds()
@@ -338,13 +346,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _uncommonThreshold = 50;
             }
 
-            try
-            {
-                RarityHelper.Configure(_ultraRareThreshold, _rareThreshold, _uncommonThreshold);
-            }
-            catch
-            {
-            }
         }
 
         private Guid? ResolveSelectedGameIdForThemeUpdate()
@@ -922,11 +923,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.Theme.CompletedGamesDesc = ProjectGameSummaries(library.CompletedGamesDesc);
             _settings.Theme.GameSummariesAsc = ProjectGameSummaries(library.GameSummariesAsc);
             _settings.Theme.GameSummariesDesc = ProjectGameSummaries(library.GameSummariesDesc);
-            _settings.Theme.TotalUnlockCount = library.TotalUnlockCount;
-            _settings.Theme.TotalCommonUnlockCount = library.TotalCommonUnlockCount;
-            _settings.Theme.TotalUncommonUnlockCount = library.TotalUncommonUnlockCount;
-            _settings.Theme.TotalRareUnlockCount = library.TotalRareUnlockCount;
-            _settings.Theme.TotalUltraRareUnlockCount = library.TotalUltraRareUnlockCount;
+            _settings.Theme.TotalCommon = library.TotalCommon;
+            _settings.Theme.TotalUncommon = library.TotalUncommon;
+            _settings.Theme.TotalRare = library.TotalRare;
+            _settings.Theme.TotalUltraRare = library.TotalUltraRare;
+            _settings.Theme.TotalRareAndUltraRare = library.TotalRareAndUltraRare;
+            _settings.Theme.TotalOverall = library.TotalOverall;
             _settings.Theme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.Theme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.Theme.EpicGames = ProjectGameSummaries(library.EpicGames);
@@ -1013,6 +1015,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.Theme.Uncommon = state.Uncommon;
             _settings.Theme.Rare = state.Rare;
             _settings.Theme.UltraRare = state.UltraRare;
+            _settings.Theme.RareAndUltraRare = state.RareAndUltraRare;
             _settings.Theme.AllAchievements = state.AllAchievements;
             _settings.Theme.AchievementsNewestFirst = state.AchievementsNewestFirst;
             _settings.Theme.AchievementsOldestFirst = state.AchievementsOldestFirst;
@@ -1058,6 +1061,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.Theme.Uncommon = EmptyRarityStats;
             _settings.Theme.Rare = EmptyRarityStats;
             _settings.Theme.UltraRare = EmptyRarityStats;
+            _settings.Theme.RareAndUltraRare = EmptyRarityStats;
             _settings.LegacyTheme.HasData = false;
             _settings.LegacyTheme.Total = 0;
             _settings.LegacyTheme.Unlocked = 0;
@@ -1097,10 +1101,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.IsCompleted,
                     item.LastUnlockDate,
                     new RelayCommand(_ => OpenGameWindow(item.GameId)),
-                    item.CommonUnlockCount,
-                    item.UncommonUnlockCount,
-                    item.RareUnlockCount,
-                    item.UltraRareUnlockCount))
+                    item.Common,
+                    item.Uncommon,
+                    item.Rare,
+                    item.UltraRare,
+                    item.RareAndUltraRare,
+                    item.Overall))
                 .ToList();
 
             return new ObservableCollection<GameAchievementSummary>(projected);

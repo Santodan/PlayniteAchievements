@@ -15,7 +15,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_UsesExplicitGameIdsBeforeModes()
         {
             var manager = new FakeAchievementService();
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
             var gameA = Guid.NewGuid();
             var gameB = Guid.NewGuid();
 
@@ -36,7 +36,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_UsesEnumModeWhenProvided()
         {
             var manager = new FakeAchievementService();
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
             var singleGameId = Guid.NewGuid();
 
             await coordinator.ExecuteAsync(new RefreshRequest
@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_UsesModeKeyWhenEnumMissing()
         {
             var manager = new FakeAchievementService();
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
 
             await coordinator.ExecuteAsync(new RefreshRequest
             {
@@ -72,7 +72,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_DefaultsToRecentWhenRequestHasNoTargets()
         {
             var manager = new FakeAchievementService();
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
 
             await coordinator.ExecuteAsync(new RefreshRequest()).ConfigureAwait(false);
 
@@ -84,7 +84,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_CustomMode_PreservesCustomOptions()
         {
             var manager = new FakeAchievementService();
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
             var gameId = Guid.NewGuid();
 
             var customOptions = new CustomRefreshOptions
@@ -120,7 +120,7 @@ namespace PlayniteAchievements.Services.Tests
         public async Task ExecuteAsync_StopsWhenValidationFails()
         {
             var manager = new FakeAchievementService { ValidateResult = false };
-            var coordinator = new RefreshCoordinator(manager, logger: null);
+            var coordinator = CreateCoordinator(manager);
 
             await coordinator.ExecuteAsync(
                 new RefreshRequest { Mode = RefreshModeType.Full },
@@ -141,6 +141,7 @@ namespace PlayniteAchievements.Services.Tests
             var coordinator = new RefreshCoordinator(
                 manager,
                 logger: null,
+                providerRegistry: new ProviderRegistry(),
                 runWithProgressWindow: (refreshTask, gameId) =>
                 {
                     callbackCount++;
@@ -165,6 +166,11 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(1, manager.ExecuteCallCount);
             Assert.AreEqual(RefreshModeType.Single, manager.LastRequest.Mode);
             Assert.AreEqual(singleGameId, manager.LastRequest.SingleGameId);
+        }
+
+        private static RefreshCoordinator CreateCoordinator(AchievementService manager)
+        {
+            return new RefreshCoordinator(manager, logger: null, providerRegistry: new ProviderRegistry());
         }
 
         private sealed class FakeAchievementService : AchievementService

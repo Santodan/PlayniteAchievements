@@ -393,6 +393,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_XboxEnabled">Enable Xbox Achievement Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_XboxAuth">Xbox Authentication</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Click Login to authenticate with Xbox Live via Microsoft account.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity">Points-Based Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Description">Use achievement points to derive rarity when a provider does not expose unlock percentages.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint">Minimum points for Ultra Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_RareHint">Minimum points for Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UncommonHint">Minimum points for Uncommon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Help">Achievements below the Uncommon threshold are treated as Common.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Download Smaller Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Enable if Xbox icon downloads are slow. Requests 128px icons instead of full resolution.</sys:String>
 
@@ -592,6 +598,7 @@
     <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Uncommon</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_Rare">Rare</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_RarityThreshold_GTEPoints">&#8805; minimum points</sys:String>
     <sys:String x:Key="LOCPlayAch_RarityThreshold_LTE">&#8804; threshold %</sys:String>
     <sys:String x:Key="LOCPlayAch_RarityThreshold_GT">&#62; uncommon threshold</sys:String>
 

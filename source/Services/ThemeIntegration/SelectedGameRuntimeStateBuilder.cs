@@ -40,6 +40,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     new AchievementRarityStats(),
                     new AchievementRarityStats(),
                     new AchievementRarityStats(),
+                    new AchievementRarityStats(),
                     new AchievementRarityStats());
             }
 
@@ -76,11 +77,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 .ThenBy(a => a?.DisplayName)
                 .ToList();
             var rarityAsc = all
-                .OrderBy(a => a?.GlobalPercentUnlocked ?? 100)
+                .OrderBy(a => a?.RaritySortValue ?? double.MaxValue)
+                .ThenByDescending(a => a?.Points ?? 0)
                 .ThenBy(a => a?.DisplayName)
                 .ToList();
             var rarityDesc = all
-                .OrderByDescending(a => a?.GlobalPercentUnlocked ?? 100)
+                .OrderByDescending(a => a?.RaritySortValue ?? double.MinValue)
+                .ThenByDescending(a => a?.Points ?? 0)
                 .ThenBy(a => a?.DisplayName)
                 .ToList();
 
@@ -92,20 +95,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             for (int i = 0; i < all.Count; i++)
             {
                 var achievement = all[i];
-                if (achievement?.GlobalPercentUnlocked.HasValue != true)
+                var tier = achievement?.Rarity;
+                if (!tier.HasValue)
                 {
                     continue;
                 }
 
-                var percentUnlocked = achievement.GlobalPercentUnlocked.Value;
-                if (percentUnlocked <= 0)
+                var target = tier.Value switch
                 {
-                    continue;
-                }
-
-                var target = percentUnlocked > uncommonThreshold
-                    ? common
-                    : (percentUnlocked > rareThreshold ? uncommon : (percentUnlocked > ultraRareThreshold ? rare : ultra));
+                    RarityTier.UltraRare => ultra,
+                    RarityTier.Rare => rare,
+                    RarityTier.Uncommon => uncommon,
+                    _ => common
+                };
 
                 target.Total++;
                 if (achievement.Unlocked)
@@ -117,6 +119,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     target.Locked++;
                 }
             }
+
+            var rareAndUltra = CombineRarityStats(rare, ultra);
 
             return new SelectedGameRuntimeState(
                 gameId,
@@ -135,7 +139,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 common,
                 uncommon,
                 rare,
-                ultra);
+                ultra,
+                rareAndUltra);
+        }
+
+        private static AchievementRarityStats CombineRarityStats(
+            AchievementRarityStats first,
+            AchievementRarityStats second)
+        {
+            return new AchievementRarityStats
+            {
+                Total = (first?.Total ?? 0) + (second?.Total ?? 0),
+                Unlocked = (first?.Unlocked ?? 0) + (second?.Unlocked ?? 0),
+                Locked = (first?.Locked ?? 0) + (second?.Locked ?? 0)
+            };
         }
     }
 }

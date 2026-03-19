@@ -189,7 +189,7 @@
                                         CellTemplate="{StaticResource AchievementInfoTemplate}"/>
 
                 <!-- Rarity -->
-                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Rarity}" SortMemberPath="GlobalPercent" SortDirection="Ascending"
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Rarity}" SortMemberPath="RaritySortValue" SortDirection="Ascending"
                                         CellTemplate="{StaticResource AchievementRarityTemplate}"/>
 
                 <!-- Points -->

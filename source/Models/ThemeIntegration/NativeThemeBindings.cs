@@ -35,6 +35,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private AchievementRarityStats _ultraRare = new AchievementRarityStats();
         [DontSerialize]
+        private AchievementRarityStats _rareAndUltraRare = new AchievementRarityStats();
+        [DontSerialize]
         private List<AchievementDetail> _allAchievements = new List<AchievementDetail>();
         [DontSerialize]
         private List<AchievementDetail> _achievementsNewestFirst = new List<AchievementDetail>();
@@ -81,15 +83,17 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private List<AchievementDetail> _rarestRecentUnlocksTop10 = new List<AchievementDetail>();
         [DontSerialize]
-        private int _totalUnlockCount;
+        private AchievementRarityStats _totalCommon = new AchievementRarityStats();
         [DontSerialize]
-        private int _totalCommonUnlockCount;
+        private AchievementRarityStats _totalUncommon = new AchievementRarityStats();
         [DontSerialize]
-        private int _totalUncommonUnlockCount;
+        private AchievementRarityStats _totalRare = new AchievementRarityStats();
         [DontSerialize]
-        private int _totalRareUnlockCount;
+        private AchievementRarityStats _totalUltraRare = new AchievementRarityStats();
         [DontSerialize]
-        private int _totalUltraRareUnlockCount;
+        private AchievementRarityStats _totalRareAndUltraRare = new AchievementRarityStats();
+        [DontSerialize]
+        private AchievementRarityStats _totalOverall = new AchievementRarityStats();
 
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _steamGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -178,6 +182,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _ultraRare;
             set => SetValue(ref _ultraRare, value);
+        }
+
+        [DontSerialize]
+        public AchievementRarityStats RareAndUltraRare
+        {
+            get => _rareAndUltraRare;
+            set => SetValue(ref _rareAndUltraRare, value);
         }
 
         [DontSerialize]
@@ -332,38 +343,45 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
-        public int TotalUnlockCount
+        public AchievementRarityStats TotalCommon
         {
-            get => _totalUnlockCount;
-            set => SetValue(ref _totalUnlockCount, value);
+            get => _totalCommon;
+            set => SetValue(ref _totalCommon, value);
         }
 
         [DontSerialize]
-        public int TotalCommonUnlockCount
+        public AchievementRarityStats TotalUncommon
         {
-            get => _totalCommonUnlockCount;
-            set => SetValue(ref _totalCommonUnlockCount, value);
+            get => _totalUncommon;
+            set => SetValue(ref _totalUncommon, value);
         }
 
         [DontSerialize]
-        public int TotalUncommonUnlockCount
+        public AchievementRarityStats TotalRare
         {
-            get => _totalUncommonUnlockCount;
-            set => SetValue(ref _totalUncommonUnlockCount, value);
+            get => _totalRare;
+            set => SetValue(ref _totalRare, value);
         }
 
         [DontSerialize]
-        public int TotalRareUnlockCount
+        public AchievementRarityStats TotalUltraRare
         {
-            get => _totalRareUnlockCount;
-            set => SetValue(ref _totalRareUnlockCount, value);
+            get => _totalUltraRare;
+            set => SetValue(ref _totalUltraRare, value);
         }
 
         [DontSerialize]
-        public int TotalUltraRareUnlockCount
+        public AchievementRarityStats TotalRareAndUltraRare
         {
-            get => _totalUltraRareUnlockCount;
-            set => SetValue(ref _totalUltraRareUnlockCount, value);
+            get => _totalRareAndUltraRare;
+            set => SetValue(ref _totalRareAndUltraRare, value);
+        }
+
+        [DontSerialize]
+        public AchievementRarityStats TotalOverall
+        {
+            get => _totalOverall;
+            set => SetValue(ref _totalOverall, value);
         }
 
         [DontSerialize]

@@ -398,6 +398,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_XboxEnabled">Activer le suivi des succès Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_XboxAuth">Authentification Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Cliquez sur Connexion pour vous authentifier avec Xbox Live via votre compte Microsoft.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity">Rareté basée sur les points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Description">Utilisez les points des succès pour dériver la rareté lorsqu'un fournisseur n'expose pas de pourcentage de déblocage.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint">Points minimum pour Ultra rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_RareHint">Points minimum pour Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UncommonHint">Points minimum pour Peu commun</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Help">Les succès en dessous du seuil Peu commun sont traités comme Communs.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Télécharger des icônes plus petites</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Activer si les téléchargements d'icônes Xbox sont lents. Demande des icônes de 128px au lieu de la résolution complète.</sys:String>
 
@@ -573,6 +579,7 @@
     <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Peu commun</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_Rare">Rare</sys:String>
     <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_RarityThreshold_GTEPoints">&#8805; points minimums</sys:String>
     <sys:String x:Key="LOCPlayAch_RarityThreshold_LTE">&#8804; seuil %</sys:String>
     <sys:String x:Key="LOCPlayAch_RarityThreshold_GT">&#62; seuil peu commun</sys:String>
 

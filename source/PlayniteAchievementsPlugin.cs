@@ -178,12 +178,6 @@ namespace PlayniteAchievements
                     .Value(data => data.ChartValue);
                 Charting.For<PieSliceChartData>(pieSliceMapper);
 
-                // Configure rarity thresholds from settings
-                RarityHelper.Configure(
-                    _settingsViewModel.Settings.Persisted.UltraRareThreshold,
-                    _settingsViewModel.Settings.Persisted.RareThreshold,
-                    _settingsViewModel.Settings.Persisted.UncommonThreshold);
-
                 var settings = _settingsViewModel.Settings;
                 var pluginUserDataPath = GetPluginUserDataPath();
 

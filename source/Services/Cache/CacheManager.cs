@@ -751,6 +751,7 @@ namespace PlayniteAchievements.Services
                     TrophyType = achievement.TrophyType,
                     Hidden = achievement.Hidden,
                     IsCapstone = achievement.IsCapstone,
+                    ProviderKey = achievement.ProviderKey,
                     UnlockTimeUtc = achievement.UnlockTimeUtc.HasValue
                         ? DateTimeUtilities.AsUtcKind(achievement.UnlockTimeUtc.Value)
                         : (DateTime?)null,

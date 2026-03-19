@@ -58,6 +58,7 @@ namespace PlayniteAchievements.Services
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
             var item = new AchievementDisplayItem
             {
+                ProviderKey = achievement.ProviderKey ?? gameData?.ProviderKey,
                 GameName = gameData?.GameName ?? "Unknown",
                 SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown",
                 PlayniteGameId = gameId,
@@ -65,7 +66,7 @@ namespace PlayniteAchievements.Services
                 Description = achievement.Description ?? string.Empty,
                 IconPath = iconPath,
                 UnlockTimeUtc = achievement.UnlockTimeUtc,
-                GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
+                GlobalPercentUnlocked = achievement.Percent,
                 Unlocked = achievement.Unlocked,
                 Hidden = achievement.Hidden,
                 ApiName = achievement.ApiName,
@@ -99,6 +100,7 @@ namespace PlayniteAchievements.Services
                 : achievement.LockedIconPath;
             var item = new AchievementDisplayItem
             {
+                ProviderKey = achievement.ProviderKey ?? gameData?.ProviderKey,
                 ApiName = achievement.ApiName,
                 PlayniteGameId = gameData?.PlayniteGameId,
                 DisplayName = achievement.DisplayName ?? achievement.ApiName ?? "Unknown",
@@ -107,7 +109,7 @@ namespace PlayniteAchievements.Services
                 SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown",
                 IconPath = iconPath,
                 UnlockTimeUtc = achievement.UnlockTimeUtc.Value,
-                GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
+                GlobalPercentUnlocked = achievement.Percent,
                 PointsValue = ResolvePoints(achievement, options),
                 ProgressNum = achievement.ProgressNum,
                 ProgressDenom = achievement.ProgressDenom,
@@ -155,15 +157,31 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        public static bool IsRarityProjectionSettingPropertyName(string propertyName)
+        {
+            switch (NormalizePersistedPropertyName(propertyName))
+            {
+                case nameof(PersistedSettings.UltraRareThreshold):
+                case nameof(PersistedSettings.RareThreshold):
+                case nameof(PersistedSettings.UncommonThreshold):
+                case nameof(PersistedSettings.XboxUltraRarePointsThreshold):
+                case nameof(PersistedSettings.XboxRarePointsThreshold):
+                case nameof(PersistedSettings.XboxUncommonPointsThreshold):
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
         public static void AccumulateRarity(AchievementDetail achievement, ref int common, ref int uncommon, ref int rare, ref int ultraRare)
         {
-            if (achievement?.GlobalPercentUnlocked.HasValue != true)
+            var tier = achievement?.Rarity;
+            if (!tier.HasValue)
             {
                 return;
             }
 
-            var tier = RarityHelper.GetRarityTier(achievement.GlobalPercentUnlocked.Value);
-            switch (tier)
+            switch (tier.Value)
             {
                 case RarityTier.UltraRare:
                     ultraRare++;

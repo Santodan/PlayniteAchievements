@@ -506,6 +506,7 @@ namespace PlayniteAchievements.ViewModels
 
                     return new GameOptionsCategoryItem
                     {
+                        ProviderKey = projected.ProviderKey,
                         GameName = projected.GameName,
                         SortingName = projected.SortingName,
                         PlayniteGameId = projected.PlayniteGameId,

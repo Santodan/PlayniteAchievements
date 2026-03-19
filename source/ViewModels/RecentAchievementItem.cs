@@ -13,6 +13,24 @@ namespace PlayniteAchievements.ViewModels
         public string ApiName { get; set; }
         public Guid? PlayniteGameId { get; set; }
 
+        private string _providerKey;
+        public string ProviderKey
+        {
+            get => _providerKey;
+            set
+            {
+                if (SetValueAndReturn(ref _providerKey, value))
+                {
+                    OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(HasRarity));
+                    OnPropertyChanged(nameof(HasRarityPercent));
+                    OnPropertyChanged(nameof(Rarity));
+                    OnPropertyChanged(nameof(RarityBrush));
+                    OnPropertyChanged(nameof(RaritySortValue));
+                }
+            }
+        }
+
         private bool _hidden;
         public bool Hidden
         {
@@ -120,8 +138,10 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(GlobalPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(HasRarity));
+                    OnPropertyChanged(nameof(HasRarityPercent));
                     OnPropertyChanged(nameof(Rarity));
                     OnPropertyChanged(nameof(RarityBrush));
+                    OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
         }
@@ -130,6 +150,8 @@ namespace PlayniteAchievements.ViewModels
         /// Non-nullable version for backwards compatibility. Returns 0 if null.
         /// </summary>
         public double GlobalPercent => GlobalPercentUnlocked ?? 0;
+
+        public double RarityPercentValue => GlobalPercentUnlocked ?? 0;
 
         private int? _pointsValue;
         public int? PointsValue
@@ -141,6 +163,11 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(Points));
                     OnPropertyChanged(nameof(PointsText));
+                    OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(HasRarity));
+                    OnPropertyChanged(nameof(Rarity));
+                    OnPropertyChanged(nameof(RarityBrush));
+                    OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
         }
@@ -218,16 +245,20 @@ namespace PlayniteAchievements.ViewModels
         public bool HasTrophyType => !string.IsNullOrWhiteSpace(TrophyType);
 
         public string UnlockTimeText => UnlockTime.ToLocalTime().ToString("g");
-        public string GlobalPercentText => GlobalPercentUnlocked.HasValue ? $"{GlobalPercentUnlocked.Value:F1}%" : "-";
+        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(ProviderKey, GlobalPercentUnlocked, PointsValue);
         public int Points => PointsValue ?? 0;
         public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
 
         /// <summary>
         /// True if rarity percentage data is available for this achievement.
         /// </summary>
-        public bool HasRarity => GlobalPercentUnlocked.HasValue;
+        public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
-        public RarityTier Rarity => RarityHelper.GetRarityTier(GlobalPercentUnlocked ?? 100);
+        public bool HasRarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue).HasValue;
+
+        public RarityTier Rarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue) ?? RarityTier.Common;
+
+        public double RaritySortValue => AchievementRarityResolver.GetSortValue(ProviderKey, GlobalPercentUnlocked, PointsValue);
 
         public System.Windows.Media.SolidColorBrush RarityBrush => Rarity.ToBrush();
         public string HiddenTitleSuffix => ShowHiddenSuffix && Hidden ? ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle_WithParens") : string.Empty;
@@ -239,6 +270,7 @@ namespace PlayniteAchievements.ViewModels
             // ApiName is immutable/key
             if (ApiName != other.ApiName) ApiName = other.ApiName;
             PlayniteGameId = other.PlayniteGameId;
+            ProviderKey = other.ProviderKey;
 
             Name = other.Name;
             Description = other.Description;

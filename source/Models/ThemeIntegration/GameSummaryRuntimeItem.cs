@@ -1,4 +1,5 @@
 using System;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
@@ -14,9 +15,11 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public int BronzeCount { get; set; }
         public bool IsCompleted { get; set; }
         public DateTime LastUnlockDate { get; set; }
-        public int CommonUnlockCount { get; set; }
-        public int UncommonUnlockCount { get; set; }
-        public int RareUnlockCount { get; set; }
-        public int UltraRareUnlockCount { get; set; }
+        public AchievementRarityStats Common { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats Uncommon { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats Rare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats UltraRare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats RareAndUltraRare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats Overall { get; set; } = new AchievementRarityStats();
     }
 }

@@ -1,5 +1,5 @@
 <p align="center">
-<img src="Images\big-icon.png" alt="Playnite Achievements Icon" width="128" height="128">
+  <img src="Images/big-icon.png" alt="Playnite Achievements icon" width="128" height="128">
 </p>
 
 <h1 align="center">Playnite Achievements</h1>
@@ -15,212 +15,140 @@
 </div>
 
 <p align="center">
-A modern Playnite extension plugin for aggregating achievement data from multiple gaming platforms. Bring your gaming accomplishments together in one place with beautiful visualizations and seamless theme integration.
+Achievement tracking for Playnite across Steam, RetroAchievements, GOG, Epic, PSN, Xbox, RPCS3, ShadPS4, Xenia, and Exophase.
 </p>
 
 <p align="center">
-<img src="Images/badge-bronze.svg" width="32" height="32" alt="Bronze">
-<img src="Images/badge-silver.svg" width="32" height="32" alt="Silver">
-<img src="Images/badge-gold.svg" width="32" height="32" alt="Gold">
-<img src="Images/badge-platinum.svg" width="32" height="32" alt="Platinum">
-<img src="Images/badge-perfect.svg" width="32" height="32" alt="Perfect">
+  <img src="Images/sidebar-view1.png" alt="Sidebar overview" width="900">
 </p>
 
-## Why PlayniteAchievements?
+## Recent Updates
 
-| Traditional Approaches                | PlayniteAchievements                                                       |
-| ------------------------------------- | -------------------------------------------------------------------------- |
-| Limited platform support              | Modular architecture planning to support 10+ platforms                     |
-| Existing theme ecosystem              | Automatic theme migration system, so your favorite themes can work with PA |
-| Basic visualization tools             | Rich charts with rarity breakdowns and progress tracking                   |
-| Single theme compatibility            | Dual integration: legacy and modern native controls                        |
-| Fullscreen helper required            | Complete fullscreen integration included.                                  |
-| Manual profile configuration required | Compatible with existing Steam privacy settings                            |
+| Version | Highlights |
+| --- | --- |
+| 1.6.2 | Cache fixes, pie chart/display fixes, option to hide the top menu button |
+| 1.6.1 | Exophase manual links, new category types, sidebar popout, display-settings cleanup |
+| 1.6.0 | Game Options window, manual tracking, categories, custom order, summary exclusions, multi-select filters |
 
-## Screenshots
+Docs: [Wiki Home](https://github.com/justin-delano/PlayniteAchievements/wiki) · [Release notes](InstallerManifest.yaml)
 
-### Sidebar View
+## Why Switch From Legacy
 
-<img src="Images/sidebar-view1.png" alt="Sidebar Overview" width="900">
-<img src="Images/sidebar-view2.png" alt="Sidebar Single Game View" width="900">
+| Area | Legacy | PlayniteAchievements |
+| --- | --- | --- |
+| Theme integration | Legacy bindings | Legacy + native bindings, Theme Migration, backup, revert |
+| Views | Plugin window, one-game view | Sidebar, selected-game drilldown, top-panel popout |
+| Charts and layout | Main plugin charts | Contextual pie charts, timeline, trophy charts, resizable/hideable grid columns |
+| Refresh | Recent / installed / full style passes | Background refresh, single-game refresh, Custom Refresh, presets, include/exclude targeting |
+| Per-game control | Separate fixes | One Game Options window: manual tracking, capstones, categories, order, exclusions, RA / Exophase overrides |
+| Completion rules | Provider completion / 100% | Capstones, summary exclusions |
+| Manual carryover | Rebuild manual links | Import legacy manual links from the Manual tab |
+| Cleanup | Refresh/export tools | Cache clear, image-cache clear, CSV export, data/log folder access |
 
-### Single Game View
+Docs: [Migration docs](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-<img src="Images/single-game-view.png" alt="Single Game View" width="900">
+## Supported Platforms
 
-### Setup Page
+| Type | Platforms |
+| --- | --- |
+| Store / service providers | Steam, GOG, Epic Games Store, PlayStation Network, Xbox Live, RetroAchievements |
+| Emulator trophy providers | RPCS3, ShadPS4 |
+| Extra tracking layers | Manual, Exophase |
 
-<img src="Images/setup-view.png" alt="Setup Page" width="900">
+Docs: [Provider setup in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-### Fullscreen Theme Integration
+## What You Actually Get
 
-<img src="Images/aniki-remake1.png" alt="Aniki-Remake Integration" width="900">
+| Area | What you can do |
+| --- | --- |
+| Sidebar | Drill into one game, filter by provider/completion/category/type, and use contextual pie charts plus timeline data |
+| Refresh | Run quick refreshes or save a Custom Refresh preset with exact providers and game scope |
+| Game Options | Fix one game's provider, add manual tracking, set capstones, categories, order, and exclusions |
+| Library | Sync Playnite tags, set completion status, open a top-panel popout, clear cache, export CSV, and open logs |
 
-## Features
+Docs: [Settings and library tools](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-### Multi-Platform Support
+## Views, Filters, and Refresh Workflows
 
-Track achievements across all your gaming platforms in one place.
+- Sidebar filters by provider, completion state, game type, and category
+- Pie charts change with the selected game where that context makes sense
+- Refresh modes include recent, installed, favorites, full, single-game, and background updates
+- Custom Refresh adds platform pickers, scope rules, include/exclude lists, overrides, and saved presets
+- The top menu button can open the sidebar popout window
 
-**Currently Available**:
+<img src="Images/sidebar-view2.png" alt="Sidebar single-game view" width="900">
 
-- Steam
-- RetroAchievements
-- GOG Galaxy
-- Epic Games Store
-- PlayStation Network
-  
-**Coming Soon**:
-- Xbox (PC and Xbox 360 via Xenia)
-- PlayStation Network (via RPCS3, ShadPS4 emulators)
-- EA
-- Battle.net, Exophase, GameJolt
+> Screenshot placeholder: [custom-refresh-dialog]
 
-### Beautiful Visualizations
+Docs: [Refresh workflows](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-See your progress at a glance with charts and statistics:
+## Game Options and Per-Game Control
 
-- Achievement progression timelines
-- Rarity breakdowns (Common, Rare, UltraRare)
-- Multiple view modes: compact lists, detailed grids, progress bars
-- Custom icons for hidden achievements
+| Tab | What it does |
+| --- | --- |
+| Overview | Provider, source, last update, completion, cache actions |
+| Manual Tracking | Link a source game, mark unlocks, store unlock times |
+| Capstones | Pick the achievement that marks completion |
+| Categories | Add type flags and category labels |
+| Achievement Order | Set a custom drag-and-drop order |
+| Overrides | Exclusions, summary exclusions, RetroAchievements override, Exophase override |
 
-### Seamless Theme Integration
+> Screenshot placeholder: [game-options-overview]
+>
+> Screenshot placeholder: [manual-tracking-tab]
+>
+> Screenshot placeholder: [categories-tab]
+>
+> Screenshot placeholder: [achievement-order-tab]
 
-Compatible with existing themes out of the box.
+Docs: [Game Options in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-**Legacy Compatibility**: Drop-in replacement for SuccessStory themes. All familiar controls function without modification.
+## Theme Integration and Migration
 
-**Native Controls**: Modern themes utilize native PlayniteAchievements controls for improved performance and integration.
+| Theme path | What you can do |
+| --- | --- |
+| Legacy themes | Keep using the legacy surface while switching plugins |
+| Native themes | Use native Playnite Achievements controls and bindings |
+| Migration modes | Limited, Full, or Custom |
+| Safety | Backup before changes, revert after changes |
 
-#### [Aniki-ReMake](https://github.com/Mike-Aniki/Aniki-ReMake/tree/main)
+<p align="center">
+  <img src="Images/aniki-remake1.png" alt="Theme integration example" width="900">
+</p>
 
-<img src="Images/aniki-remake2.png" alt="Aniki-Remake Integration" width="600">
-<img src="Images/aniki-remake3.png" alt="Aniki-Remake Integration" width="600">
+> Screenshot placeholder: [theme-migration-tab]
 
-Additional theme support planned.
+Docs: [Theme migration in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-### Automatic Theme Migration
+## Installation and First-Time Setup
 
-PlayniteAchievements includes an automatic theme migration tool that seamlessly updates your SuccessStory-based themes to work with PlayniteAchievements.
+1. Download the latest `.pext` from [Releases](https://github.com/justin-delano/PlayniteAchievements/releases/latest).
+2. Install it from Playnite's addon browser or drag the file into Playnite.
+3. Open `Settings -> Extensions -> Playnite Achievements`.
+4. Enable the providers you want and finish their setup.
+5. Open the sidebar or top panel entry and run your first refresh.
 
-**How It Works:**
+If you are importing manual links from a legacy setup, do that first from the Manual tab. If you are moving a theme over, open Theme Migration before you start editing files by hand.
 
-The migration tool automatically:
+<p align="center">
+  <img src="Images/setup-view.png" alt="Setup view" width="900">
+</p>
 
-- Scans your Playnite themes directory for themes using SuccessStory
-- Creates a selective backup of only files that contain SuccessStory references
-- Updates all references from "SuccessStory" to "PlayniteAchievements"
-- Preserves your theme's original structure and styling
+Docs: [First setup in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-**Features:**
+## Docs
 
-- **Smart Detection**: Recursively scans theme files for SuccessStory references
-- **Selective Backup**: Only backs up files that were actually modified, minimizing disk usage
-- **Safe Revert**: Easily restore themes to their original state if needed
-- **Skip Compatible**: Themes already using PlayniteAchievements are automatically skipped
+Full docs live in the wiki.
 
-**Accessing the Tool:**
+- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
 
-1. **First-Time Prompt**: When you first install PlayniteAchievements, you'll see a landing page with the theme migration option
-2. **Settings Page**: Access anytime via Settings → Extensions → PlayniteAchievements → Theme Migration tab
+## Support / Contributing / Credits
 
-**What Gets Migrated:**
+- Issues: [GitHub Issue Tracker](https://github.com/justin-delano/PlayniteAchievements/issues)
+- Discussions: [GitHub Discussions](https://github.com/justin-delano/PlayniteAchievements/discussions)
+- Support: [Ko-fi](https://ko-fi.com/justindelano)
+- Translations: contributions are welcome through pull requests and localization updates
 
-Only theme files containing SuccessStory references are modified.
+Thanks to the Playnite Discord testers, theme authors, and everyone who kept reporting edge cases.
 
-Themes are searched in both Desktop and Fullscreen theme directories under your Playnite configuration folder.
-
-### Fast & Reliable
-
-- Intelligent caching maintains responsive performance
-- Background updates operate without interrupting library browsing
-- Graceful error handling continues scanning when individual games fail
-- Configurable scan intervals for automatic updates
-
-### Flexible Scanning
-
-Choose how and when achievements are fetched:
-
-- **Quick Scan**: Scans only recently played games for fast updates
-- **Full Scan**: Refreshes achievement data for your entire library
-- **Installed Games**: Limits scanning to games currently installed
-- **Favorites**: Scans only your favorited titles
-- **Selected**: Manually choose specific games to scan
-- **Single Game**: View detailed achievement data for one game
-- **Auto-Scan**: Automatically scans when new games are added to your library, or you finish a play session.
-
-## Roadmap
-
-**In Development**:
-
-- EA App, Xbox, PlayStation platforms
-- Integration with [FriendsAchievementFeed](https://github.com/justin-delano/playnite-friendsachievementfeed-plugin)
-
-Additional platforms and features are released as development completes.
-
-## Installation
-
-1. Download the latest `.pext` file from [Releases](https://github.com/justin-delano/PlayniteAchievements/releases/latest)
-2. Install via Playnite's addon browser or drag-drop into Playnite
-3. Configure your platform credentials in Settings → Extensions → PlayniteAchievements
-
-**Requirements**: Playnite 10+
-
-## For Theme Developers
-
-PlayniteAchievements provides comprehensive integration options for theme developers:
-
-### Quick Start: Automatic Theme Migration
-
-Theme developers can use the built-in theme migration tool to automatically update SuccessStory-based themes:
-
-1. Install PlayniteAchievements
-2. Open Settings → Extensions → PlayniteAchievements → Theme Migration
-3. Select your theme from the dropdown
-4. Click "Migrate" to automatically convert all SuccessStory references
-5. Restart Playnite to apply changes
-
-The tool creates a backup of modified files and can revert changes if needed. Fullscreen themes may have minor compatibility issues, which will be resolved in future updates, or as theme makers make adjustments.
-
-### Manual Theme Integration
-
-### SuccessStory Legacy Compatibility
-
-Existing themes using SuccessStory controls work without modification. All familiar properties are supported:
-
-| SuccessStory Property                                         | PlayniteAchievements Property                                         |
-| ------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `{PluginSettings Plugin=SuccessStory, Path=HasData}`        | `{PluginSettings Plugin=PlayniteAchievements, Path=HasData}`        |
-| `<ContentControl x:Name="SuccessStory_PluginCompactList"/>` | `<ContentControl x:Name="PlayniteAchievements_PluginCompactList"/>` |
-
-Switching to Playnite Achievements is as easy as finding and replacing "SuccessStory" with "PlayniteAchievements" in your files.
-
-### Native Controls (In Development)
-
-Modern themes can use native PlayniteAchievements controls for better performance and additional features:
-
-```xml
-<Controls:AchievementList
-    Achievements="{Binding GameAchievements}"
-    HorizontalAlignment="Stretch"
-    VerticalAlignment="Stretch" />
-```
-
-### Documentation
-
-For detailed integration guides, property references, and code examples, a Theme Integration Wiki will be coming soon.
-
-## Support & Contributing
-
-- **Issues**: [GitHub Issue Tracker](https://github.com/justin-delano/PlayniteAchievements/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/justin-delano/PlayniteAchievements/discussions)
-- **Translations**: Contributions welcome - submit a pull request with updated localization files
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Credits
-
-Many thanks to everyone on the Playnite Discord for their expertise, feedback, and beta testing! Especially MikeAniki, Sky, Vivi, Jeshibu, HerrKnarz, savantcz, and Crow.
+License: [MIT](LICENSE).

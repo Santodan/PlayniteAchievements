@@ -31,11 +31,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public int GoldTrophies { get; set; }
         public int SilverTrophies { get; set; }
         public int BronzeTrophies { get; set; }
-        public int TotalUnlockCount { get; set; }
-        public int TotalCommonUnlockCount { get; set; }
-        public int TotalUncommonUnlockCount { get; set; }
-        public int TotalRareUnlockCount { get; set; }
-        public int TotalUltraRareUnlockCount { get; set; }
+        public AchievementRarityStats TotalCommon { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats TotalUncommon { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats TotalRare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats TotalUltraRare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats TotalRareAndUltraRare { get; set; } = new AchievementRarityStats();
+        public AchievementRarityStats TotalOverall { get; set; } = new AchievementRarityStats();
         public int Score { get; set; }
         public int Level { get; set; }
         public double LevelProgress { get; set; }

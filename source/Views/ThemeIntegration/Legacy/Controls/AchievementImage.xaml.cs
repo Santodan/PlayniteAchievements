@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
 {
@@ -12,8 +13,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
     /// </summary>
     public partial class AchievementImage : UserControl
     {
-        private double? _lastRoundedPercent;
-
         #region Properties
 
         public static readonly DependencyProperty IconProperty = DependencyProperty.Register(
@@ -68,7 +67,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             nameof(EnableRaretyIndicator),
             typeof(bool),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(true)
+            new FrameworkPropertyMetadata(true, PercentUiChanged)
         );
         public bool EnableRaretyIndicator
         {
@@ -92,7 +91,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             nameof(DisplayRaretyValue),
             typeof(bool),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(true)
+            new FrameworkPropertyMetadata(true, PercentUiChanged)
         );
         public bool DisplayRaretyValue
         {
@@ -104,7 +103,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             nameof(ShowGlobalPercentBar),
             typeof(bool),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(true)
+            new FrameworkPropertyMetadata(true, PercentUiChanged)
         );
         public bool ShowGlobalPercentBar
         {
@@ -116,7 +115,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             nameof(Percent),
             typeof(double),
             typeof(AchievementImage),
-            new FrameworkPropertyMetadata(default(double), PercentChanged)
+            new FrameworkPropertyMetadata(default(double), PercentUiChanged)
         );
         public double Percent
         {
@@ -124,7 +123,43 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             set => SetValue(PercentProperty, value);
         }
 
-        private static void PercentChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
+        public static readonly DependencyProperty HasRarityPercentProperty = DependencyProperty.Register(
+            nameof(HasRarityPercent),
+            typeof(bool),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(true, PercentUiChanged)
+        );
+        public bool HasRarityPercent
+        {
+            get => (bool)GetValue(HasRarityPercentProperty);
+            set => SetValue(HasRarityPercentProperty, value);
+        }
+
+        public static readonly DependencyProperty RarityProperty = DependencyProperty.Register(
+            nameof(Rarity),
+            typeof(RarityTier?),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(null, PercentUiChanged)
+        );
+        public RarityTier? Rarity
+        {
+            get => (RarityTier?)GetValue(RarityProperty);
+            set => SetValue(RarityProperty, value);
+        }
+
+        public static readonly DependencyProperty RarityTextProperty = DependencyProperty.Register(
+            nameof(RarityText),
+            typeof(string),
+            typeof(AchievementImage),
+            new FrameworkPropertyMetadata(string.Empty, PercentUiChanged)
+        );
+        public string RarityText
+        {
+            get => (string)GetValue(RarityTextProperty);
+            set => SetValue(RarityTextProperty, value);
+        }
+
+        private static void PercentUiChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
         {
             try
             {
@@ -227,6 +262,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
         {
             InitializeComponent();
             NewProperty();
+            UpdatePercentUi();
         }
 
         private void Image_ImageFailed(object sender, ExceptionRoutedEventArgs e)
@@ -253,20 +289,31 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
                 }
 
                 var rounded = Math.Round(Percent, 1);
-                if (_lastRoundedPercent.HasValue && _lastRoundedPercent.Value.Equals(rounded))
+                var overlayText = !string.IsNullOrWhiteSpace(RarityText)
+                    ? RarityText
+                    : HasRarityPercent
+                        ? $"{rounded:F1}%"
+                        : string.Empty;
+                var showOverlay = EnableRaretyIndicator &&
+                                  DisplayRaretyValue &&
+                                  !string.IsNullOrWhiteSpace(overlayText);
+
+                if (PART_RarityOverlay != null)
                 {
-                    return;
+                    PART_RarityOverlay.Visibility = showOverlay ? Visibility.Visible : Visibility.Collapsed;
                 }
-                _lastRoundedPercent = rounded;
 
                 if (PART_Label != null)
                 {
-                    PART_Label.Content = rounded;
+                    PART_Label.Content = overlayText;
                 }
 
                 if (PART_ProgressBar != null)
                 {
                     PART_ProgressBar.Value = rounded;
+                    PART_ProgressBar.Visibility = showOverlay && HasRarityPercent && ShowGlobalPercentBar
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
                 }
             }
             catch

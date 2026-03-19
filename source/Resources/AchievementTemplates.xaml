@@ -527,7 +527,7 @@
                                     <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
                                 <!-- Rarity glow overrides invisible shadow -->
-                                <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}"/>
+                                <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>

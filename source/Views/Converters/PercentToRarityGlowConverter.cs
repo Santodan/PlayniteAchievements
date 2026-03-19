@@ -51,16 +51,34 @@ namespace PlayniteAchievements.Views.Converters
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double percent)
+            RarityTier? tier = null;
+            if (value is RarityTier rarityTier)
             {
-                var tier = RarityHelper.GetRarityTier(percent);
-                if (tier == Models.Achievements.RarityTier.UltraRare)
-                    return UltraRareGlow;
-                if (tier == Models.Achievements.RarityTier.Rare)
-                    return RareGlow;
-                if (tier == Models.Achievements.RarityTier.Uncommon)
-                    return UncommonGlow;
+                tier = rarityTier;
+            }
+            else if (value is double percent)
+            {
+                tier = PercentRarityHelper.GetRarityTier(percent);
+            }
+
+            if (!tier.HasValue)
+            {
                 return null;
+            }
+
+            if (tier.Value == RarityTier.UltraRare)
+            {
+                return UltraRareGlow;
+            }
+
+            if (tier.Value == RarityTier.Rare)
+            {
+                return RareGlow;
+            }
+
+            if (tier.Value == RarityTier.Uncommon)
+            {
+                return UncommonGlow;
             }
 
             return null;

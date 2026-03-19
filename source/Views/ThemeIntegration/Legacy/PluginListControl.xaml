@@ -162,7 +162,10 @@
                                     Width="{Binding ElementName=lbAchievements, Path=Tag}"
                                     Height="{Binding ElementName=lbAchievements, Path=Tag}"
                                     IsLocked="{Binding Unlocked, Converter={StaticResource InvertBoolConverter}}"
-                                    Percent="{Binding GlobalPercentUnlocked}"
+                                    Percent="{Binding RarityPercentValue}"
+                                    HasRarityPercent="{Binding HasRarityPercent}"
+                                    Rarity="{Binding Rarity}"
+                                    RarityText="{Binding RarityText}"
                                     EnableRaretyIndicator="True"
                                     ShowRarityGlow="{Binding Persisted.ShowRarityGlow, FallbackValue=True}"
                                     DisplayRaretyValue="True">

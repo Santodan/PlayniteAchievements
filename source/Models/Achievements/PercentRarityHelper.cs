@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using Playnite.SDK;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -23,17 +24,28 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static SolidColorBrush ToBrush(this RarityTier tier) => tier switch
         {
-            RarityTier.UltraRare => RarityHelper.UltraRareBrush,
-            RarityTier.Rare => RarityHelper.RareBrush,
-            RarityTier.Uncommon => RarityHelper.UncommonBrush,
-            _ => RarityHelper.CommonBrush
+            RarityTier.UltraRare => PercentRarityHelper.UltraRareBrush,
+            RarityTier.Rare => PercentRarityHelper.RareBrush,
+            RarityTier.Uncommon => PercentRarityHelper.UncommonBrush,
+            _ => PercentRarityHelper.CommonBrush
         };
+
+        public static string ToDisplayText(this RarityTier tier)
+        {
+            return tier switch
+            {
+                RarityTier.UltraRare => ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare") ?? "Ultra Rare",
+                RarityTier.Rare => ResourceProvider.GetString("LOCPlayAch_Rarity_Rare") ?? "Rare",
+                RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon") ?? "Uncommon",
+                _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common") ?? "Common"
+            };
+        }
     }
 
     /// <summary>
     /// Helper for determining achievement rarity based on configurable thresholds.
     /// </summary>
-    public static class RarityHelper
+    public static class PercentRarityHelper
     {
         // Default thresholds
         private static double _ultraRareThreshold = 5;
@@ -46,7 +58,7 @@ namespace PlayniteAchievements.Models.Achievements
         public static readonly SolidColorBrush RareBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));
         public static readonly SolidColorBrush UltraRareBrush = new SolidColorBrush(Color.FromRgb(0xE9, 0x1E, 0x63));
 
-        static RarityHelper()
+        static PercentRarityHelper()
         {
             CommonBrush.Freeze();
             UncommonBrush.Freeze();

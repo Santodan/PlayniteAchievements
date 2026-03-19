@@ -65,15 +65,26 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     }
                 }
 
-                GetTrophyCounts(
+                var common = new AchievementRarityStats();
+                var uncommon = new AchievementRarityStats();
+                var rare = new AchievementRarityStats();
+                var ultraRare = new AchievementRarityStats();
+                AccumulateGameRarityStats(
                     data,
-                    out var commonUnlockCount,
-                    out var uncommonUnlockCount,
-                    out var rareUnlockCount,
-                    out var ultraRareUnlockCount,
-                    out var gold,
-                    out var silver,
-                    out var bronze);
+                    common,
+                    uncommon,
+                    rare,
+                    ultraRare);
+                AddRarityStats(state.TotalCommon, common);
+                AddRarityStats(state.TotalUncommon, uncommon);
+                AddRarityStats(state.TotalRare, rare);
+                AddRarityStats(state.TotalUltraRare, ultraRare);
+
+                var rareAndUltraRare = CombineRarityStats(rare, ultraRare);
+                var overall = CombineRarityStats(common, uncommon, rare, ultraRare);
+                var gold = rare.Unlocked + ultraRare.Unlocked;
+                var silver = uncommon.Unlocked;
+                var bronze = common.Unlocked;
 
                 var summary = new GameSummaryRuntimeItem
                 {
@@ -87,10 +98,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     BronzeCount = bronze,
                     IsCompleted = data.IsCompleted,
                     LastUnlockDate = latestUnlockUtc == DateTime.MinValue ? DateTime.MinValue : latestUnlockUtc.ToLocalTime(),
-                    CommonUnlockCount = commonUnlockCount,
-                    UncommonUnlockCount = uncommonUnlockCount,
-                    RareUnlockCount = rareUnlockCount,
-                    UltraRareUnlockCount = ultraRareUnlockCount
+                    Common = common,
+                    Uncommon = uncommon,
+                    Rare = rare,
+                    UltraRare = ultraRare,
+                    RareAndUltraRare = rareAndUltraRare,
+                    Overall = overall
                 };
 
                 allGames.Add(summary);
@@ -122,15 +135,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             state.GoldTrophies = allGames.Sum(item => item.GoldCount);
             state.SilverTrophies = allGames.Sum(item => item.SilverCount);
             state.BronzeTrophies = allGames.Sum(item => item.BronzeCount);
-            state.TotalCommonUnlockCount = allGames.Sum(item => item.CommonUnlockCount);
-            state.TotalUncommonUnlockCount = allGames.Sum(item => item.UncommonUnlockCount);
-            state.TotalRareUnlockCount = allGames.Sum(item => item.RareUnlockCount);
-            state.TotalUltraRareUnlockCount = allGames.Sum(item => item.UltraRareUnlockCount);
-            state.TotalUnlockCount =
-                state.TotalCommonUnlockCount +
-                state.TotalUncommonUnlockCount +
-                state.TotalRareUnlockCount +
-                state.TotalUltraRareUnlockCount;
+            state.TotalRareAndUltraRare = CombineRarityStats(state.TotalRare, state.TotalUltraRare);
+            state.TotalOverall = CombineRarityStats(
+                state.TotalCommon,
+                state.TotalUncommon,
+                state.TotalRare,
+                state.TotalUltraRare);
             state.TotalTrophies =
                 state.PlatinumTrophies +
                 state.GoldTrophies +
@@ -258,11 +268,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     .ThenBy(a => a?.DisplayName)
                     .ToList();
                 state.AllAchievementsRarityAsc = allAchievements
-                    .OrderBy(a => a?.GlobalPercentUnlocked ?? 100)
+                    .OrderBy(a => a?.RaritySortValue ?? double.MaxValue)
+                    .ThenByDescending(a => a?.Points ?? 0)
                     .ThenBy(a => a?.DisplayName)
                     .ToList();
                 state.AllAchievementsRarityDesc = allAchievements
-                    .OrderByDescending(a => a?.GlobalPercentUnlocked ?? 100)
+                    .OrderByDescending(a => a?.RaritySortValue ?? double.MinValue)
+                    .ThenByDescending(a => a?.Points ?? 0)
                     .ThenBy(a => a?.DisplayName)
                     .ToList();
 
@@ -313,7 +325,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var rareRecentCutoffUtc = DateTime.UtcNow.AddDays(-180);
             var rareRecent = unlockedAchievements
                 .Where(a => NormalizeUtc(a.UnlockTimeUtc.Value) >= rareRecentCutoffUtc)
-                .OrderBy(a => a.GlobalPercentUnlocked ?? 100)
+                .OrderBy(a => a.RaritySortValue)
+                .ThenByDescending(a => a.Points ?? 0)
                 .ThenByDescending(a => NormalizeUtc(a.UnlockTimeUtc.Value))
                 .ThenBy(a => a.DisplayName)
                 .ToList();
@@ -360,24 +373,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             return string.Empty;
         }
 
-        private static void GetTrophyCounts(
+        private static void AccumulateGameRarityStats(
             GameAchievementData data,
-            out int commonUnlockCount,
-            out int uncommonUnlockCount,
-            out int rareUnlockCount,
-            out int ultraRareUnlockCount,
-            out int gold,
-            out int silver,
-            out int bronze)
+            AchievementRarityStats common,
+            AchievementRarityStats uncommon,
+            AchievementRarityStats rare,
+            AchievementRarityStats ultraRare)
         {
-            commonUnlockCount = 0;
-            uncommonUnlockCount = 0;
-            rareUnlockCount = 0;
-            ultraRareUnlockCount = 0;
-            gold = 0;
-            silver = 0;
-            bronze = 0;
-
             if (data?.Achievements == null)
             {
                 return;
@@ -385,31 +387,95 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             foreach (var achievement in data.Achievements)
             {
-                if (achievement?.Unlocked != true || !achievement.GlobalPercentUnlocked.HasValue)
+                if (!TryGetEffectiveRarityTier(achievement, out var tier))
                 {
                     continue;
                 }
 
-                switch (RarityHelper.GetRarityTier(achievement.GlobalPercentUnlocked.Value))
+                var target = GetStatsForTier(tier, common, uncommon, rare, ultraRare);
+                if (target == null)
                 {
-                    case RarityTier.UltraRare:
-                        ultraRareUnlockCount++;
-                        gold++;
-                        break;
-                    case RarityTier.Rare:
-                        rareUnlockCount++;
-                        gold++;
-                        break;
-                    case RarityTier.Uncommon:
-                        uncommonUnlockCount++;
-                        silver++;
-                        break;
-                    default:
-                        commonUnlockCount++;
-                        bronze++;
-                        break;
+                    continue;
+                }
+
+                target.Total++;
+                if (achievement.Unlocked)
+                {
+                    target.Unlocked++;
+                }
+                else
+                {
+                    target.Locked++;
                 }
             }
+        }
+
+        private static void AddRarityStats(AchievementRarityStats target, AchievementRarityStats source)
+        {
+            if (target == null || source == null)
+            {
+                return;
+            }
+
+            target.Total += source.Total;
+            target.Unlocked += source.Unlocked;
+            target.Locked += source.Locked;
+        }
+
+        private static bool TryGetEffectiveRarityTier(AchievementDetail achievement, out RarityTier tier)
+        {
+            tier = RarityTier.Common;
+            if (achievement?.Rarity is not RarityTier rarityTier)
+            {
+                return false;
+            }
+
+            tier = rarityTier;
+            return true;
+        }
+
+        private static AchievementRarityStats GetStatsForTier(
+            RarityTier tier,
+            AchievementRarityStats common,
+            AchievementRarityStats uncommon,
+            AchievementRarityStats rare,
+            AchievementRarityStats ultraRare)
+        {
+            switch (tier)
+            {
+                case RarityTier.UltraRare:
+                    return ultraRare;
+                case RarityTier.Rare:
+                    return rare;
+                case RarityTier.Uncommon:
+                    return uncommon;
+                default:
+                    return common;
+            }
+        }
+
+        private static AchievementRarityStats CombineRarityStats(params AchievementRarityStats[] stats)
+        {
+            var combined = new AchievementRarityStats();
+            if (stats == null)
+            {
+                return combined;
+            }
+
+            for (int i = 0; i < stats.Length; i++)
+            {
+                var item = stats[i];
+                if (item == null)
+                {
+                    continue;
+                }
+
+                combined.Total += item.Total;
+                combined.Unlocked += item.Unlocked;
+                combined.Locked += item.Locked;
+            }
+
+            return combined;
         }
 
         private static DateTime NormalizeUtc(DateTime timestamp)

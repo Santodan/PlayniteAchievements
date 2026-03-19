@@ -76,7 +76,10 @@ namespace PlayniteAchievements.Services
                     direction),
                 "UnlockTime" => (a, b) => CompareByUnlockTime(a, b, direction, scope),
                 "GlobalPercent" => ApplyDirection(
-                    (a, b) => a.GlobalPercent.CompareTo(b.GlobalPercent),
+                    (a, b) => a.RaritySortValue.CompareTo(b.RaritySortValue),
+                    direction),
+                "RaritySortValue" => ApplyDirection(
+                    (a, b) => a.RaritySortValue.CompareTo(b.RaritySortValue),
                     direction),
                 "Points" => ApplyDirection(
                     (a, b) => a.Points.CompareTo(b.Points),
@@ -268,7 +271,7 @@ namespace PlayniteAchievements.Services
                 return trophyComparison;
             }
 
-            var rarityComparison = (a?.GlobalPercent ?? 100).CompareTo(b?.GlobalPercent ?? 100);
+            var rarityComparison = (a?.RaritySortValue ?? double.MaxValue).CompareTo(b?.RaritySortValue ?? double.MaxValue);
             if (rarityComparison != 0)
             {
                 return rarityComparison;

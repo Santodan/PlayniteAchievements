@@ -23,7 +23,8 @@ namespace PlayniteAchievements.Services.Hydration
         /// </summary>
         public void HydrateAllWithCapstoneOverride(
             IEnumerable<AchievementDetail> details,
-            Guid playniteGameId)
+            Guid playniteGameId,
+            string providerKey)
         {
             if (details == null)
             {
@@ -53,6 +54,8 @@ namespace PlayniteAchievements.Services.Hydration
                 {
                     continue;
                 }
+
+                detail.ProviderKey = providerKey;
 
                 var providerCategory = NormalizeCategory(detail.Category);
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);

@@ -62,13 +62,7 @@
                         <!-- Rarity info -->
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
                                     Visibility="{Binding HasRarity, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding GlobalPercentText, Mode=OneWay}"
-                                       FontSize="{DynamicResource FontSizeSmall}"
-                                       Opacity="0.7"/>
-                            <TextBlock Text=" - "
-                                       FontSize="{DynamicResource FontSizeSmall}"
-                                       Opacity="0.5"/>
-                            <TextBlock Text="{Binding Rarity, Mode=OneWay}"
+                            <TextBlock Text="{Binding RarityDetailText, Mode=OneWay}"
                                        FontSize="{DynamicResource FontSizeSmall}"
                                        Opacity="0.7"/>
                         </StackPanel>
@@ -117,7 +111,7 @@
                                 <Condition Binding="{Binding Unlocked}" Value="True"/>
                                 <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
                             </MultiDataTrigger.Conditions>
-                            <Setter Property="Effect" Value="{Binding GlobalPercent, Converter={StaticResource PercentToRarityGlow}}"/>
+                            <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
                         </MultiDataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -127,26 +121,26 @@
         <!-- Rarity bar overlay at bottom - shows global unlock percentage -->
         <Grid VerticalAlignment="Bottom">
             <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding HasRarity}" Value="True"/>
-                                <Condition Binding="{Binding ShowRarityBar}" Value="True"/>
-                            </MultiDataTrigger.Conditions>
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </MultiDataTrigger>
-                    </Style.Triggers>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasRarityPercent}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityBar}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
                 </Style>
             </Grid.Style>
             <ProgressBar Height="10"
                          Maximum="100"
-                         Value="{Binding GlobalPercent, Mode=OneWay}"
+                         Value="{Binding RarityPercentValue, Mode=OneWay}"
                          Background="#80000000"
                          Foreground="{DynamicResource HighlightGlyphBrush}"
                          BorderThickness="0"/>
-            <TextBlock Text="{Binding GlobalPercent, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, StringFormat={}{0:F0}%}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="8"

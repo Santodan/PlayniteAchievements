@@ -113,8 +113,11 @@ namespace PlayniteAchievements.Views
             items.Sort((a, b) => column.SortMemberPath switch
             {
                 "GlobalPercent" => sortDirection.Value == ListSortDirection.Ascending
-                    ? a.GlobalPercent.CompareTo(b.GlobalPercent)
-                    : b.GlobalPercent.CompareTo(a.GlobalPercent),
+                    ? a.RaritySortValue.CompareTo(b.RaritySortValue)
+                    : b.RaritySortValue.CompareTo(a.RaritySortValue),
+                "RaritySortValue" => sortDirection.Value == ListSortDirection.Ascending
+                    ? a.RaritySortValue.CompareTo(b.RaritySortValue)
+                    : b.RaritySortValue.CompareTo(a.RaritySortValue),
                 "Points" => sortDirection.Value == ListSortDirection.Ascending
                     ? a.Points.CompareTo(b.Points)
                     : b.Points.CompareTo(a.Points),

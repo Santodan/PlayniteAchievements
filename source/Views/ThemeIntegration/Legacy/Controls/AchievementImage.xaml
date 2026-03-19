@@ -51,7 +51,7 @@
                                     <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
                                     <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
                                 </MultiDataTrigger.Conditions>
-                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Percent, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -70,11 +70,11 @@
         </TextBlock>
 
         <!-- Progress bar overlay (always visible per compatibility request). -->
-        <Grid VerticalAlignment="Bottom"
-              Visibility="Visible">
+        <Grid x:Name="PART_RarityOverlay"
+              VerticalAlignment="Bottom"
+              Visibility="Collapsed">
             <ProgressBar Height="12" Name="PART_ProgressBar" Maximum="100" />
             <Label Name="PART_Label"
-                   ContentStringFormat=" {0}%"
                    HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" />
         </Grid>
     </Grid>

@@ -137,6 +137,9 @@ namespace PlayniteAchievements.Models.Settings
             target.UncommonThreshold = source.UncommonThreshold;
             target.RareThreshold = source.RareThreshold;
             target.UltraRareThreshold = source.UltraRareThreshold;
+            target.XboxUncommonPointsThreshold = source.XboxUncommonPointsThreshold;
+            target.XboxRarePointsThreshold = source.XboxRarePointsThreshold;
+            target.XboxUltraRarePointsThreshold = source.XboxUltraRarePointsThreshold;
         }
 
         /// <summary>
@@ -261,7 +264,10 @@ namespace PlayniteAchievements.Models.Settings
                 // Rarity Threshold Settings (order matters due to cross-property validation)
                 UncommonThreshold = source.UncommonThreshold,
                 RareThreshold = source.RareThreshold,
-                UltraRareThreshold = source.UltraRareThreshold
+                UltraRareThreshold = source.UltraRareThreshold,
+                XboxUncommonPointsThreshold = source.XboxUncommonPointsThreshold,
+                XboxRarePointsThreshold = source.XboxRarePointsThreshold,
+                XboxUltraRarePointsThreshold = source.XboxUltraRarePointsThreshold
             };
 
             return clone;

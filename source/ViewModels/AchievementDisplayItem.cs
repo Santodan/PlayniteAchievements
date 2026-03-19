@@ -23,6 +23,25 @@ namespace PlayniteAchievements.ViewModels
         private Guid? _playniteGameId;
         public Guid? PlayniteGameId { get => _playniteGameId; set => SetValue(ref _playniteGameId, value); }
 
+        private string _providerKey;
+        public string ProviderKey
+        {
+            get => _providerKey;
+            set
+            {
+                if (SetValueAndReturn(ref _providerKey, value))
+                {
+                    OnPropertyChanged(nameof(HasRarity));
+                    OnPropertyChanged(nameof(HasRarityPercent));
+                    OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(RarityDetailText));
+                    OnPropertyChanged(nameof(GamerScore));
+                    OnPropertyChanged(nameof(Rarity));
+                    OnPropertyChanged(nameof(RaritySortValue));
+                }
+            }
+        }
+
         private string _displayName;
         public string DisplayName
         {
@@ -88,10 +107,15 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _globalPercentUnlocked, value))
                 {
                     OnPropertyChanged(nameof(HasRarity));
+                    OnPropertyChanged(nameof(HasRarityPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(RarityDetailText));
+                    OnPropertyChanged(nameof(GlobalPercent));
+                    OnPropertyChanged(nameof(RarityPercentValue));
                     OnPropertyChanged(nameof(Percent));
                     OnPropertyChanged(nameof(GamerScore));
                     OnPropertyChanged(nameof(Rarity));
+                    OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
         }
@@ -104,8 +128,14 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _pointsValue, value))
                 {
+                    OnPropertyChanged(nameof(HasRarity));
                     OnPropertyChanged(nameof(Points));
                     OnPropertyChanged(nameof(PointsText));
+                    OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(RarityDetailText));
+                    OnPropertyChanged(nameof(GamerScore));
+                    OnPropertyChanged(nameof(Rarity));
+                    OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
         }
@@ -471,6 +501,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public void UpdateFrom(Models.Achievements.AchievementDetail source, string gameName, Guid? playniteGameId, bool hideIcon, bool hideTitle, bool hideDescription, bool hideLockedIcon, bool showRarityGlow, bool showRarityBar = true, string sortingName = null, string gameIconPath = null, string gameCoverPath = null)
         {
+            ProviderKey = source.ProviderKey;
             GameName = gameName;
             SortingName = sortingName ?? gameName;
             PlayniteGameId = playniteGameId;
@@ -478,7 +509,7 @@ namespace PlayniteAchievements.ViewModels
             Description = source.Description ?? "No description";
             IconPath = source.UnlockedIconPath;
             UnlockTimeUtc = source.UnlockTimeUtc;
-            GlobalPercentUnlocked = source.GlobalPercentUnlocked;
+            GlobalPercentUnlocked = source.Percent;
             Unlocked = source.Unlocked;
             Hidden = source.Hidden;
             ApiName = source.ApiName;
@@ -502,18 +533,24 @@ namespace PlayniteAchievements.ViewModels
             UnlockTimeUtc.HasValue ? $"{DateTimeUtilities.AsLocalFromUtc(UnlockTimeUtc.Value):g}" : string.Empty;
 
         /// <summary>
-        /// True if this achievement has rarity data (GlobalPercentUnlocked is set).
+        /// True if this achievement has a real rarity percentage.
         /// </summary>
-        public bool HasRarity => GlobalPercentUnlocked.HasValue;
+        public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
-        public string GlobalPercentText =>
-            GlobalPercentUnlocked.HasValue ? $"{GlobalPercentUnlocked.Value:F1}%" : "-";
+        /// <summary>
+        /// True if this achievement has either percent-backed or points-derived rarity.
+        /// </summary>
+        public bool HasRarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue).HasValue;
+
+        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(ProviderKey, GlobalPercentUnlocked, PointsValue);
+
+        public string RarityDetailText => AchievementRarityResolver.GetDetailText(ProviderKey, GlobalPercentUnlocked, PointsValue);
 
         public int Points => PointsValue ?? 0;
 
         public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
 
-        public RarityTier Rarity => RarityHelper.GetRarityTier(GlobalPercentUnlocked ?? 100);
+        public RarityTier Rarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue) ?? RarityTier.Common;
 
         private static string DefaultIcon => "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
 
@@ -567,7 +604,11 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// The global percent for sorting purposes.
         /// </summary>
-        public double GlobalPercent => GlobalPercentUnlocked ?? 100;
+        public double GlobalPercent => GlobalPercentUnlocked ?? 0;
+
+        public double RarityPercentValue => GlobalPercentUnlocked ?? 0;
+
+        public double RaritySortValue => AchievementRarityResolver.GetSortValue(ProviderKey, GlobalPercentUnlocked, PointsValue);
 
         // --- Theme integration compatibility (SuccessStory-style bindings) ---
 
@@ -584,7 +625,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Alias for themes expecting a numeric "Percent" field (0-100).
         /// </summary>
-        public double Percent => GlobalPercentUnlocked ?? 100;
+        public double Percent => RarityPercentValue;
 
         /// <summary>
         /// Alias for themes expecting a "DateUnlocked" field (local time).
@@ -604,7 +645,12 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
-                var tier = RarityHelper.GetRarityTier(GlobalPercentUnlocked ?? 100);
+                if (!HasRarity)
+                {
+                    return 10;
+                }
+
+                var tier = Rarity;
                 return tier switch
                 {
                     RarityTier.UltraRare => 180,
@@ -659,6 +705,7 @@ namespace PlayniteAchievements.ViewModels
         {
             return new AchievementDisplayItem
             {
+                ProviderKey = _providerKey,
                 GameName = _gameName,
                 SortingName = _sortingName,
                 PlayniteGameId = _playniteGameId,

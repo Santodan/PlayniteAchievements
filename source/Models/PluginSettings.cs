@@ -199,6 +199,9 @@ namespace PlayniteAchievements.Models
         [DontSerialize]
         public AchievementRarityStats UltraRare => Theme.UltraRare ?? EmptyRarityStats;
 
+        [DontSerialize]
+        public AchievementRarityStats RareAndUltraRare => Theme.RareAndUltraRare ?? EmptyRarityStats;
+
         // === All-Games Overview Data ===
 
         [DontSerialize]
@@ -455,38 +458,45 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
-        public int TotalUnlockCount
+        public AchievementRarityStats TotalCommon
         {
-            get => Theme.TotalUnlockCount;
-            set => Theme.TotalUnlockCount = value;
+            get => Theme.TotalCommon ?? EmptyRarityStats;
+            set => Theme.TotalCommon = value;
         }
 
         [DontSerialize]
-        public int TotalCommonUnlockCount
+        public AchievementRarityStats TotalUncommon
         {
-            get => Theme.TotalCommonUnlockCount;
-            set => Theme.TotalCommonUnlockCount = value;
+            get => Theme.TotalUncommon ?? EmptyRarityStats;
+            set => Theme.TotalUncommon = value;
         }
 
         [DontSerialize]
-        public int TotalUncommonUnlockCount
+        public AchievementRarityStats TotalRare
         {
-            get => Theme.TotalUncommonUnlockCount;
-            set => Theme.TotalUncommonUnlockCount = value;
+            get => Theme.TotalRare ?? EmptyRarityStats;
+            set => Theme.TotalRare = value;
         }
 
         [DontSerialize]
-        public int TotalRareUnlockCount
+        public AchievementRarityStats TotalUltraRare
         {
-            get => Theme.TotalRareUnlockCount;
-            set => Theme.TotalRareUnlockCount = value;
+            get => Theme.TotalUltraRare ?? EmptyRarityStats;
+            set => Theme.TotalUltraRare = value;
         }
 
         [DontSerialize]
-        public int TotalUltraRareUnlockCount
+        public AchievementRarityStats TotalRareAndUltraRare
         {
-            get => Theme.TotalUltraRareUnlockCount;
-            set => Theme.TotalUltraRareUnlockCount = value;
+            get => Theme.TotalRareAndUltraRare ?? EmptyRarityStats;
+            set => Theme.TotalRareAndUltraRare = value;
+        }
+
+        [DontSerialize]
+        public AchievementRarityStats TotalOverall
+        {
+            get => Theme.TotalOverall ?? EmptyRarityStats;
+            set => Theme.TotalOverall = value;
         }
 
         [DontSerialize]
@@ -733,6 +743,7 @@ namespace PlayniteAchievements.Models
             // Copy the entire PersistedSettings object
             DetachPersistedHandlers();
             Persisted = other.Persisted?.Clone() ?? new PersistedSettings();
+            Persisted.RefreshRarityHelpers();
             AttachPersistedHandlers();
             RefreshThemeDisplayItemsFromPersisted();
             OnPropertyChanged(nameof(Persisted));
@@ -755,6 +766,7 @@ namespace PlayniteAchievements.Models
             }
 
             AttachPersistedHandlers();
+            Persisted?.RefreshRarityHelpers();
             RefreshThemeDisplayItemsFromPersisted();
         }
 

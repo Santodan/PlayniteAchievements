@@ -1,6 +1,7 @@
 using System;
 using System.Windows.Input;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
@@ -21,24 +22,34 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public Guid GameId { get; }
 
         /// <summary>
-        /// Number of common achievements unlocked.
+        /// Per-game stats for the common rarity tier.
         /// </summary>
-        public int CommonUnlockCount { get; }
+        public AchievementRarityStats Common { get; }
 
         /// <summary>
-        /// Number of uncommon achievements unlocked.
+        /// Per-game stats for the uncommon rarity tier.
         /// </summary>
-        public int UncommonUnlockCount { get; }
+        public AchievementRarityStats Uncommon { get; }
 
         /// <summary>
-        /// Number of rare achievements unlocked.
+        /// Per-game stats for the rare rarity tier.
         /// </summary>
-        public int RareUnlockCount { get; }
+        public AchievementRarityStats Rare { get; }
 
         /// <summary>
-        /// Number of ultra-rare achievements unlocked.
+        /// Per-game stats for the ultra-rare rarity tier.
         /// </summary>
-        public int UltraRareUnlockCount { get; }
+        public AchievementRarityStats UltraRare { get; }
+
+        /// <summary>
+        /// Per-game combined stats for rare and ultra-rare achievements.
+        /// </summary>
+        public AchievementRarityStats RareAndUltraRare { get; }
+
+        /// <summary>
+        /// Per-game aggregate across all rarity-classified achievements.
+        /// </summary>
+        public AchievementRarityStats Overall { get; }
 
         /// <summary>
         /// Game name.
@@ -149,10 +160,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             bool isCompleted,
             DateTime lastUnlockDate,
             ICommand openAchievementWindow,
-            int commonUnlockCount = 0,
-            int uncommonUnlockCount = 0,
-            int rareUnlockCount = 0,
-            int ultraRareUnlockCount = 0)
+            AchievementRarityStats common = null,
+            AchievementRarityStats uncommon = null,
+            AchievementRarityStats rare = null,
+            AchievementRarityStats ultraRare = null,
+            AchievementRarityStats rareAndUltraRare = null,
+            AchievementRarityStats overall = null)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
@@ -165,11 +178,36 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             IsCompleted = isCompleted;
             LastUnlockDate = lastUnlockDate;
             OpenAchievementWindow = openAchievementWindow;
-            CommonUnlockCount = Math.Max(0, commonUnlockCount);
-            UncommonUnlockCount = Math.Max(0, uncommonUnlockCount);
-            RareUnlockCount = Math.Max(0, rareUnlockCount);
-            UltraRareUnlockCount = Math.Max(0, ultraRareUnlockCount);
+            Common = common ?? new AchievementRarityStats();
+            Uncommon = uncommon ?? new AchievementRarityStats();
+            Rare = rare ?? new AchievementRarityStats();
+            UltraRare = ultraRare ?? new AchievementRarityStats();
+            RareAndUltraRare = rareAndUltraRare ?? CombineRarityStats(Rare, UltraRare);
+            Overall = overall ?? CombineRarityStats(Common, Uncommon, Rare, UltraRare);
+        }
+
+        private static AchievementRarityStats CombineRarityStats(params AchievementRarityStats[] stats)
+        {
+            var combined = new AchievementRarityStats();
+            if (stats == null)
+            {
+                return combined;
+            }
+
+            for (int i = 0; i < stats.Length; i++)
+            {
+                var item = stats[i];
+                if (item == null)
+                {
+                    continue;
+                }
+
+                combined.Total += item.Total;
+                combined.Unlocked += item.Unlocked;
+                combined.Locked += item.Locked;
+            }
+
+            return combined;
         }
     }
 }
-

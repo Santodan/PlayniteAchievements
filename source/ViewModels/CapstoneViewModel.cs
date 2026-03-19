@@ -212,7 +212,8 @@ namespace PlayniteAchievements.ViewModels
 
                 var sortedAchievements = achievements
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
-                    .OrderBy(a => a.GlobalPercentUnlocked ?? 100)  // Rarest first
+                    .OrderBy(a => a.RaritySortValue)  // Rarest first
+                    .ThenByDescending(a => a.Points ?? 0)
                     .ThenBy(a => a.DisplayName ?? a.ApiName, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
 
@@ -269,6 +270,7 @@ namespace PlayniteAchievements.ViewModels
 
             return new CapstoneOptionItem
             {
+                ProviderKey = projected.ProviderKey,
                 GameName = projected.GameName,
                 SortingName = projected.SortingName,
                 PlayniteGameId = projected.PlayniteGameId,

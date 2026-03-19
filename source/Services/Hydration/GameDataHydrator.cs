@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Services.Hydration
             // Hydrate achievements with settings overlays (capstone + category/category-type overrides).
             if (data.Achievements != null && data.Achievements.Count > 0)
             {
-                _achievementHydrator.HydrateAllWithCapstoneOverride(data.Achievements, gameId);
+                _achievementHydrator.HydrateAllWithCapstoneOverride(data.Achievements, gameId, data.ProviderKey);
             }
         }
 

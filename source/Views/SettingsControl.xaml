@@ -2552,6 +2552,110 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Style="{StaticResource SectionBorderStyle}"
+                                IsEnabled="{Binding Persisted.XboxEnabled}"
+                                Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity}"
+                                           Style="{StaticResource SectionHeaderStyle}"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"/>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,2"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint}"
+                                                   Style="{StaticResource MutedTextStyle}"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBox Text="{Binding Persisted.XboxUltraRarePointsThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="60"
+                                                 TextAlignment="Right"
+                                                 VerticalAlignment="Center"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Rare}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,2"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_RareHint}"
+                                                   Style="{StaticResource MutedTextStyle}"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBox Text="{Binding Persisted.XboxRarePointsThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="60"
+                                                 TextAlignment="Right"
+                                                 VerticalAlignment="Center"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,2"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_UncommonHint}"
+                                                   Style="{StaticResource MutedTextStyle}"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBox Text="{Binding Persisted.XboxUncommonPointsThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="60"
+                                                 TextAlignment="Right"
+                                                 VerticalAlignment="Center"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_Help}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Low-Res Icons Toggle -->
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_XboxLowResIcons}"
                                   IsChecked="{Binding Persisted.XboxLowResIcons}"

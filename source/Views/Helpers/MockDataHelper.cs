@@ -274,6 +274,13 @@ namespace PlayniteAchievements.Views.Helpers
                 AllAchievements = new List<AchievementDetail> { achievement }
             };
 
+            themeData.RareAndUltraRare = new AchievementRarityStats
+            {
+                Total = 1,
+                Unlocked = unlocked ? 1 : 0,
+                Locked = unlocked ? 0 : 1
+            };
+
             return themeData;
         }
 
@@ -291,10 +298,17 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             // Set rarity stats
-            themeData.UltraRare = new AchievementRarityStats { Unlocked = 1, Total = 1 };
-            themeData.Rare = new AchievementRarityStats { Unlocked = 1, Total = 1 };
-            themeData.Uncommon = new AchievementRarityStats { Unlocked = 0, Total = 1 };
-            themeData.Common = new AchievementRarityStats { Unlocked = 0, Total = 2 };
+            themeData.UltraRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
+            themeData.Rare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
+            themeData.Uncommon = new AchievementRarityStats { Unlocked = 0, Locked = 1, Total = 1 };
+            themeData.Common = new AchievementRarityStats { Unlocked = 0, Locked = 2, Total = 2 };
+            themeData.RareAndUltraRare = new AchievementRarityStats { Unlocked = 2, Locked = 0, Total = 2 };
+            themeData.TotalCommon = new AchievementRarityStats { Unlocked = 0, Locked = 2, Total = 2 };
+            themeData.TotalUncommon = new AchievementRarityStats { Unlocked = 0, Locked = 1, Total = 1 };
+            themeData.TotalRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
+            themeData.TotalUltraRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
+            themeData.TotalRareAndUltraRare = new AchievementRarityStats { Unlocked = 2, Locked = 0, Total = 2 };
+            themeData.TotalOverall = new AchievementRarityStats { Unlocked = 2, Locked = 3, Total = 5 };
 
             return themeData;
         }

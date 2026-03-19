@@ -1536,6 +1536,11 @@ namespace PlayniteAchievements.ViewModels
             {
                 _ = RefreshViewAsync();
             }
+            else if (AchievementProjectionService.IsRarityProjectionSettingPropertyName(propertyName))
+            {
+                _ = RefreshViewAsync();
+                UpdateAggregatePieCharts();
+            }
             else if (propertyName == nameof(PersistedSettings.ShowGamesWithNoUnlocks))
             {
                 OnPropertyChanged(nameof(ShowGamesWithNoUnlocks));
@@ -1894,7 +1899,7 @@ namespace PlayniteAchievements.ViewModels
                 case 2: // Unlock Date (most recent first)
                     return items.OrderByDescending(a => a.UnlockTimeUtc ?? DateTime.MinValue);
                 case 3: // Rarity (rarest first)
-                    return items.OrderBy(a => a.GlobalPercentUnlocked ?? 100);
+                    return items.OrderBy(a => a.RaritySortValue).ThenByDescending(a => a.Points);
                 default:
                     return items;
             }
