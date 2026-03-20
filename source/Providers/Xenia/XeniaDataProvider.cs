@@ -82,7 +82,7 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            return new XeniaScanner(_logger, _settings, _pluginUserDataPath, GetAccountPath())
+            return new XeniaScanner(_logger, _playniteApi, _settings, _pluginUserDataPath, GetAccountPath())
                 .RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
         }
 

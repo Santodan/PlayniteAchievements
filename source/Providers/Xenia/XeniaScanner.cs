@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
@@ -18,6 +19,7 @@ namespace PlayniteAchievements.Providers.Xenia
     internal class XeniaScanner
     {
         private readonly ILogger _logger;
+        private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly string _pluginUserDataPath;
         private readonly string _accountFolderPath;
@@ -27,11 +29,13 @@ namespace PlayniteAchievements.Providers.Xenia
 
         public XeniaScanner(
             ILogger logger,
+            IPlayniteAPI playniteApi,
             PlayniteAchievementsSettings settings,
             string pluginUserDataPath,
             string accountFolderPath)
         {
             _logger = logger;
+            _playniteApi = playniteApi;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _accountFolderPath = accountFolderPath ?? throw new ArgumentNullException(nameof(accountFolderPath));
             if(_accountFolderPath.EndsWith("\\"))
@@ -164,8 +168,12 @@ namespace PlayniteAchievements.Providers.Xenia
             int exeAreaSize = 300;
             foreach (var rom in game.Roms)
             {
-                var path = rom.Path;
-                path = Playnite.SDK.API.Instance.ExpandGameVariables(game, path);
+                var path = PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+
                 path = path.Replace("\\\\", "\\").Trim('"');
 
                 if (path.EndsWith(".iso") || path.EndsWith(".xex") || string.IsNullOrEmpty(Path.GetExtension(path)))
