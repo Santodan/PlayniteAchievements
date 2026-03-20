@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 {
     /// <summary>
     /// SuccessStory-compatible list control for theme integration.
-    /// Uses native PlayniteAchievements properties (AllAchievements, AchievementCount, etc.).
+    /// Uses modern PlayniteAchievements properties (AllAchievements, AchievementCount, etc.).
     /// Matches the original SuccessStory plugin styling and functionality.
     /// </summary>
     public partial class PluginListControl : ThemeControlBase
@@ -420,3 +420,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     }
 }
 // --END SUCCESSSTORY--
+

@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
 
         /// <summary>
-        /// Gets the legacy control names that should be replaced with native controls.
+        /// Gets the legacy control names that should be replaced with modern controls.
         /// </summary>
         public HashSet<string> ModernControlNames { get; }
 
@@ -35,3 +35,4 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
     }
 }
+

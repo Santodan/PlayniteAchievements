@@ -13,7 +13,7 @@ namespace PlayniteAchievements.Models.Settings
         /// <summary>
         /// Copies all persisted settings from one PersistedSettings instance to another.
         /// This includes Steam settings, update settings, notifications, display preferences,
-        /// theme integration settings, RetroAchievements settings, and rarity thresholds.
+        /// theme integration settings and RetroAchievements settings.
         /// </summary>
         /// <param name="target">The target settings instance to copy to.</param>
         /// <param name="source">The source settings instance to copy from.</param>
@@ -133,13 +133,6 @@ namespace PlayniteAchievements.Models.Settings
                         : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                 : new Dictionary<Guid, Dictionary<string, string>>();
 
-            // Rarity Threshold Settings (order matters due to cross-property validation)
-            target.UncommonThreshold = source.UncommonThreshold;
-            target.RareThreshold = source.RareThreshold;
-            target.UltraRareThreshold = source.UltraRareThreshold;
-            target.XboxUncommonPointsThreshold = source.XboxUncommonPointsThreshold;
-            target.XboxRarePointsThreshold = source.XboxRarePointsThreshold;
-            target.XboxUltraRarePointsThreshold = source.XboxUltraRarePointsThreshold;
         }
 
         /// <summary>
@@ -261,13 +254,6 @@ namespace PlayniteAchievements.Models.Settings
                             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                     : new Dictionary<Guid, Dictionary<string, string>>(),
 
-                // Rarity Threshold Settings (order matters due to cross-property validation)
-                UncommonThreshold = source.UncommonThreshold,
-                RareThreshold = source.RareThreshold,
-                UltraRareThreshold = source.UltraRareThreshold,
-                XboxUncommonPointsThreshold = source.XboxUncommonPointsThreshold,
-                XboxRarePointsThreshold = source.XboxRarePointsThreshold,
-                XboxUltraRarePointsThreshold = source.XboxUltraRarePointsThreshold
             };
 
             return clone;

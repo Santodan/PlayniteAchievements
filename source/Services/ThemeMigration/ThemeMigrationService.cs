@@ -323,7 +323,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
                 if (ShouldModernizeBindings(mode, customSelection))
                 {
-                    foreach (var bindingPath in ControlMappings.LegacyToNativeBindingPaths.Keys)
+                    foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
                     {
                         totalCount += CountOccurrences(content, $"LegacyData.{bindingPath}");
                     }
@@ -608,14 +608,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
             // These appear in XAML as {Binding LegacyData.HasData} etc.
             if (ShouldModernizeBindings(mode, customSelection))
             {
-                foreach (var mapping in ControlMappings.LegacyToNativeBindingPaths)
+                foreach (var mapping in ControlMappings.LegacyToModernBindingPaths)
                 {
                     string legacyBinding = $"LegacyData.{mapping.Key}";
-                    string nativeBinding = $"Theme.{mapping.Value}";
+                    string modernBinding = $"Theme.{mapping.Value}";
                     int replacements = CountOccurrences(result, legacyBinding);
                     if (replacements > 0)
                     {
-                        result = result.Replace(legacyBinding, nativeBinding);
+                        result = result.Replace(legacyBinding, modernBinding);
                         bindingReplacements += replacements;
                     }
                 }
@@ -642,7 +642,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             if (mode == MigrationMode.Full)
             {
-                return ControlMappings.LegacyToNativeControlNames;
+                return ControlMappings.LegacyToModernControlNames;
             }
 
             if (mode != MigrationMode.Custom || customSelection == null)
@@ -650,30 +650,30 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 return Enumerable.Empty<KeyValuePair<string, string>>();
             }
 
-            return ControlMappings.LegacyToNativeControlNames
+            return ControlMappings.LegacyToModernControlNames
                 .Where(mapping => customSelection.ShouldModernizeControl(mapping.Key));
         }
 
-        private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string nativeName)
+        private static int ReplacePrefixedControlName(ref string content, string prefix, string legacyName, string modernName)
         {
             string legacyToken = $"{prefix}_{legacyName}";
-            string nativeToken = $"{prefix}_{nativeName}";
+            string modernToken = $"{prefix}_{modernName}";
             int replacements = CountOccurrences(content, legacyToken);
             if (replacements > 0)
             {
-                content = content.Replace(legacyToken, nativeToken);
+                content = content.Replace(legacyToken, modernToken);
             }
 
             return replacements;
         }
 
-        private static int ReplaceStandaloneControlName(ref string content, string legacyName, string nativeName)
+        private static int ReplaceStandaloneControlName(ref string content, string legacyName, string modernName)
         {
             string pattern = GetStandaloneControlNamePattern(legacyName);
             var matches = Regex.Matches(content, pattern);
             if (matches.Count > 0)
             {
-                content = Regex.Replace(content, pattern, $"_{nativeName}");
+                content = Regex.Replace(content, pattern, $"_{modernName}");
             }
 
             return matches.Count;
@@ -884,3 +884,4 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
     }
 }
+

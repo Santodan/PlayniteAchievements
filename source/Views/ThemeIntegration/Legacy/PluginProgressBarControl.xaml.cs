@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 {
     /// <summary>
     /// SuccessStory-compatible progress bar control for theme integration.
-    /// Uses native PlayniteAchievements properties (AchievementCount, UnlockedCount, ProgressPercentage).
+    /// Uses modern PlayniteAchievements properties (AchievementCount, UnlockedCount, ProgressPercentage).
     /// Matches the original SuccessStory plugin styling.
     /// </summary>
     public partial class PluginProgressBarControl : ThemeControlBase
@@ -51,3 +51,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     }
 }
 // --END SUCCESSSTORY--
+

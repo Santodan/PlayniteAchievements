@@ -105,7 +105,7 @@
     <!-- CONTEXT MENU                                                       -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_TestNativeControls">Test Native Theme Controls</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_TestModernControls">Test Modern Theme Controls</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">Set Capstone Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>
@@ -393,12 +393,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_XboxEnabled">Enable Xbox Achievement Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_XboxAuth">Xbox Authentication</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Click Login to authenticate with Xbox Live via Microsoft account.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity">Points-Based Rarity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Description">Use achievement points to derive rarity when a provider does not expose unlock percentages.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint">Minimum points for Ultra Rare</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_RareHint">Minimum points for Rare</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UncommonHint">Minimum points for Uncommon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Help">Achievements below the Uncommon threshold are treated as Common.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Download Smaller Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Enable if Xbox icon downloads are slow. Requests 128px icons instead of full resolution.</sys:String>
 
@@ -421,7 +415,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider">Enable Exophase Provider</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of native providers. Check platforms you want Exophase to manage.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of modern providers. Check platforms you want Exophase to manage.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Steam">Steam</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Xbox">Xbox</sys:String>
@@ -481,8 +475,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">This platform is disabled. Enable it to track achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Sync &amp; Updates</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_RarityThresholds">Achievement Rarity Thresholds</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RarityThresholds_Description">Configure the global unlock percentage cutoffs that determine achievement rarity tiers. Achievements are categorized based on what percentage of players have unlocked them.</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_Username">Username</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_Username_Help">Your RetroAchievements username.</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_WebApiKey">Web API Key</sys:String>
@@ -749,7 +741,7 @@
     <!-- SETTINGS - THEME INTEGRATION                                      -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Title">Theme Integration</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Description">Native PlayniteAchievements theme integration</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Description">Modern PlayniteAchievements theme integration</sys:String>
 
     <!-- ================================================================= -->
     <!-- Refresh PROGRESS WINDOW                                               -->
@@ -783,7 +775,7 @@
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Full Migration</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">Custom Migration</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_LimitedTooltip">Text replacements only. Preserves existing control structures and bindings.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_FullTooltip">Complete modernization. Replaces Legacy controls with Native controls and LegacyData bindings with Theme bindings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_FullTooltip">Complete modernization. Replaces Legacy controls with Modern controls and LegacyData bindings with Theme bindings.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">Custom</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_CustomDescription">Select which theme elements stay Legacy and which are modernized during migration.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">All Legacy</sys:String>
@@ -957,3 +949,4 @@
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveComplete">Tags removed</sys:String>
 
 </ResourceDictionary>
+

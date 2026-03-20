@@ -215,40 +215,40 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         /// <summary>
-        /// Gets native theme bindings populated with mock achievements for settings preview.
+        /// Gets modern theme bindings populated with mock achievements for settings preview.
         /// Used by desktop controls via ThemeDataOverride.
         /// </summary>
-        /// <returns>Native theme bindings with mock achievement data.</returns>
-        public static NativeThemeBindings GetPreviewThemeData()
+        /// <returns>Modern theme bindings with mock achievement data.</returns>
+        public static ModernThemeBindings GetPreviewThemeData()
         {
             return CreatePreviewThemeData();
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single unlocked achievement for preview.
+        /// Gets modern theme bindings with a single unlocked achievement for preview.
         /// </summary>
-        public static NativeThemeBindings GetUnlockedPreviewThemeData()
+        public static ModernThemeBindings GetUnlockedPreviewThemeData()
         {
             return CreateSingleAchievementThemeData(unlocked: true, hidden: false);
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single locked+hidden achievement for preview.
+        /// Gets modern theme bindings with a single locked+hidden achievement for preview.
         /// </summary>
-        public static NativeThemeBindings GetHiddenPreviewThemeData()
+        public static ModernThemeBindings GetHiddenPreviewThemeData()
         {
             return CreateSingleAchievementThemeData(unlocked: false, hidden: true);
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single locked (non-hidden) achievement for preview.
+        /// Gets modern theme bindings with a single locked (non-hidden) achievement for preview.
         /// </summary>
-        public static NativeThemeBindings GetLockedPreviewThemeData()
+        public static ModernThemeBindings GetLockedPreviewThemeData()
         {
             return CreateSingleAchievementThemeData(unlocked: false, hidden: false);
         }
 
-        private static NativeThemeBindings CreateSingleAchievementThemeData(bool unlocked, bool hidden)
+        private static ModernThemeBindings CreateSingleAchievementThemeData(bool unlocked, bool hidden)
         {
             var achievement = new AchievementDetail
             {
@@ -263,7 +263,7 @@ namespace PlayniteAchievements.Views.Helpers
                 UnlockTimeUtc = unlocked ? DateTime.UtcNow.AddDays(-1) : (DateTime?)null
             };
 
-            var themeData = new NativeThemeBindings
+            var themeData = new ModernThemeBindings
             {
                 HasAchievements = true,
                 IsCompleted = unlocked,
@@ -284,9 +284,9 @@ namespace PlayniteAchievements.Views.Helpers
             return themeData;
         }
 
-        private static NativeThemeBindings CreatePreviewThemeData()
+        private static ModernThemeBindings CreatePreviewThemeData()
         {
-            var themeData = new NativeThemeBindings
+            var themeData = new ModernThemeBindings
             {
                 HasAchievements = true,
                 IsCompleted = false,
@@ -393,3 +393,4 @@ namespace PlayniteAchievements.Views.Helpers
     }
 
 }
+

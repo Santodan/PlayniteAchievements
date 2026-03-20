@@ -557,185 +557,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- ================== RARITY THRESHOLDS ================== -->
-                        <Border Style="{StaticResource SectionBorderStyle}">
-                            <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Section_RarityThresholds}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
-
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RarityThresholds_Description}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16"/>
-
-                                <!-- Threshold settings grid -->
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <!-- Ultra Rare -->
-                                    <Border Grid.Row="0" Grid.Column="0"
-                                            Background="#22E91E63"
-                                            CornerRadius="8"
-                                            Padding="14"
-                                            Margin="0,0,8,8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0"
-                                                   Source="{StaticResource BadgePlatinumHexagon}"
-                                                   Width="28" Height="28"
-                                                   Margin="0,0,10,0"
-                                                   VerticalAlignment="Center"
-                                                   Effect="{StaticResource BadgeShadow}"/>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#E91E63"
-                                                           Margin="0,0,0,2"/>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_RarityThreshold_LTE}"
-                                                           Style="{StaticResource MutedTextStyle}"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBox Text="{Binding Persisted.UltraRareThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="50"
-                                                         TextAlignment="Right"
-                                                         VerticalAlignment="Center"/>
-                                                <TextBlock Text="%"
-                                                           Foreground="{DynamicResource TextBrush}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="4,0,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-
-                                    <!-- Rare -->
-                                    <Border Grid.Row="0" Grid.Column="1"
-                                            Background="#22FF9800"
-                                            CornerRadius="8"
-                                            Padding="14"
-                                            Margin="8,0,0,8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0"
-                                                   Source="{StaticResource BadgeGoldPentagon}"
-                                                   Width="28" Height="28"
-                                                   Margin="0,0,10,0"
-                                                   VerticalAlignment="Center"
-                                                   Effect="{StaticResource BadgeShadow}"/>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Rare}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#FF9800"
-                                                           Margin="0,0,0,2"/>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_RarityThreshold_LTE}"
-                                                           Style="{StaticResource MutedTextStyle}"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBox Text="{Binding Persisted.RareThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="50"
-                                                         TextAlignment="Right"
-                                                         VerticalAlignment="Center"/>
-                                                <TextBlock Text="%"
-                                                           Foreground="{DynamicResource TextBrush}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="4,0,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-
-                                    <!-- Uncommon -->
-                                    <Border Grid.Row="1" Grid.Column="0"
-                                            Background="#2203A9F4"
-                                            CornerRadius="8"
-                                            Padding="14"
-                                            Margin="0,0,8,8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0"
-                                                   Source="{StaticResource BadgeSilverSquare}"
-                                                   Width="28" Height="28"
-                                                   Margin="0,0,10,0"
-                                                   VerticalAlignment="Center"
-                                                   Effect="{StaticResource BadgeShadow}"/>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#03A9F4"
-                                                           Margin="0,0,0,2"/>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_RarityThreshold_LTE}"
-                                                           Style="{StaticResource MutedTextStyle}"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBox Text="{Binding Persisted.UncommonThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="50"
-                                                         TextAlignment="Right"
-                                                         VerticalAlignment="Center"/>
-                                                <TextBlock Text="%"
-                                                           Foreground="{DynamicResource TextBrush}"
-                                                           VerticalAlignment="Center"
-                                                           Margin="4,0,0,0"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-
-                                    <!-- Common -->
-                                    <Border Grid.Row="1" Grid.Column="1"
-                                            Background="#228BC34A"
-                                            CornerRadius="8"
-                                            Padding="14"
-                                            Margin="8,0,0,8">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Image Grid.Column="0"
-                                                   Source="{StaticResource BadgeBronzeTriangle}"
-                                                   Width="28" Height="28"
-                                                   Margin="0,0,10,0"
-                                                   VerticalAlignment="Center"
-                                                   Effect="{StaticResource BadgeShadow}"/>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Common}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#8BC34A"
-                                                           Margin="0,0,0,2"/>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_RarityThreshold_GT}"
-                                                           Style="{StaticResource MutedTextStyle}"/>
-                                            </StackPanel>
-                                            <TextBlock Grid.Column="2"
-                                                       Text="—"
-                                                       Foreground="{DynamicResource TextBrush}"
-                                                       Opacity="0.4"
-                                                       VerticalAlignment="Center"
-                                                       />
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
                         <!-- ================== NOTIFICATIONS ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
@@ -911,19 +732,19 @@
                                 <TextBlock Style="{StaticResource MutedTextStyle}"
                                            Margin="0,0,0,16">
                                     PlayniteAchievements is the single source for both Desktop and Fullscreen themes.
-                                    Both native and SuccessStory-compatible properties are always populated so themes can bind to either surface.
+                                    Both modern and SuccessStory-compatible properties are always populated so themes can bind to either surface.
                                 </TextBlock>
 
                                  <Separator Margin="0,16,0,16" />
 
-                                <TextBlock Text="Native PlayniteAchievements theme integration"
+                                <TextBlock Text="Modern PlayniteAchievements theme integration"
                                            FontWeight="SemiBold"
                                            Margin="0,0,0,8" />
 
                                 <TextBlock Style="{StaticResource MutedTextStyle}"
                                            Margin="0,0,0,0">
-                                    Native controls and properties (prefixed differently) are always available to themes.
-                                    Theme authors should use the native PlayniteAchievements prefix for new themes.
+                                    Modern controls and properties (prefixed differently) are always available to themes.
+                                    Theme authors should use the modern PlayniteAchievements prefix for new themes.
                                 </TextBlock>
                             </StackPanel>
                         </Border> -->
@@ -2552,110 +2373,6 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource SectionBorderStyle}"
-                                IsEnabled="{Binding Persisted.XboxEnabled}"
-                                Margin="0,0,0,12">
-                            <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity}"
-                                           Style="{StaticResource SectionHeaderStyle}"/>
-
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_Description}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16"/>
-
-                                <Grid Style="{StaticResource SettingRowStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_UltraRare}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   FontWeight="SemiBold"
-                                                   Margin="0,0,0,2"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint}"
-                                                   Style="{StaticResource MutedTextStyle}"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1"
-                                                Orientation="Horizontal"
-                                                VerticalAlignment="Center">
-                                        <TextBox Text="{Binding Persisted.XboxUltraRarePointsThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                 Width="60"
-                                                 TextAlignment="Right"
-                                                 VerticalAlignment="Center"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="6,0,0,0"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <Grid Style="{StaticResource SettingRowStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Rare}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   FontWeight="SemiBold"
-                                                   Margin="0,0,0,2"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_RareHint}"
-                                                   Style="{StaticResource MutedTextStyle}"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1"
-                                                Orientation="Horizontal"
-                                                VerticalAlignment="Center">
-                                        <TextBox Text="{Binding Persisted.XboxRarePointsThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                 Width="60"
-                                                 TextAlignment="Right"
-                                                 VerticalAlignment="Center"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="6,0,0,0"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <Grid Style="{StaticResource SettingRowStyle}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Rarity_Uncommon}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   FontWeight="SemiBold"
-                                                   Margin="0,0,0,2"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_UncommonHint}"
-                                                   Style="{StaticResource MutedTextStyle}"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1"
-                                                Orientation="Horizontal"
-                                                VerticalAlignment="Center">
-                                        <TextBox Text="{Binding Persisted.XboxUncommonPointsThreshold, UpdateSourceTrigger=PropertyChanged}"
-                                                 Width="60"
-                                                 TextAlignment="Right"
-                                                 VerticalAlignment="Center"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Column_Points}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="6,0,0,0"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XboxPointsRarity_Help}"
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Border>
-
                         <!-- Low-Res Icons Toggle -->
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_XboxLowResIcons}"
                                   IsChecked="{Binding Persisted.XboxLowResIcons}"
@@ -3524,3 +3241,4 @@
         </TabControl>
     </Grid>
 </UserControl>
+

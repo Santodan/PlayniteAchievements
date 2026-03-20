@@ -39,15 +39,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
 
         /// <summary>
-        /// Determines whether a change raised from native theme bindings should trigger a refresh.
+        /// Determines whether a change raised from modern theme bindings should trigger a refresh.
         /// </summary>
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
-            return propertyName == nameof(NativeThemeBindings.Common) ||
-                   propertyName == nameof(NativeThemeBindings.Uncommon) ||
-                   propertyName == nameof(NativeThemeBindings.Rare) ||
-                   propertyName == nameof(NativeThemeBindings.UltraRare) ||
-                   propertyName == nameof(NativeThemeBindings.LockedCount);
+            return propertyName == nameof(ModernThemeBindings.Common) ||
+                   propertyName == nameof(ModernThemeBindings.Uncommon) ||
+                   propertyName == nameof(ModernThemeBindings.Rare) ||
+                   propertyName == nameof(ModernThemeBindings.UltraRare) ||
+                   propertyName == nameof(ModernThemeBindings.LockedCount);
         }
 
         /// <summary>
@@ -65,3 +65,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
     }
 }
+

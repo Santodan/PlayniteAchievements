@@ -7,6 +7,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services.Logging;
 

@@ -1,4 +1,4 @@
-namespace PlayniteAchievements.Models.Settings
+namespace PlayniteAchievements.Models.Tagging
 {
     /// <summary>
     /// Stable keys for achievement-related tags that can be applied to Playnite games.

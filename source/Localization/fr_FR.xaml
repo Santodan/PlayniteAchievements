@@ -398,12 +398,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_XboxEnabled">Activer le suivi des succès Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_XboxAuth">Authentification Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xbox_Help">Cliquez sur Connexion pour vous authentifier avec Xbox Live via votre compte Microsoft.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity">Rareté basée sur les points</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Description">Utilisez les points des succès pour dériver la rareté lorsqu'un fournisseur n'expose pas de pourcentage de déblocage.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UltraRareHint">Points minimum pour Ultra rare</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_RareHint">Points minimum pour Rare</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_UncommonHint">Points minimum pour Peu commun</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_XboxPointsRarity_Help">Les succès en dessous du seuil Peu commun sont traités comme Communs.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Télécharger des icônes plus petites</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Activer si les téléchargements d'icônes Xbox sont lents. Demande des icônes de 128px au lieu de la résolution complète.</sys:String>
 
@@ -462,8 +456,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">Ce fournisseur est désactivé. Activez-le pour suivre les succès.</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Synchronisation et mises à jour</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_RarityThresholds">Seuils de rareté des succès</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RarityThresholds_Description">Configurez les seuils globaux de pourcentage de déblocage qui déterminent les niveaux de rareté des succès. Les succès sont catégorisés selon le pourcentage de joueurs qui les ont débloqués.</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_Username">Nom d'utilisateur</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_Username_Help">Votre nom d'utilisateur RetroAchievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_WebApiKey">Clé API Web</sys:String>
@@ -730,7 +722,7 @@
     <!-- SETTINGS - THEME INTEGRATION                                      -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Title">Intégration de thème</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Description">Intégration de thème native PlayniteAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ThemeIntegration_Description">Intégration de thème modern PlayniteAchievements</sys:String>
 
     <!-- ================================================================= -->
     <!-- REFRESH PROGRESS WINDOW                                               -->
@@ -938,3 +930,4 @@
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveComplete">Étiquettes supprimées</sys:String>
 
 </ResourceDictionary>
+

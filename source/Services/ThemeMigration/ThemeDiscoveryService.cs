@@ -333,7 +333,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 return true;
             }
 
-            foreach (var controlName in ControlMappings.LegacyToNativeControlNames.Keys)
+            foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
             {
                 if (content.IndexOf($"SuccessStory_{controlName}", StringComparison.Ordinal) >= 0 ||
                     content.IndexOf($"PlayniteAchievements_{controlName}", StringComparison.Ordinal) >= 0 ||
@@ -343,7 +343,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 }
             }
 
-            foreach (var bindingPath in ControlMappings.LegacyToNativeBindingPaths.Keys)
+            foreach (var bindingPath in ControlMappings.LegacyToModernBindingPaths.Keys)
             {
                 if (content.IndexOf($"LegacyData.{bindingPath}", StringComparison.Ordinal) >= 0)
                 {
@@ -360,3 +360,4 @@ namespace PlayniteAchievements.Services.ThemeMigration
         }
     }
 }
+

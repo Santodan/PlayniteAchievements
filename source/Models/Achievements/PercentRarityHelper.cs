@@ -47,10 +47,10 @@ namespace PlayniteAchievements.Models.Achievements
     /// </summary>
     public static class PercentRarityHelper
     {
-        // Default thresholds
-        private static double _ultraRareThreshold = 5;
-        private static double _rareThreshold = 10;
-        private static double _uncommonThreshold = 50;
+        // Fixed thresholds for global unlock percentage rarity.
+        private const double UltraRareThresholdValue = 5;
+        private const double RareThresholdValue = 20;
+        private const double UncommonThresholdValue = 50;
 
         // Rarity brushes (public for extension method access)
         public static readonly SolidColorBrush CommonBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0xC3, 0x4A));
@@ -66,28 +66,18 @@ namespace PlayniteAchievements.Models.Achievements
             UltraRareBrush.Freeze();
         }
 
-        /// <summary>
-        /// Configure the rarity thresholds from settings.
-        /// </summary>
-        public static void Configure(double ultraRare, double rare, double uncommon)
-        {
-            _ultraRareThreshold = ultraRare;
-            _rareThreshold = rare;
-            _uncommonThreshold = uncommon;
-        }
-
-        public static double UltraRareThreshold => _ultraRareThreshold;
-        public static double RareThreshold => _rareThreshold;
-        public static double UncommonThreshold => _uncommonThreshold;
+        public static double UltraRareThreshold => UltraRareThresholdValue;
+        public static double RareThreshold => RareThresholdValue;
+        public static double UncommonThreshold => UncommonThresholdValue;
 
         /// <summary>
         /// Gets the rarity tier for a given global unlock percentage.
         /// </summary>
         public static RarityTier GetRarityTier(double globalPercent)
         {
-            if (globalPercent <= _ultraRareThreshold) return RarityTier.UltraRare;
-            if (globalPercent <= _rareThreshold) return RarityTier.Rare;
-            if (globalPercent <= _uncommonThreshold) return RarityTier.Uncommon;
+            if (globalPercent <= UltraRareThresholdValue) return RarityTier.UltraRare;
+            if (globalPercent <= RareThresholdValue) return RarityTier.Rare;
+            if (globalPercent <= UncommonThresholdValue) return RarityTier.Uncommon;
             return RarityTier.Common;
         }
     }

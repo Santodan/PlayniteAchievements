@@ -10,7 +10,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 {
     /// <summary>
     /// SuccessStory-compatible button control for theme integration.
-    /// Uses native PlayniteAchievements properties (AchievementCount, UnlockedCount, IsCompleted).
+    /// Uses modern PlayniteAchievements properties (AchievementCount, UnlockedCount, IsCompleted).
     /// Matches the original SuccessStory plugin styling.
     /// </summary>
     public partial class PluginButtonControl : ThemeControlBase
@@ -48,3 +48,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     }
 }
 // --END SUCCESSSTORY--
+

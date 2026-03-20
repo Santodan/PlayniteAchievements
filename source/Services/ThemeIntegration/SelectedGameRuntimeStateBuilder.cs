@@ -10,10 +10,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
     {
         public static SelectedGameRuntimeState Build(
             Guid gameId,
-            GameAchievementData data,
-            double ultraRareThreshold,
-            double rareThreshold,
-            double uncommonThreshold)
+            GameAchievementData data)
         {
             if (data == null || !data.HasAchievements)
             {
@@ -50,7 +47,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 if (achievements[i] != null)
                 {
-                    // Native compact lists resolve tooltip game name from AchievementDetail.Game.
+                    // Modern compact lists resolve tooltip game name from AchievementDetail.Game.
                     // Ensure selected-game snapshots always carry this context.
                     achievements[i].Game = game;
                 }
@@ -145,3 +142,4 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
     }
 }
+

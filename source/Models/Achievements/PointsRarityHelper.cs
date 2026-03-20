@@ -8,17 +8,9 @@ namespace PlayniteAchievements.Models.Achievements
     public static class PointsRarityHelper
     {
         private const string XboxProviderKey = "Xbox";
-
-        private static int _xboxUltraRareThreshold = 100;
-        private static int _xboxRareThreshold = 50;
-        private static int _xboxUncommonThreshold = 25;
-
-        public static void Configure(int xboxUltraRareThreshold, int xboxRareThreshold, int xboxUncommonThreshold)
-        {
-            _xboxUltraRareThreshold = Math.Max(1, xboxUltraRareThreshold);
-            _xboxRareThreshold = Math.Max(1, xboxRareThreshold);
-            _xboxUncommonThreshold = Math.Max(0, xboxUncommonThreshold);
-        }
+        private const int XboxUltraRareThreshold = 100;
+        private const int XboxRareThreshold = 50;
+        private const int XboxUncommonThreshold = 25;
 
         public static bool SupportsPointsDerivedRarity(string providerKey)
         {
@@ -33,17 +25,17 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             var value = points.Value;
-            if (value >= _xboxUltraRareThreshold)
+            if (value >= XboxUltraRareThreshold)
             {
                 return RarityTier.UltraRare;
             }
 
-            if (value >= _xboxRareThreshold)
+            if (value >= XboxRareThreshold)
             {
                 return RarityTier.Rare;
             }
 
-            if (value >= _xboxUncommonThreshold)
+            if (value >= XboxUncommonThreshold)
             {
                 return RarityTier.Uncommon;
             }

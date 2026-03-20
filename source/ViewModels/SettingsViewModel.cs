@@ -45,12 +45,12 @@ namespace PlayniteAchievements.ViewModels
                 Settings._plugin = _plugin;
                 // Initialize DontSerialize properties that are not persisted
                 Settings.InitializeThemeProperties();
-                _logger.Info($"Settings loaded from storage. UltraRareThreshold={Settings.Persisted.UltraRareThreshold}, EnablePeriodicUpdates={Settings.Persisted.EnablePeriodicUpdates}");
+                _logger.Info($"Settings loaded from storage. EnablePeriodicUpdates={Settings.Persisted.EnablePeriodicUpdates}");
             }
             else
             {
                 Settings = new PlayniteAchievementsSettings(_plugin);
-                _logger.Info($"No saved settings found. Created new settings with defaults. UltraRareThreshold={Settings.Persisted.UltraRareThreshold}, EnablePeriodicUpdates={Settings.Persisted.EnablePeriodicUpdates}");
+                _logger.Info($"No saved settings found. Created new settings with defaults. EnablePeriodicUpdates={Settings.Persisted.EnablePeriodicUpdates}");
             }
         }
 

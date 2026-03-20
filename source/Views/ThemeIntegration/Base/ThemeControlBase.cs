@@ -70,17 +70,17 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// Used by settings preview to inject mock data.
         /// </summary>
         public static readonly DependencyProperty ThemeDataOverrideProperty =
-            DependencyProperty.Register(nameof(ThemeDataOverride), typeof(NativeThemeBindings),
+            DependencyProperty.Register(nameof(ThemeDataOverride), typeof(ModernThemeBindings),
                 typeof(ThemeControlBase), new PropertyMetadata(null, OnThemeDataOverrideChanged));
 
         /// <summary>
-        /// Gets or sets a native theme binding override for preview purposes.
+        /// Gets or sets a modern theme binding override for preview purposes.
         /// When null (default), uses Plugin.Settings.Theme.
         /// When set, uses this instance instead (for settings preview).
         /// </summary>
-        public NativeThemeBindings ThemeDataOverride
+        public ModernThemeBindings ThemeDataOverride
         {
-            get => (NativeThemeBindings)GetValue(ThemeDataOverrideProperty);
+            get => (ModernThemeBindings)GetValue(ThemeDataOverrideProperty);
             set => SetValue(ThemeDataOverrideProperty, value);
         }
 
@@ -153,10 +153,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected PlayniteAchievementsSettings EffectiveSettings => SettingsOverride ?? Plugin?.Settings;
 
         /// <summary>
-        /// Gets the effective native theme bindings to use for binding.
+        /// Gets the effective modern theme bindings to use for binding.
         /// Returns ThemeDataOverride if set, otherwise Plugin.Settings.Theme.
         /// </summary>
-        protected NativeThemeBindings EffectiveTheme => ThemeDataOverride ?? EffectiveSettings?.Theme;
+        protected ModernThemeBindings EffectiveTheme => ThemeDataOverride ?? EffectiveSettings?.Theme;
 
         /// <summary>
         /// Gets the effective legacy theme bindings to use for binding.
@@ -188,7 +188,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected virtual bool EnableAutomaticThemeDataUpdates => false;
 
         /// <summary>
-        /// Gets a value indicating whether this control consumes native theme bindings.
+        /// Gets a value indicating whether this control consumes modern theme bindings.
         /// </summary>
         protected virtual bool UsesThemeBindings => false;
 
@@ -203,7 +203,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         protected virtual bool ShouldHandleSettingsDataChange(string propertyName) => false;
 
         /// <summary>
-        /// Determines whether a change raised from <see cref="Models.ThemeIntegration.NativeThemeBindings"/> should trigger a refresh.
+        /// Determines whether a change raised from <see cref="Models.ThemeIntegration.ModernThemeBindings"/> should trigger a refresh.
         /// </summary>
         protected virtual bool ShouldHandleThemeDataChange(string propertyName) => false;
 
@@ -444,17 +444,17 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
     }
 
     /// <summary>
-    /// DataContext wrapper that substitutes custom native and legacy theme bindings for preview.
+    /// DataContext wrapper that substitutes custom modern and legacy theme bindings for preview.
     /// </summary>
     internal class ThemePreviewContext
     {
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly NativeThemeBindings _themeOverride;
+        private readonly ModernThemeBindings _themeOverride;
         private readonly LegacyThemeBindings _legacyThemeOverride;
 
         public ThemePreviewContext(
             PlayniteAchievementsSettings settings,
-            NativeThemeBindings themeOverride,
+            ModernThemeBindings themeOverride,
             LegacyThemeBindings legacyThemeOverride)
         {
             _settings = settings;
@@ -463,9 +463,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         }
 
         /// <summary>
-        /// Returns the override native theme bindings instead of the settings' Theme.
+        /// Returns the override modern theme bindings instead of the settings' Theme.
         /// </summary>
-        public NativeThemeBindings Theme => _themeOverride;
+        public ModernThemeBindings Theme => _themeOverride;
 
         /// <summary>
         /// Returns the override legacy theme bindings instead of the settings' LegacyTheme.
@@ -481,3 +481,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public PersistedSettings Persisted => _settings?.Persisted;
     }
 }
+

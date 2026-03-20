@@ -36,7 +36,7 @@ Docs: [Wiki Home](https://github.com/justin-delano/PlayniteAchievements/wiki) ·
 
 | Area | Legacy | PlayniteAchievements |
 | --- | --- | --- |
-| Theme integration | Legacy bindings | Legacy + native bindings, Theme Migration, backup, revert |
+| Theme integration | Legacy bindings | Legacy + modern bindings, Theme Migration, backup, revert |
 | Views | Plugin window, one-game view | Sidebar, selected-game drilldown, top-panel popout |
 | Charts and layout | Main plugin charts | Contextual pie charts, timeline, trophy charts, resizable/hideable grid columns |
 | Refresh | Recent / installed / full style passes | Background refresh, single-game refresh, Custom Refresh, presets, include/exclude targeting |
@@ -108,7 +108,7 @@ Docs: [Game Options in the wiki](https://github.com/justin-delano/PlayniteAchiev
 | Theme path | What you can do |
 | --- | --- |
 | Legacy themes | Keep using the legacy surface while switching plugins |
-| Native themes | Use native Playnite Achievements controls and bindings |
+| Modern themes | Use modern Playnite Achievements controls and bindings |
 | Migration modes | Limited, Full, or Custom |
 | Safety | Backup before changes, revert after changes |
 
@@ -152,3 +152,4 @@ Full docs live in the wiki.
 Thanks to the Playnite Discord testers, theme authors, and everyone who kept reporting edge cases.
 
 License: [MIT](LICENSE).
+

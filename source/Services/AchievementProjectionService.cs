@@ -157,22 +157,6 @@ namespace PlayniteAchievements.Services
             }
         }
 
-        public static bool IsRarityProjectionSettingPropertyName(string propertyName)
-        {
-            switch (NormalizePersistedPropertyName(propertyName))
-            {
-                case nameof(PersistedSettings.UltraRareThreshold):
-                case nameof(PersistedSettings.RareThreshold):
-                case nameof(PersistedSettings.UncommonThreshold):
-                case nameof(PersistedSettings.XboxUltraRarePointsThreshold):
-                case nameof(PersistedSettings.XboxRarePointsThreshold):
-                case nameof(PersistedSettings.XboxUncommonPointsThreshold):
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
         public static void AccumulateRarity(AchievementDetail achievement, ref int common, ref int uncommon, ref int rare, ref int ultraRare)
         {
             var tier = achievement?.Rarity;

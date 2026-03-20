@@ -9,10 +9,10 @@ using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
     /// <summary>
-    /// Native PlayniteAchievements binding surface.
+    /// Modern PlayniteAchievements binding surface.
     /// Runtime-only and populated from a shared theme runtime state.
     /// </summary>
-    public class NativeThemeBindings : ObservableObject
+    public class ModernThemeBindings : ObservableObject
     {
         [DontSerialize]
         private bool _hasAchievements;
@@ -538,3 +538,4 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
     }
 }
+

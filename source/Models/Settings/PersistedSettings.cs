@@ -4,6 +4,7 @@ using System.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Tagging;
 
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
@@ -17,7 +18,6 @@ namespace PlayniteAchievements.Models.Settings
     {
         public PersistedSettings()
         {
-            RefreshRarityHelpers();
         }
 
         #region Backing Fields
@@ -100,12 +100,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, double> _gamesOverviewColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private bool _pointsColumnAutoEnabled = false;
 
-        private double _ultraRareThreshold = 5;
-        private double _rareThreshold = 10;
-        private double _uncommonThreshold = 50;
-        private int _xboxUltraRarePointsThreshold = 100;
-        private int _xboxRarePointsThreshold = 50;
-        private int _xboxUncommonPointsThreshold = 25;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
@@ -981,87 +975,7 @@ namespace PlayniteAchievements.Models.Settings
 
         #endregion
 
-        #region Rarity Threshold Settings
-
-        /// <summary>
-        /// Percentage threshold for ultra-rare achievements (≤ this value = ultra-rare).
-        /// </summary>
-        public double UltraRareThreshold
-        {
-            get => _ultraRareThreshold;
-            set
-            {
-                SetValue(ref _ultraRareThreshold, Math.Max(0.1, Math.Min(value, RareThreshold - 0.1)));
-                ApplyGlobalRarityThresholds();
-            }
-        }
-
-        /// <summary>
-        /// Percentage threshold for rare achievements (≤ this value and > ultra-rare = rare).
-        /// </summary>
-        public double RareThreshold
-        {
-            get => _rareThreshold;
-            set
-            {
-                SetValue(ref _rareThreshold, Math.Max(UltraRareThreshold + 0.1, Math.Min(value, UncommonThreshold - 0.1)));
-                ApplyGlobalRarityThresholds();
-            }
-        }
-
-        /// <summary>
-        /// Percentage threshold for uncommon achievements (≤ this value and > rare = uncommon).
-        /// Anything above this is common.
-        /// </summary>
-        public double UncommonThreshold
-        {
-            get => _uncommonThreshold;
-            set
-            {
-                SetValue(ref _uncommonThreshold, Math.Max(RareThreshold + 0.1, Math.Min(value, 99.9)));
-                ApplyGlobalRarityThresholds();
-            }
-        }
-
-        /// <summary>
-        /// Minimum Xbox points required for an achievement to be considered ultra-rare.
-        /// </summary>
-        public int XboxUltraRarePointsThreshold
-        {
-            get => _xboxUltraRarePointsThreshold;
-            set
-            {
-                SetValue(ref _xboxUltraRarePointsThreshold, Math.Max(XboxRarePointsThreshold + 1, value));
-                ApplyXboxPointsRarityThresholds();
-            }
-        }
-
-        /// <summary>
-        /// Minimum Xbox points required for an achievement to be considered rare.
-        /// </summary>
-        public int XboxRarePointsThreshold
-        {
-            get => _xboxRarePointsThreshold;
-            set
-            {
-                var clamped = Math.Max(XboxUncommonPointsThreshold + 1, Math.Min(value, XboxUltraRarePointsThreshold - 1));
-                SetValue(ref _xboxRarePointsThreshold, clamped);
-                ApplyXboxPointsRarityThresholds();
-            }
-        }
-
-        /// <summary>
-        /// Minimum Xbox points required for an achievement to be considered uncommon.
-        /// </summary>
-        public int XboxUncommonPointsThreshold
-        {
-            get => _xboxUncommonPointsThreshold;
-            set
-            {
-                SetValue(ref _xboxUncommonPointsThreshold, Math.Max(0, Math.Min(value, XboxRarePointsThreshold - 1)));
-                ApplyXboxPointsRarityThresholds();
-            }
-        }
+        #region General Settings
 
         /// <summary>
         /// Indicates whether the user has completed the first-time setup flow.
@@ -1208,7 +1122,7 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Platform slugs that Exophase should automatically claim.
-        /// Games on these platforms will use Exophase instead of native providers.
+        /// Games on these platforms will use Exophase instead of modern providers.
         /// Valid values: "steam", "psn", "xbox", "gog", "epic", "ea", "blizzard", "nintendo", "retro"
         /// </summary>
         public HashSet<string> ExophaseManagedPlatforms
@@ -1339,12 +1253,6 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, double>(this.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
                 PointsColumnAutoEnabled = this.PointsColumnAutoEnabled,
-                UltraRareThreshold = this.UltraRareThreshold,
-                RareThreshold = this.RareThreshold,
-                UncommonThreshold = this.UncommonThreshold,
-                XboxUltraRarePointsThreshold = this.XboxUltraRarePointsThreshold,
-                XboxRarePointsThreshold = this.XboxRarePointsThreshold,
-                XboxUncommonPointsThreshold = this.XboxUncommonPointsThreshold,
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
@@ -1414,25 +1322,6 @@ namespace PlayniteAchievements.Models.Settings
         private static string NormalizePath(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
-        }
-
-        internal void RefreshRarityHelpers()
-        {
-            ApplyGlobalRarityThresholds();
-            ApplyXboxPointsRarityThresholds();
-        }
-
-        private void ApplyGlobalRarityThresholds()
-        {
-            PercentRarityHelper.Configure(_ultraRareThreshold, _rareThreshold, _uncommonThreshold);
-        }
-
-        private void ApplyXboxPointsRarityThresholds()
-        {
-            PointsRarityHelper.Configure(
-                _xboxUltraRarePointsThreshold,
-                _xboxRarePointsThreshold,
-                _xboxUncommonPointsThreshold);
         }
 
         private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(
@@ -1531,3 +1420,4 @@ namespace PlayniteAchievements.Models.Settings
         #endregion
     }
 }
+

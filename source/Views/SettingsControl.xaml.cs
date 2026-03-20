@@ -355,16 +355,16 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private NativeThemeBindings _previewThemeData;
-        private NativeThemeBindings _unlockedPreviewThemeData;
-        private NativeThemeBindings _hiddenPreviewThemeData;
-        private NativeThemeBindings _lockedPreviewThemeData;
+        private ModernThemeBindings _previewThemeData;
+        private ModernThemeBindings _unlockedPreviewThemeData;
+        private ModernThemeBindings _hiddenPreviewThemeData;
+        private ModernThemeBindings _lockedPreviewThemeData;
 
         /// <summary>
-        /// Gets native theme bindings populated with mock achievements for desktop control previews.
+        /// Gets modern theme bindings populated with mock achievements for desktop control previews.
         /// Used by desktop controls via ThemeDataOverride binding.
         /// </summary>
-        public NativeThemeBindings PreviewThemeData
+        public ModernThemeBindings PreviewThemeData
         {
             get
             {
@@ -377,9 +377,9 @@ namespace PlayniteAchievements.Views
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single unlocked achievement for visibility preview.
+        /// Gets modern theme bindings with a single unlocked achievement for visibility preview.
         /// </summary>
-        public NativeThemeBindings UnlockedPreviewThemeData
+        public ModernThemeBindings UnlockedPreviewThemeData
         {
             get
             {
@@ -392,9 +392,9 @@ namespace PlayniteAchievements.Views
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single hidden achievement for visibility preview.
+        /// Gets modern theme bindings with a single hidden achievement for visibility preview.
         /// </summary>
-        public NativeThemeBindings HiddenPreviewThemeData
+        public ModernThemeBindings HiddenPreviewThemeData
         {
             get
             {
@@ -407,9 +407,9 @@ namespace PlayniteAchievements.Views
         }
 
         /// <summary>
-        /// Gets native theme bindings with a single locked achievement for visibility preview.
+        /// Gets modern theme bindings with a single locked achievement for visibility preview.
         /// </summary>
-        public NativeThemeBindings LockedPreviewThemeData
+        public ModernThemeBindings LockedPreviewThemeData
         {
             get
             {
@@ -484,7 +484,7 @@ namespace PlayniteAchievements.Views
                 // we'll assign a new list which triggers refresh
             }
 
-            // Refresh the preview native theme bindings used by desktop controls
+            // Refresh the preview modern theme bindings used by desktop controls
             _previewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
                 settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
@@ -785,7 +785,7 @@ namespace PlayniteAchievements.Views
 
             // Debug logging to verify DataContext and Settings values
             _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
-            _logger?.Info($"Settings.Persisted.UltraRareThreshold: {_settingsViewModel.Settings.Persisted.UltraRareThreshold}, EnablePeriodicUpdates: {_settingsViewModel.Settings.Persisted.EnablePeriodicUpdates}");
+            _logger?.Info($"Settings.EnablePeriodicUpdates: {_settingsViewModel.Settings.Persisted.EnablePeriodicUpdates}");
 
             Loaded += async (s, e) =>
             {
@@ -3525,4 +3525,5 @@ namespace PlayniteAchievements.Views
         public event PropertyChangedEventHandler PropertyChanged;
     }
 }
+
 

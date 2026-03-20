@@ -207,11 +207,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
 
         /// <summary>
-        /// Determines whether a change raised from native theme bindings should trigger a refresh.
+        /// Determines whether a change raised from modern theme bindings should trigger a refresh.
         /// </summary>
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
-            return propertyName == nameof(NativeThemeBindings.AllAchievementDisplayItems);
+            return propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems);
         }
 
         /// <summary>
@@ -345,3 +345,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
     }
 }
+

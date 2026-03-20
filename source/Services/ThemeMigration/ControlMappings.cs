@@ -3,16 +3,16 @@ using System.Collections.Generic;
 namespace PlayniteAchievements.Services.ThemeMigration
 {
     /// <summary>
-    /// Static mappings for converting Legacy theme elements to Native theme elements.
+    /// Static mappings for converting Legacy theme elements to Modern theme elements.
     /// Used during Full migration mode.
     /// </summary>
     public static class ControlMappings
     {
         /// <summary>
-        /// Maps Legacy control names to Native control names.
-        /// Keys are the legacy names (without underscore prefix), values are the native names.
+        /// Maps Legacy control names to Modern control names.
+        /// Keys are the legacy names (without underscore prefix), values are the modern names.
         /// </summary>
-        public static readonly Dictionary<string, string> LegacyToNativeControlNames = new Dictionary<string, string>
+        public static readonly Dictionary<string, string> LegacyToModernControlNames = new Dictionary<string, string>
         {
             { "PluginButton", "AchievementButton" },
             { "PluginChart", "AchievementBarChart" },
@@ -27,10 +27,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
 
         /// <summary>
         /// Maps LegacyData binding paths to Theme binding paths.
-        /// Keys are the legacy binding path suffixes, values are the native binding path suffixes.
+        /// Keys are the legacy binding path suffixes, values are the modern binding path suffixes.
         /// Full bindings are in format: {Binding LegacyData.XXX} -> {Binding Theme.YYY}
         /// </summary>
-        public static readonly Dictionary<string, string> LegacyToNativeBindingPaths = new Dictionary<string, string>
+        public static readonly Dictionary<string, string> LegacyToModernBindingPaths = new Dictionary<string, string>
         {
             { "HasData", "HasAchievements" },
             { "Total", "AchievementCount" },
@@ -44,3 +44,4 @@ namespace PlayniteAchievements.Services.ThemeMigration
         };
     }
 }
+

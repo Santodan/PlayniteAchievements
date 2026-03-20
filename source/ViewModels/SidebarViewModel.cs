@@ -1536,11 +1536,6 @@ namespace PlayniteAchievements.ViewModels
             {
                 _ = RefreshViewAsync();
             }
-            else if (AchievementProjectionService.IsRarityProjectionSettingPropertyName(propertyName))
-            {
-                _ = RefreshViewAsync();
-                UpdateAggregatePieCharts();
-            }
             else if (propertyName == nameof(PersistedSettings.ShowGamesWithNoUnlocks))
             {
                 OnPropertyChanged(nameof(ShowGamesWithNoUnlocks));

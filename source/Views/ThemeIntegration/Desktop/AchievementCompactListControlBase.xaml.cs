@@ -13,7 +13,7 @@ using PlayniteAchievements.Views.ThemeIntegration.Base;
 namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
 {
     /// <summary>
-    /// Base class for compact list controls that get data from native theme bindings.
+    /// Base class for compact list controls that get data from modern theme bindings.
     /// Provides filtering by unlock state and overflow limiting.
     /// </summary>
     public abstract class AchievementCompactListControlBase : ThemeControlBase
@@ -176,7 +176,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         protected virtual bool FilterAchievement(AchievementDetail achievement) => true;
 
         /// <summary>
-        /// Loads data from native theme bindings and applies filtering.
+        /// Loads data from modern theme bindings and applies filtering.
         /// </summary>
         protected virtual void LoadData()
         {
@@ -328,13 +328,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
 
         /// <summary>
-        /// Determines whether a change raised from native theme bindings should trigger a refresh.
+        /// Determines whether a change raised from modern theme bindings should trigger a refresh.
         /// </summary>
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
             // Refresh when achievement data changes
-            return propertyName == nameof(NativeThemeBindings.AllAchievementDisplayItems) ||
-                   propertyName == nameof(NativeThemeBindings.AllAchievements);
+            return propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
+                   propertyName == nameof(ModernThemeBindings.AllAchievements);
         }
 
         /// <summary>
@@ -350,7 +350,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         /// </summary>
         public override void GameContextChanged(Game oldContext, Game newContext)
         {
-            // Native theme bindings are already populated by OnGameSelected in the plugin
+            // Modern theme bindings are already populated by OnGameSelected in the plugin
             if (_isLoaded)
             {
                 LoadData();
@@ -358,3 +358,4 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Desktop
         }
     }
 }
+

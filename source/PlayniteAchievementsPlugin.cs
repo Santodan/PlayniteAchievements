@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.Tagging;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.ViewModels;
@@ -349,7 +350,7 @@ namespace PlayniteAchievements
                     {
                         ElementList = new List<string>
                         {
-                            // SuccessStory-compatible controls (legacy naming; properties are also exposed via native keys)
+                            // SuccessStory-compatible controls (legacy naming; properties are also exposed via modern keys)
                             "PluginButton",
                             "PluginProgressBar",
                             "PluginCompactList",
@@ -360,7 +361,7 @@ namespace PlayniteAchievements
                             "PluginList",
                             "PluginViewItem",
 
-                            // Native PlayniteAchievements controls (always available)
+                            // Modern PlayniteAchievements controls (always available)
                             "AchievementButton",
                             "AchievementProgressBar",
                             "AchievementCompactList",
@@ -605,11 +606,11 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestNativeControls"),
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
-                    OpenNativeParityTestView(game.Id);
+                    OpenModernParityTestView(game.Id);
                 }
             };
 
@@ -1797,9 +1798,9 @@ namespace PlayniteAchievements
         }
 
         /// <summary>
-        /// Opens the native parity test view window for testing theme integration controls.
+        /// Opens the modern parity test view window for testing theme integration controls.
         /// </summary>
-        public void OpenNativeParityTestView(Guid gameId)
+        public void OpenModernParityTestView(Guid gameId)
         {
             try
             {
@@ -1812,7 +1813,7 @@ namespace PlayniteAchievements
                     return;
                 }
 
-                var view = new Views.ParityTests.NativeParityTestView(game);
+                var view = new Views.ParityTests.ModernParityTestView(game);
 
                 var windowOptions = new WindowOptions
                 {
@@ -1825,7 +1826,7 @@ namespace PlayniteAchievements
                 };
 
                 var window = PlayniteUiProvider.CreateExtensionWindow(
-                    "Native Theme Controls Test",
+                    "Modern Theme Controls Test",
                     view,
                     windowOptions
                 );
@@ -1843,7 +1844,7 @@ namespace PlayniteAchievements
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Failed to open native parity test view for gameId={gameId}");
+                _logger.Error(ex, $"Failed to open modern parity test view for gameId={gameId}");
                 PlayniteApi?.Dialogs?.ShowErrorMessage(
                     $"Failed to open test view: {ex.Message}",
                     "Playnite Achievements");
@@ -1991,7 +1992,7 @@ namespace PlayniteAchievements
 
         private enum ParityTestMode
         {
-            Native,
+            Modern,
             Compatibility
         }
 
@@ -2011,10 +2012,10 @@ namespace PlayniteAchievements
                 UserControl view;
                 string title;
 
-                if (mode == ParityTestMode.Native)
+                if (mode == ParityTestMode.Modern)
                 {
-                    view = new Views.ParityTests.NativeParityTestView(game);
-                    title = "PlayniteAchievements UI Parity Test (Native)";
+                    view = new Views.ParityTests.ModernParityTestView(game);
+                    title = "PlayniteAchievements UI Parity Test (Modern)";
                 }
                 else
                 {
@@ -2161,5 +2162,6 @@ namespace PlayniteAchievements
         }
     }
 }
+
 
 

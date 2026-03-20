@@ -48,11 +48,11 @@ namespace PlayniteAchievements.Models
         /// Contains both per-game achievement data and all-games overview data.
         /// </summary>
         [DontSerialize]
-        private NativeThemeBindings _theme;
+        private ModernThemeBindings _theme;
 
-        public NativeThemeBindings Theme
+        public ModernThemeBindings Theme
         {
-            get => _theme ?? (_theme = new NativeThemeBindings());
+            get => _theme ?? (_theme = new ModernThemeBindings());
             private set => _theme = value;
         }
 
@@ -743,7 +743,6 @@ namespace PlayniteAchievements.Models
             // Copy the entire PersistedSettings object
             DetachPersistedHandlers();
             Persisted = other.Persisted?.Clone() ?? new PersistedSettings();
-            Persisted.RefreshRarityHelpers();
             AttachPersistedHandlers();
             RefreshThemeDisplayItemsFromPersisted();
             OnPropertyChanged(nameof(Persisted));
@@ -758,7 +757,7 @@ namespace PlayniteAchievements.Models
         {
             if (Theme == null)
             {
-                Theme = new NativeThemeBindings();
+                Theme = new ModernThemeBindings();
             }
             if (LegacyTheme == null)
             {
@@ -766,7 +765,6 @@ namespace PlayniteAchievements.Models
             }
 
             AttachPersistedHandlers();
-            Persisted?.RefreshRarityHelpers();
             RefreshThemeDisplayItemsFromPersisted();
         }
 
@@ -781,7 +779,7 @@ namespace PlayniteAchievements.Models
         public PlayniteAchievementsSettings()
         {
             Persisted = new PersistedSettings();
-            Theme = new NativeThemeBindings();
+            Theme = new ModernThemeBindings();
             LegacyTheme = new LegacyThemeBindings();
             AttachPersistedHandlers();
             RefreshThemeDisplayItemsFromPersisted();
@@ -879,3 +877,4 @@ namespace PlayniteAchievements.Models
         #endregion
     }
 }
+

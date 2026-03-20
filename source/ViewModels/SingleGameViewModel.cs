@@ -744,10 +744,6 @@ namespace PlayniteAchievements.ViewModels
             {
                 ApplyAppearanceSettingsToAchievements();
             }
-            else if (AchievementProjectionService.IsRarityProjectionSettingPropertyName(e?.PropertyName))
-            {
-                LoadGameData();
-            }
         }
 
         private void ApplyAppearanceSettingsToAchievements()

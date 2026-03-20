@@ -9,7 +9,6 @@ using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,7 +45,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         };
 
         // NOTE: PlatinumGames is notified via compatibility surface only to avoid duplicate notifications.
-        private static readonly string[] NativeAllGamesCoreDelegatedProperties =
+        private static readonly string[] ModernAllGamesCoreDelegatedProperties =
         {
             nameof(PlayniteAchievementsSettings.HasDataAllGames),
             nameof(PlayniteAchievementsSettings.CompletedGamesAsc),
@@ -85,7 +84,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.ManualGames)
         };
 
-        private static readonly string[] NativeAllGamesHeavyDelegatedProperties =
+        private static readonly string[] ModernAllGamesHeavyDelegatedProperties =
         {
             nameof(PlayniteAchievementsSettings.AllAchievementsUnlockAsc),
             nameof(PlayniteAchievementsSettings.AllAchievementsUnlockDesc),
@@ -153,11 +152,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private CancellationTokenSource _activeUpdateCts;
         private Guid? _appliedGameId;
         private DateTime _appliedLastUpdatedUtc;
-        private int _appliedSettingsRevision;
-        private double _ultraRareThreshold;
-        private double _rareThreshold;
-        private double _uncommonThreshold;
-        private int _settingsRevision;
 
         private bool _fullscreenInitialized;
 
@@ -194,14 +188,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.FullRefreshCommand = _fullRefreshCmd;
             _settings.InstalledRefreshCommand = _installedRefreshCmd;
 
-            _settings.PropertyChanged += Settings_PropertyChanged;
             _achievementService.CacheInvalidated += AchievementService_CacheInvalidated;
-            RefreshCachedThresholds();
         }
 
         public void Dispose()
         {
-            try { _settings.PropertyChanged -= Settings_PropertyChanged; } catch { }
             try { _achievementService.CacheInvalidated -= AchievementService_CacheInvalidated; } catch { }
 
             lock (_refreshLock)
@@ -274,27 +265,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RequestRefresh();
         }
 
-        private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (!IsThresholdProperty(e?.PropertyName))
-            {
-                return;
-            }
-
-            RefreshCachedThresholds();
-            Interlocked.Increment(ref _settingsRevision);
-
-            if (_appliedGameId.HasValue)
-            {
-                RequestUpdate(_appliedGameId);
-            }
-
-            if (IsFullscreen() && _fullscreenInitialized)
-            {
-                RequestRefresh();
-            }
-        }
-
         private void AchievementService_CacheInvalidated(object sender, EventArgs e)
         {
             if (IsFullscreen() && _fullscreenInitialized)
@@ -313,39 +283,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             catch
             {
             }
-        }
-
-        private bool IsThresholdProperty(string propertyName)
-        {
-            return propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.UltraRareThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.UltraRareThreshold) ||
-                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.RareThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.RareThreshold) ||
-                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.UncommonThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.UncommonThreshold) ||
-                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxUltraRarePointsThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.XboxUltraRarePointsThreshold) ||
-                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxRarePointsThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.XboxRarePointsThreshold) ||
-                   propertyName == $"{nameof(PlayniteAchievementsSettings.Persisted)}.{nameof(PersistedSettings.XboxUncommonPointsThreshold)}" ||
-                   propertyName == nameof(PersistedSettings.XboxUncommonPointsThreshold);
-        }
-
-        private void RefreshCachedThresholds()
-        {
-            try
-            {
-                _ultraRareThreshold = _settings.Persisted.UltraRareThreshold;
-                _rareThreshold = _settings.Persisted.RareThreshold;
-                _uncommonThreshold = _settings.Persisted.UncommonThreshold;
-            }
-            catch
-            {
-                _ultraRareThreshold = 5;
-                _rareThreshold = 10;
-                _uncommonThreshold = 50;
-            }
-
         }
 
         private Guid? ResolveSelectedGameIdForThemeUpdate()
@@ -407,7 +344,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 int version;
                 Guid? gameId;
-                int settingsRevision;
                 CancellationToken token;
 
                 lock (_updateGate)
@@ -419,7 +355,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     version = _requestVersion;
                     gameId = _requestedGameId;
-                    settingsRevision = Volatile.Read(ref _settingsRevision);
                     _processedVersion = version;
 
                     try { _activeUpdateCts?.Cancel(); } catch { }
@@ -461,8 +396,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                 if (_appliedGameId.HasValue &&
                     _appliedGameId.Value == gameId.Value &&
-                    _appliedLastUpdatedUtc == gameData.LastUpdatedUtc &&
-                    _appliedSettingsRevision == settingsRevision)
+                    _appliedLastUpdatedUtc == gameData.LastUpdatedUtc)
                 {
                     continue;
                 }
@@ -470,12 +404,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 SelectedGameRuntimeState state = null;
                 try
                 {
-                    var ultra = _ultraRareThreshold;
-                    var rare = _rareThreshold;
-                    var uncommon = _uncommonThreshold;
-
                     state = await Task.Run(
-                        () => SelectedGameRuntimeStateBuilder.Build(gameId.Value, gameData, ultra, rare, uncommon),
+                        () => SelectedGameRuntimeStateBuilder.Build(gameId.Value, gameData),
                         token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -514,7 +444,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     ApplySelectedGameState(state);
                     _appliedGameId = gameId;
                     _appliedLastUpdatedUtc = gameData.LastUpdatedUtc;
-                    _appliedSettingsRevision = settingsRevision;
                 }, DispatcherPriority.Background).Task.ConfigureAwait(false);
             }
         }
@@ -825,7 +754,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         /// <summary>
         /// Synchronously populates single-game achievement data for the specified game.
         /// Uses existing cached data without triggering a refresh.
-        /// Called on desktop game selection changes to populate native theme bindings for theme controls.
+        /// Called on desktop game selection changes to populate modern theme bindings for theme controls.
         /// </summary>
         /// <param name="gameId">The ID of the game to populate data for.</param>
         internal void PopulateSingleGameDataSync(Guid gameId)
@@ -835,17 +764,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var gameData = _achievementService.GetGameAchievementData(gameId);
                 var state = SelectedGameRuntimeStateBuilder.Build(
                     gameId,
-                    gameData,
-                    _ultraRareThreshold,
-                    _rareThreshold,
-                    _uncommonThreshold);
+                    gameData);
 
                 if (state != null && state.HasAchievements)
                 {
                     ApplySelectedGameState(state);
                     _appliedGameId = gameId;
                     _appliedLastUpdatedUtc = gameData?.LastUpdatedUtc ?? default;
-                    _appliedSettingsRevision = Volatile.Read(ref _settingsRevision);
                 }
                 else
                 {
@@ -981,10 +906,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             NotifySettingProperties(CompatibilityAllGamesDelegatedProperties);
-            NotifySettingProperties(NativeAllGamesCoreDelegatedProperties);
+            NotifySettingProperties(ModernAllGamesCoreDelegatedProperties);
             if (shouldUpdateHeavyLists)
             {
-                NotifySettingProperties(NativeAllGamesHeavyDelegatedProperties);
+                NotifySettingProperties(ModernAllGamesHeavyDelegatedProperties);
             }
         }
 
@@ -1078,7 +1003,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             _appliedGameId = null;
             _appliedLastUpdatedUtc = default;
-            _appliedSettingsRevision = Volatile.Read(ref _settingsRevision);
 
             NotifySettingProperties(SingleGameThemeDelegatedProperties);
             NotifySettingProperties(SingleGameLegacyDelegatedProperties);
@@ -1130,6 +1054,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
     }
 }
+
 
 
 

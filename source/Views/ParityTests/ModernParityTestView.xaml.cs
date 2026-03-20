@@ -9,9 +9,9 @@ using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.ParityTests
 {
-    public partial class NativeParityTestView : UserControl
+    public partial class ModernParityTestView : UserControl
     {
-        private static readonly ILogger _logger = PluginLogger.GetLogger(nameof(NativeParityTestView));
+        private static readonly ILogger _logger = PluginLogger.GetLogger(nameof(ModernParityTestView));
 
         private readonly PlayniteAchievementsPlugin _plugin;
         private readonly Game _game;
@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views.ParityTests
         public Guid GameId { get; }
         public PlayniteAchievementsSettings Settings => _plugin.Settings;
 
-        public NativeParityTestView(Game game)
+        public ModernParityTestView(Game game)
         {
             try
             {
@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Views.ParityTests
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"InitializeComponent failed: {ex.Message}\n\n{ex.StackTrace}", "NativeParityTestView Error");
+                System.Windows.MessageBox.Show($"InitializeComponent failed: {ex.Message}\n\n{ex.StackTrace}", "ModernParityTestView Error");
                 throw;
             }
 
@@ -42,16 +42,16 @@ namespace PlayniteAchievements.Views.ParityTests
 
                 DataContext = this;
 
-                Loaded += NativeParityTestView_Loaded;
+                Loaded += ModernParityTestView_Loaded;
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Constructor setup failed: {ex.Message}\n\n{ex.StackTrace}", "NativeParityTestView Error");
+                System.Windows.MessageBox.Show($"Constructor setup failed: {ex.Message}\n\n{ex.StackTrace}", "ModernParityTestView Error");
                 throw;
             }
         }
 
-        private void NativeParityTestView_Loaded(object sender, RoutedEventArgs e)
+        private void ModernParityTestView_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -62,9 +62,9 @@ namespace PlayniteAchievements.Views.ParityTests
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Native parity test view failed during Loaded.");
+                _logger.Error(ex, "Modern parity test view failed during Loaded.");
                 _plugin?.PlayniteApi?.Dialogs?.ShowErrorMessage(
-                    $"Native parity test view failed to load: {ex.Message}",
+                    $"Modern parity test view failed to load: {ex.Message}",
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             }
         }
@@ -91,3 +91,4 @@ namespace PlayniteAchievements.Views.ParityTests
         }
     }
 }
+
