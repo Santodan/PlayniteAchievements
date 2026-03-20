@@ -105,6 +105,7 @@ namespace PlayniteAchievements.Providers.Xenia
                 freeEntries.Add(entry);
             }
 
+            List<XdbfAchievement> xdbfAchievements = new List<XdbfAchievement>();
             List<AchievementDetail> achievements = new List<AchievementDetail>();
             var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{gameID}\\";
 
@@ -158,6 +159,15 @@ namespace PlayniteAchievements.Providers.Xenia
                         cheevoindex += 2;
                     }
 
+                    xdbfAchievements.Add(achievement);
+
+                }
+
+                // Moved achievement creation outside of xbdf achievement processing so user doesn't have to scan twice to get 
+                // icon images to appear as the png data is usually after the achievement data in the gpd file so the icon is
+                // always set to null on the first scan
+                foreach (var achievement in xdbfAchievements)
+                {
                     var iconPath = $"{iconDirectory}{achievement.icon_id}.png";
                     if (!File.Exists(iconPath))
                     {
@@ -178,6 +188,8 @@ namespace PlayniteAchievements.Providers.Xenia
                             : (DateTime?)null,
                     });
                 }
+
+
             }
 
 
