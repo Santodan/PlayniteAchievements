@@ -7,15 +7,27 @@ namespace PlayniteAchievements.Providers.Exophase
     /// </summary>
     public class ExophaseSettings : ProviderSettingsBase
     {
+        private string _userId;
+
         /// <inheritdoc />
         public override string ProviderKey => "Exophase";
+
+        /// <summary>
+        /// Exophase user ID (username).
+        /// </summary>
+        public string UserId
+        {
+            get => _userId;
+            set => SetValue(ref _userId, value);
+        }
 
         /// <inheritdoc />
         public override IProviderSettings Clone()
         {
             return new ExophaseSettings
             {
-                IsEnabled = IsEnabled
+                IsEnabled = IsEnabled,
+                UserId = UserId
             };
         }
 
@@ -25,6 +37,7 @@ namespace PlayniteAchievements.Providers.Exophase
             if (source is ExophaseSettings other)
             {
                 IsEnabled = other.IsEnabled;
+                UserId = other.UserId;
             }
         }
     }
