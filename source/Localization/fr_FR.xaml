@@ -191,9 +191,9 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Utiliser Exophase pour ce jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Cochez pour forcer Exophase pour ce jeu. Les jeux décochés utilisent Exophase si leur plateforme est dans les Plateformes gérées.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseManagedByPlatform">Géré par Exophase (via paramètre de plateforme)</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Remplacement du slug du jeu</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Remplace le slug détecté automatiquement pour lier à un jeu Exophase spécifique. Laissez vide pour utiliser la détection automatique.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Veuillez entrer un slug de jeu Exophase.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Remplacement de l'ID de jeu Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Remplace l'ID de jeu Exophase détecté automatiquement pour lier à un jeu Exophase spécifique. Laissez vide pour utiliser la détection automatique.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Veuillez entrer un ID de jeu Exophase.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Ordre personnalisé des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">Glissez-déposez les lignes pour définir l'ordre par défaut. La multi-sélection avec Maj/Ctrl est prise en charge. Les changements sont enregistrés immédiatement.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_NoAchievements">Aucun succès en cache n'est disponible pour ce jeu.</sys:String>

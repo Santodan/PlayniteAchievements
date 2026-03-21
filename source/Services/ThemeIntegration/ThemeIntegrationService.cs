@@ -770,6 +770,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.Theme.PSNGames = ProjectGameSummaries(library.PSNGames);
             _settings.Theme.RetroAchievementsGames = ProjectGameSummaries(library.RetroAchievementsGames);
             _settings.Theme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
+            _settings.Theme.XeniaGames = ProjectGameSummaries(library.XeniaGames);
             _settings.Theme.ShadPS4Games = ProjectGameSummaries(library.ShadPS4Games);
             _settings.Theme.ManualGames = ProjectGameSummaries(library.ManualGames);
             _settings.Theme.MostRecentUnlocksTop3 = library.MostRecentUnlocksTop3;

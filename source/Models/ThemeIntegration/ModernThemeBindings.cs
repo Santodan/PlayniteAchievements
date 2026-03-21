@@ -110,6 +110,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _rpcs3Games = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _xeniaGames = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _shadPS4Games = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _manualGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -515,6 +517,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _rpcs3Games;
             set => ReplaceCollection(_rpcs3Games, value, nameof(RPCS3Games));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> XeniaGames
+        {
+            get => _xeniaGames;
+            set => ReplaceCollection(_xeniaGames, value, nameof(XeniaGames));
         }
 
         [DontSerialize]

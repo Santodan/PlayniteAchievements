@@ -290,7 +290,8 @@ namespace PlayniteAchievements.Views
                 ProviderFilterSelectionButton,
                 _viewModel.ProviderFilterOptions,
                 option => _viewModel.IsProviderFilterSelected(option),
-                (option, isSelected) => _viewModel.SetProviderFilterSelected(option, isSelected));
+                (option, isSelected) => _viewModel.SetProviderFilterSelected(option, isSelected),
+                option => _viewModel.GetProviderFilterDisplayName(option));
         }
 
         private void CompletenessFilterSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -339,7 +340,8 @@ namespace PlayniteAchievements.Views
             Button button,
             IEnumerable<string> options,
             Func<string, bool> isSelected,
-            Action<string, bool> setSelection)
+            Action<string, bool> setSelection,
+            Func<string, string> getDisplayLabel = null)
         {
             if (button == null || isSelected == null || setSelection == null)
             {
@@ -361,9 +363,15 @@ namespace PlayniteAchievements.Views
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
             foreach (var option in options.Where(value => !string.IsNullOrWhiteSpace(value)))
             {
+                var displayLabel = getDisplayLabel?.Invoke(option);
+                if (string.IsNullOrWhiteSpace(displayLabel))
+                {
+                    displayLabel = option;
+                }
+
                 var item = new MenuItem
                 {
-                    Header = option,
+                    Header = displayLabel,
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = isSelected(option)

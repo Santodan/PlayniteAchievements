@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Services.Database
             public long HasAchievements { get; set; }
             public string LastUpdatedUtc { get; set; }
             public string ProviderKey { get; set; }
+            public string ProviderPlatformKey { get; set; }
             public long? ProviderGameId { get; set; }
             public string PlayniteGameId { get; set; }
             public string GameName { get; set; }
@@ -261,6 +262,7 @@ namespace PlayniteAchievements.Services.Database
                         ugp.HasAchievements AS HasAchievements,
                         ugp.LastUpdatedUtc AS LastUpdatedUtc,
                         g.ProviderKey AS ProviderKey,
+                        g.ProviderPlatformKey AS ProviderPlatformKey,
                         g.ProviderGameId AS ProviderGameId,
                         g.PlayniteGameId AS PlayniteGameId,
                         g.GameName AS GameName,
@@ -362,6 +364,7 @@ namespace PlayniteAchievements.Services.Database
                             ugp.HasAchievements AS HasAchievements,
                             ugp.LastUpdatedUtc AS LastUpdatedUtc,
                             g.ProviderKey AS ProviderKey,
+                            g.ProviderPlatformKey AS ProviderPlatformKey,
                             g.ProviderGameId AS ProviderGameId,
                             g.PlayniteGameId AS PlayniteGameId,
                             g.GameName AS GameName,
@@ -384,6 +387,7 @@ namespace PlayniteAchievements.Services.Database
                         HasAchievements,
                         LastUpdatedUtc,
                         ProviderKey,
+                        ProviderPlatformKey,
                         ProviderGameId,
                         PlayniteGameId,
                         GameName,
@@ -687,7 +691,7 @@ namespace PlayniteAchievements.Services.Database
         {
             // Find a Game entry for this CacheKey from a non-Unmapped provider
             return db.Load<GameRow>(
-                @"SELECT g.Id, g.ProviderKey, g.ProviderGameId, g.PlayniteGameId, g.GameName, g.LibrarySourceName, g.FirstSeenUtc, g.LastUpdatedUtc
+                                @"SELECT g.Id, g.ProviderKey, g.ProviderPlatformKey, g.ProviderGameId, g.PlayniteGameId, g.GameName, g.LibrarySourceName, g.FirstSeenUtc, g.LastUpdatedUtc
                   FROM Games g
                   WHERE g.PlayniteGameId = ?
                     AND g.ProviderKey <> 'Unmapped'
@@ -997,7 +1001,7 @@ namespace PlayniteAchievements.Services.Database
             if (!string.IsNullOrWhiteSpace(playniteGameId))
             {
                 game = db.Load<GameRow>(
-                    @"SELECT Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
+                                        @"SELECT Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
                       FROM Games
                       WHERE ProviderKey = ? AND PlayniteGameId = ?
                       LIMIT 1;",
@@ -1009,7 +1013,7 @@ namespace PlayniteAchievements.Services.Database
                 SqlNadoCacheBehavior.ShouldFallbackToProviderGameIdLookup(providerKey, playniteGameId, providerGameId))
             {
                 game = db.Load<GameRow>(
-                    @"SELECT Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
+                                        @"SELECT Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
                       FROM Games
                       WHERE ProviderKey = ? AND ProviderGameId = ?
                       LIMIT 1;",
@@ -1022,7 +1026,7 @@ namespace PlayniteAchievements.Services.Database
                 if (isRetroAchievements && providerGameId.HasValue && !string.IsNullOrWhiteSpace(playniteGameId))
                 {
                     var mirroredRows = db.Load<GameRow>(
-                        @"SELECT Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
+                                                @"SELECT Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
                           FROM Games
                           WHERE ProviderKey = ?
                             AND ProviderGameId = ?
@@ -1046,10 +1050,11 @@ namespace PlayniteAchievements.Services.Database
 
                 db.ExecuteNonQuery(
                     @"INSERT INTO Games
-                        (ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
+                        (ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
                       VALUES
-                        (?, ?, ?, ?, ?, ?, ?);",
+                        (?, ?, ?, ?, ?, ?, ?, ?);",
                     providerKey,
+                    DbValue(data.ProviderPlatformKey),
                     providerGameId.HasValue ? (object)providerGameId.Value : DBNull.Value,
                     DbValue(playniteGameId),
                     DbValue(data.GameName),
@@ -1061,12 +1066,14 @@ namespace PlayniteAchievements.Services.Database
 
             db.ExecuteNonQuery(
                 @"UPDATE Games
-                  SET ProviderGameId = ?,
+                  SET ProviderPlatformKey = ?,
+                      ProviderGameId = ?,
                       PlayniteGameId = ?,
                       GameName = ?,
                       LibrarySourceName = ?,
                       LastUpdatedUtc = ?
                   WHERE Id = ?;",
+                DbValue(data.ProviderPlatformKey),
                 providerGameId.HasValue ? (object)providerGameId.Value : DBNull.Value,
                 DbValue(playniteGameId),
                 DbValue(data.GameName),
@@ -1359,6 +1366,7 @@ namespace PlayniteAchievements.Services.Database
             {
                 LastUpdatedUtc = ParseUtc(progress?.LastUpdatedUtc) ?? DateTime.UtcNow,
                 ProviderKey = progress?.ProviderKey,
+                ProviderPlatformKey = progress?.ProviderPlatformKey,
                 LibrarySourceName = progress?.LibrarySourceName,
                 HasAchievements = progress != null && progress.HasAchievements != 0,
                 // ExcludedByUser is populated by callers from settings
@@ -1730,15 +1738,15 @@ namespace PlayniteAchievements.Services.Database
         {
             var filePath = Path.Combine(dir, "Games.csv");
             var rows = _db.Load<GameExportRow>(
-                "SELECT Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, " +
+                "SELECT Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, " +
                 "LibrarySourceName, FirstSeenUtc, LastUpdatedUtc " +
                 "FROM Games").ToList();
             WriteCsv(filePath, rows, new[]
             {
-                "Id", "ProviderKey", "ProviderGameId", "PlayniteGameId", "GameName",
+                "Id", "ProviderKey", "ProviderPlatformKey", "ProviderGameId", "PlayniteGameId", "GameName",
                 "LibrarySourceName", "FirstSeenUtc", "LastUpdatedUtc"
             }, r => new[] {
-                r.Id.ToString(), r.ProviderKey, r.ProviderGameId?.ToString(), r.PlayniteGameId, r.GameName,
+                r.Id.ToString(), r.ProviderKey, r.ProviderPlatformKey, r.ProviderGameId?.ToString(), r.PlayniteGameId, r.GameName,
                 r.LibrarySourceName, r.FirstSeenUtc, r.LastUpdatedUtc
             });
             _logger.Info($"Exported {rows.Count} rows to {filePath}");
@@ -1872,6 +1880,7 @@ namespace PlayniteAchievements.Services.Database
         {
             public long Id { get; set; }
             public string ProviderKey { get; set; }
+            public string ProviderPlatformKey { get; set; }
             public long? ProviderGameId { get; set; }
             public string PlayniteGameId { get; set; }
             public string GameName { get; set; }

@@ -423,9 +423,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Xbox">Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GOG">GOG</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Epic">Epic Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_EA">EA App</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Blizzard">Battle.net</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Nintendo">Nintendo</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Retro">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
 
@@ -433,9 +430,9 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Check to force Exophase for this game. Unchecked games use Exophase if their platform is in Managed Platforms.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseManagedByPlatform">Managed by Exophase (via platform setting)</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Game Slug Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Override the auto-detected slug to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Please enter an Exophase game slug.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Exophase Game ID Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Override the auto-detected Exophase game ID to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Please enter an Exophase game ID.</sys:String>
 
     <!-- ShadPS4 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4Connection">ShadPS4 Connection</sys:String>

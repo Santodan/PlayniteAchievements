@@ -3550,7 +3550,7 @@ namespace PlayniteAchievements.Views
                 var settings = _settingsViewModel.Settings?.Persisted;
                 if (settings == null) return;
 
-                checkbox.IsChecked = settings.ExophaseManagedPlatforms.Contains(platform);
+                checkbox.IsChecked = settings.ExophaseManagedProviders.Contains(platform);
             }
         }
 
@@ -3566,15 +3566,15 @@ namespace PlayniteAchievements.Views
 
                 if (checkbox.IsChecked == true)
                 {
-                    if (!settings.ExophaseManagedPlatforms.Contains(platform))
+                    if (!settings.ExophaseManagedProviders.Contains(platform))
                     {
-                        settings.ExophaseManagedPlatforms.Add(platform);
+                        settings.ExophaseManagedProviders.Add(platform);
                         _logger?.Info($"Added platform '{platform}' to Exophase managed platforms");
                     }
                 }
                 else
                 {
-                    if (settings.ExophaseManagedPlatforms.Remove(platform))
+                    if (settings.ExophaseManagedProviders.Remove(platform))
                     {
                         _logger?.Info($"Removed platform '{platform}' from Exophase managed platforms");
                     }

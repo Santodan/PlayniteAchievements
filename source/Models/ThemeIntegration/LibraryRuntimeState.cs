@@ -23,6 +23,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public List<GameAchievementSummary> PSNGames { get; set; } = new List<GameAchievementSummary>();
         public List<GameAchievementSummary> RetroAchievementsGames { get; set; } = new List<GameAchievementSummary>();
         public List<GameAchievementSummary> RPCS3Games { get; set; } = new List<GameAchievementSummary>();
+        public List<GameAchievementSummary> XeniaGames { get; set; } = new List<GameAchievementSummary>();
         public List<GameAchievementSummary> ShadPS4Games { get; set; } = new List<GameAchievementSummary>();
         public List<GameAchievementSummary> ManualGames { get; set; } = new List<GameAchievementSummary>();
 

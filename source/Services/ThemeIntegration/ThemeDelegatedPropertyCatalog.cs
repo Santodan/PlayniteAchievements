@@ -56,6 +56,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.PSNGames),
             nameof(PlayniteAchievementsSettings.RetroAchievementsGames),
             nameof(PlayniteAchievementsSettings.RPCS3Games),
+            nameof(PlayniteAchievementsSettings.XeniaGames),
             nameof(PlayniteAchievementsSettings.ShadPS4Games),
             nameof(PlayniteAchievementsSettings.ManualGames)
         };

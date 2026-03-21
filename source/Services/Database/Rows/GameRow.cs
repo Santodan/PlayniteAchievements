@@ -4,6 +4,7 @@ namespace PlayniteAchievements.Services.Database.Rows
     {
         public long Id { get; set; }
         public string ProviderKey { get; set; }
+        public string ProviderPlatformKey { get; set; }
         public long? ProviderGameId { get; set; }
         public string PlayniteGameId { get; set; }
         public string GameName { get; set; }

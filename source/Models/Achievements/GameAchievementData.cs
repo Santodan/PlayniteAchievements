@@ -21,11 +21,27 @@ namespace PlayniteAchievements.Models.Achievements
         public string ProviderKey { get; set; }
 
         /// <summary>
-        /// Localized display name resolved from ProviderKey.
+        /// Localized display name resolved from the active display provider key.
         /// Not persisted - computed at runtime for UI display.
         /// </summary>
         [IgnoreDataMember]
-        public string ProviderDisplayName => ProviderRegistry.GetLocalizedName(ProviderKey);
+        public string ProviderDisplayName => ProviderRegistry.GetLocalizedName(EffectiveProviderKey);
+
+        /// <summary>
+        /// If this data is being fetched by a proxy provider (e.g. Exophase), this holds 
+        /// the key of the original platform provider being overridden (e.g. "Xbox").
+        /// Null if not applicable.
+        /// </summary>
+        public string ProviderPlatformKey { get; set; }
+
+        /// <summary>
+        /// The provider key to use for display purposes. Falls back to ProviderKey 
+        /// if no proxy is currently active.
+        /// </summary>
+        [IgnoreDataMember]
+        public string EffectiveProviderKey => !string.IsNullOrEmpty(ProviderPlatformKey) 
+            ? ProviderPlatformKey 
+            : ProviderKey;
 
         /// <summary>
         /// Playnite library source name for the game at refresh time (e.g. Steam, GOG).

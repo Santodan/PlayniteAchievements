@@ -18,6 +18,8 @@ namespace PlayniteAchievements.Providers.Exophase
     /// </summary>
     internal sealed class ExophaseDataProvider : IDataProvider
     {
+        #region Fields
+
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly IPlayniteAPI _playniteApi;
@@ -26,7 +28,15 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly Dictionary<Guid, string> _slugCache = new Dictionary<Guid, string>();
         private readonly object _slugCacheLock = new object();
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
+        private static readonly string[] KnownExophasePlatformTokens =
+        {
+            "steam", "gog", "epic", "psn", "xbox", "retro"
+        };
         private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
+
+        #endregion
+
+        #region Provider Metadata
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
         public string ProviderKey => "Exophase";
@@ -37,6 +47,10 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Checks if Exophase session is authenticated.
         /// </summary>
         public bool IsAuthenticated => _sessionManager?.IsAuthenticated ?? false;
+
+        #endregion
+
+        #region Construction
 
         public ExophaseDataProvider(
             ILogger logger,
@@ -51,11 +65,15 @@ namespace PlayniteAchievements.Providers.Exophase
             _apiClient = new ExophaseApiClient(playniteApi, logger);
         }
 
+        #endregion
+
+        #region Capability and Refresh Flow
+
         /// <summary>
         /// Checks if this provider can handle a game.
         /// Game is claimed if:
         /// 1. ExophaseEnabled is true AND
-        /// 2. Game is in ExophaseIncludedGames OR game's platform is in ExophaseManagedPlatforms
+        /// 2. Game is in ExophaseIncludedGames OR game token is in ExophaseManagedProviders
         /// </summary>
         public bool IsCapable(Game game)
         {
@@ -76,410 +94,21 @@ namespace PlayniteAchievements.Providers.Exophase
                 return true;
             }
 
-            // Check platform-based inclusion
-            var platformSlug = GetExophasePlatformSlug(game);
-            if (!string.IsNullOrWhiteSpace(platformSlug) &&
-                _settings.Persisted.ExophaseManagedPlatforms.Contains(platformSlug))
+            // Check managed provider/platform token inclusion
+            var platformToken = GetExophasePlatformSlug(game);
+            if (!string.IsNullOrWhiteSpace(platformToken) &&
+                _settings.Persisted.ExophaseManagedProviders.Contains(platformToken))
             {
-                _logger.Debug($"Exophase IsCapable for '{game.Name}': true (platform '{platformSlug}' is managed)");
+                _logger.Debug($"Exophase IsCapable for '{game.Name}': true (token '{platformToken}' is managed)");
                 return true;
             }
 
             // Log why it wasn't capable for debugging
             _logger.Debug($"Exophase IsCapable for '{game.Name}': false " +
-                $"(Slug={platformSlug ?? "null"}, " +
+                $"(Token={platformToken ?? "null"}, " +
                 $"Source={game.Source?.Name ?? "null"}, " +
                 $"Platforms={string.Join(", ", game.Platforms?.Select(p => p.Name) ?? Array.Empty<string>())})");
             return false;
-        }
-
-        #region Platform Detection
-
-        // Valid Exophase platform slugs (used in settings):
-        // steam, gog, epic, ea, blizzard, psn, xbox, nintendo, retro
-
-        /// <summary>
-        /// Gets the Exophase platform slug for a game.
-        /// Priority: Source (PC stores) -> Platform.SpecificationId -> Platform.Name
-        /// </summary>
-        public static string GetExophasePlatformSlug(Game game)
-        {
-            if (game == null) return null;
-
-            // PC games: Source identifies the store (Steam, GOG, Epic, etc.)
-            var sourceSlug = MapSourceToSlug(game.Source?.Name);
-            if (!string.IsNullOrWhiteSpace(sourceSlug)) return sourceSlug;
-
-            // Consoles: Check platform specification ID and name
-            if (game.Platforms == null || game.Platforms.Count == 0) return null;
-
-            foreach (var platform in game.Platforms)
-            {
-                if (platform == null) continue;
-
-                // Try specification ID first (more precise)
-                var slug = MapSpecificationIdToSlug(platform.SpecificationId);
-                if (!string.IsNullOrWhiteSpace(slug)) return slug;
-
-                // Fall back to platform name
-                slug = MapPlatformNameToSlug(platform.Name);
-                if (!string.IsNullOrWhiteSpace(slug)) return slug;
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Maps a Playnite Source name to an Exophase slug.
-        /// </summary>
-        private static string MapSourceToSlug(string sourceName)
-        {
-            if (string.IsNullOrWhiteSpace(sourceName)) return null;
-
-            var name = sourceName.ToLowerInvariant();
-
-            if (name.Contains("steam")) return "steam";
-            if (name.Contains("gog") || name.Contains("good old games")) return "gog";
-            if (name.Contains("epic")) return "epic";
-            if (name.Contains("origin") || name.Contains("ea app") || name.Equals("ea")) return "ea";
-            if (name.Contains("blizzard") || name.Contains("battle.net") || name.Contains("battlenet")) return "blizzard";
-
-            return null;
-        }
-
-        /// <summary>
-        /// Maps a Playnite platform specification ID to an Exophase slug.
-        /// </summary>
-        private static string MapSpecificationIdToSlug(string specId)
-        {
-            if (string.IsNullOrWhiteSpace(specId)) return null;
-
-            var id = specId.ToLowerInvariant();
-
-            // PlayStation platforms
-            if (id.StartsWith("sony_playstation") || id == "sony_vita") return "psn";
-
-            // Xbox platforms
-            if (id.StartsWith("xbox")) return "xbox";
-
-            // Nintendo platforms
-            if (id.StartsWith("nintendo")) return "nintendo";
-
-            return null;
-        }
-
-        /// <summary>
-        /// Maps a Playnite platform name to an Exophase slug.
-        /// </summary>
-        private static string MapPlatformNameToSlug(string platformName)
-        {
-            if (string.IsNullOrWhiteSpace(platformName)) return null;
-
-            var name = platformName.ToLowerInvariant();
-
-            // PlayStation (PS1-PS5, Vita, PSN)
-            if (name.Contains("playstation") || name.Contains("psn") ||
-                name.Contains("ps1") || name.Contains("ps2") || name.Contains("ps3") ||
-                name.Contains("ps4") || name.Contains("ps5") || name.Contains("vita"))
-                return "psn";
-
-            // Xbox (360, One, Series)
-            if (name.Contains("xbox")) return "xbox";
-
-            // Nintendo (Switch, Wii, GameCube, DS, 3DS)
-            if (name.Contains("nintendo") || name.Contains("switch") ||
-                name.Contains("wii") || name.Contains("gamecube") ||
-                name.Contains("3ds") || name.Contains(" ds"))
-                return "nintendo";
-
-            // PC stores (for when Source isn't set but platform name contains store)
-            if (name.Contains("steam")) return "steam";
-            if (name.Contains("gog") || name.Contains("good old games")) return "gog";
-            if (name.Contains("epic")) return "epic";
-            if (name.Contains("origin") || name.Contains("ea app")) return "ea";
-            if (name.Contains("blizzard") || name.Contains("battle.net")) return "blizzard";
-
-            // RetroAchievements
-            if (name.Contains("retro") || name.Contains("retroachievements")) return "retro";
-
-            return null;
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Generates a preview slug for display purposes.
-        /// Format: normalized-game-name-platform-slug
-        /// This is the expected format Exophase uses for game slugs.
-        /// </summary>
-        public static string GeneratePreviewSlug(Game game)
-        {
-            if (game == null || string.IsNullOrWhiteSpace(game.Name))
-            {
-                return null;
-            }
-
-            var platformSlug = GetExophasePlatformSlug(game);
-            if (string.IsNullOrWhiteSpace(platformSlug))
-            {
-                return null;
-            }
-
-            // Normalize game name for slug format
-            var normalizedName = NormalizeGameNameForSlug(game.Name);
-            return $"{normalizedName}-{platformSlug}";
-        }
-
-        /// <summary>
-        /// Normalizes a game name for use in a slug.
-        /// Lowercase, spaces/special chars to hyphens, remove consecutive hyphens.
-        /// </summary>
-        private static string NormalizeGameNameForSlug(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return null;
-            }
-
-            // First remove edition suffixes
-            var normalized = NormalizeGameName(name);
-
-            // Convert to lowercase
-            normalized = normalized.ToLowerInvariant();
-
-            // Replace spaces and special characters with hyphens
-            var chars = new char[normalized.Length];
-            var charIndex = 0;
-            var lastWasHyphen = false;
-
-            foreach (var c in normalized)
-            {
-                if (char.IsLetterOrDigit(c))
-                {
-                    chars[charIndex++] = c;
-                    lastWasHyphen = false;
-                }
-                else if (!lastWasHyphen)
-                {
-                    chars[charIndex++] = '-';
-                    lastWasHyphen = true;
-                }
-            }
-
-            // Trim trailing hyphen
-            if (charIndex > 0 && chars[charIndex - 1] == '-')
-            {
-                charIndex--;
-            }
-
-            return new string(chars, 0, charIndex);
-        }
-
-        /// <summary>
-        /// Resolves an Exophase game slug for a Playnite game using deterministic linking.
-        /// Priority: Manual override -> Cache -> API search
-        /// </summary>
-        public async Task<string> ResolveExophaseSlugAsync(Game game, CancellationToken ct)
-        {
-            if (game == null || string.IsNullOrWhiteSpace(game.Name))
-            {
-                return null;
-            }
-
-            // Check for manual override first
-            if (_settings.Persisted.ExophaseSlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
-                !string.IsNullOrWhiteSpace(overrideSlug))
-            {
-                _logger?.Debug($"[Exophase] Using override slug for '{game.Name}': {overrideSlug}");
-                return overrideSlug;
-            }
-
-            // Check cache
-            lock (_slugCacheLock)
-            {
-                if (_slugCache.TryGetValue(game.Id, out var cachedSlug))
-                {
-                    if (_slugCacheTimestamps.TryGetValue(game.Id, out var timestamp) &&
-                        DateTime.UtcNow - timestamp < SlugCacheTtl)
-                    {
-                        return cachedSlug;
-                    }
-                    // Cache expired, remove
-                    _slugCache.Remove(game.Id);
-                    _slugCacheTimestamps.Remove(game.Id);
-                }
-            }
-
-            var platformSlug = GetExophasePlatformSlug(game);
-            var normalizedName = NormalizeGameName(game.Name);
-
-            _logger?.Debug($"[Exophase] Resolving slug for '{game.Name}' (platform: {platformSlug ?? "unknown"})");
-
-            try
-            {
-                // Search with platform filter
-                var games = await _apiClient.SearchGamesAsync(normalizedName, platformSlug, ct).ConfigureAwait(false);
-                if (games == null || games.Count == 0)
-                {
-                    // Fallback: try without platform filter
-                    games = await _apiClient.SearchGamesAsync(normalizedName, ct).ConfigureAwait(false);
-                    if (games == null || games.Count == 0)
-                    {
-                        _logger?.Debug($"[Exophase] No games found for '{normalizedName}'");
-                        return null;
-                    }
-                }
-
-                // Find best match
-                var bestMatch = FindBestMatch(normalizedName, games, platformSlug);
-                if (bestMatch == null)
-                {
-                    _logger?.Debug($"[Exophase] No confident match for '{normalizedName}'");
-                    return null;
-                }
-
-                // Extract slug from endpoint_awards URL
-                var slug = ExophaseApiClient.ExtractSlugFromUrl(bestMatch.EndpointAwards);
-                if (string.IsNullOrWhiteSpace(slug))
-                {
-                    _logger?.Debug($"[Exophase] Could not extract slug from {bestMatch.EndpointAwards}");
-                    return null;
-                }
-
-                // Cache result
-                lock (_slugCacheLock)
-                {
-                    _slugCache[game.Id] = slug;
-                    _slugCacheTimestamps[game.Id] = DateTime.UtcNow;
-                }
-
-                _logger?.Debug($"[Exophase] Resolved '{game.Name}' -> {slug}");
-                return slug;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"[Exophase] Failed to resolve slug for '{game.Name}'");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Normalizes a game name for searching.
-        /// Removes edition suffixes and special characters.
-        /// </summary>
-        private static string NormalizeGameName(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                return name;
-            }
-
-            var normalized = name.Trim();
-
-            // Remove common edition suffixes
-            var suffixes = new[]
-            {
-                " - Definitive Edition",
-                " - Game of the Year Edition",
-                " - Complete Edition",
-                " - Collector's Edition",
-                " - Deluxe Edition",
-                " - Standard Edition",
-                " - Ultimate Edition",
-                " - Premium Edition",
-                " Definitive Edition",
-                " Game of the Year Edition",
-                " Complete Edition",
-                " Collector's Edition",
-                " Deluxe Edition",
-                " Standard Edition",
-                " Ultimate Edition",
-                " Premium Edition",
-                " (Definitive Edition)",
-                " (Game of the Year Edition)",
-                " (Complete Edition)",
-                " (Collector's Edition)",
-                " (Deluxe Edition)",
-                " (Standard Edition)",
-                " (Ultimate Edition)",
-                " (Premium Edition)"
-            };
-
-            foreach (var suffix in suffixes)
-            {
-                if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    normalized = normalized.Substring(0, normalized.Length - suffix.Length);
-                    break;
-                }
-            }
-
-            return normalized.Trim();
-        }
-
-        /// <summary>
-        /// Finds the best matching game from search results.
-        /// </summary>
-        private ExophaseGame FindBestMatch(string gameName, List<ExophaseGame> games, string platformSlug)
-        {
-            if (games == null || games.Count == 0)
-            {
-                return null;
-            }
-
-            var normalizedSearch = gameName.ToLowerInvariant().Trim();
-
-            // Score each game
-            var scored = games.Select(g =>
-            {
-                var score = 0;
-                var title = (g.Title ?? "").ToLowerInvariant().Trim();
-
-                // Exact match
-                if (title == normalizedSearch)
-                {
-                    score += 100;
-                }
-                // Starts with search term
-                else if (title.StartsWith(normalizedSearch))
-                {
-                    score += 80;
-                }
-                // Contains search term
-                else if (title.Contains(normalizedSearch))
-                {
-                    score += 60;
-                }
-                // Search term contains title
-                else if (normalizedSearch.Contains(title))
-                {
-                    score += 50;
-                }
-                // No match
-                else
-                {
-                    score += -100;
-                }
-
-                // Bonus for platform match in slug
-                if (!string.IsNullOrWhiteSpace(platformSlug) && !string.IsNullOrWhiteSpace(g.EndpointAwards))
-                {
-                    if (g.EndpointAwards.IndexOf($"-{platformSlug}", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        score += 20;
-                    }
-                }
-
-                return (Game: g, Score: score);
-            }).ToList();
-
-            // Return highest scoring game if score is positive
-            var best = scored.OrderByDescending(x => x.Score).FirstOrDefault();
-            return best.Score > 0 ? best.Game : null;
         }
 
         /// <summary>
@@ -528,11 +157,11 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 try
                 {
-                    var data = await RefreshGameAsync(game, language, cancel);
+                    var data = await RefreshGameAsync(game, language, cancel).ConfigureAwait(false);
 
                     if (onGameCompleted != null)
                     {
-                        await onGameCompleted(game, data);
+                        await onGameCompleted(game, data).ConfigureAwait(false);
                     }
 
                     summary.GamesRefreshed++;
@@ -556,7 +185,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                     if (onGameCompleted != null)
                     {
-                        await onGameCompleted(game, null);
+                        await onGameCompleted(game, null).ConfigureAwait(false);
                     }
                 }
             }
@@ -569,56 +198,482 @@ namespace PlayniteAchievements.Providers.Exophase
         /// </summary>
         private async Task<GameAchievementData> RefreshGameAsync(Game game, string language, CancellationToken cancel)
         {
-            // Resolve the Exophase slug deterministically
+            // Resolve the Exophase slug deterministically.
             var slug = await ResolveExophaseSlugAsync(game, cancel).ConfigureAwait(false);
+            var providerPlatformKey = ResolveProviderPlatformKey(game, slug);
+
             if (string.IsNullOrWhiteSpace(slug))
             {
                 _logger?.Debug($"[Exophase] Could not resolve slug for game '{game.Name}'");
-                return new GameAchievementData
-                {
-                    LastUpdatedUtc = DateTime.UtcNow,
-                    ProviderKey = ProviderKey,
-                    LibrarySourceName = game.PluginId.ToString(),
-                    HasAchievements = false,
-                    GameName = game.Name,
-                    PlayniteGameId = game.Id,
-                    Game = game,
-                    Achievements = new List<AchievementDetail>()
-                };
+                return CreateGameResult(game, providerPlatformKey, false, new List<AchievementDetail>());
             }
 
-            // Fetch achievement page (includes schema + user progress when authenticated)
+            // Fetch achievement page (includes schema + user progress when authenticated).
             var achievementUrl = ExophaseApiClient.BuildUrlFromSlug(slug);
             var acceptLanguage = ExophaseApiClient.MapLanguageToAcceptLanguage(language);
+            var achievements = await _apiClient
+                .FetchAchievementsAsync(achievementUrl, acceptLanguage, cancel)
+                .ConfigureAwait(false);
 
-            var achievements = await _apiClient.FetchAchievementsAsync(achievementUrl, acceptLanguage, cancel).ConfigureAwait(false);
             if (achievements == null || achievements.Count == 0)
             {
                 _logger?.Debug($"[Exophase] No achievements found for slug: {slug}");
-                return new GameAchievementData
-                {
-                    LastUpdatedUtc = DateTime.UtcNow,
-                    ProviderKey = ProviderKey,
-                    LibrarySourceName = game.PluginId.ToString(),
-                    HasAchievements = false,
-                    GameName = game.Name,
-                    PlayniteGameId = game.Id,
-                    Game = game,
-                    Achievements = new List<AchievementDetail>()
-                };
+                return CreateGameResult(game, providerPlatformKey, false, new List<AchievementDetail>());
             }
 
+            return CreateGameResult(game, providerPlatformKey, true, achievements);
+        }
+
+        private GameAchievementData CreateGameResult(
+            Game game,
+            string providerPlatformKey,
+            bool hasAchievements,
+            List<AchievementDetail> achievements)
+        {
             return new GameAchievementData
             {
                 LastUpdatedUtc = DateTime.UtcNow,
                 ProviderKey = ProviderKey,
-                LibrarySourceName = game.PluginId.ToString(),
-                HasAchievements = true,
+                ProviderPlatformKey = providerPlatformKey,
+                LibrarySourceName = game?.Source?.Name,
+                HasAchievements = hasAchievements,
                 GameName = game.Name,
                 PlayniteGameId = game.Id,
-                Game = game,
-                Achievements = achievements
+                Achievements = achievements ?? new List<AchievementDetail>()
             };
         }
+
+        #endregion
+
+        #region Slug Resolution
+
+        /// <summary>
+        /// Resolves an Exophase game slug for a Playnite game using deterministic linking.
+        /// Priority: Manual override -> Cache -> API search.
+        /// </summary>
+        public async Task<string> ResolveExophaseSlugAsync(Game game, CancellationToken ct)
+        {
+            if (game == null || string.IsNullOrWhiteSpace(game.Name))
+            {
+                return null;
+            }
+
+            // Check for manual override first.
+            if (_settings.Persisted.ExophaseSlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+                !string.IsNullOrWhiteSpace(overrideSlug))
+            {
+                _logger?.Debug($"[Exophase] Using override slug for '{game.Name}': {overrideSlug}");
+                return overrideSlug;
+            }
+
+            // Check cache.
+            lock (_slugCacheLock)
+            {
+                if (_slugCache.TryGetValue(game.Id, out var cachedSlug))
+                {
+                    if (_slugCacheTimestamps.TryGetValue(game.Id, out var timestamp) &&
+                        DateTime.UtcNow - timestamp < SlugCacheTtl)
+                    {
+                        return cachedSlug;
+                    }
+
+                    // Cache expired, remove.
+                    _slugCache.Remove(game.Id);
+                    _slugCacheTimestamps.Remove(game.Id);
+                }
+            }
+
+            var platformSlug = GetExophasePlatformSlug(game);
+            var normalizedName = NormalizeGameName(game.Name);
+            _logger?.Debug($"[Exophase] Resolving slug for '{game.Name}' (platform: {platformSlug ?? "unknown"})");
+
+            try
+            {
+                // Search with platform filter.
+                var games = await _apiClient.SearchGamesAsync(normalizedName, platformSlug, ct).ConfigureAwait(false);
+                if (games == null || games.Count == 0)
+                {
+                    // Fallback: try without platform filter.
+                    games = await _apiClient.SearchGamesAsync(normalizedName, ct).ConfigureAwait(false);
+                    if (games == null || games.Count == 0)
+                    {
+                        _logger?.Debug($"[Exophase] No games found for '{normalizedName}'");
+                        return null;
+                    }
+                }
+
+                var bestMatch = FindBestMatch(normalizedName, games, platformSlug);
+                if (bestMatch == null)
+                {
+                    _logger?.Debug($"[Exophase] No confident match for '{normalizedName}'");
+                    return null;
+                }
+
+                var slug = ExophaseApiClient.ExtractSlugFromUrl(bestMatch.EndpointAwards);
+                if (string.IsNullOrWhiteSpace(slug))
+                {
+                    _logger?.Debug($"[Exophase] Could not extract slug from {bestMatch.EndpointAwards}");
+                    return null;
+                }
+
+                lock (_slugCacheLock)
+                {
+                    _slugCache[game.Id] = slug;
+                    _slugCacheTimestamps[game.Id] = DateTime.UtcNow;
+                }
+
+                _logger?.Debug($"[Exophase] Resolved '{game.Name}' -> {slug}");
+                return slug;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"[Exophase] Failed to resolve slug for '{game.Name}'");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Finds the best matching game from search results.
+        /// </summary>
+        private ExophaseGame FindBestMatch(string gameName, List<ExophaseGame> games, string platformSlug)
+        {
+            if (games == null || games.Count == 0)
+            {
+                return null;
+            }
+
+            var normalizedSearch = gameName.ToLowerInvariant().Trim();
+
+            var scored = games.Select(g =>
+            {
+                var score = 0;
+                var title = (g.Title ?? string.Empty).ToLowerInvariant().Trim();
+
+                if (title == normalizedSearch)
+                {
+                    score += 100;
+                }
+                else if (title.StartsWith(normalizedSearch))
+                {
+                    score += 80;
+                }
+                else if (title.Contains(normalizedSearch))
+                {
+                    score += 60;
+                }
+                else if (normalizedSearch.Contains(title))
+                {
+                    score += 50;
+                }
+                else
+                {
+                    score += -100;
+                }
+
+                if (!string.IsNullOrWhiteSpace(platformSlug) && !string.IsNullOrWhiteSpace(g.EndpointAwards))
+                {
+                    if (g.EndpointAwards.IndexOf($"-{platformSlug}", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        score += 20;
+                    }
+                }
+
+                return (Game: g, Score: score);
+            }).ToList();
+
+            var best = scored.OrderByDescending(x => x.Score).FirstOrDefault();
+            return best.Score > 0 ? best.Game : null;
+        }
+
+        #endregion
+
+        #region Platform and Provider Mapping
+
+        /// <summary>
+        /// Gets the Exophase platform slug for a game.
+        /// Priority: Source (PC stores) -> Platform.SpecificationId -> Platform.Name
+        /// </summary>
+        public static string GetExophasePlatformSlug(Game game)
+        {
+            if (game == null) return null;
+
+            // PC games: Source identifies the store (Steam, GOG, Epic, etc.)
+            var sourceSlug = MapSourceToSlug(game.Source?.Name);
+            if (!string.IsNullOrWhiteSpace(sourceSlug)) return sourceSlug;
+
+            // Consoles: Check platform specification ID and name
+            if (game.Platforms == null || game.Platforms.Count == 0) return null;
+
+            foreach (var platform in game.Platforms)
+            {
+                if (platform == null) continue;
+
+                // Try specification ID first (more precise)
+                var slug = MapSpecificationIdToSlug(platform.SpecificationId);
+                if (!string.IsNullOrWhiteSpace(slug)) return slug;
+
+                // Fall back to platform name
+                slug = MapPlatformNameToSlug(platform.Name);
+                if (!string.IsNullOrWhiteSpace(slug)) return slug;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Maps a Playnite Source name to an Exophase slug.
+        /// </summary>
+        private static string MapSourceToSlug(string sourceName)
+        {
+            if (string.IsNullOrWhiteSpace(sourceName)) return null;
+
+            var name = sourceName.ToLowerInvariant();
+
+            if (name.Contains("steam")) return "steam";
+            if (name.Contains("gog") || name.Contains("good old games")) return "gog";
+            if (name.Contains("epic")) return "epic";
+
+            return null;
+        }
+
+        /// <summary>
+        /// Maps a Playnite platform specification ID to an Exophase slug.
+        /// </summary>
+        private static string MapSpecificationIdToSlug(string specId)
+        {
+            if (string.IsNullOrWhiteSpace(specId)) return null;
+
+            var id = specId.ToLowerInvariant();
+
+            // PlayStation platforms
+            if (id.StartsWith("sony_playstation") || id == "sony_vita") return "psn";
+
+            // Xbox platforms
+            if (id.StartsWith("xbox")) return "xbox";
+
+            return null;
+        }
+
+        /// <summary>
+        /// Maps a Playnite platform name to an Exophase slug.
+        /// </summary>
+        private static string MapPlatformNameToSlug(string platformName)
+        {
+            if (string.IsNullOrWhiteSpace(platformName)) return null;
+
+            var name = platformName.ToLowerInvariant();
+
+            // Reuse the source mapping rules for store names.
+            var sourceLikeSlug = MapSourceToSlug(name);
+            if (!string.IsNullOrWhiteSpace(sourceLikeSlug)) return sourceLikeSlug;
+
+            // PlayStation (PS1-PS5, Vita, PSN)
+            if (name.Contains("playstation") || name.Contains("psn") ||
+                name.Contains("ps1") || name.Contains("ps2") || name.Contains("ps3") ||
+                name.Contains("ps4") || name.Contains("ps5") || name.Contains("vita"))
+            {
+                return "psn";
+            }
+
+            // Xbox (360, One, Series)
+            if (name.Contains("xbox")) return "xbox";
+
+            // RetroAchievements
+            if (name.Contains("retro") || name.Contains("retroachievements")) return "retro";
+
+            return null;
+        }
+
+        /// <summary>
+        /// Maps an Exophase platform slug back to the corresponding PlayniteAchievements ProviderKey.
+        /// </summary>
+        public static string MapSlugToProviderPlatformKey(string slug)
+        {
+            if (string.IsNullOrWhiteSpace(slug)) return null;
+
+            switch (slug)
+            {
+                case "steam": return "Steam";
+                case "gog": return "GOG";
+                case "epic": return "Epic";
+                case "xbox": return "Xbox";
+                case "psn": return "PSN";
+                case "retro": return "RetroAchievements";
+                default:
+                    return char.ToUpper(slug[0]) + slug.Substring(1);
+            }
+        }
+
+        private static string ExtractPlatformTokenFromSlug(string slug)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return null;
+            }
+
+            var normalized = slug.Trim().ToLowerInvariant();
+            foreach (var token in KnownExophasePlatformTokens)
+            {
+                if (normalized == token || normalized.EndsWith("-" + token, StringComparison.Ordinal))
+                {
+                    return token;
+                }
+            }
+
+            return null;
+        }
+
+        private string ResolveProviderPlatformKey(Game game, string resolvedSlug)
+        {
+            if (game != null &&
+                _settings.Persisted.ExophaseSlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+                !string.IsNullOrWhiteSpace(overrideSlug))
+            {
+                var overrideToken = ExtractPlatformTokenFromSlug(overrideSlug);
+                if (!string.IsNullOrWhiteSpace(overrideToken))
+                {
+                    return MapSlugToProviderPlatformKey(overrideToken);
+                }
+            }
+
+            var resolvedToken = ExtractPlatformTokenFromSlug(resolvedSlug);
+            if (!string.IsNullOrWhiteSpace(resolvedToken))
+            {
+                return MapSlugToProviderPlatformKey(resolvedToken);
+            }
+
+            var gameToken = GetExophasePlatformSlug(game);
+            var mappedFromGame = MapSlugToProviderPlatformKey(gameToken);
+            if (!string.IsNullOrWhiteSpace(mappedFromGame))
+            {
+                return mappedFromGame;
+            }
+
+            // Exophase rows must always carry a platform key so UI grouping never falls back to provider key.
+            return "Unknown";
+        }
+
+        /// <summary>
+        /// Generates a preview slug for display purposes.
+        /// Format: normalized-game-name-platform-slug.
+        /// </summary>
+        public static string GeneratePreviewSlug(Game game)
+        {
+            if (game == null || string.IsNullOrWhiteSpace(game.Name))
+            {
+                return null;
+            }
+
+            var platformSlug = GetExophasePlatformSlug(game);
+            if (string.IsNullOrWhiteSpace(platformSlug))
+            {
+                return null;
+            }
+
+            var normalizedName = NormalizeGameNameForSlug(game.Name);
+            return $"{normalizedName}-{platformSlug}";
+        }
+
+        #endregion
+
+        #region Name Normalization
+
+        /// <summary>
+        /// Normalizes a game name for use in a slug.
+        /// Lowercase, spaces/special chars to hyphens, remove consecutive hyphens.
+        /// </summary>
+        private static string NormalizeGameNameForSlug(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            var normalized = NormalizeGameName(name).ToLowerInvariant();
+
+            var chars = new char[normalized.Length];
+            var charIndex = 0;
+            var lastWasHyphen = false;
+
+            foreach (var c in normalized)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    chars[charIndex++] = c;
+                    lastWasHyphen = false;
+                }
+                else if (!lastWasHyphen)
+                {
+                    chars[charIndex++] = '-';
+                    lastWasHyphen = true;
+                }
+            }
+
+            if (charIndex > 0 && chars[charIndex - 1] == '-')
+            {
+                charIndex--;
+            }
+
+            return new string(chars, 0, charIndex);
+        }
+
+        /// <summary>
+        /// Normalizes a game name for searching.
+        /// Removes edition suffixes and special characters.
+        /// </summary>
+        private static string NormalizeGameName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+
+            var normalized = name.Trim();
+
+            var suffixes = new[]
+            {
+                " - Definitive Edition",
+                " - Game of the Year Edition",
+                " - Complete Edition",
+                " - Collector's Edition",
+                " - Deluxe Edition",
+                " - Standard Edition",
+                " - Ultimate Edition",
+                " - Premium Edition",
+                " Definitive Edition",
+                " Game of the Year Edition",
+                " Complete Edition",
+                " Collector's Edition",
+                " Deluxe Edition",
+                " Standard Edition",
+                " Ultimate Edition",
+                " Premium Edition",
+                " (Definitive Edition)",
+                " (Game of the Year Edition)",
+                " (Complete Edition)",
+                " (Collector's Edition)",
+                " (Deluxe Edition)",
+                " (Standard Edition)",
+                " (Ultimate Edition)",
+                " (Premium Edition)"
+            };
+
+            foreach (var suffix in suffixes)
+            {
+                if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized = normalized.Substring(0, normalized.Length - suffix.Length);
+                    break;
+                }
+            }
+
+            return normalized.Trim();
+        }
+
+        #endregion
     }
 }

@@ -116,7 +116,7 @@ namespace PlayniteAchievements.Models.Settings
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private TaggingSettings _taggingSettings;
         private bool _exophaseEnabled = false;
-        private HashSet<string> _exophaseManagedPlatforms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private HashSet<string> _exophaseManagedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private HashSet<Guid> _exophaseIncludedGames = new HashSet<Guid>();
         private Dictionary<Guid, string> _exophaseSlugOverrides = new Dictionary<Guid, string>();
 
@@ -1130,18 +1130,18 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
-        /// Platform slugs that Exophase should automatically claim.
-        /// Games on these platforms will use Exophase instead of modern providers.
-        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "ea", "blizzard", "nintendo", "retro"
+        /// Provider/platform tokens that Exophase should automatically claim.
+        /// Games matching these tokens will use Exophase instead of modern providers.
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "retro"
         /// </summary>
-        public HashSet<string> ExophaseManagedPlatforms
+        public HashSet<string> ExophaseManagedProviders
         {
-            get => _exophaseManagedPlatforms;
-            set => SetValue(ref _exophaseManagedPlatforms, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            get => _exophaseManagedProviders;
+            set => SetValue(ref _exophaseManagedProviders, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
         }
 
         /// <summary>
-        /// Individual game IDs that should use Exophase even if their platform is not in ManagedPlatforms.
+        /// Individual game IDs that should use Exophase even if their provider/platform token is not in managed providers.
         /// Allows per-game override for platforms not globally enabled.
         /// </summary>
         public HashSet<Guid> ExophaseIncludedGames
@@ -1317,8 +1317,8 @@ namespace PlayniteAchievements.Models.Settings
                 ManualEnabled = this.ManualEnabled,
                 TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings(),
                 ExophaseEnabled = this.ExophaseEnabled,
-                ExophaseManagedPlatforms = this.ExophaseManagedPlatforms != null
-                    ? new HashSet<string>(this.ExophaseManagedPlatforms, StringComparer.OrdinalIgnoreCase)
+                ExophaseManagedProviders = this.ExophaseManagedProviders != null
+                    ? new HashSet<string>(this.ExophaseManagedProviders, StringComparer.OrdinalIgnoreCase)
                     : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
                 ExophaseIncludedGames = this.ExophaseIncludedGames != null
                     ? new HashSet<Guid>(this.ExophaseIncludedGames)

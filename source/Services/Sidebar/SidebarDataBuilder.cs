@@ -110,7 +110,9 @@ namespace PlayniteAchievements.Services.Sidebar
                     completedGames++;
                 }
 
-                var provider = allGameData[i].ProviderKey ?? "Unknown";
+                var provider = string.IsNullOrWhiteSpace(fragment.ProviderKey)
+                    ? "Unknown"
+                    : fragment.ProviderKey;
                 if (!unlockedByProvider.ContainsKey(provider))
                 {
                     unlockedByProvider[provider] = 0;
@@ -188,13 +190,26 @@ namespace PlayniteAchievements.Services.Sidebar
                 return null;
             }
 
-            providerLookup ??= BuildProviderLookup();
-            var providerKey = gameData.ProviderKey ?? "Unknown";
-            providerLookup.TryGetValue(providerKey, out var providerMetadata);
-
             var playniteGame = gameData.PlayniteGameId.HasValue
                 ? _playniteApi?.Database?.Games?.Get(gameData.PlayniteGameId.Value)
-                : null;
+                : gameData.Game;
+
+            providerLookup ??= BuildProviderLookup();
+            var providerKey = gameData.EffectiveProviderKey;
+
+            providerKey = string.IsNullOrWhiteSpace(providerKey) ? "Unknown" : providerKey;
+            var providerName = ProviderRegistry.GetLocalizedName(providerKey);
+            if (string.IsNullOrWhiteSpace(providerName))
+            {
+                providerName = providerKey;
+            }
+            
+            if (!providerLookup.TryGetValue(providerKey, out var providerMetadata))
+            {
+                // Fallback for providers without an active integration
+                providerMetadata = ("ProviderIcon" + providerKey, "#888888");
+            }
+
             var gameIconPath = !string.IsNullOrEmpty(playniteGame?.Icon)
                 ? _playniteApi.Database.GetFullFilePath(playniteGame.Icon)
                 : null;
@@ -207,7 +222,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 CacheKey = gameData.PlayniteGameId?.ToString(),
                 PlayniteGameId = gameData.PlayniteGameId,
                 ProviderKey = providerKey,
-                ProviderName = gameData.ProviderDisplayName
+                ProviderName = providerName
             };
 
             var projectionOptions = AchievementProjectionService.CreateOptions(settings, gameData, revealedKeys);
@@ -343,7 +358,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 TrophyBronzeTotal = gameTrophyBronzeTotal,
                 LastPlayed = playniteGame?.LastActivity,
                 IsCompleted = gameData.IsCompleted,
-                Provider = gameData.ProviderDisplayName,
+                Provider = providerName,
                 ProviderKey = providerKey,
                 ProviderIconKey = providerMetadata.iconKey,
                 ProviderColorHex = providerMetadata.colorHex
@@ -355,19 +370,17 @@ namespace PlayniteAchievements.Services.Sidebar
         private Dictionary<string, (string iconKey, string colorHex)> BuildProviderLookup()
         {
             var lookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
-            if (_providers == null)
+            if (_providers != null)
             {
-                return lookup;
-            }
-
-            foreach (var provider in _providers)
-            {
-                if (provider == null || string.IsNullOrWhiteSpace(provider.ProviderKey))
+                foreach (var provider in _providers)
                 {
-                    continue;
-                }
+                    if (provider == null || string.IsNullOrWhiteSpace(provider.ProviderKey))
+                    {
+                        continue;
+                    }
 
-                lookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                    lookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
+                }
             }
 
             return lookup;

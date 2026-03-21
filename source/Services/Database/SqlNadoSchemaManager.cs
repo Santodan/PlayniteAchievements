@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 7;
+        public const int SchemaVersion = 8;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS Games (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ProviderKey TEXT NOT NULL COLLATE NOCASE,
+                ProviderPlatformKey TEXT NULL,
                 ProviderGameId INTEGER NULL,
                 PlayniteGameId TEXT NULL,
                 GameName TEXT NULL,
@@ -355,6 +356,7 @@ namespace PlayniteAchievements.Services.Database
                             @"CREATE TABLE Games_New (
                                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 ProviderKey TEXT NOT NULL COLLATE NOCASE,
+                                ProviderPlatformKey TEXT NULL,
                                 ProviderGameId INTEGER NULL,
                                 PlayniteGameId TEXT NULL,
                                 GameName TEXT NULL,
@@ -366,7 +368,7 @@ namespace PlayniteAchievements.Services.Database
 
                         // Migrate data with value transformation (INSERT OR IGNORE to handle duplicates)
                         ExecuteSafe(db,
-                            @"INSERT OR IGNORE INTO Games_New (Id, ProviderKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
+                                                        @"INSERT OR IGNORE INTO Games_New (Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
                               SELECT
                                 Id,
                                 CASE
@@ -388,6 +390,7 @@ namespace PlayniteAchievements.Services.Database
                                     WHEN LOWER(ProviderName) = 'unmapped' THEN 'Unmapped'
                                     ELSE 'Unmapped'
                                 END,
+                                                                NULL,
                                 ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
                               FROM Games;");
                         _logger?.Info("[Schema] Migrated Games data to ProviderKey");
@@ -499,6 +502,9 @@ namespace PlayniteAchievements.Services.Database
                     }
                 }
             }
+
+            gamesColumns = GetColumnNames(db, "Games");
+            EnsureColumn(db, "Games", "ProviderPlatformKey", "TEXT NULL", gamesColumns, ref backupPath);
 
             return backupPath;
         }
@@ -698,6 +704,7 @@ namespace PlayniteAchievements.Services.Database
             // Verify ProviderKey column exists in Games and Users tables (migration from ProviderName)
             var gamesColumns = GetColumnNames(db, "Games");
             EnsureRequiredColumn(gamesColumns, "ProviderKey", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "ProviderPlatformKey", "Games", missing);
 
             var usersColumns = GetColumnNames(db, "Users");
             EnsureRequiredColumn(usersColumns, "ProviderKey", "Users", missing);

@@ -323,19 +323,16 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _providerFilterOptions, value);
         }
 
-        public string SelectedProviderFilterText => GetSelectedFilterText(
-            _selectedProviderFilters,
-            ProviderFilterOptions,
-            L("LOCPlayAch_Filter_ProviderSelectorPlaceholder", "Platform"));
+        public string SelectedProviderFilterText => GetSelectedProviderFilterText();
 
-        public bool IsProviderFilterSelected(string providerName)
+        public bool IsProviderFilterSelected(string providerKey)
         {
-            return IsFilterSelected(_selectedProviderFilters, providerName);
+            return IsFilterSelected(_selectedProviderFilters, providerKey);
         }
 
-        public void SetProviderFilterSelected(string providerName, bool isSelected)
+        public void SetProviderFilterSelected(string providerKey, bool isSelected)
         {
-            if (!SetFilterSelection(_selectedProviderFilters, providerName, isSelected))
+            if (!SetFilterSelection(_selectedProviderFilters, providerKey, isSelected))
             {
                 return;
             }
@@ -346,6 +343,18 @@ namespace PlayniteAchievements.ViewModels
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
                 new Action(() => ApplyLeftFilters()),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
+        public string GetProviderFilterDisplayName(string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return string.Empty;
+            }
+
+            var normalized = providerKey.Trim();
+            var localized = ProviderRegistry.GetLocalizedName(normalized);
+            return string.IsNullOrWhiteSpace(localized) ? normalized : localized;
         }
 
         public void ClearProviderFilters()
@@ -388,17 +397,14 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            // Get the canonical display name from ProviderRegistry
-            var canonicalName = ProviderRegistry.GetLocalizedName(providerKey);
-
-            // Use the canonical name for filtering
-            if (ProviderFilterOptions == null || !ProviderFilterOptions.Any(p => string.Equals(p, canonicalName, StringComparison.OrdinalIgnoreCase)))
+            if (ProviderFilterOptions == null ||
+                !ProviderFilterOptions.Any(p => string.Equals(p, providerKey, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
             }
 
-            var currentlySelected = IsProviderFilterSelected(canonicalName);
-            SetProviderFilterSelected(canonicalName, !currentlySelected);
+            var currentlySelected = IsProviderFilterSelected(providerKey);
+            SetProviderFilterSelected(providerKey, !currentlySelected);
         }
 
         private ObservableCollection<string> _completenessFilterOptions;
@@ -1363,12 +1369,11 @@ namespace PlayniteAchievements.ViewModels
             CompletedGames = snapshot.CompletedGames;
             GlobalProgression = snapshot.GlobalProgressionPercent;
 
-            var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
+            var providerLookup = BuildProviderLookup();
             var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var provider in _refreshService.GetProviders())
+            foreach (var providerKey in snapshot.UnlockedByProvider.Keys)
             {
-                providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
-                providerDisplayNames[provider.ProviderKey] = provider.ProviderName;
+                providerDisplayNames[providerKey] = GetProviderFilterDisplayName(providerKey);
             }
 
             var completedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Complete");
@@ -1429,7 +1434,7 @@ namespace PlayniteAchievements.ViewModels
         private void UpdateProviderFilterOptions(List<GameOverviewItem> games)
         {
             var providers = (games ?? new List<GameOverviewItem>())
-                .Select(g => g?.Provider)
+                .Select(g => g?.ProviderKey)
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
@@ -1984,8 +1989,8 @@ namespace PlayniteAchievements.ViewModels
             if (_selectedProviderFilters.Count > 0)
             {
                 filtered = filtered.Where(g =>
-                    !string.IsNullOrWhiteSpace(g.Provider) &&
-                    _selectedProviderFilters.Contains(g.Provider));
+                    !string.IsNullOrWhiteSpace(g.ProviderKey) &&
+                    _selectedProviderFilters.Contains(g.ProviderKey));
             }
 
             // Completeness filter
@@ -2049,7 +2054,10 @@ namespace PlayniteAchievements.ViewModels
 
         private void UpdateOverviewPieChartSelectionStates()
         {
-            ProviderPieChart?.SetSelectedLabels(_selectedProviderFilters);
+            ProviderPieChart?.SetSelectedLabels(
+                _selectedProviderFilters
+                    .Select(GetProviderFilterDisplayName)
+                    .Where(label => !string.IsNullOrWhiteSpace(label)));
             GamesPieChart?.SetSelectedLabels(_selectedCompletenessFilters);
         }
 
@@ -2112,7 +2120,7 @@ namespace PlayniteAchievements.ViewModels
             var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var providerKey in unlockedByProvider.Keys)
             {
-                providerDisplayNames[providerKey] = ProviderRegistry.GetLocalizedName(providerKey);
+                providerDisplayNames[providerKey] = GetProviderFilterDisplayName(providerKey);
             }
             ProviderPieChart?.SetProviderData(unlockedByProvider, totalByProvider, totalLocked, lockedLabel, providerLookup, providerDisplayNames);
 
@@ -2484,6 +2492,32 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return string.Join(", ", ordered);
+        }
+
+        private string GetSelectedProviderFilterText()
+        {
+            if (_selectedProviderFilters == null || _selectedProviderFilters.Count == 0)
+            {
+                return L("LOCPlayAch_Filter_ProviderSelectorPlaceholder", "Platform");
+            }
+
+            var orderedDisplayNames = new List<string>();
+            foreach (var option in ProviderFilterOptions ?? Enumerable.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(option) && _selectedProviderFilters.Contains(option))
+                {
+                    orderedDisplayNames.Add(GetProviderFilterDisplayName(option));
+                }
+            }
+
+            if (orderedDisplayNames.Count == 0)
+            {
+                orderedDisplayNames.AddRange(_selectedProviderFilters
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                    .Select(GetProviderFilterDisplayName));
+            }
+
+            return string.Join(", ", orderedDisplayNames);
         }
 
         private void ApplyRightFilters()

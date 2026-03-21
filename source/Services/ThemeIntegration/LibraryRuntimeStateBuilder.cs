@@ -176,6 +176,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var psnGames = new List<GameAchievementSummary>();
             var retroAchievementsGames = new List<GameAchievementSummary>();
             var rpcs3Games = new List<GameAchievementSummary>();
+            var xeniaGames = new List<GameAchievementSummary>();
             var shadPS4Games = new List<GameAchievementSummary>();
             var manualGames = new List<GameAchievementSummary>();
 
@@ -186,7 +187,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                switch (data.ProviderKey ?? string.Empty)
+                var providerKey = data.EffectiveProviderKey;
+                if (string.IsNullOrWhiteSpace(providerKey))
+                {
+                    providerKey = data.ProviderKey;
+                }
+
+                switch (providerKey ?? string.Empty)
                 {
                     case "Steam":
                         steamGames.Add(summary);
@@ -209,6 +216,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     case "RPCS3":
                         rpcs3Games.Add(summary);
                         break;
+                    case "Xenia":
+                        xeniaGames.Add(summary);
+                        break;
                     case "ShadPS4":
                         shadPS4Games.Add(summary);
                         break;
@@ -225,6 +235,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             state.PSNGames = psnGames.OrderByDescending(item => item.LastUnlockDate).ToList();
             state.RetroAchievementsGames = retroAchievementsGames.OrderByDescending(item => item.LastUnlockDate).ToList();
             state.RPCS3Games = rpcs3Games.OrderByDescending(item => item.LastUnlockDate).ToList();
+            state.XeniaGames = xeniaGames.OrderByDescending(item => item.LastUnlockDate).ToList();
             state.ShadPS4Games = shadPS4Games.OrderByDescending(item => item.LastUnlockDate).ToList();
             state.ManualGames = manualGames.OrderByDescending(item => item.LastUnlockDate).ToList();
         }

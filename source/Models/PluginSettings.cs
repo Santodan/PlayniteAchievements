@@ -369,6 +369,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> XeniaGames
+        {
+            get => Theme.XeniaGames;
+            set => Theme.XeniaGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> ShadPS4Games
         {
             get => Theme.ShadPS4Games;
