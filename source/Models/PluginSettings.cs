@@ -48,12 +48,12 @@ namespace PlayniteAchievements.Models
         /// Contains both per-game achievement data and all-games overview data.
         /// </summary>
         [DontSerialize]
-        private ModernThemeBindings _theme;
+        private ModernThemeBindings _modernTheme;
 
-        public ModernThemeBindings Theme
+        public ModernThemeBindings ModernTheme
         {
-            get => _theme ?? (_theme = new ModernThemeBindings());
-            private set => _theme = value;
+            get => _modernTheme ?? (_modernTheme = new ModernThemeBindings());
+            private set => _modernTheme = value;
         }
 
         /// <summary>
@@ -155,238 +155,238 @@ namespace PlayniteAchievements.Models
         // === Per-Game Achievement Data ===
 
         [DontSerialize]
-        public bool HasAchievements => Theme.HasAchievements;
+        public bool HasAchievements => ModernTheme.HasAchievements;
 
         [DontSerialize]
-        public int AchievementCount => Theme.AchievementCount;
+        public int AchievementCount => ModernTheme.AchievementCount;
 
         [DontSerialize]
-        public int UnlockedCount => Theme.UnlockedCount;
+        public int UnlockedCount => ModernTheme.UnlockedCount;
 
         [DontSerialize]
-        public int LockedCount => Theme.LockedCount;
+        public int LockedCount => ModernTheme.LockedCount;
 
         [DontSerialize]
-        public double ProgressPercentage => Theme.ProgressPercentage;
+        public double ProgressPercentage => ModernTheme.ProgressPercentage;
 
         [DontSerialize]
-        public bool IsCompleted => Theme.IsCompleted;
+        public bool IsCompleted => ModernTheme.IsCompleted;
 
         [DontSerialize]
-        public List<AchievementDetail> Achievements => Theme.AllAchievements ?? EmptyAchievementList;
+        public List<AchievementDetail> Achievements => ModernTheme.AllAchievements ?? EmptyAchievementList;
 
         [DontSerialize]
-        public List<AchievementDetail> AchievementsNewestFirst => Theme.AchievementsNewestFirst ?? EmptyAchievementList;
+        public List<AchievementDetail> AchievementsNewestFirst => ModernTheme.AchievementsNewestFirst ?? EmptyAchievementList;
 
         [DontSerialize]
-        public List<AchievementDetail> AchievementsOldestFirst => Theme.AchievementsOldestFirst ?? EmptyAchievementList;
+        public List<AchievementDetail> AchievementsOldestFirst => ModernTheme.AchievementsOldestFirst ?? EmptyAchievementList;
 
         [DontSerialize]
-        public List<AchievementDetail> AchievementsRarityAsc => Theme.AchievementsRarityAsc ?? EmptyAchievementList;
+        public List<AchievementDetail> AchievementsRarityAsc => ModernTheme.AchievementsRarityAsc ?? EmptyAchievementList;
 
         [DontSerialize]
-        public List<AchievementDetail> AchievementsRarityDesc => Theme.AchievementsRarityDesc ?? EmptyAchievementList;
+        public List<AchievementDetail> AchievementsRarityDesc => ModernTheme.AchievementsRarityDesc ?? EmptyAchievementList;
 
         [DontSerialize]
-        public AchievementRarityStats Common => Theme.Common ?? EmptyRarityStats;
+        public AchievementRarityStats Common => ModernTheme.Common ?? EmptyRarityStats;
 
         [DontSerialize]
-        public AchievementRarityStats Uncommon => Theme.Uncommon ?? EmptyRarityStats;
+        public AchievementRarityStats Uncommon => ModernTheme.Uncommon ?? EmptyRarityStats;
 
         [DontSerialize]
-        public AchievementRarityStats Rare => Theme.Rare ?? EmptyRarityStats;
+        public AchievementRarityStats Rare => ModernTheme.Rare ?? EmptyRarityStats;
 
         [DontSerialize]
-        public AchievementRarityStats UltraRare => Theme.UltraRare ?? EmptyRarityStats;
+        public AchievementRarityStats UltraRare => ModernTheme.UltraRare ?? EmptyRarityStats;
 
         [DontSerialize]
-        public AchievementRarityStats RareAndUltraRare => Theme.RareAndUltraRare ?? EmptyRarityStats;
+        public AchievementRarityStats RareAndUltraRare => ModernTheme.RareAndUltraRare ?? EmptyRarityStats;
 
         // === All-Games Overview Data ===
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> CompletedGamesAsc
         {
-            get => Theme.CompletedGamesAsc;
-            set => Theme.CompletedGamesAsc = value;
+            get => ModernTheme.CompletedGamesAsc;
+            set => ModernTheme.CompletedGamesAsc = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> CompletedGamesDesc
         {
-            get => Theme.CompletedGamesDesc;
-            set => Theme.CompletedGamesDesc = value;
+            get => ModernTheme.CompletedGamesDesc;
+            set => ModernTheme.CompletedGamesDesc = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> GameSummariesAsc
         {
-            get => Theme.GameSummariesAsc;
-            set => Theme.GameSummariesAsc = value;
+            get => ModernTheme.GameSummariesAsc;
+            set => ModernTheme.GameSummariesAsc = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> GameSummariesDesc
         {
-            get => Theme.GameSummariesDesc;
-            set => Theme.GameSummariesDesc = value;
+            get => ModernTheme.GameSummariesDesc;
+            set => ModernTheme.GameSummariesDesc = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsUnlockAsc
         {
-            get => Theme.AllAchievementsUnlockAsc ?? EmptyAchievementList;
-            set => Theme.AllAchievementsUnlockAsc = value;
+            get => ModernTheme.AllAchievementsUnlockAsc ?? EmptyAchievementList;
+            set => ModernTheme.AllAchievementsUnlockAsc = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsUnlockDesc
         {
-            get => Theme.AllAchievementsUnlockDesc ?? EmptyAchievementList;
-            set => Theme.AllAchievementsUnlockDesc = value;
+            get => ModernTheme.AllAchievementsUnlockDesc ?? EmptyAchievementList;
+            set => ModernTheme.AllAchievementsUnlockDesc = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsRarityAsc
         {
-            get => Theme.AllAchievementsRarityAsc ?? EmptyAchievementList;
-            set => Theme.AllAchievementsRarityAsc = value;
+            get => ModernTheme.AllAchievementsRarityAsc ?? EmptyAchievementList;
+            set => ModernTheme.AllAchievementsRarityAsc = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsRarityDesc
         {
-            get => Theme.AllAchievementsRarityDesc ?? EmptyAchievementList;
-            set => Theme.AllAchievementsRarityDesc = value;
+            get => ModernTheme.AllAchievementsRarityDesc ?? EmptyAchievementList;
+            set => ModernTheme.AllAchievementsRarityDesc = value;
         }
 
         // All recent unlocks across all games (newest first).
         [DontSerialize]
         public List<AchievementDetail> MostRecentUnlocks
         {
-            get => Theme.MostRecentUnlocks ?? EmptyAchievementList;
-            set => Theme.MostRecentUnlocks = value;
+            get => ModernTheme.MostRecentUnlocks ?? EmptyAchievementList;
+            set => ModernTheme.MostRecentUnlocks = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> MostRecentUnlocksTop3
         {
-            get => Theme.MostRecentUnlocksTop3 ?? EmptyAchievementList;
-            set => Theme.MostRecentUnlocksTop3 = value;
+            get => ModernTheme.MostRecentUnlocksTop3 ?? EmptyAchievementList;
+            set => ModernTheme.MostRecentUnlocksTop3 = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> MostRecentUnlocksTop5
         {
-            get => Theme.MostRecentUnlocksTop5 ?? EmptyAchievementList;
-            set => Theme.MostRecentUnlocksTop5 = value;
+            get => ModernTheme.MostRecentUnlocksTop5 ?? EmptyAchievementList;
+            set => ModernTheme.MostRecentUnlocksTop5 = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> MostRecentUnlocksTop10
         {
-            get => Theme.MostRecentUnlocksTop10 ?? EmptyAchievementList;
-            set => Theme.MostRecentUnlocksTop10 = value;
+            get => ModernTheme.MostRecentUnlocksTop10 ?? EmptyAchievementList;
+            set => ModernTheme.MostRecentUnlocksTop10 = value;
         }
 
         // All rare recent unlocks across all games (rarest first), limited to the last 180 days.
         [DontSerialize]
         public List<AchievementDetail> RarestRecentUnlocks
         {
-            get => Theme.RarestRecentUnlocks ?? EmptyAchievementList;
-            set => Theme.RarestRecentUnlocks = value;
+            get => ModernTheme.RarestRecentUnlocks ?? EmptyAchievementList;
+            set => ModernTheme.RarestRecentUnlocks = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> RarestRecentUnlocksTop3
         {
-            get => Theme.RarestRecentUnlocksTop3 ?? EmptyAchievementList;
-            set => Theme.RarestRecentUnlocksTop3 = value;
+            get => ModernTheme.RarestRecentUnlocksTop3 ?? EmptyAchievementList;
+            set => ModernTheme.RarestRecentUnlocksTop3 = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> RarestRecentUnlocksTop5
         {
-            get => Theme.RarestRecentUnlocksTop5 ?? EmptyAchievementList;
-            set => Theme.RarestRecentUnlocksTop5 = value;
+            get => ModernTheme.RarestRecentUnlocksTop5 ?? EmptyAchievementList;
+            set => ModernTheme.RarestRecentUnlocksTop5 = value;
         }
 
         [DontSerialize]
         public List<AchievementDetail> RarestRecentUnlocksTop10
         {
-            get => Theme.RarestRecentUnlocksTop10 ?? EmptyAchievementList;
-            set => Theme.RarestRecentUnlocksTop10 = value;
+            get => ModernTheme.RarestRecentUnlocksTop10 ?? EmptyAchievementList;
+            set => ModernTheme.RarestRecentUnlocksTop10 = value;
         }
 
         // Per-provider game lists
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> SteamGames
         {
-            get => Theme.SteamGames;
-            set => Theme.SteamGames = value;
+            get => ModernTheme.SteamGames;
+            set => ModernTheme.SteamGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> GOGGames
         {
-            get => Theme.GOGGames;
-            set => Theme.GOGGames = value;
+            get => ModernTheme.GOGGames;
+            set => ModernTheme.GOGGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> EpicGames
         {
-            get => Theme.EpicGames;
-            set => Theme.EpicGames = value;
+            get => ModernTheme.EpicGames;
+            set => ModernTheme.EpicGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> XboxGames
         {
-            get => Theme.XboxGames;
-            set => Theme.XboxGames = value;
+            get => ModernTheme.XboxGames;
+            set => ModernTheme.XboxGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> PSNGames
         {
-            get => Theme.PSNGames;
-            set => Theme.PSNGames = value;
+            get => ModernTheme.PSNGames;
+            set => ModernTheme.PSNGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> RetroAchievementsGames
         {
-            get => Theme.RetroAchievementsGames;
-            set => Theme.RetroAchievementsGames = value;
+            get => ModernTheme.RetroAchievementsGames;
+            set => ModernTheme.RetroAchievementsGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> RPCS3Games
         {
-            get => Theme.RPCS3Games;
-            set => Theme.RPCS3Games = value;
+            get => ModernTheme.RPCS3Games;
+            set => ModernTheme.RPCS3Games = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> XeniaGames
         {
-            get => Theme.XeniaGames;
-            set => Theme.XeniaGames = value;
+            get => ModernTheme.XeniaGames;
+            set => ModernTheme.XeniaGames = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> ShadPS4Games
         {
-            get => Theme.ShadPS4Games;
-            set => Theme.ShadPS4Games = value;
+            get => ModernTheme.ShadPS4Games;
+            set => ModernTheme.ShadPS4Games = value;
         }
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> ManualGames
         {
-            get => Theme.ManualGames;
-            set => Theme.ManualGames = value;
+            get => ModernTheme.ManualGames;
+            set => ModernTheme.ManualGames = value;
         }
 
         #endregion
