@@ -1,9 +1,11 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.Logging;
 
 namespace PlayniteAchievements.Providers.Steam
 {
@@ -127,7 +129,7 @@ namespace PlayniteAchievements.Providers.Steam
             try
             {
                 SetAuthBusy(true);
-                await _sessionManager.LoginAsync();
+                await _sessionManager.AuthenticateInteractiveAsync(CancellationToken.None);
                 RefreshAuthStatus();
             }
             catch (Exception ex)
@@ -140,12 +142,12 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
-        private async void Logout_Click(object sender, RoutedEventArgs e)
+        private void Logout_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 SetAuthBusy(true);
-                await _sessionManager.LogoutAsync();
+                _sessionManager.ClearSession();
                 RefreshAuthStatus();
             }
             catch (Exception ex)
