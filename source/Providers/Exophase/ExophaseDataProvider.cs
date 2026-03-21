@@ -76,8 +76,8 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Checks if this provider can handle a game.
         /// Game is claimed if:
-        /// 1. ExophaseEnabled is true AND
-        /// 2. Game is in ExophaseIncludedGames OR game token is in ExophaseManagedProviders
+        /// 1. Provider is enabled AND
+        /// 2. Game is in IncludedGames OR game token is in ManagedProviders
         /// </summary>
         public bool IsCapable(Game game)
         {
@@ -86,13 +86,13 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
             }
 
-            if (!_settings.Persisted.ExophaseEnabled)
+            if (!_providerSettings.IsEnabled)
             {
                 return false;
             }
 
             // Check explicit game inclusion first
-            if (_settings.Persisted.ExophaseIncludedGames.Contains(game.Id))
+            if (_providerSettings.IncludedGames.Contains(game.Id))
             {
                 _logger.Debug($"Exophase IsCapable for '{game.Name}': true (explicitly included)");
                 return true;
@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Providers.Exophase
             // Check managed provider/platform token inclusion
             var platformToken = GetExophasePlatformSlug(game);
             if (!string.IsNullOrWhiteSpace(platformToken) &&
-                _settings.Persisted.ExophaseManagedProviders.Contains(platformToken))
+                _providerSettings.ManagedProviders.Contains(platformToken))
             {
                 _logger.Debug($"Exophase IsCapable for '{game.Name}': true (token '{platformToken}' is managed)");
                 return true;
@@ -263,7 +263,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Check for manual override first.
-            if (_settings.Persisted.ExophaseSlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+            if (_providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 _logger?.Debug($"[Exophase] Using override slug for '{game.Name}': {overrideSlug}");
@@ -534,7 +534,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private string ResolveProviderPlatformKey(Game game, string resolvedSlug)
         {
             if (game != null &&
-                _settings.Persisted.ExophaseSlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+                _providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 var overrideToken = ExtractPlatformTokenFromSlug(overrideSlug);

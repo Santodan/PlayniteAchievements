@@ -13,6 +13,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
@@ -566,8 +567,9 @@ namespace PlayniteAchievements.ViewModels
             SeedLinkUnlocksFromInheritedSnapshot(link, _pendingInheritedUnlocks);
 
             ManualAchievementLink existingLink = null;
-            var hadExistingLink = _settings?.Persisted?.ManualAchievementLinks != null &&
-                                  _settings.Persisted.ManualAchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
+            var manualSettings = ProviderSettingsHelper.Load<ManualSettings>(_settings.Persisted, "Manual");
+            var hadExistingLink = manualSettings?.AchievementLinks != null &&
+                                  manualSettings.AchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
             var rollbackLink = existingLink?.Clone();
             var rollbackCacheData = _cacheManager?.LoadGameData(_playniteGame.Id.ToString());
             var rollbackPending = true;
@@ -1100,19 +1102,22 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                if (_settings?.Persisted?.ManualAchievementLinks == null)
+                var manualSettings = ProviderSettingsHelper.Load<ManualSettings>(_settings.Persisted, "Manual");
+                if (manualSettings?.AchievementLinks == null)
                 {
                     return;
                 }
 
                 if (hadExistingLink && previousLink != null)
                 {
-                    _settings.Persisted.ManualAchievementLinks[_playniteGame.Id] = previousLink;
+                    manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
                 }
                 else
                 {
-                    _settings.Persisted.ManualAchievementLinks.Remove(_playniteGame.Id);
+                    manualSettings.AchievementLinks.Remove(_playniteGame.Id);
                 }
+
+                ProviderSettingsHelper.Save(_settings.Persisted, manualSettings);
 
                 if (persist)
                 {
@@ -1402,12 +1407,14 @@ namespace PlayniteAchievements.ViewModels
 
         private void SetLinkInMemory(ManualAchievementLink link)
         {
-            if (link == null || _settings?.Persisted?.ManualAchievementLinks == null)
+            if (link == null)
             {
                 return;
             }
 
-            _settings.Persisted.ManualAchievementLinks[_playniteGame.Id] = link;
+            var manualSettings = ProviderSettingsHelper.Load<ManualSettings>(_settings.Persisted, "Manual");
+            manualSettings.AchievementLinks[_playniteGame.Id] = link;
+            ProviderSettingsHelper.Save(_settings.Persisted, manualSettings);
         }
 
         private static ManualAchievementLink CompactLinkForPersistence(ManualAchievementLink link)

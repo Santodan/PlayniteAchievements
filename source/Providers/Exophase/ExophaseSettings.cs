@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Exophase
@@ -8,6 +11,9 @@ namespace PlayniteAchievements.Providers.Exophase
     public class ExophaseSettings : ProviderSettingsBase
     {
         private string _userId;
+        private HashSet<string> _managedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private HashSet<Guid> _includedGames = new HashSet<Guid>();
+        private Dictionary<Guid, string> _slugOverrides = new Dictionary<Guid, string>();
 
         /// <inheritdoc />
         public override string ProviderKey => "Exophase";
@@ -21,13 +27,48 @@ namespace PlayniteAchievements.Providers.Exophase
             set => SetValue(ref _userId, value);
         }
 
+        /// <summary>
+        /// Provider/platform tokens that Exophase should automatically claim.
+        /// Games matching these tokens will use Exophase instead of modern providers.
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "retro"
+        /// </summary>
+        public HashSet<string> ManagedProviders
+        {
+            get => _managedProviders;
+            set => SetValue(ref _managedProviders, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Individual game IDs that should use Exophase even if their provider/platform token is not in managed providers.
+        /// Allows per-game override for platforms not globally enabled.
+        /// </summary>
+        public HashSet<Guid> IncludedGames
+        {
+            get => _includedGames;
+            set => SetValue(ref _includedGames, value ?? new HashSet<Guid>());
+        }
+
+        /// <summary>
+        /// Per-game Exophase slug overrides.
+        /// Key is Playnite Game ID, value is the Exophase game slug (e.g., "game-name-gog").
+        /// When set, this slug is used directly instead of auto-detection.
+        /// </summary>
+        public Dictionary<Guid, string> SlugOverrides
+        {
+            get => _slugOverrides;
+            set => SetValue(ref _slugOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
         /// <inheritdoc />
         public override IProviderSettings Clone()
         {
             return new ExophaseSettings
             {
                 IsEnabled = IsEnabled,
-                UserId = UserId
+                UserId = UserId,
+                ManagedProviders = ManagedProviders != null ? new HashSet<string>(ManagedProviders, StringComparer.OrdinalIgnoreCase) : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                IncludedGames = IncludedGames != null ? new HashSet<Guid>(IncludedGames) : new HashSet<Guid>(),
+                SlugOverrides = SlugOverrides != null ? new Dictionary<Guid, string>(SlugOverrides) : new Dictionary<Guid, string>()
             };
         }
 
@@ -38,6 +79,9 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 IsEnabled = other.IsEnabled;
                 UserId = other.UserId;
+                ManagedProviders = other.ManagedProviders != null ? new HashSet<string>(other.ManagedProviders, StringComparer.OrdinalIgnoreCase) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                IncludedGames = other.IncludedGames != null ? new HashSet<Guid>(other.IncludedGames) : new HashSet<Guid>();
+                SlugOverrides = other.SlugOverrides != null ? new Dictionary<Guid, string>(other.SlugOverrides) : new Dictionary<Guid, string>();
             }
         }
     }

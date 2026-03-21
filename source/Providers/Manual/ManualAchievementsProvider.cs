@@ -89,7 +89,7 @@ namespace PlayniteAchievements.Providers.Manual
                 return false;
             }
 
-            return _settings.Persisted.ManualAchievementLinks.ContainsKey(game.Id);
+            return _providerSettings.AchievementLinks.ContainsKey(game.Id);
         }
 
         /// <summary>
@@ -110,7 +110,7 @@ namespace PlayniteAchievements.Providers.Manual
                 return payload;
             }
 
-            var links = _settings.Persisted.ManualAchievementLinks;
+            var links = _providerSettings.AchievementLinks;
             var language = _settings.Persisted.GlobalLanguage ?? "english";
 
             foreach (var game in gamesToRefresh)
