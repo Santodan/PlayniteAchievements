@@ -61,12 +61,12 @@ namespace PlayniteAchievements.Providers.Epic
 
         private EpicSettings GetProviderSettings()
         {
-            return _settings.ProviderSettings<EpicSettings>();
+            return ProviderSettings.Load<EpicSettings>();
         }
 
         private void SaveProviderSettings(EpicSettings providerSettings)
         {
-            _settings.SaveProviderSettings(providerSettings);
+            providerSettings.Save();
         }
 
         public bool IsAuthenticated => HasValidAccessToken();

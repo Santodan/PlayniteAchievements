@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             _logger = logger;
             _playniteApi = playniteApi;
 
-            _providerSettings = settings.ProviderSettings<Rpcs3Settings>();
+            _providerSettings = ProviderSettings.Load<Rpcs3Settings>();
             _scanner = new Rpcs3Scanner(_logger, _settings, _providerSettings, this, _playniteApi);
         }
 
@@ -645,7 +645,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (settings is Rpcs3Settings rpcs3Settings)
             {
                 _providerSettings = rpcs3Settings;
-                _settings.SaveProviderSettings(rpcs3Settings);
+                rpcs3Settings.Save();
             }
         }
     }

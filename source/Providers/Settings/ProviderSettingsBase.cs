@@ -71,6 +71,14 @@ namespace PlayniteAchievements.Providers.Settings
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
+        /// <summary>
+        /// Saves this settings instance to persisted storage.
+        /// </summary>
+        public void Save()
+        {
+            ProviderSettings.Save(this);
+        }
+
         /// <inheritdoc />
         public event PropertyChangedEventHandler PropertyChanged;
     }

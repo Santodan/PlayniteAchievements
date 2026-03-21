@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             _pathResolver = new RetroAchievementsPathResolver(playniteApi);
 
-            _providerSettings = settings.ProviderSettings<RetroAchievementsSettings>();
+            _providerSettings = ProviderSettings.Load<RetroAchievementsSettings>();
         }
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
         public string ProviderKey => "RetroAchievements";
@@ -55,7 +55,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get
             {
-                var providerSettings = _settings.ProviderSettings<RetroAchievementsSettings>();
+                var providerSettings = ProviderSettings.Load<RetroAchievementsSettings>();
                 return !string.IsNullOrWhiteSpace(providerSettings.RaUsername) &&
                        !string.IsNullOrWhiteSpace(providerSettings.RaWebApiKey);
             }
@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             if (game == null) return false;
 
-            var providerSettings = _settings.ProviderSettings<RetroAchievementsSettings>();
+            var providerSettings = ProviderSettings.Load<RetroAchievementsSettings>();
             if (string.IsNullOrWhiteSpace(providerSettings.RaUsername) || string.IsNullOrWhiteSpace(providerSettings.RaWebApiKey))
             {
                 return false;
@@ -99,7 +99,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         private void EnsureInitialized()
         {
-            var providerSettings = _settings.ProviderSettings<RetroAchievementsSettings>();
+            var providerSettings = ProviderSettings.Load<RetroAchievementsSettings>();
             var username = providerSettings.RaUsername?.Trim() ?? string.Empty;
             var apiKey = providerSettings.RaWebApiKey?.Trim() ?? string.Empty;
             var language = _settings.Persisted.GlobalLanguage?.Trim() ?? string.Empty;
@@ -145,7 +145,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (settings is RetroAchievementsSettings raSettings)
             {
                 _providerSettings = raSettings;
-                _settings.SaveProviderSettings(raSettings);
+                raSettings.Save();
             }
         }
     }

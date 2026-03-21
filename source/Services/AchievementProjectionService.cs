@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Services
                 ShowHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true,
                 ShowLockedIcon = settings?.Persisted?.ShowLockedIcon ?? true,
                 ShowRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true,
-                UseScaledPoints = (settings?.ProviderSettings<RetroAchievementsSettings>().RaPointsMode == "scaled") &&
+                UseScaledPoints = (ProviderSettings.Load<RetroAchievementsSettings>().RaPointsMode == "scaled") &&
                                   string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase),
                 RevealedKeys = revealedKeys
             };

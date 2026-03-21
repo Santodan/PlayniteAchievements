@@ -41,7 +41,7 @@ namespace PlayniteAchievements.Providers.Xbox
             _settings = settings;
             _sessionManager = sessionManager;
 
-            _providerSettings = settings.ProviderSettings<XboxSettings>();
+            _providerSettings = ProviderSettings.Load<XboxSettings>();
             _apiClient = new XboxApiClient(logger, settings.Persisted.GlobalLanguage);
             _scanner = new XboxScanner(settings, _providerSettings, sessionManager, _apiClient, logger);
         }
@@ -110,7 +110,7 @@ namespace PlayniteAchievements.Providers.Xbox
             if (settings is XboxSettings xboxSettings)
             {
                 _providerSettings = xboxSettings;
-                _settings.SaveProviderSettings(xboxSettings);
+                xboxSettings.Save();
             }
         }
     }

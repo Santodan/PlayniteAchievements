@@ -102,7 +102,7 @@ namespace PlayniteAchievements.Services
                 return result;
             }
 
-            var manualSettings = persistedSettings.ProviderSettings<ManualSettings>();
+            var manualSettings = ProviderSettings.Load<ManualSettings>();
             var manualLinks = manualSettings.AchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>();
             manualSettings.AchievementLinks = manualLinks;
 
@@ -201,7 +201,7 @@ namespace PlayniteAchievements.Services
                 }
             }
 
-            persistedSettings.SaveProviderSettings(manualSettings);
+            manualSettings.Save();
             return result;
         }
 

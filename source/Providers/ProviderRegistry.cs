@@ -85,13 +85,14 @@ namespace PlayniteAchievements.Providers
                 return (T)cached;
             }
 
-            var loaded = ProviderSettingsHelper.Load<T>(_settings.Persisted, key);
+            var loaded = LoadFromPersisted<T>(key);
             _settingsCache[key] = loaded;
             return loaded;
         }
 
         /// <summary>
         /// Saves provider settings back to persisted storage and updates the cache.
+        /// Also persists the entire settings to disk.
         /// </summary>
         /// <typeparam name="T">The provider settings type.</typeparam>
         /// <param name="settings">The settings instance to save.</param>
@@ -103,7 +104,34 @@ namespace PlayniteAchievements.Providers
             }
 
             _settingsCache[settings.ProviderKey] = settings;
-            ProviderSettingsHelper.Save(_settings.Persisted, settings);
+            SaveToPersisted(settings);
+
+            // Persist to disk
+            _settings._plugin?.SavePluginSettings(_settings);
+        }
+
+        private T LoadFromPersisted<T>(string providerKey) where T : ProviderSettingsBase, new()
+        {
+            var settings = new T();
+
+            if (_settings.Persisted?.ProviderSettings != null &&
+                _settings.Persisted.ProviderSettings.TryGetValue(providerKey, out var json) &&
+                !string.IsNullOrEmpty(json))
+            {
+                settings.DeserializeFromJson(json);
+            }
+
+            return settings;
+        }
+
+        private void SaveToPersisted(ProviderSettingsBase settings)
+        {
+            if (_settings.Persisted?.ProviderSettings == null)
+            {
+                return;
+            }
+
+            _settings.Persisted.ProviderSettings[settings.ProviderKey] = settings.SerializeToJson();
         }
 
         /// <summary>

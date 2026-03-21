@@ -41,8 +41,8 @@
     <Compile Include="..\..\source\Services\AchievementOrderHelper.cs" Link="Source\Services\AchievementOrderHelper.cs" />
     <Compile Include="..\..\source\Services\AchievementCategoryTypeHelper.cs" Link="Source\Services\AchievementCategoryTypeHelper.cs" />
 
-    <Compile Include="..\..\source\Providers\Settings\ProviderSettingsHelper.cs" Link="Source\Providers\Settings\ProviderSettingsHelper.cs" />
     <Compile Include="..\..\source\Providers\Settings\ProviderSettingsBase.cs" Link="Source\Providers\Settings\ProviderSettingsBase.cs" />
+    <Compile Include="..\..\source\Providers\Settings\ProviderSettings.cs" Link="Source\Providers\Settings\ProviderSettings.cs" />
     <Compile Include="..\..\source\Providers\Settings\IProviderSettings.cs" Link="Source\Providers\Settings\IProviderSettings.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSettings.cs" Link="Source\Providers\Manual\ManualSettings.cs" />
 

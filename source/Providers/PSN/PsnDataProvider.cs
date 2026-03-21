@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers.PSN
 
             _scanner = new PsnScanner(logger, _settings, _sessionManager);
 
-            _providerSettings = settings.ProviderSettings<PsnSettings>();
+            _providerSettings = ProviderSettings.Load<PsnSettings>();
         }
 
         public string ProviderName
@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Providers.PSN
             if (settings is PsnSettings psnSettings)
             {
                 _providerSettings = psnSettings;
-                _settings.SaveProviderSettings(psnSettings);
+                psnSettings.Save();
             }
         }
 

@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Providers.Epic
             var apiClient = new EpicApiClient(_httpClient, logger, sessionManager, settings.Persisted);
             _scanner = new EpicScanner(settings, apiClient, sessionManager, logger);
 
-            _providerSettings = settings.ProviderSettings<EpicSettings>();
+            _providerSettings = ProviderSettings.Load<EpicSettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Epic");
@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Providers.Epic
             if (settings is EpicSettings epicSettings)
             {
                 _providerSettings = epicSettings;
-                _settings.SaveProviderSettings(epicSettings);
+                epicSettings.Save();
             }
         }
 

@@ -67,7 +67,7 @@ namespace PlayniteAchievements.Providers.Manual
             _steamManualSource = new SteamManualSource(
                 httpClient,
                 logger,
-                () => settings.ProviderSettings<SteamSettings>().SteamApiKey);
+                () => ProviderSettings.Load<SteamSettings>().SteamApiKey);
 
             // Create Exophase manual source (uses WebView, no HTTP client needed)
             _exophaseManualSource = new ExophaseManualSource(
@@ -76,7 +76,7 @@ namespace PlayniteAchievements.Providers.Manual
                 logger,
                 () => settings.Persisted.GlobalLanguage);
 
-            _providerSettings = settings.ProviderSettings<ManualSettings>();
+            _providerSettings = ProviderSettings.Load<ManualSettings>();
         }
 
         /// <summary>
@@ -316,7 +316,7 @@ namespace PlayniteAchievements.Providers.Manual
             if (settings is ManualSettings manualSettings)
             {
                 _providerSettings = manualSettings;
-                _settings.SaveProviderSettings(manualSettings);
+                manualSettings.Save();
             }
         }
     }

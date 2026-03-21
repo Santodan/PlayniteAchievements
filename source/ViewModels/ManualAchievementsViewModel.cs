@@ -416,7 +416,7 @@ namespace PlayniteAchievements.ViewModels
 
             if (startAtEditingStage)
             {
-                var manualSettings = settings.ProviderSettings<ManualSettings>();
+                var manualSettings = ProviderSettings.Load<ManualSettings>();
                 if (!manualSettings.AchievementLinks.TryGetValue(playniteGame.Id, out _existingLink) || _existingLink == null)
                 {
                     throw new ArgumentException("Cannot start at editing stage: no existing link found for game.");
@@ -568,7 +568,7 @@ namespace PlayniteAchievements.ViewModels
             SeedLinkUnlocksFromInheritedSnapshot(link, _pendingInheritedUnlocks);
 
             ManualAchievementLink existingLink = null;
-            var manualSettings = _settings.ProviderSettings<ManualSettings>();
+            var manualSettings = ProviderSettings.Load<ManualSettings>();
             var hadExistingLink = manualSettings?.AchievementLinks != null &&
                                   manualSettings.AchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
             var rollbackLink = existingLink?.Clone();
@@ -1083,14 +1083,14 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                var manualSettings = _settings.ProviderSettings<ManualSettings>();
+                var manualSettings = ProviderSettings.Load<ManualSettings>();
                 if (manualSettings.IsEnabled)
                 {
                     return;
                 }
 
                 manualSettings.IsEnabled = true;
-                _settings.SaveProviderSettings(manualSettings);
+                manualSettings.Save();
                 _saveSettings(_settings);
 
                 PlayniteAchievementsPlugin.Instance?.ProviderRegistry?.SyncFromSettings(_settings.Persisted);
@@ -1110,7 +1110,7 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                var manualSettings = _settings.ProviderSettings<ManualSettings>();
+                var manualSettings = ProviderSettings.Load<ManualSettings>();
                 if (manualSettings?.AchievementLinks == null)
                 {
                     return;
@@ -1125,7 +1125,7 @@ namespace PlayniteAchievements.ViewModels
                     manualSettings.AchievementLinks.Remove(_playniteGame.Id);
                 }
 
-                _settings.SaveProviderSettings(manualSettings);
+                manualSettings.Save();
 
                 if (persist)
                 {
@@ -1420,9 +1420,9 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var manualSettings = _settings.ProviderSettings<ManualSettings>();
+            var manualSettings = ProviderSettings.Load<ManualSettings>();
             manualSettings.AchievementLinks[_playniteGame.Id] = link;
-            _settings.SaveProviderSettings(manualSettings);
+            manualSettings.Save();
         }
 
         private static ManualAchievementLink CompactLinkForPersistence(ManualAchievementLink link)

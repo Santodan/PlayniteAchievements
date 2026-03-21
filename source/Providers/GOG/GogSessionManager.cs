@@ -47,12 +47,12 @@ namespace PlayniteAchievements.Providers.GOG
 
         private GogSettings GetProviderSettings()
         {
-            return _settings.ProviderSettings<GogSettings>();
+            return ProviderSettings.Load<GogSettings>();
         }
 
         private void SaveProviderSettings(GogSettings providerSettings)
         {
-            _settings.SaveProviderSettings(providerSettings);
+            providerSettings.Save();
         }
 
         /// <summary>

@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool IsStale(DateTime updatedUtc)
         {
             updatedUtc = DateTime.SpecifyKind(updatedUtc, DateTimeKind.Utc);
-            var raSettings = _settings.ProviderSettings<RetroAchievementsSettings>();
+            var raSettings = ProviderSettings.Load<RetroAchievementsSettings>();
             var maxAgeDays = Math.Max(1, raSettings.HashIndexMaxAgeDays);
             return DateTime.UtcNow - updatedUtc > TimeSpan.FromDays(maxAgeDays);
         }
