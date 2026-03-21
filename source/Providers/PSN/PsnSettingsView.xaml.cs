@@ -1,9 +1,11 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Logging;
 
 namespace PlayniteAchievements.Providers.PSN
 {
@@ -61,16 +63,38 @@ namespace PlayniteAchievements.Providers.PSN
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)
         {
-            try { SetAuthBusy(true); await _sessionManager.LoginAsync(); RefreshAuthStatus(); }
-            catch (Exception ex) { Logger.Error(ex, "PSN login failed"); }
-            finally { SetAuthBusy(false); }
+            try
+            {
+                SetAuthBusy(true);
+                await _sessionManager.AuthenticateInteractiveAsync(forceInteractive: true, CancellationToken.None);
+                RefreshAuthStatus();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "PSN login failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
-        private async void Logout_Click(object sender, RoutedEventArgs e)
+        private void Logout_Click(object sender, RoutedEventArgs e)
         {
-            try { SetAuthBusy(true); await _sessionManager.LogoutAsync(); RefreshAuthStatus(); }
-            catch (Exception ex) { Logger.Error(ex, "PSN logout failed"); }
-            finally { SetAuthBusy(false); }
+            try
+            {
+                SetAuthBusy(true);
+                _sessionManager.ClearSession();
+                RefreshAuthStatus();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "PSN logout failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
         private void SetAuthBusy(bool busy)
