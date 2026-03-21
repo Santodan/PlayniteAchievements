@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Runtime.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using HtmlAgilityPack;
@@ -125,6 +126,12 @@ namespace PlayniteAchievements.Providers.Exophase
                 var json = await FetchJsonViaWebViewAsync(url, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(json))
                 {
+                    return new List<ExophaseGame>();
+                }
+
+                if (Regex.IsMatch(json, "\"games\"\\s*:\\s*false\\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                {
+                    _logger?.Debug("[Exophase] Search returned games:false; treating as no matches");
                     return new List<ExophaseGame>();
                 }
 
