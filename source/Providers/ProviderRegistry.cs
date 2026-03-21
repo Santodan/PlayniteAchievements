@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Epic;
@@ -181,17 +182,26 @@ namespace PlayniteAchievements.Providers
                 return;
             }
 
-            _enabledState["Steam"] = settings.SteamEnabled;
-            _enabledState["Epic"] = settings.EpicEnabled;
-            _enabledState["GOG"] = settings.GogEnabled;
-            _enabledState["PSN"] = settings.PsnEnabled;
-            _enabledState["RetroAchievements"] = settings.RetroAchievementsEnabled;
-            _enabledState["Xbox"] = settings.XboxEnabled;
-            _enabledState["ShadPS4"] = settings.ShadPS4Enabled;
-            _enabledState["RPCS3"] = settings.Rpcs3Enabled;
-            _enabledState["Xenia"] = settings.XeniaEnabled;
-            _enabledState["Manual"] = settings.ManualEnabled;
-            _enabledState["Exophase"] = settings.ExophaseEnabled;
+            // Iterate over ProviderSettings dictionary and extract IsEnabled from each JSON
+            foreach (var kvp in settings.ProviderSettings)
+            {
+                if (string.IsNullOrEmpty(kvp.Value))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var json = JObject.Parse(kvp.Value);
+                    var isEnabled = json["IsEnabled"]?.Value<bool>() ?? true;
+                    _enabledState[kvp.Key] = isEnabled;
+                }
+                catch
+                {
+                    // If parsing fails, default to enabled
+                    _enabledState[kvp.Key] = true;
+                }
+            }
         }
 
         /// <summary>
@@ -206,17 +216,24 @@ namespace PlayniteAchievements.Providers
                 return;
             }
 
-            settings.SteamEnabled = IsProviderEnabled("Steam");
-            settings.EpicEnabled = IsProviderEnabled("Epic");
-            settings.GogEnabled = IsProviderEnabled("GOG");
-            settings.PsnEnabled = IsProviderEnabled("PSN");
-            settings.RetroAchievementsEnabled = IsProviderEnabled("RetroAchievements");
-            settings.XboxEnabled = IsProviderEnabled("Xbox");
-            settings.ShadPS4Enabled = IsProviderEnabled("ShadPS4");
-            settings.Rpcs3Enabled = IsProviderEnabled("RPCS3");
-            settings.XeniaEnabled = IsProviderEnabled("Xenia");
-            settings.ManualEnabled = IsProviderEnabled("Manual");
-            settings.ExophaseEnabled = IsProviderEnabled("Exophase");
+            // Update IsEnabled in each provider's JSON
+            var keysToUpdate = _enabledState.Keys.ToList();
+            foreach (var key in keysToUpdate)
+            {
+                if (settings.ProviderSettings.TryGetValue(key, out var json) && !string.IsNullOrEmpty(json))
+                {
+                    try
+                    {
+                        var obj = JObject.Parse(json);
+                        obj["IsEnabled"] = _enabledState[key];
+                        settings.ProviderSettings[key] = obj.ToString(Newtonsoft.Json.Formatting.None);
+                    }
+                    catch
+                    {
+                        // If parsing fails, skip this provider
+                    }
+                }
+            }
         }
 
         // ===================== SETTINGS VIEW REGISTRATION =====================
