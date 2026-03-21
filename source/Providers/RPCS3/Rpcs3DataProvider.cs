@@ -52,9 +52,8 @@ namespace PlayniteAchievements.Providers.RPCS3
             _logger = logger;
             _playniteApi = playniteApi;
 
-            _scanner = new Rpcs3Scanner(_logger, _settings, this, _playniteApi);
-
             _providerSettings = ProviderSettingsHelper.Load<Rpcs3Settings>(settings.Persisted, "RPCS3");
+            _scanner = new Rpcs3Scanner(_logger, _providerSettings, this, _playniteApi);
         }
 
         public string ProviderName

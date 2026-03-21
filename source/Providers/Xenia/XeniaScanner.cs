@@ -22,9 +22,8 @@ namespace PlayniteAchievements.Providers.Xenia
     {
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
-        private readonly PlayniteAchievementsSettings _settings;
+        private readonly XeniaSettings _providerSettings;
         private readonly string _pluginUserDataPath;
-        private readonly string _accountFolderPath;
 
         List<KeyValuePair<Guid, string>> _titleIDCache = new List<KeyValuePair<Guid, string>>();
         List<string> KnownPublishers = new List<string>() { "5444", "464F", "4143", "4156", "4158", "4142", "4144", "4150", "4151", "4157", "414B", "4148", "4153", "4159", "4154", "424D", "4241", "4257", "4253", "4242", "4248", "4246", "4245", "4247", "4254", "4244", "4252", "4256", "4255", "4343", "434D", "4356", "4354", "4458", "4445", "4443", "4546", "4553", "4541", "454D", "4543", "454C", "4556", "464C", "4649", "4653", "4746", "4745", "4756", "4857", "4850", "4845", "4855", "4946", "494F", "494D", "4947", "494C", "4950", "4958", "4A41", "4A57", "4B59", "4B4F", "4B4E", "4B41", "4B54", "4C41", "4D4A", "4D45", "4D44", "4D53", "4D57", "4D4D", "4E4D", "4E4B", "4E4C", "4F47", "4F58", "5058", "504C", "5043", "5241", "5341", "5343", "5345", "5353", "534E", "5350", "5351", "5354", "5355", "5357", "5441", "5454", "544B", "544D", "5443", "5451", "5453", "5553", "5647", "5656", "5643", "5655", "5745", "5752", "584B", "584C", "5841", "5849", "5850", "5942", "5A44", "4450", "394F", "4C53", "4656", "3734", "4133", "545A", "435A", "4346", "4D4B", "434E", "4436", "5A45", "4645" };
@@ -32,18 +31,12 @@ namespace PlayniteAchievements.Providers.Xenia
         public XeniaScanner(
             ILogger logger,
             IPlayniteAPI playniteApi,
-            PlayniteAchievementsSettings settings,
-            string pluginUserDataPath,
-            string accountFolderPath)
+            XeniaSettings providerSettings,
+            string pluginUserDataPath)
         {
             _logger = logger;
             _playniteApi = playniteApi;
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _accountFolderPath = accountFolderPath ?? throw new ArgumentNullException(nameof(accountFolderPath));
-            if(_accountFolderPath.EndsWith("\\"))
-            {
-                _accountFolderPath = _accountFolderPath.Remove(_accountFolderPath.Length - 1);
-            }
+            _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
 
             if(File.Exists($"{_pluginUserDataPath}\\xenia\\titleID_cache.json"))
@@ -66,7 +59,7 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(_settings.Persisted.XeniaAccountPath))
+            if (string.IsNullOrWhiteSpace(_providerSettings.AccountPath))
             {
                 _logger?.Warn("[Xenia] Missing path to account - cannot scan achievements.");
                 return new RebuildPayload { Summary = new RebuildSummary() };

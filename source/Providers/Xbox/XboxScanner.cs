@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Providers.Xbox
         }
 
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly XboxSettings _providerSettings;
         private readonly XboxSessionManager _sessionManager;
         private readonly XboxApiClient _apiClient;
         private readonly ILogger _logger;
@@ -36,11 +37,13 @@ namespace PlayniteAchievements.Providers.Xbox
 
         public XboxScanner(
             PlayniteAchievementsSettings settings,
+            XboxSettings providerSettings,
             XboxSessionManager sessionManager,
             XboxApiClient apiClient,
             ILogger logger)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -364,7 +367,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
             // Use first media asset directly (matches reference implementation pattern)
             var rawUrl = xboxAch.mediaAssets?.FirstOrDefault()?.url;
-            var iconUrl = _settings.Persisted.XboxLowResIcons
+            var iconUrl = _providerSettings.LowResIcons
                 ? AddXboxResizeParam(rawUrl)
                 : rawUrl;
 

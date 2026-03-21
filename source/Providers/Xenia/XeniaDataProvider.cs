@@ -90,13 +90,13 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            return new XeniaScanner(_logger, _playniteApi, _settings, _pluginUserDataPath, GetAccountPath())
+            return new XeniaScanner(_logger, _playniteApi, _providerSettings, _pluginUserDataPath)
                 .RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
         }
 
         private string GetAccountPath()
         {
-            return (_settings?.Persisted?.XeniaAccountPath ?? string.Empty).Trim();
+            return (_providerSettings?.AccountPath ?? string.Empty).Trim();
         }
 
         private static bool IsXeniaEmulator(Emulator emulator)
