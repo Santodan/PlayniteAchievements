@@ -28,5 +28,16 @@ namespace PlayniteAchievements.Providers.Settings
         /// </summary>
         /// <param name="source">Source settings to copy from.</param>
         void CopyFrom(IProviderSettings source);
+
+        /// <summary>
+        /// Serializes the settings to a JSON string for storage.
+        /// </summary>
+        string SerializeToJson();
+
+        /// <summary>
+        /// Populates settings from a JSON string.
+        /// </summary>
+        /// <param name="json">JSON string containing settings data.</param>
+        void DeserializeFromJson(string json);
     }
 }
