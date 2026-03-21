@@ -156,7 +156,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// Gets the effective modern theme bindings to use for binding.
         /// Returns ThemeDataOverride if set, otherwise Plugin.Settings.Theme.
         /// </summary>
-        protected ModernThemeBindings EffectiveTheme => ThemeDataOverride ?? EffectiveSettings?.Theme;
+        protected ModernThemeBindings EffectiveTheme => ThemeDataOverride ?? EffectiveSettings?.ModernTheme;
 
         /// <summary>
         /// Gets the effective legacy theme bindings to use for binding.
@@ -171,7 +171,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 DataContext = new ThemePreviewContext(
                     settings,
-                    ThemeDataOverride ?? settings?.Theme,
+                    ThemeDataOverride ?? settings?.ModernTheme,
                     LegacyThemeOverride ?? settings?.LegacyTheme);
             }
             else
@@ -345,7 +345,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             var propertyName = e?.PropertyName;
-            if (propertyName == nameof(PlayniteAchievementsSettings.Theme) ||
+            if (propertyName == nameof(PlayniteAchievementsSettings.ModernTheme) ||
                 propertyName == nameof(PlayniteAchievementsSettings.LegacyTheme) ||
                 propertyName == nameof(PlayniteAchievementsSettings.Persisted))
             {
@@ -449,23 +449,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
     internal class ThemePreviewContext
     {
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly ModernThemeBindings _themeOverride;
+        private readonly ModernThemeBindings _modernThemeOverride;
         private readonly LegacyThemeBindings _legacyThemeOverride;
 
         public ThemePreviewContext(
             PlayniteAchievementsSettings settings,
-            ModernThemeBindings themeOverride,
+            ModernThemeBindings modernThemeOverride,
             LegacyThemeBindings legacyThemeOverride)
         {
             _settings = settings;
-            _themeOverride = themeOverride;
+            _modernThemeOverride = modernThemeOverride;
             _legacyThemeOverride = legacyThemeOverride;
         }
 
         /// <summary>
         /// Returns the override modern theme bindings instead of the settings' Theme.
         /// </summary>
-        public ModernThemeBindings Theme => _themeOverride;
+        public ModernThemeBindings ModernTheme => _modernThemeOverride;
 
         /// <summary>
         /// Returns the override legacy theme bindings instead of the settings' LegacyTheme.
