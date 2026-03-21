@@ -3,32 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Tagging;
-#if !TEST
-using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Exophase;
-using PlayniteAchievements.Providers.Epic;
-using PlayniteAchievements.Providers.GOG;
-using PlayniteAchievements.Providers.Manual;
-using PlayniteAchievements.Providers.PSN;
-using PlayniteAchievements.Providers.RetroAchievements;
-using PlayniteAchievements.Providers.RPCS3;
-using PlayniteAchievements.Providers.ShadPS4;
-using PlayniteAchievements.Providers.Steam;
-using PlayniteAchievements.Providers.Xenia;
-using PlayniteAchievements.Providers.Xbox;
-#endif
 
 namespace PlayniteAchievements.Models.Settings
 {
     /// <summary>
-    /// Extension methods for settings operations including copying, cloning, and migration.
+    /// Extension methods for settings operations including copying and cloning.
     /// </summary>
     public static class SettingsExtensions
     {
         /// <summary>
         /// Copies all persisted settings from one PersistedSettings instance to another.
         /// This includes provider settings dictionary, update settings, notifications, display preferences,
-        /// theme integration settings and RetroAchievements settings.
+        /// and theme integration settings.
         /// </summary>
         /// <param name="target">The target settings instance to copy to.</param>
         /// <param name="source">The source settings instance to copy from.</param>
@@ -91,14 +77,6 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableParallelProviderRefresh = source.EnableParallelProviderRefresh;
             target.ScanDelayMs = source.ScanDelayMs;
             target.MaxRetryAttempts = source.MaxRetryAttempts;
-
-            // RetroAchievements Global Settings (non-provider specific)
-            target.RaRarityStats = source.RaRarityStats;
-            target.RaPointsMode = source.RaPointsMode;
-            target.HashIndexMaxAgeDays = source.HashIndexMaxAgeDays;
-            target.EnableArchiveScanning = source.EnableArchiveScanning;
-            target.EnableDiscHashing = source.EnableDiscHashing;
-            target.EnableRaNameFallback = source.EnableRaNameFallback;
 
             // UI Column Settings
             target.DataGridColumnVisibility = source.DataGridColumnVisibility != null
@@ -190,162 +168,5 @@ namespace PlayniteAchievements.Models.Settings
         {
             return source?.Clone();
         }
-
-        /// <summary>
-        /// Migrates settings from an old format to a new format.
-        /// Migrates flat provider properties to the ProviderSettings dictionary.
-        /// </summary>
-        /// <param name="settings">The settings instance to migrate.</param>
-        /// <param name="oldVersion">The old settings version (if applicable).</param>
-        /// <returns>The same settings instance with migrated values, for method chaining.</returns>
-#if !TEST
-        public static PersistedSettings Migrate(
-            this PersistedSettings settings,
-            int? oldVersion = null)
-        {
-            if (settings == null)
-            {
-                throw new ArgumentNullException(nameof(settings));
-            }
-
-            // Migrate flat provider properties to dictionary if dictionary is empty
-            // but we have evidence of existing settings (e.g., SteamUserId is populated)
-            if (settings.ProviderSettings.Count == 0 && !string.IsNullOrEmpty(settings.SteamUserId))
-            {
-                // Steam
-                var steam = new SteamSettings
-                {
-                    IsEnabled = settings.SteamEnabled,
-                    SteamUserId = settings.SteamUserId,
-                    SteamApiKey = settings.SteamApiKey
-                };
-                settings.ProviderSettings["Steam"] = steam.SerializeToJson();
-
-                // Epic
-                var epic = new EpicSettings
-                {
-                    IsEnabled = settings.EpicEnabled
-                };
-                settings.ProviderSettings["Epic"] = epic.SerializeToJson();
-
-                // GOG
-                var gog = new GogSettings
-                {
-                    IsEnabled = settings.GogEnabled
-                };
-                settings.ProviderSettings["GOG"] = gog.SerializeToJson();
-
-                // PSN
-                var psn = new PsnSettings
-                {
-                    IsEnabled = settings.PsnEnabled
-                };
-                settings.ProviderSettings["PSN"] = psn.SerializeToJson();
-
-                // Xbox
-                var xbox = new XboxSettings
-                {
-                    IsEnabled = settings.XboxEnabled,
-                    LowResIcons = settings.XboxLowResIcons
-                };
-                settings.ProviderSettings["Xbox"] = xbox.SerializeToJson();
-
-                // RetroAchievements - include all RA-specific settings
-                var retro = new RetroAchievementsSettings
-                {
-                    IsEnabled = settings.RetroAchievementsEnabled,
-                    RaUsername = settings.RaUsername,
-                    RaWebApiKey = settings.RaWebApiKey,
-                    RaRarityStats = settings.RaRarityStats,
-                    RaPointsMode = settings.RaPointsMode,
-                    HashIndexMaxAgeDays = settings.HashIndexMaxAgeDays,
-                    EnableArchiveScanning = settings.EnableArchiveScanning,
-                    EnableDiscHashing = settings.EnableDiscHashing,
-                    EnableRaNameFallback = settings.EnableRaNameFallback,
-                    RaGameIdOverrides = settings.RaGameIdOverrides ?? new Dictionary<Guid, int>()
-                };
-                settings.ProviderSettings["RetroAchievements"] = retro.SerializeToJson();
-
-                // Exophase - migrate collection properties too
-                var exophase = new ExophaseSettings
-                {
-                    IsEnabled = settings.ExophaseEnabled,
-                    ManagedProviders = settings.ExophaseManagedProviders ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                    IncludedGames = settings.ExophaseIncludedGames ?? new HashSet<Guid>(),
-                    SlugOverrides = settings.ExophaseSlugOverrides ?? new Dictionary<Guid, string>()
-                };
-                settings.ProviderSettings["Exophase"] = exophase.SerializeToJson();
-
-                // ShadPS4
-                var shadps4 = new ShadPS4Settings
-                {
-                    IsEnabled = settings.ShadPS4Enabled,
-                    GameDataPath = settings.ShadPS4GameDataPath
-                };
-                settings.ProviderSettings["ShadPS4"] = shadps4.SerializeToJson();
-
-                // RPCS3
-                var rpcs3 = new Rpcs3Settings
-                {
-                    IsEnabled = settings.Rpcs3Enabled,
-                    ExecutablePath = settings.Rpcs3ExecutablePath
-                };
-                settings.ProviderSettings["RPCS3"] = rpcs3.SerializeToJson();
-
-                // Xenia
-                var xenia = new XeniaSettings
-                {
-                    IsEnabled = settings.XeniaEnabled,
-                    AccountPath = settings.XeniaAccountPath
-                };
-                settings.ProviderSettings["Xenia"] = xenia.SerializeToJson();
-
-                // Manual - migrate achievement links too
-                var manual = new ManualSettings
-                {
-                    IsEnabled = settings.ManualEnabled,
-                    ManualTrackingOverrideEnabled = settings.ManualTrackingOverrideEnabled,
-                    AchievementLinks = settings.ManualAchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>()
-                };
-                settings.ProviderSettings["Manual"] = manual.SerializeToJson();
-
-                // Clear flat provider properties after successful migration
-                // This ensures the JSON file is clean going forward
-                settings.SteamUserId = null;
-                settings.SteamApiKey = null;
-                settings.SteamEnabled = true;
-                settings.EpicEnabled = true;
-                settings.GogEnabled = true;
-                settings.PsnEnabled = true;
-                settings.XboxEnabled = true;
-                settings.XboxLowResIcons = false;
-                settings.RetroAchievementsEnabled = true;
-                settings.RaUsername = null;
-                settings.RaWebApiKey = null;
-                settings.RaRarityStats = "casual";
-                settings.RaPointsMode = "points";
-                settings.HashIndexMaxAgeDays = 30;
-                settings.EnableArchiveScanning = true;
-                settings.EnableDiscHashing = true;
-                settings.EnableRaNameFallback = true;
-                settings.RaGameIdOverrides = new Dictionary<Guid, int>();
-                settings.ShadPS4Enabled = true;
-                settings.ShadPS4GameDataPath = string.Empty;
-                settings.Rpcs3Enabled = true;
-                settings.Rpcs3ExecutablePath = string.Empty;
-                settings.XeniaEnabled = true;
-                settings.XeniaAccountPath = string.Empty;
-                settings.ManualEnabled = true;
-                settings.ManualTrackingOverrideEnabled = false;
-                settings.ManualAchievementLinks = new Dictionary<Guid, ManualAchievementLink>();
-                settings.ExophaseEnabled = false;
-                settings.ExophaseManagedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                settings.ExophaseIncludedGames = new HashSet<Guid>();
-                settings.ExophaseSlugOverrides = new Dictionary<Guid, string>();
-            }
-
-            return settings;
-        }
-#endif
     }
 }
