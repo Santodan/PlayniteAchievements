@@ -315,7 +315,13 @@ namespace PlayniteAchievements.Providers
             RegisterAuthPrimer("Exophase", exophaseSessionManager.PrimeAuthenticationStateAsync);
 
             // Register settings views
-            RegisterSettingsViews(steamSessionManager);
+            RegisterSettingsViews(
+                steamSessionManager,
+                gogSessionManager,
+                epicSessionManager,
+                psnSessionManager,
+                xboxSessionManager,
+                exophaseSessionManager);
 
             return providers;
         }
@@ -323,15 +329,46 @@ namespace PlayniteAchievements.Providers
         /// <summary>
         /// Registers settings views for providers that have been migrated to the modular system.
         /// </summary>
-        private void RegisterSettingsViews(SteamSessionManager steamSessionManager)
+        private void RegisterSettingsViews(
+            SteamSessionManager steamSessionManager,
+            GogSessionManager gogSessionManager,
+            EpicSessionManager epicSessionManager,
+            PsnSessionManager psnSessionManager,
+            XboxSessionManager xboxSessionManager,
+            ExophaseSessionManager exophaseSessionManager)
         {
             // Steam settings view (migrated)
             RegisterSettingsView("Steam", () => new SteamSettingsView(steamSessionManager));
 
-            // TODO: Register other providers as they are migrated
-            // RegisterSettingsView("Epic", () => new EpicSettingsView(epicSessionManager));
-            // RegisterSettingsView("GOG", () => new GogSettingsView(gogSessionManager));
-            // etc.
+            // RetroAchievements settings view (migrated)
+            RegisterSettingsView("RetroAchievements", () => new RetroAchievementsSettingsView());
+
+            // GOG settings view (migrated)
+            RegisterSettingsView("GOG", () => new GogSettingsView(gogSessionManager));
+
+            // Epic settings view (migrated)
+            RegisterSettingsView("Epic", () => new EpicSettingsView(epicSessionManager));
+
+            // PSN settings view (migrated)
+            RegisterSettingsView("PSN", () => new PsnSettingsView(psnSessionManager));
+
+            // Xbox settings view (migrated)
+            RegisterSettingsView("Xbox", () => new XboxSettingsView(xboxSessionManager));
+
+            // Exophase settings view (migrated)
+            RegisterSettingsView("Exophase", () => new ExophaseSettingsView(exophaseSessionManager));
+
+            // ShadPS4 settings view (migrated)
+            RegisterSettingsView("ShadPS4", () => new ShadPS4SettingsView());
+
+            // RPCS3 settings view (migrated)
+            RegisterSettingsView("RPCS3", () => new Rpcs3SettingsView());
+
+            // Xenia settings view (migrated)
+            RegisterSettingsView("Xenia", () => new XeniaSettingsView());
+
+            // Manual settings view (migrated)
+            RegisterSettingsView("Manual", () => new ManualSettingsView());
         }
     }
 

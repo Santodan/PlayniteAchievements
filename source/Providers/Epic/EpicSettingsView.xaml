@@ -1,0 +1,136 @@
+<UserControl x:Class="PlayniteAchievements.Providers.Epic.EpicSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+
+    <UserControl.Resources>
+        <Style x:Key="AuthActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                             Value="True">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <!-- Provider Enable Toggle -->
+            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                          FontWeight="SemiBold"
+                          FontSize="{DynamicResource FontSize}"/>
+            </Border>
+
+            <!-- Provider Disabled Message -->
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}"
+                       Margin="0,0,0,16">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Epic Authentication -->
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Label_EpicAuth}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Top"
+                                   Margin="0,8,0,0"/>
+
+                        <!-- Auth Card -->
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource PanelBackgroundBrush}"
+                                CornerRadius="8"
+                                Padding="16"
+                                BorderThickness="1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="#F72585"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                     Value="True">
+                                            <Setter Property="BorderBrush" Value="#06FFA5"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="{DynamicResource FontSize}"
+                                               Margin="0,0,12,0"
+                                               VerticalAlignment="Center">
+                                        <TextBlock.RenderTransform>
+                                            <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                                        </TextBlock.RenderTransform>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="&#xE783;"/>
+                                                <Setter Property="Foreground" Value="#F72585"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                 Value="True">
+                                                        <Setter Property="Text" Value="&#xE73E;"/>
+                                                        <Setter Property="Foreground" Value="#06FFA5"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_LoginWeb}"
+                                            Click="LoginWeb_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}"
+                                            Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Logout}"
+                                            Click="Logout_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

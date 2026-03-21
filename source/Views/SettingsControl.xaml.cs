@@ -3496,28 +3496,31 @@ namespace PlayniteAchievements.Views
 
         /// <summary>
         /// Builds provider settings tabs dynamically from registered providers.
-        /// Tabs are inserted after DisplayTab and before the first hardcoded provider tab.
+        /// Tabs are inserted after DisplayTab and before ThemeMigrationTab.
         /// </summary>
         private void BuildProviderTabs()
         {
-            // Providers that still have hardcoded tabs (skip until migrated)
-            var hardcodedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            {
-                "RetroAchievements", "GOG", "Epic", "PSN", "Xbox",
-                "Exophase", "ShadPS4", "RPCS3", "Xenia", "Manual"
-            };
-
-            // Find insertion index (after DisplayTab, before SteamTab or at position 2)
+            // Find insertion index (after DisplayTab)
             int insertIndex = 2; // After General (0) and Display (1)
+
+            // Map of provider keys to hardcoded tab names for hiding
+            var hardcodedTabNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "Steam", "SteamTab" },
+                { "RetroAchievements", "RetroAchievementsTab" },
+                { "GOG", "GogTab" },
+                { "Epic", "EpicTab" },
+                { "PSN", "PsnTab" },
+                { "Xbox", "XboxTab" },
+                { "Exophase", "ExophaseTab" },
+                { "ShadPS4", "ShadPS4Tab" },
+                { "RPCS3", "Rpcs3Tab" },
+                { "Xenia", "XeniaTab" },
+                { "Manual", "ManualTab" }
+            };
 
             foreach (var providerKey in _providerRegistry.GetSettingsViewProviderKeys())
             {
-                // Skip providers that still have hardcoded tabs
-                if (hardcodedProviders.Contains(providerKey))
-                {
-                    continue;
-                }
-
                 var view = _providerRegistry.CreateSettingsView(providerKey);
                 if (view == null) continue;
 
@@ -3538,14 +3541,14 @@ namespace PlayniteAchievements.Views
                     Tag = providerKey
                 };
 
-                // Hide the hardcoded Steam tab if we're using dynamic tabs
-                if (providerKey.Equals("Steam", StringComparison.OrdinalIgnoreCase))
+                // Hide the hardcoded tab if it exists
+                if (hardcodedTabNames.TryGetValue(providerKey, out var tabName))
                 {
-                    var steamTab = SettingsTabControl.Items.OfType<TabItem>()
-                        .FirstOrDefault(t => t.Name == "SteamTab");
-                    if (steamTab != null)
+                    var hardcodedTab = SettingsTabControl.Items.OfType<TabItem>()
+                        .FirstOrDefault(t => t.Name == tabName);
+                    if (hardcodedTab != null)
                     {
-                        steamTab.Visibility = Visibility.Collapsed;
+                        hardcodedTab.Visibility = Visibility.Collapsed;
                     }
                 }
 
