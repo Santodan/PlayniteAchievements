@@ -88,6 +88,7 @@ namespace PlayniteAchievements.Providers
             { "Xbox", true },
             { "ShadPS4", true },
             { "RPCS3", true },
+            { "Xenia", true },
             { "Manual", true },
             { "Exophase", true }
         };
@@ -153,6 +154,7 @@ namespace PlayniteAchievements.Providers
             _enabledState["Xbox"] = settings.XboxEnabled;
             _enabledState["ShadPS4"] = settings.ShadPS4Enabled;
             _enabledState["RPCS3"] = settings.Rpcs3Enabled;
+            _enabledState["Xenia"] = settings.XeniaEnabled;
             _enabledState["Manual"] = settings.ManualEnabled;
             _enabledState["Exophase"] = settings.ExophaseEnabled;
         }
@@ -177,6 +179,7 @@ namespace PlayniteAchievements.Providers
             settings.XboxEnabled = IsProviderEnabled("Xbox");
             settings.ShadPS4Enabled = IsProviderEnabled("ShadPS4");
             settings.Rpcs3Enabled = IsProviderEnabled("RPCS3");
+            settings.XeniaEnabled = IsProviderEnabled("Xenia");
             settings.ManualEnabled = IsProviderEnabled("Manual");
             settings.ExophaseEnabled = IsProviderEnabled("Exophase");
         }

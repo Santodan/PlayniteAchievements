@@ -45,6 +45,8 @@ namespace PlayniteAchievements.Models.Settings
         private string _shadPS4GameDataPath = string.Empty;
         private bool _rpcs3Enabled = true;
         private string _rpcs3ExecutablePath = string.Empty;
+        private bool _xeniaEnabled = true;
+        private string _xeniaAccountPath = string.Empty;
         private string _legacyManualImportPath = string.Empty;
         private bool _manualTrackingOverrideEnabled = false;
         private bool _enablePeriodicUpdates = true;
@@ -297,6 +299,24 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _rpcs3Enabled;
             set => SetValue(ref _rpcs3Enabled, value);
+        }
+
+        /// <summary>
+        /// Enable or disable Xenia trophy tracking.
+        /// </summary>
+        public bool XeniaEnabled
+        {
+            get => _xeniaEnabled;
+            set => SetValue(ref _xeniaEnabled, value);
+        }
+
+        /// <summary>
+        /// Xenia Account Path.
+        /// </summary>
+        public string XeniaAccountPath
+        {
+            get => _xeniaAccountPath;
+            set => SetValue(ref _xeniaAccountPath, value ?? string.Empty);
         }
 
         /// <summary>
@@ -1174,6 +1194,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4GameDataPath = this.ShadPS4GameDataPath,
                 Rpcs3Enabled = this.Rpcs3Enabled,
                 Rpcs3ExecutablePath = this.Rpcs3ExecutablePath,
+                XeniaEnabled = this.XeniaEnabled,
+                XeniaAccountPath = this.XeniaAccountPath,
                 LegacyManualImportPath = this.LegacyManualImportPath,
                 ManualTrackingOverrideEnabled = this.ManualTrackingOverrideEnabled,
                 EnablePeriodicUpdates = this.EnablePeriodicUpdates,

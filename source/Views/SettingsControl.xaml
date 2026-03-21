@@ -2930,6 +2930,152 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ================== TAB: Xenia ================== -->
+            <TabItem x:Name="XeniaTab" Header="{DynamicResource LOCPlayAch_Provider_Xenia}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20">
+
+                        <!-- Provider Enable Toggle -->
+                        <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                           IsChecked="{Binding Persisted.XeniaEnabled}"
+                           FontWeight="SemiBold"
+                           FontSize="{DynamicResource FontSize}"/>
+                        </Border>
+
+                        <!-- Provider Disabled Message -->
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}"
+                        Margin="0,0,0,16">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Persisted.XeniaEnabled}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Persisted.XeniaEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XeniaConnection}"
+                                Style="{StaticResource SectionHeaderStyle}"/>
+
+                                <TextBlock Style="{StaticResource MutedTextStyle}"
+                                Margin="0,0,0,16"
+                                Text="{DynamicResource LOCPlayAch_Settings_Xenia_Description}"/>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                    Text="{DynamicResource LOCPlayAch_Settings_XeniaAccountPath}"
+                                    Foreground="{DynamicResource TextBrush}"
+                                    VerticalAlignment="Top"
+                                    Margin="0,8,0,0"/>
+
+                                    <Border Grid.Column="1"
+                                 Background="{DynamicResource PanelBackgroundBrush}"
+                                 CornerRadius="8"
+                                 Padding="16"
+                                 BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="BorderBrush" Value="#F72585"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding XeniaAuthenticated, Mode=OneWay, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      Value="True">
+                                                        <Setter Property="BorderBrush" Value="#06FFA5"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Column="0"
+                                                FontFamily="Segoe MDL2 Assets"
+                                                FontSize="{DynamicResource FontSize}"
+                                                Margin="0,0,12,0"
+                                                VerticalAlignment="Center">
+                                                    <TextBlock.RenderTransform>
+                                                        <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                                                    </TextBlock.RenderTransform>
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding XeniaAuthenticated, Mode=OneWay, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                  Value="True">
+                                                                    <Setter Property="Text" Value="&#xE73E;"/>
+                                                                    <Setter Property="Foreground" Value="#06FFA5"/>
+                                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding XeniaAuthenticated, Mode=OneWay, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                  Value="False">
+                                                                    <Setter Property="Text" Value="&#xE711;"/>
+                                                                    <Setter Property="Foreground" Value="#F72585"/>
+                                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Grid.Column="1"
+                                                Text="{Binding XeniaAuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Foreground="{DynamicResource TextBrush}"
+                                                TextWrapping="Wrap"
+                                                VerticalAlignment="Center"
+                                                FontSize="{DynamicResource FontSize}"
+                                                FontWeight="SemiBold"/>
+                                            </Grid>
+
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XeniaAccountPathHint}"
+                                            Style="{StaticResource MutedTextStyle}"
+                                            Margin="0,0,0,12"
+                                            TextWrapping="Wrap"/>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                              Text="{Binding Persisted.XeniaAccountPath, UpdateSourceTrigger=PropertyChanged}"
+                                              KeyDown="XeniaAccountPath_KeyDown"
+                                              LostFocus="XeniaAccountPath_LostFocus"
+                                              VerticalAlignment="Center"
+                                              Padding="8,6"
+                                              Margin="0,0,8,0"/>
+
+                                                <Button Grid.Column="1"
+                                             Content="{DynamicResource LOCPlayAch_Settings_Xenia_Browse}"
+                                             Click="Xenia_Browse_Click"
+                                             Padding="14,6"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+
             <!-- ================== TAB: MANUAL ================== -->
             <TabItem x:Name="ManualTab" Header="{DynamicResource LOCPlayAch_Provider_Manual}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"

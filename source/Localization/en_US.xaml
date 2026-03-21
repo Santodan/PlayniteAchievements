@@ -100,6 +100,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Xenia">Xenia</sys:String>
 
     <!-- ================================================================= -->
     <!-- CONTEXT MENU                                                       -->
@@ -189,6 +190,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Apply">Apply</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaNotCapable">Xenia override is not available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Custom Achievement Order</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">Drag and drop rows to define the default order. Multi-select with Shift/Ctrl is supported. Changes are saved immediately.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_NoAchievements">No cached achievements are available for this game.</sys:String>
@@ -464,6 +466,21 @@
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">Trophy folder not found</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_Success">RPCS3 executable path verified.</sys:String>
 
+    <!-- Xenia Settings -->
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaConnection">Xenia Connection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Xenia_Description">Configure Xenia emulator integration to track achievements from Xbox 360 games played in the emulator.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaEnabled">Enable Xenia Achievement Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPath">Account Path</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">&lt;Xenia Path&gt;\content\&lt;Account ID&gt;\FFFE07D1\00010000\&lt;Account ID&gt;\</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Xenia_Browse">Browse...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Xenia_Verified">Xenia account path verified.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Xenia_NotConfigured">Xenia account path not configured.</sys:String>
+
+    <!-- RPCS3 Validation -->
+    <sys:String x:Key="LOCPlayAch_XeniaValidation_InvalidPath">Directory does not exist</sys:String>
+    <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">Not a valid Xenia account path - No Account file</sys:String>
+    <sys:String x:Key="LOCPlayAch_XeniaValidation_Success">Xenia account path verified.</sys:String>
+    
     <!-- ================================================================= -->
     <!-- SETTINGS SECTIONS                                                  -->
     <!-- ================================================================= -->

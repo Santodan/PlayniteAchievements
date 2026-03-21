@@ -551,6 +551,32 @@ namespace PlayniteAchievements.Views
             set => SetValue(Rpcs3AuthenticatedProperty, value);
         }
 
+        public static readonly DependencyProperty XeniaAuthStatusProperty =
+            DependencyProperty.Register(
+                nameof(XeniaAuthStatus),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Xenia_NotConfigured")));
+
+        public string XeniaAuthStatus
+        {
+            get => (string)GetValue(XeniaAuthStatusProperty);
+            set => SetValue(XeniaAuthStatusProperty, value);
+        }
+
+        public static readonly DependencyProperty XeniaAuthenticatedProperty =
+            DependencyProperty.Register(
+                nameof(XeniaAuthenticated),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool XeniaAuthenticated
+        {
+            get => (bool)GetValue(XeniaAuthenticatedProperty);
+            set => SetValue(XeniaAuthenticatedProperty, value);
+        }
+
         public static readonly DependencyProperty SteamAuthenticatedProperty =
             DependencyProperty.Register(
                 nameof(SteamAuthenticated),
@@ -809,6 +835,7 @@ namespace PlayniteAchievements.Views
                 UpdateRaAuthState();
                 CheckShadPS4Auth();
                 CheckRpcs3Auth();
+                CheckXeniaAuth();
                 EnsureLegacyManualImportPathDefault();
                 SetLegacyManualImportStatus(L(
                     "LOCPlayAch_Settings_Manual_Legacy_StatusIdle",
@@ -1265,6 +1292,23 @@ namespace PlayniteAchievements.Views
         {
             (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
             CheckShadPS4Auth();
+        }
+
+        private void XeniaAccountPath_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+                CheckXeniaAuth();
+                MoveFocusFrom((TextBox)sender);
+            }
+        }
+
+        private void XeniaAccountPath_LostFocus(object sender, RoutedEventArgs e)
+        {
+            (sender as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            CheckXeniaAuth();
         }
 
         private void MoveFocusFrom(TextBox textBox)
@@ -3044,6 +3088,74 @@ namespace PlayniteAchievements.Views
         }
 
         // -----------------------------
+        // Xenia actions
+        // -----------------------------
+        private void Xenia_Browse_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _plugin.PlayniteApi.Dialogs.SelectFolder();
+            _logger.Info($"Received {selectedPath}");
+            if (!string.IsNullOrWhiteSpace(selectedPath))
+            {
+                _settingsViewModel.Settings.Persisted.XeniaAccountPath = selectedPath;
+
+                // Check if the selected file is valid
+                CheckXeniaAuth();
+            }
+        }
+
+        private void CheckXeniaAuth()
+        {
+            var accountpath = (_settingsViewModel.Settings.Persisted.XeniaAccountPath ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(accountpath))
+            {
+                SetXeniaAuthenticated(false);
+                SetXeniaAuthStatus("LOCPlayAch_Settings_Xenia_NotConfigured");
+            }
+            else if (Directory.Exists(accountpath))
+            {
+                if (File.Exists($"{accountpath}\\Account"))
+                {
+                    SetXeniaAuthenticated(true);
+                    SetXeniaAuthStatus("LOCPlayAch_XeniaValidation_Success");
+                }
+                else
+                {
+                    SetXeniaAuthenticated(false);
+                    SetXeniaAuthStatus("LOCPlayAch_XeniaValidation_NoAccount");
+                }
+            }
+            else
+            {
+                SetXeniaAuthenticated(false);
+                SetXeniaAuthStatus("LOCPlayAch_XeniaValidation_InvalidPath");
+            }          
+        }
+        private void SetXeniaAuthenticated(bool authenticated)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                XeniaAuthenticated = authenticated;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => XeniaAuthenticated = authenticated));
+            }
+        }
+        private void SetXeniaAuthStatus(string status)
+        {
+            var value = ResourceProvider.GetString(status);
+            if (Dispatcher.CheckAccess())
+            {
+                XeniaAuthStatus = value;
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(() => XeniaAuthStatus = value));
+            }
+        }
+
+        // -----------------------------
         // Cache actions
         // -----------------------------
 
@@ -3074,6 +3186,7 @@ namespace PlayniteAchievements.Views
         {
             try
             {
+                _plugin.ImageService?.Clear();
                 _plugin.ImageService?.ClearDiskCache();
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     ResourceProvider.GetString("LOCPlayAch_Settings_ImageCache_Cleared"),
@@ -3409,6 +3522,11 @@ namespace PlayniteAchievements.Views
             {
                 CheckRpcs3Auth();
                 _logger?.Info("Checked RPCS3 auth for RPCS3 tab.");
+            }
+            else if (string.Equals(name, "XeniaTab", StringComparison.OrdinalIgnoreCase))
+            {
+                CheckXeniaAuth();
+                _logger?.Info("Checked Xenia auth for Xenia tab.");
             }
             else if (string.Equals(name, "ManualTab", StringComparison.OrdinalIgnoreCase))
             {

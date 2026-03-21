@@ -10,6 +10,7 @@ using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Providers.ShadPS4;
 using PlayniteAchievements.Providers.Steam;
+using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Providers.Xbox;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Logging;
@@ -83,7 +84,12 @@ namespace PlayniteAchievements.Providers
                 new Rpcs3DataProvider(
                     logger,
                     settings,
-                    playniteApi)
+                    playniteApi),
+                new XeniaDataProvider(
+                    logger,
+                    settings,
+                    playniteApi,
+                    pluginUserDataPath)
             };
         }
 
