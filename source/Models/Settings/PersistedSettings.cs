@@ -1182,51 +1182,40 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Creates a deep copy of this PersistedSettings instance.
+        /// Provider-specific settings are cloned via the ProviderSettings dictionary.
         /// </summary>
         public PersistedSettings Clone()
         {
             return new PersistedSettings
             {
-                SteamUserId = this.SteamUserId,
-                GogUserId = this.GogUserId,
-                EpicAccountId = this.EpicAccountId,
-                EpicAccessToken = this.EpicAccessToken,
-                EpicRefreshToken = this.EpicRefreshToken,
-                EpicTokenType = this.EpicTokenType,
-                EpicTokenExpiryUtc = this.EpicTokenExpiryUtc,
-                EpicRefreshTokenExpiryUtc = this.EpicRefreshTokenExpiryUtc,
-                SteamApiKey = this.SteamApiKey,
-                PsnNpsso = this.PsnNpsso,
+                // Provider Settings Dictionary (contains all provider-specific settings)
+                ProviderSettings = this.ProviderSettings != null
+                    ? new Dictionary<string, string>(this.ProviderSettings, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+
+                // Global Settings
                 GlobalLanguage = this.GlobalLanguage,
-                SteamEnabled = this.SteamEnabled,
-                EpicEnabled = this.EpicEnabled,
-                GogEnabled = this.GogEnabled,
-                PsnEnabled = this.PsnEnabled,
-                RetroAchievementsEnabled = this.RetroAchievementsEnabled,
-                XboxEnabled = this.XboxEnabled,
-                XboxLowResIcons = this.XboxLowResIcons,
-                ShadPS4Enabled = this.ShadPS4Enabled,
-                ShadPS4GameDataPath = this.ShadPS4GameDataPath,
-                Rpcs3Enabled = this.Rpcs3Enabled,
-                Rpcs3ExecutablePath = this.Rpcs3ExecutablePath,
-                XeniaEnabled = this.XeniaEnabled,
-                XeniaAccountPath = this.XeniaAccountPath,
-                LegacyManualImportPath = this.LegacyManualImportPath,
-                ManualTrackingOverrideEnabled = this.ManualTrackingOverrideEnabled,
+
+                // Update and Refresh Settings
                 EnablePeriodicUpdates = this.EnablePeriodicUpdates,
                 AutoExcludeHiddenGames = this.AutoExcludeHiddenGames,
                 PeriodicUpdateHours = this.PeriodicUpdateHours,
-                EnableNotifications = this.EnableNotifications,
-                NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
-                NotifyOnRebuild = this.NotifyOnRebuild,
                 RecentRefreshGamesCount = this.RecentRefreshGamesCount,
                 CustomRefreshPresets = this.CustomRefreshPresets != null
                     ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(this.CustomRefreshPresets, CustomRefreshPreset.MaxPresetCount))
                     : new List<CustomRefreshPreset>(),
+
+                // Notification Settings
+                EnableNotifications = this.EnableNotifications,
+                NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
+                NotifyOnRebuild = this.NotifyOnRebuild,
+
+                // Display Preferences
                 ShowHiddenIcon = this.ShowHiddenIcon,
                 ShowHiddenTitle = this.ShowHiddenTitle,
                 ShowHiddenDescription = this.ShowHiddenDescription,
                 ShowHiddenSuffix = this.ShowHiddenSuffix,
+                ShowLockedIcon = this.ShowLockedIcon,
                 ShowRarityGlow = this.ShowRarityGlow,
                 UseCoverImages = this.UseCoverImages,
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
@@ -1239,21 +1228,22 @@ namespace PlayniteAchievements.Models.Settings
                 ShowGamesWithNoUnlocks = this.ShowGamesWithNoUnlocks,
                 ShowUnplayedGames = this.ShowUnplayedGames,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
+                ShowCompactListRarityBar = this.ShowCompactListRarityBar,
                 EnableCompactGridMode = this.EnableCompactGridMode,
+                AchievementDataGridMaxHeight = this.AchievementDataGridMaxHeight,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
                 MaxRetryAttempts = this.MaxRetryAttempts,
-                RaUsername = this.RaUsername,
-                RaWebApiKey = this.RaWebApiKey,
+
+                // RetroAchievements Global Settings (non-provider specific)
                 RaRarityStats = this.RaRarityStats,
                 RaPointsMode = this.RaPointsMode,
                 HashIndexMaxAgeDays = this.HashIndexMaxAgeDays,
                 EnableArchiveScanning = this.EnableArchiveScanning,
                 EnableDiscHashing = this.EnableDiscHashing,
                 EnableRaNameFallback = this.EnableRaNameFallback,
-                RaGameIdOverrides = this.RaGameIdOverrides != null
-                    ? new Dictionary<Guid, int>(this.RaGameIdOverrides)
-                    : new Dictionary<Guid, int>(),
+
+                // UI Column Settings
                 DataGridColumnVisibility = this.DataGridColumnVisibility != null
                     ? new Dictionary<string, bool>(this.DataGridColumnVisibility, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase),
@@ -1278,6 +1268,8 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewColumnWidths = this.GamesOverviewColumnWidths != null
                     ? new Dictionary<string, double>(this.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+
+                // General Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null
@@ -1294,6 +1286,8 @@ namespace PlayniteAchievements.Models.Settings
                             },
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase),
+
+                // User Preferences (Survive Cache Clear)
                 ExcludedGameIds = this.ExcludedGameIds != null
                     ? new HashSet<Guid>(this.ExcludedGameIds)
                     : new HashSet<Guid>(),
@@ -1324,23 +1318,9 @@ namespace PlayniteAchievements.Models.Settings
                             ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
                             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                     : new Dictionary<Guid, Dictionary<string, string>>(),
-                ManualAchievementLinks = this.ManualAchievementLinks != null
-                    ? this.ManualAchievementLinks.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value?.Clone())
-                    : new Dictionary<Guid, ManualAchievementLink>(),
-                ManualEnabled = this.ManualEnabled,
-                TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings(),
-                ExophaseEnabled = this.ExophaseEnabled,
-                ExophaseManagedProviders = this.ExophaseManagedProviders != null
-                    ? new HashSet<string>(this.ExophaseManagedProviders, StringComparer.OrdinalIgnoreCase)
-                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                ExophaseIncludedGames = this.ExophaseIncludedGames != null
-                    ? new HashSet<Guid>(this.ExophaseIncludedGames)
-                    : new HashSet<Guid>(),
-                ExophaseSlugOverrides = this.ExophaseSlugOverrides != null
-                    ? new Dictionary<Guid, string>(this.ExophaseSlugOverrides)
-                    : new Dictionary<Guid, string>()
+
+                // Tagging Settings
+                TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
             };
         }
 

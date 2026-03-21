@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Tagging;
 #if !TEST
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
@@ -44,10 +45,13 @@ namespace PlayniteAchievements.Models.Settings
                 return;
             }
 
-            // Provider Settings Dictionary
+            // Provider Settings Dictionary (contains all provider-specific settings)
             target.ProviderSettings = source.ProviderSettings != null
                 ? new Dictionary<string, string>(source.ProviderSettings, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            // Global Settings
+            target.GlobalLanguage = source.GlobalLanguage;
 
             // Update and Refresh Settings
             target.EnablePeriodicUpdates = source.EnablePeriodicUpdates;
@@ -78,13 +82,25 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart;
             target.ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart;
             target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
+            target.ShowGamesWithNoUnlocks = source.ShowGamesWithNoUnlocks;
+            target.ShowUnplayedGames = source.ShowUnplayedGames;
+            target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
+            target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
+            target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.AchievementDataGridMaxHeight = source.AchievementDataGridMaxHeight;
+            target.EnableParallelProviderRefresh = source.EnableParallelProviderRefresh;
+            target.ScanDelayMs = source.ScanDelayMs;
+            target.MaxRetryAttempts = source.MaxRetryAttempts;
 
-            // RetroAchievements Settings (non-provider specific)
+            // RetroAchievements Global Settings (non-provider specific)
             target.RaRarityStats = source.RaRarityStats;
+            target.RaPointsMode = source.RaPointsMode;
             target.HashIndexMaxAgeDays = source.HashIndexMaxAgeDays;
             target.EnableArchiveScanning = source.EnableArchiveScanning;
             target.EnableDiscHashing = source.EnableDiscHashing;
             target.EnableRaNameFallback = source.EnableRaNameFallback;
+
+            // UI Column Settings
             target.DataGridColumnVisibility = source.DataGridColumnVisibility != null
                 ? new Dictionary<string, bool>(source.DataGridColumnVisibility, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -94,8 +110,14 @@ namespace PlayniteAchievements.Models.Settings
             target.SidebarAchievementColumnWidths = source.SidebarAchievementColumnWidths != null
                 ? new Dictionary<string, double>(source.SidebarAchievementColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            target.SidebarGameColumnWidths = source.SidebarGameColumnWidths != null
+                ? new Dictionary<string, double>(source.SidebarGameColumnWidths, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             target.SingleGameColumnWidths = source.SingleGameColumnWidths != null
                 ? new Dictionary<string, double>(source.SingleGameColumnWidths, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            target.DesktopThemeColumnWidths = source.DesktopThemeColumnWidths != null
+                ? new Dictionary<string, double>(source.DesktopThemeColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             target.GamesOverviewColumnVisibility = source.GamesOverviewColumnVisibility != null
                 ? new Dictionary<string, bool>(source.GamesOverviewColumnVisibility, StringComparer.OrdinalIgnoreCase)
@@ -103,9 +125,35 @@ namespace PlayniteAchievements.Models.Settings
             target.GamesOverviewColumnWidths = source.GamesOverviewColumnWidths != null
                 ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+            // General Settings
+            target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;
+            target.SeenThemeMigration = source.SeenThemeMigration;
+            target.ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
+                ? source.ThemeMigrationVersionCache.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value == null
+                        ? null
+                        : new ThemeMigrationCacheEntry
+                        {
+                            ThemeName = kvp.Value.ThemeName,
+                            ThemePath = kvp.Value.ThemePath,
+                            MigratedThemeVersion = kvp.Value.MigratedThemeVersion,
+                            MigratedAtUtc = kvp.Value.MigratedAtUtc
+                        },
+                    StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
+
+            // User Preferences (Survive Cache Clear)
+            target.ExcludedGameIds = source.ExcludedGameIds != null
+                ? new HashSet<Guid>(source.ExcludedGameIds)
+                : new HashSet<Guid>();
             target.ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
                 ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
                 : new HashSet<Guid>();
+            target.ManualCapstones = source.ManualCapstones != null
+                ? new Dictionary<Guid, string>(source.ManualCapstones)
+                : new Dictionary<Guid, string>();
             target.AchievementOrderOverrides = source.AchievementOrderOverrides != null
                 ? source.AchievementOrderOverrides.ToDictionary(
                     kvp => kvp.Key,
@@ -128,11 +176,13 @@ namespace PlayniteAchievements.Models.Settings
                         : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                 : new Dictionary<Guid, Dictionary<string, string>>();
 
+            // Tagging Settings
+            target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();
         }
 
         /// <summary>
         /// Creates a deep copy of a PersistedSettings instance.
-        /// All property values are copied to a new instance.
+        /// Provider-specific settings are cloned via the ProviderSettings dictionary.
         /// </summary>
         /// <param name="source">The source settings to clone.</param>
         /// <returns>A new PersistedSettings instance with copied values, or null if source is null.</returns>
@@ -145,10 +195,13 @@ namespace PlayniteAchievements.Models.Settings
 
             var clone = new PersistedSettings
             {
-                // Provider Settings Dictionary
+                // Provider Settings Dictionary (contains all provider-specific settings)
                 ProviderSettings = source.ProviderSettings != null
                     ? new Dictionary<string, string>(source.ProviderSettings, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+
+                // Global Settings
+                GlobalLanguage = source.GlobalLanguage,
 
                 // Update and Refresh Settings
                 EnablePeriodicUpdates = source.EnablePeriodicUpdates,
@@ -179,14 +232,25 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart,
                 ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart,
                 ShowSidebarBarCharts = source.ShowSidebarBarCharts,
+                ShowGamesWithNoUnlocks = source.ShowGamesWithNoUnlocks,
+                ShowUnplayedGames = source.ShowUnplayedGames,
+                ShowTopMenuBarButton = source.ShowTopMenuBarButton,
+                ShowCompactListRarityBar = source.ShowCompactListRarityBar,
                 EnableCompactGridMode = source.EnableCompactGridMode,
+                AchievementDataGridMaxHeight = source.AchievementDataGridMaxHeight,
+                EnableParallelProviderRefresh = source.EnableParallelProviderRefresh,
+                ScanDelayMs = source.ScanDelayMs,
+                MaxRetryAttempts = source.MaxRetryAttempts,
 
-                // RetroAchievements Settings (non-provider specific)
+                // RetroAchievements Global Settings (non-provider specific)
                 RaRarityStats = source.RaRarityStats,
+                RaPointsMode = source.RaPointsMode,
                 HashIndexMaxAgeDays = source.HashIndexMaxAgeDays,
                 EnableArchiveScanning = source.EnableArchiveScanning,
                 EnableDiscHashing = source.EnableDiscHashing,
                 EnableRaNameFallback = source.EnableRaNameFallback,
+
+                // UI Column Settings
                 DataGridColumnVisibility = source.DataGridColumnVisibility != null
                     ? new Dictionary<string, bool>(source.DataGridColumnVisibility, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase),
@@ -196,8 +260,14 @@ namespace PlayniteAchievements.Models.Settings
                 SidebarAchievementColumnWidths = source.SidebarAchievementColumnWidths != null
                     ? new Dictionary<string, double>(source.SidebarAchievementColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+                SidebarGameColumnWidths = source.SidebarGameColumnWidths != null
+                    ? new Dictionary<string, double>(source.SidebarGameColumnWidths, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
                 SingleGameColumnWidths = source.SingleGameColumnWidths != null
                     ? new Dictionary<string, double>(source.SingleGameColumnWidths, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+                DesktopThemeColumnWidths = source.DesktopThemeColumnWidths != null
+                    ? new Dictionary<string, double>(source.DesktopThemeColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
                 GamesOverviewColumnVisibility = source.GamesOverviewColumnVisibility != null
                     ? new Dictionary<string, bool>(source.GamesOverviewColumnVisibility, StringComparer.OrdinalIgnoreCase)
@@ -205,9 +275,35 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewColumnWidths = source.GamesOverviewColumnWidths != null
                     ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+
+                // General Settings
+                FirstTimeSetupCompleted = source.FirstTimeSetupCompleted,
+                SeenThemeMigration = source.SeenThemeMigration,
+                ThemeMigrationVersionCache = source.ThemeMigrationVersionCache != null
+                    ? source.ThemeMigrationVersionCache.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value == null
+                            ? null
+                            : new ThemeMigrationCacheEntry
+                            {
+                                ThemeName = kvp.Value.ThemeName,
+                                ThemePath = kvp.Value.ThemePath,
+                                MigratedThemeVersion = kvp.Value.MigratedThemeVersion,
+                                MigratedAtUtc = kvp.Value.MigratedAtUtc
+                            },
+                        StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase),
+
+                // User Preferences (Survive Cache Clear)
+                ExcludedGameIds = source.ExcludedGameIds != null
+                    ? new HashSet<Guid>(source.ExcludedGameIds)
+                    : new HashSet<Guid>(),
                 ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
                     ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
                     : new HashSet<Guid>(),
+                ManualCapstones = source.ManualCapstones != null
+                    ? new Dictionary<Guid, string>(source.ManualCapstones)
+                    : new Dictionary<Guid, string>(),
                 AchievementOrderOverrides = source.AchievementOrderOverrides != null
                     ? source.AchievementOrderOverrides.ToDictionary(
                         kvp => kvp.Key,
@@ -230,6 +326,8 @@ namespace PlayniteAchievements.Models.Settings
                             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                     : new Dictionary<Guid, Dictionary<string, string>>(),
 
+                // Tagging Settings
+                TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings()
             };
 
             return clone;

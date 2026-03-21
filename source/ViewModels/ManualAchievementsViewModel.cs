@@ -1077,12 +1077,19 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                if (_settings?.Persisted == null || _settings.Persisted.ManualEnabled)
+                if (_settings?.Persisted == null)
                 {
                     return;
                 }
 
-                _settings.Persisted.ManualEnabled = true;
+                var manualSettings = ProviderSettingsHelper.Load<ManualSettings>(_settings.Persisted, "Manual");
+                if (manualSettings.IsEnabled)
+                {
+                    return;
+                }
+
+                manualSettings.IsEnabled = true;
+                ProviderSettingsHelper.Save(_settings.Persisted, manualSettings);
                 _saveSettings(_settings);
 
                 PlayniteAchievementsPlugin.Instance?.ProviderRegistry?.SyncFromSettings(_settings.Persisted);
