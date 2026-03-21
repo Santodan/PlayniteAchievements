@@ -10,6 +10,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Services;
@@ -625,10 +626,11 @@ namespace PlayniteAchievements.ViewModels
                     ?.FirstOrDefault(p => p.ProviderKey == "Xenia");
                 IsXeniaCapable = xeniaProvider?.IsCapable(game) == true;
 
+                var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
                 var hasOverride = false;
                 var overrideValue = string.Empty;
-                if (_settings?.Persisted?.RaGameIdOverrides != null &&
-                    _settings.Persisted.RaGameIdOverrides.TryGetValue(_gameId, out var raId))
+                if (raSettings?.RaGameIdOverrides != null &&
+                    raSettings.RaGameIdOverrides.TryGetValue(_gameId, out var raId))
                 {
                     hasOverride = true;
                     overrideValue = raId.ToString();
@@ -775,7 +777,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _settings.Persisted.RaGameIdOverrides[_gameId] = newId;
+            var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
+            raSettings.RaGameIdOverrides[_gameId] = newId;
+            ProviderSettingsHelper.Save(_settings.Persisted, raSettings);
             _persistSettingsForUi();
 
             _logger?.Info($"Set RA game ID override for '{game.Name}' to {newId}");
@@ -786,12 +790,14 @@ namespace PlayniteAchievements.ViewModels
 
         private bool TryClearRaOverride()
         {
-            if (!_settings.Persisted.RaGameIdOverrides.ContainsKey(_gameId))
+            var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
+            if (!raSettings.RaGameIdOverrides.ContainsKey(_gameId))
             {
                 return false;
             }
 
-            _settings.Persisted.RaGameIdOverrides.Remove(_gameId);
+            raSettings.RaGameIdOverrides.Remove(_gameId);
+            ProviderSettingsHelper.Save(_settings.Persisted, raSettings);
             _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);

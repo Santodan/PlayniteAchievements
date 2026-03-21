@@ -216,8 +216,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         private async Task<GameAchievementData> ScanGameAsync(Game game, int consoleId, IRaHasher hasher, CancellationToken cancel)
         {
+            var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
+
             // Check for manual override first (survives cache clears)
-            if (_settings.Persisted.RaGameIdOverrides.TryGetValue(game.Id, out var overriddenId))
+            if (raSettings.RaGameIdOverrides.TryGetValue(game.Id, out var overriddenId))
             {
                 _logger?.Info($"[RA] Using manual RA ID override: '{game.Name}' -> {overriddenId}");
                 var result = await FetchGameInfoAsync(game, overriddenId, cancel).ConfigureAwait(false);
@@ -256,7 +258,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     if (string.IsNullOrWhiteSpace(candidate)) continue;
 
                     // CSO files need to be decompressed before hashing
-                    if (ArchiveUtils.IsCsoPath(candidate) && _settings.Persisted.EnableArchiveScanning)
+                    if (ArchiveUtils.IsCsoPath(candidate) && raSettings.EnableArchiveScanning)
                     {
                         if (!File.Exists(candidate))
                         {
@@ -287,7 +289,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     }
 
                     // RVZ files need to be decompressed before hashing
-                    if (ArchiveUtils.IsRvzPath(candidate) && _settings.Persisted.EnableArchiveScanning)
+                    if (ArchiveUtils.IsRvzPath(candidate) && raSettings.EnableArchiveScanning)
                     {
                         if (!File.Exists(candidate))
                         {
@@ -318,7 +320,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     }
 
                     // Standard archive handling (zip, 7z, rar)
-                    if (ArchiveUtils.IsArchivePath(candidate) && _settings.Persisted.EnableArchiveScanning)
+                    if (ArchiveUtils.IsArchivePath(candidate) && raSettings.EnableArchiveScanning)
                     {
                         // Arcade hashing is based on filename; no need to inspect entries.
                         if (hasher is Hashing.Hashers.ArcadeFilenameHasher)
@@ -379,7 +381,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
 
             // Try name-based fallback if enabled
-            if (_settings.Persisted.EnableRaNameFallback)
+            if (raSettings.EnableRaNameFallback)
             {
                 var nameMatchId = await TryMatchGameByNameAsync(game, consoleId, cancel).ConfigureAwait(false);
                 if (nameMatchId > 0)
@@ -397,8 +399,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             try
             {
+                var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
-                var achievements = ParseAchievements(gameInfo, _settings.Persisted.RaRarityStats);
+                var achievements = ParseAchievements(gameInfo, raSettings.RaRarityStats);
 
                 _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
 

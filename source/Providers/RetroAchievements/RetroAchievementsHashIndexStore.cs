@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers.RetroAchievements.Models;
+using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -92,7 +93,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool IsStale(DateTime updatedUtc)
         {
             updatedUtc = DateTime.SpecifyKind(updatedUtc, DateTimeKind.Utc);
-            var maxAgeDays = Math.Max(1, _settings.Persisted.HashIndexMaxAgeDays);
+            var raSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(_settings.Persisted, "RetroAchievements");
+            var maxAgeDays = Math.Max(1, raSettings.HashIndexMaxAgeDays);
             return DateTime.UtcNow - updatedUtc > TimeSpan.FromDays(maxAgeDays);
         }
 
