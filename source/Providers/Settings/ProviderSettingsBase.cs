@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Newtonsoft.Json;
 
 namespace PlayniteAchievements.Providers.Settings
 {
@@ -26,6 +27,26 @@ namespace PlayniteAchievements.Providers.Settings
 
         /// <inheritdoc />
         public abstract void CopyFrom(IProviderSettings source);
+
+        /// <summary>
+        /// Serializes the settings to a JSON string.
+        /// </summary>
+        public virtual string SerializeToJson()
+        {
+            return JsonConvert.SerializeObject(this, Formatting.None);
+        }
+
+        /// <summary>
+        /// Populates settings from a JSON string.
+        /// </summary>
+        /// <param name="json">JSON string containing settings data.</param>
+        public virtual void DeserializeFromJson(string json)
+        {
+            if (!string.IsNullOrEmpty(json))
+            {
+                JsonConvert.PopulateObject(json, this);
+            }
+        }
 
         /// <summary>
         /// Sets the property value and raises PropertyChanged if the value changed.
