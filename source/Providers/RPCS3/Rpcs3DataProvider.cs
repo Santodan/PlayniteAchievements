@@ -262,8 +262,8 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             string emulatorRoot = null;
 
-            // Priority 1: From settings (user-configured, validated)
-            var settingsExePath = _settings?.Persisted?.Rpcs3ExecutablePath;
+            // Priority 1: From provider settings (user-configured, validated)
+            var settingsExePath = _providerSettings?.ExecutablePath;
             if (!string.IsNullOrWhiteSpace(settingsExePath))
             {
                 var settingsRoot = GetEmulatorRootFromExePath(settingsExePath);

@@ -4,6 +4,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.RetroAchievements;
+using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services
@@ -35,7 +37,7 @@ namespace PlayniteAchievements.Services
                 ShowHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true,
                 ShowLockedIcon = settings?.Persisted?.ShowLockedIcon ?? true,
                 ShowRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true,
-                UseScaledPoints = (settings?.Persisted?.RaPointsMode == "scaled") &&
+                UseScaledPoints = (ProviderSettingsHelper.Load<RetroAchievementsSettings>(settings?.Persisted, "RetroAchievements").RaPointsMode == "scaled") &&
                                   string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase),
                 RevealedKeys = revealedKeys
             };

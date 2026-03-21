@@ -204,7 +204,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (game?.GameActions == null) return false;
 
             // Get settings path for comparison - derive emulator root from game_data path
-            var shadps4GameDataPath = _settings?.Persisted?.ShadPS4GameDataPath;
+            var shadps4GameDataPath = _providerSettings?.GameDataPath;
             string shadps4InstallFolder = null;
             if (!string.IsNullOrWhiteSpace(shadps4GameDataPath))
             {

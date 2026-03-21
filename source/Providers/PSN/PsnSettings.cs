@@ -7,15 +7,28 @@ namespace PlayniteAchievements.Providers.PSN
     /// </summary>
     public class PsnSettings : ProviderSettingsBase
     {
+        private string _npsso;
+
         /// <inheritdoc />
         public override string ProviderKey => "PSN";
+
+        /// <summary>
+        /// NPSSO cookie value for PlayStation Network authentication.
+        /// Can be obtained from https://ca.account.sony.com/api/v1/ssocookie
+        /// </summary>
+        public string Npsso
+        {
+            get => _npsso;
+            set => SetValue(ref _npsso, value ?? string.Empty);
+        }
 
         /// <inheritdoc />
         public override IProviderSettings Clone()
         {
             return new PsnSettings
             {
-                IsEnabled = IsEnabled
+                IsEnabled = IsEnabled,
+                Npsso = Npsso
             };
         }
 
@@ -25,6 +38,7 @@ namespace PlayniteAchievements.Providers.PSN
             if (source is PsnSettings other)
             {
                 IsEnabled = other.IsEnabled;
+                Npsso = other.Npsso;
             }
         }
     }

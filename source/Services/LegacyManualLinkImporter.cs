@@ -2,6 +2,8 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -100,8 +102,9 @@ namespace PlayniteAchievements.Services
                 return result;
             }
 
-            var manualLinks = persistedSettings.ManualAchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>();
-            persistedSettings.ManualAchievementLinks = manualLinks;
+            var manualSettings = ProviderSettingsHelper.Load<ManualSettings>(persistedSettings, "Manual");
+            var manualLinks = manualSettings.AchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>();
+            manualSettings.AchievementLinks = manualLinks;
 
             var jsonFiles = Directory
                 .EnumerateFiles(folderPath, "*.json", SearchOption.TopDirectoryOnly)
@@ -198,6 +201,7 @@ namespace PlayniteAchievements.Services
                 }
             }
 
+            ProviderSettingsHelper.Save(persistedSettings, manualSettings);
             return result;
         }
 

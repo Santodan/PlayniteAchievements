@@ -576,7 +576,7 @@ namespace PlayniteAchievements.ViewModels
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
-                var allowManualOverride = _settings?.Persisted?.ManualTrackingOverrideEnabled == true;
+                var allowManualOverride = ProviderSettingsHelper.Load<ManualSettings>(_settings?.Persisted, "Manual").ManualTrackingOverrideEnabled;
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ShowManualTrackingTab = allowManualOverride ||

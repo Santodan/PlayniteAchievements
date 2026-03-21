@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -285,7 +286,7 @@ namespace PlayniteAchievements.Providers.PSN
         {
             try
             {
-                var npsso = _settings?.PsnNpsso;
+                var npsso = ProviderSettingsHelper.Load<PsnSettings>(_settings, "PSN").Npsso;
                 var hasTokenFile = File.Exists(_tokenPath);
 
                 _logger?.Debug($"[PSNAch] CheckAuthentication: hasTokenFile={hasTokenFile}, npsso length={npsso?.Length ?? 0}");

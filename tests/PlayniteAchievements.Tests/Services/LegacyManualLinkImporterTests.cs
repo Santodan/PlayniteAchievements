@@ -1,6 +1,8 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -42,9 +44,9 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual(1, result.Imported);
                 Assert.AreEqual(1, result.ImportedGameIds.Count);
                 Assert.AreEqual(gameId, result.ImportedGameIds[0]);
-                Assert.IsTrue(settings.ManualAchievementLinks.ContainsKey(gameId));
+                Assert.IsTrue(GetManualLinks(settings).ContainsKey(gameId));
 
-                var link = settings.ManualAchievementLinks[gameId];
+                var link = GetManualLinks(settings)[gameId];
                 Assert.AreEqual("Steam", link.SourceKey);
                 Assert.AreEqual("2084000", link.SourceGameId);
                 Assert.IsTrue(link.UnlockTimes.ContainsKey("ach_one"));
@@ -99,7 +101,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual(0, result.Imported);
                 Assert.AreEqual(1, result.SkippedNotManual);
                 Assert.AreEqual(1, result.SkippedIgnored);
-                Assert.AreEqual(0, settings.ManualAchievementLinks.Count);
+                Assert.AreEqual(0, GetManualLinks(settings).Count);
             }
             finally
             {
@@ -126,7 +128,7 @@ namespace PlayniteAchievements.Services.Tests
                         items: new[] { CreateItem("ach") }));
 
                 var settings = new PersistedSettings();
-                settings.ManualAchievementLinks[gameId] = new ManualAchievementLink
+                GetManualLinks(settings)[gameId] = new ManualAchievementLink
                 {
                     SourceKey = "Steam",
                     SourceGameId = "999"
@@ -138,7 +140,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.AreEqual(0, result.Imported);
                 Assert.AreEqual(1, result.SkippedManualLinkExists);
-                Assert.AreEqual("999", settings.ManualAchievementLinks[gameId].SourceGameId);
+                Assert.AreEqual("999", GetManualLinks(settings)[gameId].SourceGameId);
             }
             finally
             {
@@ -165,17 +167,17 @@ namespace PlayniteAchievements.Services.Tests
                         items: new[] { CreateItem("ach") }));
 
                 var settings = new PersistedSettings();
-                settings.ManualAchievementLinks[gameId] = null;
+                GetManualLinks(settings)[gameId] = null;
 
                 var importer = CreateImporter(settings, new HashSet<Guid> { gameId }, new HashSet<Guid>());
                 var result = importer.Import(tempDir);
 
                 Assert.AreEqual(1, result.Imported);
                 Assert.AreEqual(0, result.SkippedManualLinkExists);
-                Assert.IsTrue(settings.ManualAchievementLinks.ContainsKey(gameId));
-                Assert.IsNotNull(settings.ManualAchievementLinks[gameId]);
-                Assert.AreEqual("Steam", settings.ManualAchievementLinks[gameId].SourceKey);
-                Assert.AreEqual("301", settings.ManualAchievementLinks[gameId].SourceGameId);
+                Assert.IsTrue(GetManualLinks(settings).ContainsKey(gameId));
+                Assert.IsNotNull(GetManualLinks(settings)[gameId]);
+                Assert.AreEqual("Steam", GetManualLinks(settings)[gameId].SourceKey);
+                Assert.AreEqual("301", GetManualLinks(settings)[gameId].SourceGameId);
             }
             finally
             {
@@ -202,7 +204,7 @@ namespace PlayniteAchievements.Services.Tests
                         items: new[] { CreateItem("ach") }));
 
                 var settings = new PersistedSettings();
-                settings.ManualAchievementLinks[gameId] = new ManualAchievementLink
+                GetManualLinks(settings)[gameId] = new ManualAchievementLink
                 {
                     SourceKey = "Steam",
                     SourceGameId = ""
@@ -213,7 +215,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.AreEqual(1, result.Imported);
                 Assert.AreEqual(0, result.SkippedManualLinkExists);
-                Assert.AreEqual("302", settings.ManualAchievementLinks[gameId].SourceGameId);
+                Assert.AreEqual("302", GetManualLinks(settings)[gameId].SourceGameId);
             }
             finally
             {
@@ -240,7 +242,7 @@ namespace PlayniteAchievements.Services.Tests
                         items: new[] { CreateItem("ach") }));
 
                 var originalPersisted = new PersistedSettings();
-                originalPersisted.ManualAchievementLinks[gameId] = new ManualAchievementLink
+                GetManualLinks(originalPersisted)[gameId] = new ManualAchievementLink
                 {
                     SourceKey = "Steam",
                     SourceGameId = "already-linked"
@@ -257,9 +259,9 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.AreEqual(1, result.Imported);
                 Assert.AreEqual(0, result.SkippedManualLinkExists);
-                Assert.IsTrue(originalPersisted.ManualAchievementLinks.ContainsKey(gameId));
-                Assert.IsTrue(latestPersisted.ManualAchievementLinks.ContainsKey(gameId));
-                Assert.AreEqual("303", latestPersisted.ManualAchievementLinks[gameId].SourceGameId);
+                Assert.IsTrue(GetManualLinks(originalPersisted).ContainsKey(gameId));
+                Assert.IsTrue(GetManualLinks(latestPersisted).ContainsKey(gameId));
+                Assert.AreEqual("303", GetManualLinks(latestPersisted)[gameId].SourceGameId);
             }
             finally
             {
@@ -295,7 +297,7 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.AreEqual(0, result.Imported);
                 Assert.AreEqual(1, result.SkippedCachedProviderData);
-                Assert.AreEqual(0, settings.ManualAchievementLinks.Count);
+                Assert.AreEqual(0, GetManualLinks(settings).Count);
             }
             finally
             {
@@ -380,8 +382,8 @@ namespace PlayniteAchievements.Services.Tests
                 var result = importer.Import(tempDir);
 
                 Assert.AreEqual(2, result.Imported);
-                Assert.AreEqual("1111", settings.ManualAchievementLinks[gameIdFromStatsUrl].SourceGameId);
-                Assert.AreEqual("2222", settings.ManualAchievementLinks[gameIdFromIconUrl].SourceGameId);
+                Assert.AreEqual("1111", GetManualLinks(settings)[gameIdFromStatsUrl].SourceGameId);
+                Assert.AreEqual("2222", GetManualLinks(settings)[gameIdFromIconUrl].SourceGameId);
             }
             finally
             {
@@ -417,7 +419,7 @@ namespace PlayniteAchievements.Services.Tests
                 var result = importer.Import(tempDir);
 
                 Assert.AreEqual(1, result.Imported);
-                var link = settings.ManualAchievementLinks[gameId];
+                var link = GetManualLinks(settings)[gameId];
                 Assert.IsTrue(link.UnlockTimes.ContainsKey("valid_ach"));
                 Assert.IsFalse(link.UnlockTimes.ContainsKey("invalid_ach"));
                 Assert.IsTrue(link.UnlockStates.ContainsKey("valid_ach"));
@@ -461,7 +463,7 @@ namespace PlayniteAchievements.Services.Tests
                 var result = importer.Import(tempDir);
 
                 Assert.AreEqual(1, result.Imported);
-                var link = settings.ManualAchievementLinks[gameId];
+                var link = GetManualLinks(settings)[gameId];
                 Assert.IsTrue(link.UnlockStates.ContainsKey("sentinel"));
                 Assert.IsTrue(link.UnlockStates["sentinel"]);
                 Assert.IsFalse(link.UnlockTimes.ContainsKey("sentinel"));
@@ -567,6 +569,11 @@ namespace PlayniteAchievements.Services.Tests
                 gameId => existingGames.Contains(gameId),
                 gameId => cachedGames.Contains(gameId),
                 logger: null);
+        }
+
+        private static Dictionary<Guid, ManualAchievementLink> GetManualLinks(PersistedSettings settings)
+        {
+            return ProviderSettingsHelper.Load<ManualSettings>(settings, "Manual").AchievementLinks;
         }
 
         private static string CreateTempDirectory()

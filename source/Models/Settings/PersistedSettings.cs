@@ -22,37 +22,10 @@ namespace PlayniteAchievements.Models.Settings
 
         #region Backing Fields
 
-        private string _steamUserId;
-        private string _gogUserId;
-        private string _exophaseUserId;
-        private string _epicAccountId;
-        private string _epicAccessToken;
-        private string _epicRefreshToken;
-        private string _epicTokenType;
-        private DateTime? _epicTokenExpiryUtc;
-        private DateTime? _epicRefreshTokenExpiryUtc;
-        private string _steamApiKey;
-        private string _psnNpsso = string.Empty;
         private string _globalLanguage = "english";
-        private bool _steamEnabled = true;
-        private bool _epicEnabled = true;
-        private bool _gogEnabled = true;
-        private bool _psnEnabled = true;
-        private bool _retroAchievementsEnabled = true;
-        private bool _xboxEnabled = true;
-        private bool _xboxLowResIcons = false;
-        private bool _shadPS4Enabled = true;
-        private string _shadPS4GameDataPath = string.Empty;
-        private bool _rpcs3Enabled = true;
-        private string _rpcs3ExecutablePath = string.Empty;
-        private bool _xeniaEnabled = true;
-        private string _xeniaAccountPath = string.Empty;
-        private string _legacyManualImportPath = string.Empty;
-        private bool _manualTrackingOverrideEnabled = false;
         private bool _enablePeriodicUpdates = true;
         private bool _autoExcludeHiddenGames = false;
         private int _periodicUpdateHours = 6;
-        private bool _manualEnabled = true;
         private bool _enableNotifications = true;
         private bool _notifyPeriodicUpdates = true;
         private bool _notifyOnRebuild = true;
@@ -82,16 +55,6 @@ namespace PlayniteAchievements.Models.Settings
         private int _scanDelayMs = 200;
         private int _maxRetryAttempts = 3;
         private List<CustomRefreshPreset> _customRefreshPresets = new List<CustomRefreshPreset>();
-
-        private string _raUsername;
-        private string _raWebApiKey;
-        private string _raRarityStats = "casual";
-        private string _raPointsMode = "points";
-        private int _hashIndexMaxAgeDays = 30;
-        private bool _enableArchiveScanning = true;
-        private bool _enableDiscHashing = true;
-        private bool _enableRaNameFallback = true;
-        private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<string, bool> _dataGridColumnVisibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, double> _dataGridColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, double> _sidebarAchievementColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -100,7 +63,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, double> _desktopThemeColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, bool> _gamesOverviewColumnVisibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, double> _gamesOverviewColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
@@ -111,14 +73,9 @@ namespace PlayniteAchievements.Models.Settings
             new Dictionary<Guid, Dictionary<string, string>>();
         private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryTypeOverrides =
             new Dictionary<Guid, Dictionary<string, string>>();
-        private Dictionary<Guid, ManualAchievementLink> _manualAchievementLinks = new Dictionary<Guid, ManualAchievementLink>();
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
         private TaggingSettings _taggingSettings;
-        private bool _exophaseEnabled = false;
-        private HashSet<string> _exophaseManagedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        private HashSet<Guid> _exophaseIncludedGames = new HashSet<Guid>();
-        private Dictionary<Guid, string> _exophaseSlugOverrides = new Dictionary<Guid, string>();
         private Dictionary<string, string> _providerSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
@@ -137,84 +94,7 @@ namespace PlayniteAchievements.Models.Settings
 
         #endregion
 
-        #region Steam Settings
-
-        public string SteamUserId
-        {
-            get => _steamUserId;
-            set => SetValue(ref _steamUserId, value);
-        }
-
-        public string GogUserId
-        {
-            get => _gogUserId;
-            set => SetValue(ref _gogUserId, value);
-        }
-
-        public string ExophaseUserId
-        {
-            get => _exophaseUserId;
-            set => SetValue(ref _exophaseUserId, value);
-        }
-
-        public string EpicAccountId
-        {
-            get => _epicAccountId;
-            set => SetValue(ref _epicAccountId, value);
-        }
-
-        public string EpicAccessToken
-        {
-            get => _epicAccessToken;
-            set => SetValue(ref _epicAccessToken, value);
-        }
-
-        public string EpicRefreshToken
-        {
-            get => _epicRefreshToken;
-            set => SetValue(ref _epicRefreshToken, value);
-        }
-
-        public string EpicTokenType
-        {
-            get => _epicTokenType;
-            set => SetValue(ref _epicTokenType, value);
-        }
-
-        public DateTime? EpicTokenExpiryUtc
-        {
-            get => _epicTokenExpiryUtc;
-            set => SetValue(ref _epicTokenExpiryUtc, value);
-        }
-
-        public DateTime? EpicRefreshTokenExpiryUtc
-        {
-            get => _epicRefreshTokenExpiryUtc;
-            set => SetValue(ref _epicRefreshTokenExpiryUtc, value);
-        }
-
-        /// <summary>
-        /// Optional Steam Web API key used for owned games, friends and player summaries.
-        /// </summary>
-        public string SteamApiKey
-        {
-            get => _steamApiKey;
-            set => SetValue(ref _steamApiKey, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// NPSSO cookie value for PlayStation Network authentication.
-        /// Can be obtained from https://ca.account.sony.com/api/v1/ssocookie
-        /// </summary>
-        public string PsnNpsso
-        {
-            get => _psnNpsso;
-            set => SetValue(ref _psnNpsso, value ?? string.Empty);
-        }
-
-        #endregion
-
-        #region Provider Enable/Disable Settings
+        #region Global Settings
 
         /// <summary>
         /// Global language for achievement text, used by all providers that support localization.
@@ -223,152 +103,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _globalLanguage;
             set => SetValue(ref _globalLanguage, value);
-        }
-
-        /// <summary>
-        /// Enable or disable Steam achievement scanning.
-        /// </summary>
-        public bool SteamEnabled
-        {
-            get => _steamEnabled;
-            set => SetValue(ref _steamEnabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable Epic Games achievement scanning.
-        /// </summary>
-        public bool EpicEnabled
-        {
-            get => _epicEnabled;
-            set => SetValue(ref _epicEnabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable GOG achievement scanning.
-        /// </summary>
-        public bool GogEnabled
-        {
-            get => _gogEnabled;
-            set => SetValue(ref _gogEnabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable PlayStation achievement scanning.
-        /// </summary>
-        public bool PsnEnabled
-        {
-            get => _psnEnabled;
-            set => SetValue(ref _psnEnabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable RetroAchievements scanning.
-        /// </summary>
-        public bool RetroAchievementsEnabled
-        {
-            get => _retroAchievementsEnabled;
-            set => SetValue(ref _retroAchievementsEnabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable Xbox achievement scanning.
-        /// </summary>
-        public bool XboxEnabled
-        {
-            get => _xboxEnabled;
-            set => SetValue(ref _xboxEnabled, value);
-        }
-
-        /// <summary>
-        /// When true, requests smaller 128px icons from Xbox CDN to improve download speed.
-        /// Enable if Xbox icon downloads are slow.
-        /// </summary>
-        public bool XboxLowResIcons
-        {
-            get => _xboxLowResIcons;
-            set => SetValue(ref _xboxLowResIcons, value);
-        }
-
-        /// <summary>
-        /// Enable or disable ShadPS4 achievement scanning.
-        /// </summary>
-        public bool ShadPS4Enabled
-        {
-            get => _shadPS4Enabled;
-            set => SetValue(ref _shadPS4Enabled, value);
-        }
-
-        /// <summary>
-        /// Path to the ShadPS4 user/game_data folder containing trophy data.
-        /// </summary>
-        public string ShadPS4GameDataPath
-        {
-            get => _shadPS4GameDataPath;
-            set => SetValue(ref _shadPS4GameDataPath, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Enable or disable RPCS3 trophy tracking.
-        /// </summary>
-        public bool Rpcs3Enabled
-        {
-            get => _rpcs3Enabled;
-            set => SetValue(ref _rpcs3Enabled, value);
-        }
-
-        /// <summary>
-        /// Enable or disable Xenia trophy tracking.
-        /// </summary>
-        public bool XeniaEnabled
-        {
-            get => _xeniaEnabled;
-            set => SetValue(ref _xeniaEnabled, value);
-        }
-
-        /// <summary>
-        /// Xenia Account Path.
-        /// </summary>
-        public string XeniaAccountPath
-        {
-            get => _xeniaAccountPath;
-            set => SetValue(ref _xeniaAccountPath, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Enable or disable Manual achievement tracking.
-        /// </summary>
-        public bool ManualEnabled
-        {
-            get => _manualEnabled;
-            set => SetValue(ref _manualEnabled, value);
-        }
-
-        /// <summary>
-        /// Path to the RPCS3 executable (rpcs3.exe).
-        /// The installation folder is derived from this path.
-        /// </summary>
-        public string Rpcs3ExecutablePath
-        {
-            get => _rpcs3ExecutablePath;
-            set => SetValue(ref _rpcs3ExecutablePath, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Folder path containing legacy SuccessStory JSON files used for manual link import.
-        /// </summary>
-        public string LegacyManualImportPath
-        {
-            get => _legacyManualImportPath;
-            set => SetValue(ref _legacyManualImportPath, NormalizePath(value));
-        }
-
-        /// <summary>
-        /// Allow manual tracking for games that already have non-manual provider data.
-        /// </summary>
-        public bool ManualTrackingOverrideEnabled
-        {
-            get => _manualTrackingOverrideEnabled;
-            set => SetValue(ref _manualTrackingOverrideEnabled, value);
         }
 
         #endregion
@@ -711,91 +445,7 @@ namespace PlayniteAchievements.Models.Settings
 
         #endregion
 
-        #region RetroAchievements Settings
-
-        public string RaUsername
-        {
-            get => _raUsername;
-            set => SetValue(ref _raUsername, value ?? string.Empty);
-        }
-
-        public string RaWebApiKey
-        {
-            get => _raWebApiKey;
-            set => SetValue(ref _raWebApiKey, value ?? string.Empty);
-        }
-
-        public string RaRarityStats
-        {
-            get => _raRarityStats;
-            set
-            {
-                var mode = (value ?? string.Empty).Trim();
-                if (string.Equals(mode, "hardcore", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(mode, "combined", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(mode, "casual", StringComparison.OrdinalIgnoreCase))
-                {
-                    SetValue(ref _raRarityStats, mode.ToLowerInvariant());
-                }
-                else
-                {
-                    SetValue(ref _raRarityStats, "casual");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Determines which points value to display for RetroAchievements:
-        /// "points" for standard points, "scaled" for TrueRatio (weighted by rarity).
-        /// </summary>
-        public string RaPointsMode
-        {
-            get => _raPointsMode;
-            set
-            {
-                var mode = (value ?? string.Empty).Trim().ToLowerInvariant();
-                SetValue(ref _raPointsMode,
-                    (mode == "scaled" || mode == "points") ? mode : "points");
-            }
-        }
-
-        public int HashIndexMaxAgeDays
-        {
-            get => _hashIndexMaxAgeDays;
-            set => SetValue(ref _hashIndexMaxAgeDays, Math.Max(1, value));
-        }
-
-        public bool EnableArchiveScanning
-        {
-            get => _enableArchiveScanning;
-            set => SetValue(ref _enableArchiveScanning, value);
-        }
-
-        public bool EnableDiscHashing
-        {
-            get => _enableDiscHashing;
-            set => SetValue(ref _enableDiscHashing, value);
-        }
-
-        /// <summary>
-        /// Enable name-based fallback for RetroAchievements when hash matching fails.
-        /// </summary>
-        public bool EnableRaNameFallback
-        {
-            get => _enableRaNameFallback;
-            set => SetValue(ref _enableRaNameFallback, value);
-        }
-
-        /// <summary>
-        /// Manual overrides for RetroAchievements game IDs.
-        /// Key is Playnite Game ID, value is RetroAchievements game ID.
-        /// Used when automatic hash-based or name-based matching fails.
-        /// </summary>
-        public Dictionary<Guid, int> RaGameIdOverrides
-        {
-            get => _raGameIdOverrides;
-            set => SetValue(ref _raGameIdOverrides, value ?? new Dictionary<Guid, int>());
-        }
+        #region UI Column Settings
 
         /// <summary>
         /// Persisted visibility state for shared achievement DataGrid columns.
@@ -1105,17 +755,6 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _achievementCategoryTypeOverrides, NormalizeAchievementCategoryTypeOverrides(value));
         }
 
-        /// <summary>
-        /// Manual achievement links. Key = Playnite Game ID, Value = ManualAchievementLink.
-        /// Links any Playnite game to achievements from a source (e.g., Steam).
-        /// Unlock times are stored here and persist across cache clears.
-        /// </summary>
-        public Dictionary<Guid, ManualAchievementLink> ManualAchievementLinks
-        {
-            get => _manualAchievementLinks;
-            set => SetValue(ref _manualAchievementLinks, value ?? new Dictionary<Guid, ManualAchievementLink>());
-        }
-
         #endregion
 
         #region Tagging Settings
@@ -1128,52 +767,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _taggingSettings;
             set => SetValue(ref _taggingSettings, value ?? new TaggingSettings());
-        }
-
-        #endregion
-
-        #region Exophase Provider Settings
-
-        /// <summary>
-        /// Master toggle for the Exophase achievement provider.
-        /// When false, ExophaseDataProvider will not claim any games.
-        /// </summary>
-        public bool ExophaseEnabled
-        {
-            get => _exophaseEnabled;
-            set => SetValue(ref _exophaseEnabled, value);
-        }
-
-        /// <summary>
-        /// Provider/platform tokens that Exophase should automatically claim.
-        /// Games matching these tokens will use Exophase instead of modern providers.
-        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "retro"
-        /// </summary>
-        public HashSet<string> ExophaseManagedProviders
-        {
-            get => _exophaseManagedProviders;
-            set => SetValue(ref _exophaseManagedProviders, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-        }
-
-        /// <summary>
-        /// Individual game IDs that should use Exophase even if their provider/platform token is not in managed providers.
-        /// Allows per-game override for platforms not globally enabled.
-        /// </summary>
-        public HashSet<Guid> ExophaseIncludedGames
-        {
-            get => _exophaseIncludedGames;
-            set => SetValue(ref _exophaseIncludedGames, value ?? new HashSet<Guid>());
-        }
-
-        /// <summary>
-        /// Per-game Exophase slug overrides.
-        /// Key is Playnite Game ID, value is the Exophase game slug (e.g., "game-name-gog").
-        /// When set, this slug is used directly instead of auto-detection.
-        /// </summary>
-        public Dictionary<Guid, string> ExophaseSlugOverrides
-        {
-            get => _exophaseSlugOverrides;
-            set => SetValue(ref _exophaseSlugOverrides, value ?? new Dictionary<Guid, string>());
         }
 
         #endregion
@@ -1234,14 +827,6 @@ namespace PlayniteAchievements.Models.Settings
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
                 MaxRetryAttempts = this.MaxRetryAttempts,
-
-                // RetroAchievements Global Settings (non-provider specific)
-                RaRarityStats = this.RaRarityStats,
-                RaPointsMode = this.RaPointsMode,
-                HashIndexMaxAgeDays = this.HashIndexMaxAgeDays,
-                EnableArchiveScanning = this.EnableArchiveScanning,
-                EnableDiscHashing = this.EnableDiscHashing,
-                EnableRaNameFallback = this.EnableRaNameFallback,
 
                 // UI Column Settings
                 DataGridColumnVisibility = this.DataGridColumnVisibility != null

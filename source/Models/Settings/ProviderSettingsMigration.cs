@@ -130,7 +130,8 @@ namespace PlayniteAchievements.Models.Settings
         {
             var settings = new PsnSettings
             {
-                IsEnabled = root["PsnEnabled"]?.Value<bool>() ?? true
+                IsEnabled = root["PsnEnabled"]?.Value<bool>() ?? true,
+                Npsso = root["PsnNpsso"]?.ToString() ?? string.Empty
             };
             providerSettings["PSN"] = JObject.Parse(settings.SerializeToJson());
         }

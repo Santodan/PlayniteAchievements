@@ -1,6 +1,9 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.RetroAchievements;
+using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Database.Rows;
 using Playnite.SDK;
@@ -1401,12 +1404,12 @@ namespace PlayniteAchievements.Services.Database
                 externalId = _plugin?.SteamSessionManager?.GetCachedSteamId64();
                 if (string.IsNullOrWhiteSpace(externalId))
                 {
-                    externalId = settings?.SteamUserId;
+                    externalId = ProviderSettingsHelper.Load<SteamSettings>(settings, "Steam").SteamUserId;
                 }
             }
             else if (string.Equals(providerKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase))
             {
-                externalId = settings?.RaUsername;
+                externalId = ProviderSettingsHelper.Load<RetroAchievementsSettings>(settings, "RetroAchievements").RaUsername;
             }
 
             if (string.IsNullOrWhiteSpace(externalId))
