@@ -6,7 +6,7 @@ using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers.Exophase
 {
-    public partial class ExophaseSettingsView : ProviderSettingsViewBase
+    public partial class ExophaseSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(ExophaseSettingsView));
         private readonly ExophaseSessionManager _sessionManager;
@@ -50,6 +50,12 @@ namespace PlayniteAchievements.Providers.Exophase
             AuthStatus = isAuthenticated
                 ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_LoggedIn"), "Exophase")
                 : string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotLoggedIn"), "Exophase");
+        }
+
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

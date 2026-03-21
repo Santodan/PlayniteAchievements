@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Providers.Epic
     /// <summary>
     /// Settings view for the Epic Games provider.
     /// </summary>
-    public partial class EpicSettingsView : ProviderSettingsViewBase
+    public partial class EpicSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(EpicSettingsView));
         private readonly EpicSessionManager _sessionManager;
@@ -73,6 +73,12 @@ namespace PlayniteAchievements.Providers.Epic
             AuthStatus = isAuthenticated
                 ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_LoggedIn"), "Epic Games")
                 : string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotLoggedIn"), "Epic Games");
+        }
+
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

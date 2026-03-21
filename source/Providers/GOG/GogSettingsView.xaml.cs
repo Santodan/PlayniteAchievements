@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Providers.GOG
     /// <summary>
     /// Settings view for the GOG provider.
     /// </summary>
-    public partial class GogSettingsView : ProviderSettingsViewBase
+    public partial class GogSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(GogSettingsView));
         private readonly GogSessionManager _sessionManager;
@@ -94,6 +94,12 @@ namespace PlayniteAchievements.Providers.GOG
                     ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotLoggedIn"),
                     ResourceProvider.GetString("LOCPlayAch_Provider_GOG"));
             }
+        }
+
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

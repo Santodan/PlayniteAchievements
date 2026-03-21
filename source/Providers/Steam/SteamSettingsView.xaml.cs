@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Providers.Steam
     /// <summary>
     /// Settings view for the Steam provider.
     /// </summary>
-    public partial class SteamSettingsView : ProviderSettingsViewBase
+    public partial class SteamSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(SteamSettingsView));
 
@@ -91,7 +91,13 @@ namespace PlayniteAchievements.Providers.Steam
             RefreshAuthStatus();
         }
 
-        public void RefreshAuthStatus()
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
+        }
+
+        private void RefreshAuthStatus()
         {
             var steamId64 = _sessionManager?.GetCachedSteamId64();
             var hasWebAuth = !string.IsNullOrWhiteSpace(steamId64);

@@ -6,7 +6,7 @@ using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers.Xbox
 {
-    public partial class XboxSettingsView : ProviderSettingsViewBase
+    public partial class XboxSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(XboxSettingsView));
         private readonly XboxSessionManager _sessionManager;
@@ -50,6 +50,12 @@ namespace PlayniteAchievements.Providers.Xbox
             AuthStatus = isAuthenticated
                 ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_LoggedIn"), "Xbox")
                 : string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotLoggedIn"), "Xbox");
+        }
+
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

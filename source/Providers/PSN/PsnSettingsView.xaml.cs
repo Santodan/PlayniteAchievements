@@ -6,7 +6,7 @@ using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers.PSN
 {
-    public partial class PsnSettingsView : ProviderSettingsViewBase
+    public partial class PsnSettingsView : ProviderSettingsViewBase, IAuthRefreshable
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(PsnSettingsView));
         private readonly PsnSessionManager _sessionManager;
@@ -50,6 +50,12 @@ namespace PlayniteAchievements.Providers.PSN
             AuthStatus = isAuthenticated
                 ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_LoggedIn"), "PlayStation")
                 : string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotLoggedIn"), "PlayStation");
+        }
+
+        public Task RefreshAuthStatusAsync()
+        {
+            RefreshAuthStatus();
+            return Task.CompletedTask;
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

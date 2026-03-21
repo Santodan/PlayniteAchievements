@@ -830,7 +830,7 @@ namespace PlayniteAchievements.Views
             _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
             _logger?.Info($"Settings.EnablePeriodicUpdates: {_settingsViewModel.Settings.Persisted.EnablePeriodicUpdates}");
 
-            Loaded += async (s, e) =>
+            Loaded += (s, e) =>
             {
                 // Ensure DataContext is still correct after Playnite initialization
                 if (DataContext is not PlayniteAchievementsSettings)
@@ -843,20 +843,6 @@ namespace PlayniteAchievements.Views
                 {
                     _logger?.Info($"DataContext verified correct in Loaded event: {DataContext?.GetType().Name}");
                 }
-                await CheckSteamAuthAsync().ConfigureAwait(false);
-                await CheckGogAuthAsync().ConfigureAwait(false);
-                await CheckEpicAuthAsync().ConfigureAwait(false);
-                await CheckPsnAuthAsync().ConfigureAwait(false);
-                await CheckXboxAuthAsync().ConfigureAwait(false);
-                await CheckExophaseAuthAsync().ConfigureAwait(false);
-                UpdateRaAuthState();
-                CheckShadPS4Auth();
-                CheckRpcs3Auth();
-                CheckXeniaAuth();
-                EnsureLegacyManualImportPathDefault();
-                SetLegacyManualImportStatus(L(
-                    "LOCPlayAch_Settings_Manual_Legacy_StatusIdle",
-                    "Ready to import Legacy manual links."));
 
                 // Load themes on initial load
                 LoadThemes();
@@ -3566,56 +3552,19 @@ namespace PlayniteAchievements.Views
             if (e.AddedItems[0] is not TabItem selected) return;
 
             var name = selected.Name ?? string.Empty;
-            if (string.Equals(name, "SteamTab", StringComparison.OrdinalIgnoreCase))
+            var tag = selected.Tag as string ?? string.Empty;
+
+            // Handle dynamic provider tabs (they have Tag set to provider key)
+            if (!string.IsNullOrEmpty(tag) && _providerViews.FirstOrDefault(v => v.ProviderKey == tag) is IProviderSettingsView providerView)
             {
-                await CheckSteamAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked Steam auth for Steam tab.");
+                // Refresh auth status in the provider settings view
+                if (providerView is IAuthRefreshable authRefreshable)
+                {
+                    await authRefreshable.RefreshAuthStatusAsync().ConfigureAwait(false);
+                    _logger?.Info($"Refreshed auth for dynamic provider tab: {tag}");
+                }
             }
-            else if (string.Equals(name, "GogTab", StringComparison.OrdinalIgnoreCase))
-            {
-                await CheckGogAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked GOG auth for GOG tab.");
-            }
-            else if (string.Equals(name, "EpicTab", StringComparison.OrdinalIgnoreCase))
-            {
-                await CheckEpicAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked Epic auth for Epic tab.");
-            }
-            else if (string.Equals(name, "PsnTab", StringComparison.OrdinalIgnoreCase))
-            {
-                await CheckPsnAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked PSN auth for PSN tab.");
-            }
-            else if (string.Equals(name, "XboxTab", StringComparison.OrdinalIgnoreCase))
-            {
-                await CheckXboxAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked Xbox auth for Xbox tab.");
-            }
-            else if (string.Equals(name, "ExophaseTab", StringComparison.OrdinalIgnoreCase))
-            {
-                await CheckExophaseAuthAsync().ConfigureAwait(false);
-                _logger?.Info("Checked Exophase auth for Exophase tab.");
-            }
-            else if (string.Equals(name, "ShadPS4Tab", StringComparison.OrdinalIgnoreCase))
-            {
-                CheckShadPS4Auth();
-                _logger?.Info("Checked ShadPS4 auth for ShadPS4 tab.");
-            }
-            else if (string.Equals(name, "Rpcs3Tab", StringComparison.OrdinalIgnoreCase))
-            {
-                CheckRpcs3Auth();
-                _logger?.Info("Checked RPCS3 auth for RPCS3 tab.");
-            }
-            else if (string.Equals(name, "XeniaTab", StringComparison.OrdinalIgnoreCase))
-            {
-                CheckXeniaAuth();
-                _logger?.Info("Checked Xenia auth for Xenia tab.");
-            }
-            else if (string.Equals(name, "ManualTab", StringComparison.OrdinalIgnoreCase))
-            {
-                EnsureLegacyManualImportPathDefault();
-                _logger?.Info("Prepared Legacy manual import defaults for Manual tab.");
-            }
+            // Handle remaining static tabs
             else if (string.Equals(name, "ThemeMigrationTab", StringComparison.OrdinalIgnoreCase))
             {
                 LoadThemes();
