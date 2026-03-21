@@ -285,7 +285,8 @@ namespace PlayniteAchievements.Models.Settings
                 // Xbox
                 var xbox = new XboxSettings
                 {
-                    IsEnabled = settings.XboxEnabled
+                    IsEnabled = settings.XboxEnabled,
+                    LowResIcons = settings.XboxLowResIcons
                 };
                 settings.ProviderSettings["Xbox"] = xbox.SerializeToJson();
 
@@ -316,7 +317,8 @@ namespace PlayniteAchievements.Models.Settings
                 // RPCS3
                 var rpcs3 = new Rpcs3Settings
                 {
-                    IsEnabled = settings.Rpcs3Enabled
+                    IsEnabled = settings.Rpcs3Enabled,
+                    ExecutablePath = settings.Rpcs3ExecutablePath
                 };
                 settings.ProviderSettings["RPCS3"] = rpcs3.SerializeToJson();
 
