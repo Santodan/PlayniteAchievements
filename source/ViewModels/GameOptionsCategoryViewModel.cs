@@ -16,7 +16,8 @@ namespace PlayniteAchievements.ViewModels
     public sealed class GameOptionsCategoryViewModel : ObservableObject
     {
         private readonly Guid _gameId;
-        private readonly AchievementService _achievementService;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
 
@@ -50,12 +51,14 @@ namespace PlayniteAchievements.ViewModels
 
         public GameOptionsCategoryViewModel(
             Guid gameId,
-            AchievementService achievementService,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
             _gameId = gameId;
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
 
@@ -448,8 +451,8 @@ namespace PlayniteAchievements.ViewModels
                     .GroupBy(row => row.ApiName.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
-                var hydratedGameData = _achievementService.GetGameAchievementData(_gameId);
-                var rawGameData = _achievementService.GetRawGameAchievementData(_gameId);
+                var hydratedGameData = _achievementDataService.GetGameAchievementData(_gameId);
+                var rawGameData = _achievementDataService.GetRawGameAchievementData(_gameId);
                 var rawAchievements = rawGameData?.Achievements?
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
@@ -564,10 +567,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementService.SetAchievementCategoryOverrides(
+            _achievementOverridesService.SetAchievementCategoryOverrides(
                 _gameId,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-            _achievementService.SetAchievementCategoryTypeOverrides(
+            _achievementOverridesService.SetAchievementCategoryTypeOverrides(
                 _gameId,
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
 
@@ -638,12 +641,12 @@ namespace PlayniteAchievements.ViewModels
 
             if (categoryChanged)
             {
-                _achievementService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
+                _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
             }
 
             if (categoryTypeChanged)
             {
-                _achievementService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
+                _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
             }
 
             if (categoryChanged || categoryTypeChanged)
@@ -702,7 +705,7 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
+            _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
             ReloadData();
             return true;
         }
@@ -746,7 +749,7 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
+            _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
             ReloadData();
             return true;
         }
@@ -789,12 +792,12 @@ namespace PlayniteAchievements.ViewModels
 
             if (categoryChanged)
             {
-                _achievementService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
+                _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
             }
 
             if (categoryTypeChanged)
             {
-                _achievementService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
+                _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
             }
 
             ReloadData();
@@ -855,7 +858,7 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
+            _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
             ReloadData();
             return true;
         }

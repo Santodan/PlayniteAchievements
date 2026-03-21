@@ -58,7 +58,10 @@ namespace PlayniteAchievements
         };
 
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
+        private readonly ICacheManager _cacheManager;
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
         private readonly NotificationPublisher _notifications;
@@ -73,7 +76,7 @@ namespace PlayniteAchievements
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
         private readonly BackgroundUpdater _backgroundUpdates;
-        private readonly RefreshCoordinator _refreshCoordinator;
+        private readonly RefreshEntryPoint _refreshCoordinator;
         private bool _applicationStarted;
 
         // Top panel item
@@ -94,7 +97,9 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
-        public AchievementService AchievementService => _achievementService;
+        public RefreshRuntime RefreshRuntime => _refreshService;
+        public AchievementOverridesService AchievementOverridesService => _achievementOverridesService;
+        public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
@@ -102,7 +107,7 @@ namespace PlayniteAchievements
         public ExophaseSessionManager ExophaseSessionManager => _exophaseSessionManager;
         public EpicSessionManager EpicSessionManager => _epicSessionManager;
         public TagSyncService TagSyncService => _tagSyncService;
-        internal RefreshCoordinator RefreshCoordinator => _refreshCoordinator;
+        internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
 
         /// <summary>
@@ -115,6 +120,20 @@ namespace PlayniteAchievements
         /// Raises the SettingsSaved event to notify listeners that settings have changed.
         /// </summary>
         public static void NotifySettingsSaved() => SettingsSaved?.Invoke(null, EventArgs.Empty);
+
+        public void PersistSettingsForUi()
+        {
+            try
+            {
+                SavePluginSettings(_settingsViewModel.Settings);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to persist plugin settings.");
+            }
+
+            NotifySettingsSaved();
+        }
 
         // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
         // AnikiHelper (PlayniteAchievements-based) will call this when available.
@@ -191,7 +210,7 @@ namespace PlayniteAchievements
                 }
 
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
-                using (PerfScope.StartStartup(_logger, "PluginCtor.AchievementServiceCreation", thresholdMs: 50))
+                using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                 {
                     _diskImageService = new DiskImageService(_logger, pluginUserDataPath);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
@@ -209,27 +228,40 @@ namespace PlayniteAchievements
                         _xboxSessionManager,
                         _exophaseSessionManager);
 
-                    _achievementService = new AchievementService(api, settings, _logger, this, providers, _diskImageService, _providerRegistry);
+                    _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _providerRegistry);
+                    _cacheManager = _refreshService.Cache;
+                    _achievementOverridesService = new AchievementOverridesService(
+                        settings,
+                        _cacheManager,
+                        _logger,
+                        notifySettingsSaved => PersistSettingsForUi(),
+                        force => _cacheManager.NotifyCacheInvalidated(),
+                        gameIds => OnAchievementGameDataChanged(gameIds));
+                    _achievementDataService = new AchievementDataService(_cacheManager, PlayniteApi, _settingsViewModel.Settings, _logger);
                     _notifications = new NotificationPublisher(api, settings, _logger);
-                    _refreshCoordinator = new RefreshCoordinator(
-                        _achievementService,
+                    _refreshCoordinator = new RefreshEntryPoint(
+                        _refreshService,
                         _logger,
                         _providerRegistry,
-                        ShowRefreshProgressControlAndRun);
-                    _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _achievementService, settings, _logger, _notifications, null);
+                        runWithProgressWindow: ShowRefreshProgressControlAndRun);
+                    _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
                     _tagSyncService = new TagSyncService(
                         PlayniteApi,
                         _logger,
                         settings.Persisted,
-                        _achievementService);
+                        _cacheManager);
                     _tagSyncService.InitializeAndSubscribeTaggingSettings();
 
                     _windowService = new PluginWindowService(
                         PlayniteApi,
                         _logger,
-                        _achievementService,
+                        _refreshService,
+                        _cacheManager,
+                        PersistSettingsForUi,
+                        _achievementOverridesService,
+                        _achievementDataService,
                         _settingsViewModel.Settings,
                         _manualProvider,
                         EnsureAchievementResourcesLoaded);
@@ -256,7 +288,8 @@ namespace PlayniteAchievements
 
                     _themeIntegrationService = new ThemeIntegrationService(
                         PlayniteApi,
-                        _achievementService,
+                        _refreshService,
+                        _achievementDataService,
                         _refreshCoordinator,
                         _settingsViewModel.Settings,
                         _fullscreenWindowService,
@@ -279,7 +312,7 @@ namespace PlayniteAchievements
 
                 // Initialize top panel item for popout window
                 _topPanelItem = new PlayniteAchievementsTopPanelItem(
-                    PlayniteApi, _logger, _achievementService, _refreshCoordinator, _settingsViewModel.Settings);
+                    PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _refreshCoordinator, _settingsViewModel.Settings);
 
                 _logger.Info("PlayniteAchievementsPlugin initialized.");
             }
@@ -319,10 +352,11 @@ namespace PlayniteAchievements
                 Opened = () =>
                 {
                     return new SidebarHostControl(
-                        () => new SidebarControl(PlayniteApi, _logger, _achievementService, _refreshCoordinator, _settingsViewModel.Settings),
+                        () => new SidebarControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _refreshCoordinator, _settingsViewModel.Settings),
                         _logger,
                         PlayniteApi,
-                        _achievementService,
+                        _refreshService,
+                        _cacheManager,
                         this);
                 }
             };
@@ -355,7 +389,7 @@ namespace PlayniteAchievements
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
-            _logger.Info($"Game stopped: {args.Game.Name}. Triggering achievement refresh.");
+            _logger.Info($"Game stopped: {args.Game.Name}. Triggering refresh.");
             _ = _refreshCoordinator.ExecuteAsync(new RefreshRequest
             {
                 Mode = RefreshModeType.Single,
@@ -548,11 +582,8 @@ namespace PlayniteAchievements
 
         private void SubscribePluginEventHandlers()
         {
-            _achievementService.GameRefreshed += OnAchievementGameRefreshed;
-            _achievementService.GameDataChanged += OnAchievementGameDataChanged;
-
-            _eventSubscriptions.Add(() => _achievementService.GameDataChanged -= OnAchievementGameDataChanged);
-            _eventSubscriptions.Add(() => _achievementService.GameRefreshed -= OnAchievementGameRefreshed);
+            _refreshService.GameRefreshed += OnAchievementGameRefreshed;
+            _eventSubscriptions.Add(() => _refreshService.GameRefreshed -= OnAchievementGameRefreshed);
 
             try
             {
@@ -660,7 +691,7 @@ namespace PlayniteAchievements
                     continue;
                 }
 
-                _achievementService.SetExcludedFromHiddenState(newGame.Id, newGame.Hidden);
+                _achievementOverridesService.SetExcludedFromHiddenState(newGame.Id, newGame.Hidden);
             }
         }
 
@@ -697,7 +728,7 @@ namespace PlayniteAchievements
                 try
                 {
                     _logger.Info($"Detected removed game '{game?.Name}' ({game?.GameId}); removing cached achievements and icons.");
-                    _achievementService.RemoveGameCache(game.Id);
+                    _cacheManager.RemoveGameCache(game.Id);
                 }
                 catch (Exception ex)
                 {
@@ -707,6 +738,7 @@ namespace PlayniteAchievements
         }
     }
 }
+
 
 
 

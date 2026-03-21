@@ -21,7 +21,11 @@ namespace PlayniteAchievements.Views
         private readonly SidebarViewModel _viewModel;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
+        private readonly Action _persistSettingsForUi;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly IPlayniteAPI _playniteApi;
         private bool _isActive;
         private Guid? _lastSelectedOverviewGameId;
@@ -64,8 +68,12 @@ namespace PlayniteAchievements.Views
         public SidebarControl(
             IPlayniteAPI api,
             ILogger logger,
-            AchievementService achievementService,
-            RefreshCoordinator refreshCoordinator,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            Action persistSettingsForUi,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
+            RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings)
         {
             InitializeComponent();
@@ -73,12 +81,18 @@ namespace PlayniteAchievements.Views
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
+            _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _playniteApi = api ?? throw new ArgumentNullException(nameof(api));
 
             _viewModel = new SidebarViewModel(
-                achievementService,
-                refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator)),
+                refreshRuntime,
+                _persistSettingsForUi,
+                _achievementDataService,
+                refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint)),
                 api,
                 logger,
                 settings);
@@ -1263,7 +1277,7 @@ namespace PlayniteAchievements.Views
 
             try
             {
-                _achievementService.RemoveGameCache(game.Id);
+                _cacheManager.RemoveGameCache(game.Id);
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -1286,7 +1300,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            _achievementService?.SetExcludedFromSummaries(gameId, true);
+            _achievementOverridesService?.SetExcludedFromSummaries(gameId, true);
         }
 
         private void ExcludeGameFromRefreshes(object data, bool clearDataWhenExcluding)
@@ -1316,7 +1330,7 @@ namespace PlayniteAchievements.Views
                 }
             }
 
-            _achievementService?.SetExcludedByUser(
+            _achievementOverridesService?.SetExcludedByUser(
                 gameId,
                 excluded: true,
                 clearCachedDataWhenExcluding: clearDataWhenExcluding);
@@ -1396,6 +1410,7 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
 
 
 

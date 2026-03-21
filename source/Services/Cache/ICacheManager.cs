@@ -21,6 +21,7 @@ namespace PlayniteAchievements.Services
         GameAchievementData LoadGameData(string key);
         CacheWriteResult SaveGameData(string key, GameAchievementData data);
         void RemoveGameData(Guid playniteGameId);
+        void RemoveGameCache(Guid playniteGameId);
         void NotifyCacheInvalidated();
 
         void ClearCache();

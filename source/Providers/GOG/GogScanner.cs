@@ -77,7 +77,7 @@ namespace PlayniteAchievements.Providers.GOG
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
 
-            return await RefreshPipeline.RunProviderGamesAsync(
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
@@ -85,7 +85,7 @@ namespace PlayniteAchievements.Providers.GOG
                     if (!TryGetProductId(game, out var productId))
                     {
                         _logger?.Warn($"[GogAch] Skipping game without valid product ID: {game?.Name}");
-                        return RefreshPipeline.ProviderGameResult.Skipped();
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var data = await rateLimiter.ExecuteWithRetryAsync(
@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Providers.GOG
                         GogApiClient.IsTransientError,
                         token).ConfigureAwait(false);
 
-                    return new RefreshPipeline.ProviderGameResult
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
                     };

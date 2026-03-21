@@ -13,6 +13,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Sidebar;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Views;
@@ -31,8 +32,10 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool IncludeUnplayedGames => _settings?.Persisted?.IncludeUnplayedGames ?? true;
 
-        private readonly AchievementService _achievementService;
-        private readonly RefreshCoordinator _refreshCoordinator;
+        private readonly RefreshRuntime _refreshService;
+        private readonly Action _persistSettingsForUi;
+        private readonly AchievementDataService _achievementDataService;
+        private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -80,18 +83,22 @@ namespace PlayniteAchievements.ViewModels
 
 
         public SidebarViewModel(
-            AchievementService achievementService,
-            RefreshCoordinator refreshCoordinator,
+            RefreshRuntime refreshRuntime,
+            Action persistSettingsForUi,
+            AchievementDataService achievementDataService,
+            RefreshEntryPoint refreshEntryPoint,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
         {
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
-            _refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings;
-            _dataBuilder = new SidebarDataBuilder(_achievementService, _playniteApi, _logger);
+            _dataBuilder = new SidebarDataBuilder(_achievementDataService, _refreshService.GetProviders(), _playniteApi, _logger);
 
             // Initialize debounce timer
             _refreshDebounceTimer = new System.Windows.Threading.DispatcherTimer
@@ -123,7 +130,7 @@ namespace PlayniteAchievements.ViewModels
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
-                _achievementService.GetRefreshModes().Where(m => m.Type != RefreshModeType.LibrarySelected));
+                _refreshService.GetRefreshModes().Where(m => m.Type != RefreshModeType.LibrarySelected));
 
             GlobalTimeline = new TimelineViewModel();
             SelectedGameTimeline = new TimelineViewModel();
@@ -150,8 +157,8 @@ namespace PlayniteAchievements.ViewModels
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameOverviewItem));
 
             // Subscribe to progress events
-            _achievementService.RebuildProgress += OnRebuildProgress;
-            _achievementService.CacheDeltaUpdated += OnCacheDeltaUpdated;
+            _refreshService.RebuildProgress += OnRebuildProgress;
+            _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             if (_settings != null)
             {
                 _settings.PropertyChanged += OnSettingsChanged;
@@ -686,7 +693,7 @@ namespace PlayniteAchievements.ViewModels
 
         #region Progress Properties
 
-        public bool IsRefreshing => _achievementService.IsRebuilding;
+        public bool IsRefreshing => _refreshService.IsRebuilding;
 
         private double _progressPercent;
         public double ProgressPercent
@@ -814,7 +821,7 @@ namespace PlayniteAchievements.ViewModels
             }
             else
             {
-                ApplyRefreshStatus(_achievementService.GetRefreshStatusSnapshot());
+                ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
                 // Refresh data when sidebar becomes active to ensure cached changes are visible
                 _ = RefreshViewAsync();
             }
@@ -899,7 +906,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void CancelRefresh()
         {
-            _achievementService.CancelCurrentRebuild();
+            _refreshService.CancelCurrentRebuild();
         }
 
         public void ClearSearch()
@@ -931,7 +938,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 CancelProgressHideTimer(clearCompletedProgress: false);
-                ApplyRefreshStatus(_achievementService.GetStartingRefreshStatusSnapshot());
+                ApplyRefreshStatus(_refreshService.GetStartingRefreshStatusSnapshot());
                 _refreshAttemptInProgress = true;
 
                 await _refreshCoordinator.ExecuteAsync(
@@ -955,7 +962,7 @@ namespace PlayniteAchievements.ViewModels
                 // even if the final progress event was not delivered.
                 if (refreshRequest != null)
                 {
-                    ApplyRefreshStatus(_achievementService.GetRefreshStatusSnapshot());
+                    ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
                 }
             }
         }
@@ -966,7 +973,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (!CustomRefreshControl.TryShowDialog(
                     _playniteApi,
-                    _achievementService,
+                    _refreshService,
+                    _persistSettingsForUi,
                     _settings,
                     _logger,
                     out var customOptions))
@@ -1023,7 +1031,7 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 CancelProgressHideTimer(clearCompletedProgress: false);
-                ApplyRefreshStatus(_achievementService.GetStartingRefreshStatusSnapshot());
+                ApplyRefreshStatus(_refreshService.GetStartingRefreshStatusSnapshot());
                 _refreshAttemptInProgress = true;
 
                 await _refreshCoordinator.ExecuteAsync(
@@ -1047,7 +1055,7 @@ namespace PlayniteAchievements.ViewModels
             }
             finally
             {
-                ApplyRefreshStatus(_achievementService.GetRefreshStatusSnapshot());
+                ApplyRefreshStatus(_refreshService.GetRefreshStatusSnapshot());
             }
         }
 
@@ -1357,7 +1365,7 @@ namespace PlayniteAchievements.ViewModels
 
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
             var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var provider in _achievementService.GetProviders())
+            foreach (var provider in _refreshService.GetProviders())
             {
                 providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
                 providerDisplayNames[provider.ProviderKey] = provider.ProviderName;
@@ -1589,8 +1597,8 @@ namespace PlayniteAchievements.ViewModels
 
             var now = DateTime.UtcNow;
 
-            // Centralized progress/status state from AchievementService.
-            var status = _achievementService.GetRefreshStatusSnapshot(report);
+            // Centralized progress/status state from RefreshRuntime.
+            var status = _refreshService.GetRefreshStatusSnapshot(report);
 
             lock (_progressLock)
             {
@@ -1713,7 +1721,7 @@ namespace PlayniteAchievements.ViewModels
                         continue;
                     }
 
-                    var gameData = _achievementService.GetGameAchievementData(key);
+                    var gameData = _achievementDataService.GetGameAchievementData(key);
                     dict[key] = gameData == null
                         ? null
                         : _dataBuilder.BuildGameFragment(_settings, revealedCopy, gameData);
@@ -2143,7 +2151,7 @@ namespace PlayniteAchievements.ViewModels
         private Dictionary<string, (string iconKey, string colorHex)> BuildProviderLookup()
         {
             var providerLookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
-            foreach (var provider in _achievementService.GetProviders())
+            foreach (var provider in _refreshService.GetProviders())
             {
                 providerLookup[provider.ProviderKey] = (provider.ProviderIconKey, provider.ProviderColorHex);
             }
@@ -2666,7 +2674,7 @@ namespace PlayniteAchievements.ViewModels
 
                 var loadResult = await Task.Run(() =>
                 {
-                    var gameData = _achievementService.GetGameAchievementData(gameId);
+                    var gameData = _achievementDataService.GetGameAchievementData(gameId);
                     if (gameData == null || gameData.Achievements == null)
                     {
                         return Tuple.Create(new List<AchievementDisplayItem>(), false);
@@ -2937,10 +2945,10 @@ namespace PlayniteAchievements.ViewModels
             _progressHideTimer?.Stop();
             _deltaBatchTimer?.Stop();
             CancelPendingRefresh();
-            if (_achievementService != null)
+            if (_refreshService != null)
             {
-                _achievementService.RebuildProgress -= OnRebuildProgress;
-                _achievementService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
+                _refreshService.RebuildProgress -= OnRebuildProgress;
+                _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
             }
             if (_settings != null)
             {
@@ -2965,6 +2973,7 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+
 
 
 

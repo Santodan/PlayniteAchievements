@@ -38,7 +38,9 @@ namespace PlayniteAchievements.ViewModels
     public sealed class ManualAchievementsViewModel : Common.ObservableObject
     {
         private readonly Game _playniteGame;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
+        private readonly AchievementDataService _achievementDataService;
         private IManualSource _source;
         private readonly IReadOnlyList<IManualSource> _availableSources;
         private readonly PlayniteAchievementsSettings _settings;
@@ -370,20 +372,24 @@ namespace PlayniteAchievements.ViewModels
 
         public ManualAchievementsViewModel(
             Game playniteGame,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            AchievementDataService achievementDataService,
             IManualSource source,
             PlayniteAchievementsSettings settings,
             Action<PlayniteAchievementsSettings> saveSettings,
             ILogger logger,
             IPlayniteAPI playniteApi,
             bool startAtEditingStage = false)
-            : this(playniteGame, achievementService, new[] { source }, source, settings, saveSettings, logger, playniteApi, startAtEditingStage)
+            : this(playniteGame, refreshRuntime, cacheManager, achievementDataService, new[] { source }, source, settings, saveSettings, logger, playniteApi, startAtEditingStage)
         {
         }
 
         public ManualAchievementsViewModel(
             Game playniteGame,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            AchievementDataService achievementDataService,
             IEnumerable<IManualSource> availableSources,
             IManualSource initialSource,
             PlayniteAchievementsSettings settings,
@@ -393,7 +399,9 @@ namespace PlayniteAchievements.ViewModels
             bool startAtEditingStage = false)
         {
             _playniteGame = playniteGame ?? throw new ArgumentNullException(nameof(playniteGame));
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _availableSources = availableSources?.ToList().AsReadOnly() ?? throw new ArgumentNullException(nameof(availableSources));
             _source = initialSource ?? throw new ArgumentNullException(nameof(initialSource));
             _selectedSource = _source;
@@ -561,7 +569,7 @@ namespace PlayniteAchievements.ViewModels
             var hadExistingLink = _settings?.Persisted?.ManualAchievementLinks != null &&
                                   _settings.Persisted.ManualAchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
             var rollbackLink = existingLink?.Clone();
-            var rollbackCacheData = _achievementService?.Cache?.LoadGameData(_playniteGame.Id.ToString());
+            var rollbackCacheData = _cacheManager?.LoadGameData(_playniteGame.Id.ToString());
             var rollbackPending = true;
 
             SetLinkInMemory(link);
@@ -570,14 +578,14 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                _achievementService.RebuildProgress += OnRebuildProgress;
+                _refreshService.RebuildProgress += OnRebuildProgress;
 
                 var request = new RefreshRequest
                 {
                     GameIds = new List<Guid> { _playniteGame.Id }
                 };
 
-                await _achievementService.ExecuteRefreshAsync(request);
+                await ExecuteRefreshRequestAsync(request, _refreshCts.Token);
 
                 if (_refreshCts.Token.IsCancellationRequested)
                 {
@@ -626,7 +634,7 @@ namespace PlayniteAchievements.ViewModels
             }
             finally
             {
-                _achievementService.RebuildProgress -= OnRebuildProgress;
+                _refreshService.RebuildProgress -= OnRebuildProgress;
                 _refreshCts?.Dispose();
                 _refreshCts = null;
             }
@@ -649,6 +657,25 @@ namespace PlayniteAchievements.ViewModels
             {
                 ProgressMessage = report.Message;
             }
+        }
+
+        private async Task ExecuteRefreshRequestAsync(RefreshRequest request, CancellationToken cancellationToken)
+        {
+            var coordinator = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (coordinator == null)
+            {
+                throw new InvalidOperationException("RefreshEntryPoint is not available.");
+            }
+
+            await coordinator.ExecuteAsync(
+                request,
+                new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = true,
+                    UseProgressWindow = false,
+                    SwallowExceptions = false,
+                    ExternalCancellationToken = cancellationToken
+                });
         }
 
         private void CancelRefresh()
@@ -685,14 +712,14 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                _achievementService.RebuildProgress += OnRebuildProgress;
+                _refreshService.RebuildProgress += OnRebuildProgress;
 
                 var request = new RefreshRequest
                 {
                     GameIds = new List<Guid> { _playniteGame.Id }
                 };
 
-                await _achievementService.ExecuteRefreshAsync(request);
+                await ExecuteRefreshRequestAsync(request, _refreshCts.Token);
 
                 if (_refreshCts.Token.IsCancellationRequested)
                 {
@@ -716,7 +743,7 @@ namespace PlayniteAchievements.ViewModels
             }
             finally
             {
-                _achievementService.RebuildProgress -= OnRebuildProgress;
+                _refreshService.RebuildProgress -= OnRebuildProgress;
                 _refreshCts?.Dispose();
                 _refreshCts = null;
             }
@@ -728,8 +755,8 @@ namespace PlayniteAchievements.ViewModels
 
         private bool TransitionToEditing(ManualAchievementLink link, bool requireManualProviderData = false)
         {
-            var cachedData = _achievementService.Cache.LoadGameData(_playniteGame.Id.ToString());
-            var hydratedData = _achievementService.GetGameAchievementData(_playniteGame.Id);
+            var cachedData = _cacheManager.LoadGameData(_playniteGame.Id.ToString());
+            var hydratedData = _achievementDataService.GetGameAchievementData(_playniteGame.Id);
             string providerKey = cachedData?.ProviderKey;
             var achievements = cachedData?.Achievements?
                 .Where(a => a != null)
@@ -892,7 +919,7 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                var gameData = _achievementService?.GetGameAchievementData(_playniteGame.Id);
+                var gameData = _achievementDataService?.GetGameAchievementData(_playniteGame.Id);
                 var achievements = gameData?.Achievements;
                 if (achievements == null || achievements.Count == 0)
                 {
@@ -1099,7 +1126,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                var cache = _achievementService?.Cache;
+                var cache = _cacheManager;
                 if (cache == null)
                 {
                     return;
@@ -1312,7 +1339,7 @@ namespace PlayniteAchievements.ViewModels
                 var link = BuildLink();
                 SaveLink(link);
 
-                var cachedData = _achievementService.Cache.LoadGameData(_playniteGame.Id.ToString());
+                var cachedData = _cacheManager.LoadGameData(_playniteGame.Id.ToString());
                 if (cachedData?.Achievements != null)
                 {
                     var nowUtc = DateTime.UtcNow;
@@ -1341,8 +1368,8 @@ namespace PlayniteAchievements.ViewModels
                     // Force a new snapshot version so theme update coalescing does not skip this save.
                     cachedData.LastUpdatedUtc = nowUtc;
 
-                    _achievementService.Cache.SaveGameData(_playniteGame.Id.ToString(), cachedData);
-                    _achievementService.Cache.NotifyCacheInvalidated();
+                    _cacheManager.SaveGameData(_playniteGame.Id.ToString(), cachedData);
+                    _cacheManager.NotifyCacheInvalidated();
 
                     // Ensure immediate theme refresh for this game after manual edits.
                     if (_settings?.SelectedGame?.Id == _playniteGame.Id)
@@ -1501,9 +1528,9 @@ namespace PlayniteAchievements.ViewModels
             _refreshCts?.Dispose();
             _refreshCts = null;
 
-            if (_achievementService != null)
+            if (_refreshService != null)
             {
-                _achievementService.RebuildProgress -= OnRebuildProgress;
+                _refreshService.RebuildProgress -= OnRebuildProgress;
             }
 
             // Unsubscribe from achievement item events
@@ -1516,3 +1543,4 @@ namespace PlayniteAchievements.ViewModels
         #endregion
     }
 }
+

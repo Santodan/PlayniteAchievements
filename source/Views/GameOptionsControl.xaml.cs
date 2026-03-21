@@ -12,7 +12,11 @@ namespace PlayniteAchievements.Views
 {
     public partial class GameOptionsControl : UserControl
     {
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
+        private readonly Action _persistSettingsForUi;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -32,13 +36,21 @@ namespace PlayniteAchievements.Views
         internal GameOptionsControl(
             Guid gameId,
             GameOptionsTab initialTab,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            Action persistSettingsForUi,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
             ManualAchievementsProvider manualProvider)
         {
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
+            _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -48,7 +60,9 @@ namespace PlayniteAchievements.Views
                 gameId,
                 initialTab,
                 PlayniteAchievementsPlugin.Instance,
-                _achievementService,
+                _refreshService,
+                _persistSettingsForUi,
+                _achievementOverridesService,
                 _playniteApi,
                 _settings,
                 _logger);
@@ -57,7 +71,7 @@ namespace PlayniteAchievements.Views
             InitializeComponent();
 
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
-            _achievementService.CacheInvalidated += AchievementService_CacheInvalidated;
+            _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
             Loaded += GameOptionsControl_Loaded;
         }
 
@@ -88,9 +102,9 @@ namespace PlayniteAchievements.Views
             {
                 _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
             }
-            if (_achievementService != null)
+            if (_refreshService != null)
             {
-                _achievementService.CacheInvalidated -= AchievementService_CacheInvalidated;
+                _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated;
             }
 
             CleanupCapstone();
@@ -183,7 +197,8 @@ namespace PlayniteAchievements.Views
 
             _capstoneControl = new GameOptionsCapstonesTab(
                 _viewModel.GameId,
-                _achievementService,
+                _achievementOverridesService,
+                _achievementDataService,
                 _playniteApi,
                 _logger,
                 _settings);
@@ -257,7 +272,9 @@ namespace PlayniteAchievements.Views
 
             _manualViewModel = new ManualAchievementsViewModel(
                 game,
-                _achievementService,
+                _refreshService,
+                _cacheManager,
+                _achievementDataService,
                 availableSources,
                 initialSource,
                 _settings,
@@ -283,7 +300,8 @@ namespace PlayniteAchievements.Views
 
             _achievementOrderViewModel = new GameOptionsAchievementOrderViewModel(
                 _viewModel.GameId,
-                _achievementService,
+                _achievementOverridesService,
+                _achievementDataService,
                 _settings,
                 _logger);
             _achievementOrderControl = new GameOptionsAchievementOrderTab(_achievementOrderViewModel);
@@ -301,7 +319,8 @@ namespace PlayniteAchievements.Views
 
             _categoryViewModel = new GameOptionsCategoryViewModel(
                 _viewModel.GameId,
-                _achievementService,
+                _achievementOverridesService,
+                _achievementDataService,
                 _settings,
                 _logger);
             _categoryControl = new GameOptionsCategoryTab(_categoryViewModel);
@@ -318,7 +337,7 @@ namespace PlayniteAchievements.Views
             HandleStateChanged(refreshCapstone: false);
         }
 
-        private void AchievementService_CacheInvalidated(object sender, EventArgs e)
+        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
         {
             if (Dispatcher.CheckAccess())
             {
@@ -418,3 +437,4 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+

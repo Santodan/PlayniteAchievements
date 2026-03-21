@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Services
 {
     // Test-only seam used to compile RefreshCoordinator source without pulling full plugin dependencies.
-    public class AchievementService
+    public class RefreshRuntime
     {
         public event EventHandler<ProgressReport> RebuildProgress;
         public event EventHandler CacheInvalidated;

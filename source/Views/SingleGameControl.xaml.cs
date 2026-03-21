@@ -24,7 +24,8 @@ namespace PlayniteAchievements.Views
 
         public SingleGameControl(
             Guid gameId,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
@@ -33,7 +34,7 @@ namespace PlayniteAchievements.Views
 
             _settings = settings;
             _logger = logger;
-            DataContext = new SingleGameControlModel(gameId, achievementService, playniteApi, logger, settings);
+            DataContext = new SingleGameControlModel(gameId, refreshRuntime, achievementDataService, playniteApi, logger, settings);
             if (ViewModel != null)
             {
                 ViewModel.PropertyChanged += ViewModel_PropertyChanged;
@@ -224,3 +225,4 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+

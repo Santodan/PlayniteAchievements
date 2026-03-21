@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using PlayniteAchievements.Providers;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 
@@ -41,9 +42,9 @@ namespace PlayniteAchievements.Services
     /// <summary>
     /// Centralized orchestration for refresh entry points.
     /// </summary>
-    public sealed class RefreshCoordinator
+    public sealed class RefreshEntryPoint
     {
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
         private readonly ILogger _logger;
         private readonly Action<Func<Task>, Guid?> _runWithProgressWindow;
         private readonly ProviderRegistry _providerRegistry;
@@ -55,13 +56,13 @@ namespace PlayniteAchievements.Services
         /// </summary>
         public event Action<List<Guid>> RefreshCompleted;
 
-        public RefreshCoordinator(
-            AchievementService achievementService,
+        public RefreshEntryPoint(
+            RefreshRuntime refreshRuntime,
             ILogger logger,
             ProviderRegistry providerRegistry,
             Action<Func<Task>, Guid?> runWithProgressWindow = null)
         {
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _logger = logger;
             _providerRegistry = providerRegistry;
             _runWithProgressWindow = runWithProgressWindow;
@@ -100,8 +101,8 @@ namespace PlayniteAchievements.Services
                 {
                     try
                     {
-                        // Get the actual refreshed game IDs from the achievement service
-                        var gameIds = _achievementService.LastRefreshedGameIds;
+                        // Get the actual refreshed game IDs from RefreshRuntime.
+                        var gameIds = _refreshService.LastRefreshedGameIds;
                         RefreshCompleted?.Invoke(gameIds);
                     }
                     catch { }
@@ -115,7 +116,7 @@ namespace PlayniteAchievements.Services
             {
                 await _providerRegistry.PrimeEnabledProvidersAsync();
 
-                if (!_achievementService.ValidateCanStartRefresh())
+                if (!_refreshService.ValidateCanStartRefresh())
                 {
                     return;
                 }
@@ -128,7 +129,7 @@ namespace PlayniteAchievements.Services
         {
             try
             {
-                await _achievementService.ExecuteRefreshAsync(
+                await _refreshService.ExecuteRefreshAsync(
                     request,
                     policy?.ExternalCancellationToken ?? CancellationToken.None);
             }
@@ -190,3 +191,4 @@ namespace PlayniteAchievements.Services
         }
     }
 }
+

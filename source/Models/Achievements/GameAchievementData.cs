@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using Playnite.SDK.Models;
-using PlayniteAchievements.Services;
+using PlayniteAchievements.Providers;
 
 namespace PlayniteAchievements.Models.Achievements
 {

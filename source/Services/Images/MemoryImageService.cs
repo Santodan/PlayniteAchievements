@@ -124,7 +124,7 @@ namespace PlayniteAchievements.Services.Images
                 BitmapSource bmp;
                 if (IsHttpUrl(uri))
                 {
-                    // HTTP URIs should only be used during download in AchievementService.
+                    // HTTP URIs should only be used during download in RefreshRuntime.
                     // At display time, check disk cache only - do NOT download.
                     bmp = await LoadFromDiskCacheAsync(uri, decodePixel).ConfigureAwait(false);
                 }

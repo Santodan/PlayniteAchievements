@@ -98,7 +98,6 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, double> _desktopThemeColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, bool> _gamesOverviewColumnVisibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, double> _gamesOverviewColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        private bool _pointsColumnAutoEnabled = false;
 
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
@@ -963,16 +962,6 @@ namespace PlayniteAchievements.Models.Settings
             }
         }
 
-        /// <summary>
-        /// Tracks whether the Points column was auto-enabled once due to Epic achievement data.
-        /// Prevents future refreshes from repeatedly overriding user visibility preferences.
-        /// </summary>
-        public bool PointsColumnAutoEnabled
-        {
-            get => _pointsColumnAutoEnabled;
-            set => SetValue(ref _pointsColumnAutoEnabled, value);
-        }
-
         #endregion
 
         #region General Settings
@@ -1252,7 +1241,6 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewColumnWidths = this.GamesOverviewColumnWidths != null
                     ? new Dictionary<string, double>(this.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-                PointsColumnAutoEnabled = this.PointsColumnAutoEnabled,
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
                 SeenThemeMigration = this.SeenThemeMigration,
                 ThemeMigrationVersionCache = this.ThemeMigrationVersionCache != null

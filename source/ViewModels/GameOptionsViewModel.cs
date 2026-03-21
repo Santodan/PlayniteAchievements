@@ -7,6 +7,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
@@ -18,7 +19,9 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Guid _gameId;
         private readonly PlayniteAchievementsPlugin _plugin;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly Action _persistSettingsForUi;
+        private readonly AchievementOverridesService _achievementOverridesService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
@@ -75,7 +78,9 @@ namespace PlayniteAchievements.ViewModels
             Guid gameId,
             GameOptionsTab initialTab,
             PlayniteAchievementsPlugin plugin,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            Action persistSettingsForUi,
+            AchievementOverridesService achievementOverridesService,
             IPlayniteAPI playniteApi,
             PlayniteAchievementsSettings settings,
             ILogger logger)
@@ -83,7 +88,9 @@ namespace PlayniteAchievements.ViewModels
             _gameId = gameId;
             _selectedTab = initialTab;
             _plugin = plugin;
-            _achievementService = achievementService;
+            _refreshService = refreshRuntime;
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
+            _achievementOverridesService = achievementOverridesService;
             _playniteApi = playniteApi;
             _settings = settings;
             _logger = logger;
@@ -97,7 +104,7 @@ namespace PlayniteAchievements.ViewModels
             ClearExophaseSlugOverrideCommand = new RelayCommand(_ => ClearExophaseSlugOverride(), _ => HasGame && ShowExophaseToggle && HasExophaseSlugOverride);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
-            RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_achievementService?.IsRebuilding ?? false));
+            RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
             ClearGameDataCommand = new RelayCommand(_ => ClearGameData(), _ => HasGame);
 
             Reload();
@@ -195,7 +202,7 @@ namespace PlayniteAchievements.ViewModels
                         }
                     }
 
-                    _achievementService?.PersistSettingsForUi();
+                    _persistSettingsForUi();
                     TriggerRefresh();
                 }
             }
@@ -546,7 +553,7 @@ namespace PlayniteAchievements.ViewModels
 
                 GameImagePath = imagePath;
 
-                var gameData = _achievementService?.GetGameAchievementData(_gameId);
+                var gameData = _plugin?.AchievementDataService?.GetGameAchievementData(_gameId);
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
@@ -592,7 +599,7 @@ namespace PlayniteAchievements.ViewModels
                 IsExcluded = isExcluded;
                 IsExcludedFromSummaries = _settings?.Persisted?.ExcludedFromSummariesGameIds?.Contains(_gameId) ?? false;
 
-                var raProvider = _achievementService?.GetProviders()
+                var raProvider = _refreshService?.GetProviders()
                     ?.FirstOrDefault(p => p.ProviderKey == "RetroAchievements");
                 IsRaCapable = raProvider?.IsCapable(game) == true;
 
@@ -700,7 +707,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void ToggleSummaryExclusion()
         {
-            _achievementService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
+            _achievementOverridesService?.SetExcludedFromSummaries(_gameId, !IsExcludedFromSummaries);
             Reload();
         }
 
@@ -745,7 +752,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _settings.Persisted.RaGameIdOverrides[_gameId] = newId;
-            _achievementService?.PersistSettingsForUi();
+            _persistSettingsForUi();
 
             _logger?.Info($"Set RA game ID override for '{game.Name}' to {newId}");
 
@@ -761,7 +768,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _settings.Persisted.RaGameIdOverrides.Remove(_gameId);
-            _achievementService?.PersistSettingsForUi();
+            _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
             _logger?.Info($"Cleared RA game ID override for '{game?.Name ?? _gameId.ToString()}'");
@@ -806,7 +813,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _settings.Persisted.ExophaseSlugOverrides[_gameId] = slug;
-            _achievementService?.PersistSettingsForUi();
+            _persistSettingsForUi();
 
             _logger?.Info($"Set Exophase slug override for '{game.Name}' to '{slug}'");
 
@@ -829,7 +836,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _settings.Persisted.ExophaseSlugOverrides.Remove(_gameId);
-            _achievementService?.PersistSettingsForUi();
+            _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
             _logger?.Info($"Cleared Exophase slug override for '{game?.Name ?? _gameId.ToString()}'");
@@ -840,7 +847,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void TriggerRefresh()
         {
-            _ = _plugin?.RefreshCoordinator?.ExecuteAsync(
+            _ = _plugin?.RefreshEntryPoint?.ExecuteAsync(
                 new RefreshRequest
                 {
                     Mode = RefreshModeType.Single,
@@ -900,9 +907,9 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 IsRefreshing = true;
-                if (_plugin?.RefreshCoordinator != null)
+                if (_plugin?.RefreshEntryPoint != null)
                 {
-                    await _plugin.RefreshCoordinator.ExecuteAsync(
+                    await _plugin.RefreshEntryPoint.ExecuteAsync(
                         new RefreshRequest
                         {
                             Mode = RefreshModeType.Single,
@@ -912,7 +919,7 @@ namespace PlayniteAchievements.ViewModels
                 }
                 else
                 {
-                    await _achievementService.ExecuteRefreshAsync(RefreshModeType.Single, _gameId).ConfigureAwait(false);
+                    throw new InvalidOperationException("RefreshEntryPoint is not available.");
                 }
             }
             catch (Exception ex)
@@ -955,7 +962,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                _achievementService?.RemoveGameCache(_gameId);
+                _refreshService?.Cache?.RemoveGameCache(_gameId);
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(
                         L("LOCPlayAch_Menu_ClearData_SuccessSingle", "Cleared cached data for \"{0}\"."),
@@ -1047,3 +1054,4 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+

@@ -15,7 +15,8 @@ namespace PlayniteAchievements.ViewModels
     public sealed class GameOptionsAchievementOrderViewModel : ObservableObject
     {
         private readonly Guid _gameId;
-        private readonly AchievementService _achievementService;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
 
@@ -24,12 +25,14 @@ namespace PlayniteAchievements.ViewModels
 
         public GameOptionsAchievementOrderViewModel(
             Guid gameId,
-            AchievementService achievementService,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
             _gameId = gameId;
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
 
@@ -60,7 +63,7 @@ namespace PlayniteAchievements.ViewModels
                     .GroupBy(row => row.ApiName.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
-                var gameData = _achievementService.GetGameAchievementData(_gameId);
+                var gameData = _achievementDataService.GetGameAchievementData(_gameId);
                 var achievements = gameData?.Achievements?
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
@@ -122,7 +125,7 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
+            _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
             ReloadData();
             return true;
         }
@@ -213,7 +216,7 @@ namespace PlayniteAchievements.ViewModels
                 .Select(row => row.ApiName)
                 .ToList();
 
-            _achievementService.SetAchievementOrderOverride(_gameId, orderedApiNames);
+            _achievementOverridesService.SetAchievementOrderOverride(_gameId, orderedApiNames);
             HasCustomOrder = orderedApiNames.Count > 0;
         }
     }

@@ -84,7 +84,7 @@ namespace PlayniteAchievements.Providers.Xbox
                     _settings.Persisted.ScanDelayMs,
                     _settings.Persisted.MaxRetryAttempts);
 
-                return await RefreshPipeline.RunProviderGamesAsync(
+                return await ProviderRefreshExecutor.RunProviderGamesAsync(
                     gamesToRefresh,
                     onGameStarting,
                     async (game, token) =>
@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Providers.Xbox
                             IsTransientError,
                             token).ConfigureAwait(false);
 
-                        return new RefreshPipeline.ProviderGameResult
+                        return new ProviderRefreshExecutor.ProviderGameResult
                         {
                             Data = data
                         };

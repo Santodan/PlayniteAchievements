@@ -8,8 +8,9 @@ namespace PlayniteAchievements.Services
 {
     public class BackgroundUpdater
     {
-        private readonly RefreshCoordinator _refreshCoordinator;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshEntryPoint _refreshCoordinator;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly NotificationPublisher _notifications;
@@ -19,15 +20,17 @@ namespace PlayniteAchievements.Services
         private CancellationTokenSource _cts;
 
         public BackgroundUpdater(
-            RefreshCoordinator refreshCoordinator,
-            AchievementService achievementService,
+            RefreshEntryPoint refreshEntryPoint,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
             PlayniteAchievementsSettings settings,
             ILogger logger,
             NotificationPublisher notifications,
             Action onUpdateCompleted)
         {
-            _refreshCoordinator = refreshCoordinator;
-            _achievementService = achievementService;
+            _refreshCoordinator = refreshEntryPoint;
+            _refreshService = refreshRuntime;
+            _cacheManager = cacheManager;
             _settings = settings;
             _logger = logger;
             _notifications = notifications;
@@ -85,7 +88,7 @@ namespace PlayniteAchievements.Services
             try
             {
                 ctsToDispose?.Cancel();
-                _achievementService?.CancelCurrentRebuild();
+                _refreshService?.CancelCurrentRebuild();
             }
             catch (Exception ex)
             {
@@ -138,7 +141,7 @@ namespace PlayniteAchievements.Services
             // Skip if landing page should be shown (user hasn't completed setup)
             var firstTimeCompleted = _settings.Persisted.FirstTimeSetupCompleted;
             var seenThemeMigration = _settings.Persisted.SeenThemeMigration;
-            var cachedIds = _achievementService.Cache?.GetCachedGameIds();
+            var cachedIds = _cacheManager?.GetCachedGameIds();
             var hasCachedData = cachedIds != null && cachedIds.Count > 0;
             bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
 
@@ -148,7 +151,7 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
-            var cache = _achievementService.Cache;
+            var cache = _cacheManager;
             if (cache == null || !cache.IsCacheValid())
             {
                 _logger.Debug("[PeriodicUpdate] No valid cache; update needed.");
@@ -197,7 +200,7 @@ namespace PlayniteAchievements.Services
 
         private void HandleUpdateCompletion()
         {
-            var lastStatus = _achievementService.GetLastRebuildStatus() ?? ResourceProvider.GetString("LOCPlayAch_Rebuild_Completed");
+            var lastStatus = _refreshService.GetLastRebuildStatus() ?? ResourceProvider.GetString("LOCPlayAch_Rebuild_Completed");
             _notifications?.ShowPeriodicStatus(lastStatus);
             _onUpdateCompleted?.Invoke();
         }
@@ -215,6 +218,7 @@ namespace PlayniteAchievements.Services
         }
     }
 }
+
 
 
 

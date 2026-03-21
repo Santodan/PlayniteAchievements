@@ -19,7 +19,8 @@ namespace PlayniteAchievements.ViewModels
 {
     public class SingleGameControlModel : ObservableObject, IDisposable
     {
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -42,13 +43,15 @@ namespace PlayniteAchievements.ViewModels
 
         public SingleGameControlModel(
             Guid gameId,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
         {
             _gameId = gameId;
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings;
@@ -75,7 +78,7 @@ namespace PlayniteAchievements.ViewModels
 
                     try
                     {
-                        await _achievementService.ExecuteRefreshAsync(RefreshModeType.Single, _gameId);
+                        await ExecuteSingleGameRefreshAsync();
 
                         // Load updated data
                         LoadGameData();
@@ -98,7 +101,7 @@ namespace PlayniteAchievements.ViewModels
                         IsStatusMessageVisible = false;
                     }
                 },
-                _ => !_achievementService.IsRebuilding);
+                _ => !_refreshService.IsRebuilding);
 
             // Subscribe to settings changes
             if (_settings != null)
@@ -109,12 +112,34 @@ namespace PlayniteAchievements.ViewModels
                     _settings.Persisted.PropertyChanged += OnPersistedSettingsChanged;
                 }
             }
-            _achievementService.GameCacheUpdated += OnGameCacheUpdated;
-            _achievementService.CacheDeltaUpdated += OnCacheDeltaUpdated;
-            _achievementService.RebuildProgress += OnRebuildProgress;
+            _refreshService.GameCacheUpdated += OnGameCacheUpdated;
+            _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
+            _refreshService.RebuildProgress += OnRebuildProgress;
 
             // Load data
             LoadGameData();
+        }
+
+        private async Task ExecuteSingleGameRefreshAsync()
+        {
+            var coordinator = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
+            if (coordinator == null)
+            {
+                throw new InvalidOperationException("RefreshEntryPoint is not available.");
+            }
+
+            await coordinator.ExecuteAsync(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.Single,
+                    SingleGameId = _gameId
+                },
+                new RefreshExecutionPolicy
+                {
+                    ValidateAuthentication = true,
+                    UseProgressWindow = false,
+                    SwallowExceptions = false
+                });
         }
 
         #region Properties
@@ -528,7 +553,7 @@ namespace PlayniteAchievements.ViewModels
                 GameName = game.Name;
                 GameIconPath = (!string.IsNullOrEmpty(game.Icon)) ? _playniteApi.Database.GetFullFilePath(game.Icon) : null;
 
-                var gameData = _achievementService.GetGameAchievementData(_gameId);
+                var gameData = _achievementDataService.GetGameAchievementData(_gameId);
                 if (gameData == null || !gameData.HasAchievements || gameData.Achievements == null)
                 {
                     _logger?.Info($"No achievement data for game: {game.Name}");
@@ -680,7 +705,7 @@ namespace PlayniteAchievements.ViewModels
         private void OnRebuildProgress(object sender, ProgressReport report)
         {
             if (report == null) return;
-            var refreshStatus = _achievementService.GetRefreshStatusSnapshot(report);
+            var refreshStatus = _refreshService.GetRefreshStatusSnapshot(report);
             var statusMessage = refreshStatus.Message ?? ResourceProvider.GetString("LOCPlayAch_Status_Refreshing");
 
             var isForOurGame = report.CurrentGameId.HasValue && report.CurrentGameId.Value == _gameId;
@@ -883,14 +908,15 @@ namespace PlayniteAchievements.ViewModels
                     _settings.Persisted.PropertyChanged -= OnPersistedSettingsChanged;
                 }
             }
-            _achievementService.GameCacheUpdated -= OnGameCacheUpdated;
-            _achievementService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
-            _achievementService.RebuildProgress -= OnRebuildProgress;
+            _refreshService.GameCacheUpdated -= OnGameCacheUpdated;
+            _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
+            _refreshService.RebuildProgress -= OnRebuildProgress;
         }
 
         #endregion
     }
 }
+
 
 
 

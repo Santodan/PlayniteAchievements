@@ -140,25 +140,25 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
 
-            var result = await RefreshPipeline.RunProviderGamesAsync(
+            var result = await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
                 {
                     if (game == null)
                     {
-                        return RefreshPipeline.ProviderGameResult.Skipped();
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     if (!RaConsoleIdResolver.TryResolve(game, out var consoleId))
                     {
-                        return RefreshPipeline.ProviderGameResult.Skipped();
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var hasher = RaHasherFactory.Create(consoleId, _settings, _logger);
                     if (hasher == null)
                     {
-                        return RefreshPipeline.ProviderGameResult.Skipped();
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var data = await rateLimiter.ExecuteWithRetryAsync(
@@ -166,7 +166,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         IsTransientError,
                         token).ConfigureAwait(false);
 
-                    return new RefreshPipeline.ProviderGameResult
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
                     };

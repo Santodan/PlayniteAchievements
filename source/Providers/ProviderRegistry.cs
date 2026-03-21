@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using PlayniteAchievements.Models.Settings;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Providers
 {
     /// <summary>
     /// Central registry for provider enabled state at runtime.

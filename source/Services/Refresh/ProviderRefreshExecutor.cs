@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Services
 {
-    internal static class RefreshPipeline
+    internal static class ProviderRefreshExecutor
     {
         internal sealed class ProviderExecutionPlan
         {
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.Services
             {
                 if (cancel.IsCancellationRequested)
                 {
-                    System.Diagnostics.Debug.WriteLine($"[RefreshPipeline] Cancellation detected at game {i}/{gamesToRefresh.Count}");
+                    System.Diagnostics.Debug.WriteLine($"[ProviderRefreshExecutor] Cancellation detected at game {i}/{gamesToRefresh.Count}");
                 }
                 cancel.ThrowIfCancellationRequested();
 
@@ -188,7 +188,7 @@ namespace PlayniteAchievements.Services
                 {
                     if (cancel.IsCancellationRequested)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[RefreshPipeline] Cancellation detected in sequential provider execution at plan {i}/{plans.Count}");
+                        System.Diagnostics.Debug.WriteLine($"[ProviderRefreshExecutor] Cancellation detected in sequential provider execution at plan {i}/{plans.Count}");
                     }
                     cancel.ThrowIfCancellationRequested();
 

@@ -20,7 +20,7 @@ namespace PlayniteAchievements
 
         private bool IsRefreshInProgress()
         {
-            return _achievementService?.IsRebuilding == true;
+            return _refreshService?.IsRebuilding == true;
         }
 
         private IEnumerable<GameMenuItem> GetRefreshInProgressGameMenuHeader(Guid? singleGameRefreshId = null)
@@ -47,7 +47,7 @@ namespace PlayniteAchievements
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {
-                    _achievementService.CancelCurrentRebuild();
+                    _refreshService.CancelCurrentRebuild();
                 }
             };
 
@@ -82,7 +82,7 @@ namespace PlayniteAchievements
                 MenuSection = PluginMainMenuSection,
                 Action = (a) =>
                 {
-                    _achievementService.CancelCurrentRebuild();
+                    _refreshService.CancelCurrentRebuild();
                 }
             };
         }
@@ -324,7 +324,7 @@ namespace PlayniteAchievements
 
             foreach (var game in targets)
             {
-                _achievementService.SetExcludedFromSummaries(game.Id, true);
+                _achievementOverridesService.SetExcludedFromSummaries(game.Id, true);
             }
         }
 
@@ -359,7 +359,7 @@ namespace PlayniteAchievements
 
             foreach (var game in targets)
             {
-                _achievementService.SetExcludedByUser(
+                _achievementOverridesService.SetExcludedByUser(
                     game.Id,
                     excluded: true,
                     clearCachedDataWhenExcluding: clearDataWhenExcluding);
@@ -372,7 +372,7 @@ namespace PlayniteAchievements
             foreach (var game in targets)
             {
                 var isExcluded = IsGameExcludedFromSummaries(game.Id);
-                _achievementService.SetExcludedFromSummaries(game.Id, !isExcluded);
+                _achievementOverridesService.SetExcludedFromSummaries(game.Id, !isExcluded);
             }
         }
 
@@ -384,7 +384,7 @@ namespace PlayniteAchievements
                 var isExcluded = IsGameExcluded(game.Id);
                 if (isExcluded)
                 {
-                    _achievementService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
+                    _achievementOverridesService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
                 }
                 else
                 {
@@ -398,7 +398,7 @@ namespace PlayniteAchievements
                             MessageBoxImage.Warning) ?? MessageBoxResult.None;
                         if (result != MessageBoxResult.Yes) continue;
                     }
-                    _achievementService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: clearDataWhenExcluding);
+                    _achievementOverridesService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: clearDataWhenExcluding);
                 }
             }
         }
@@ -415,7 +415,7 @@ namespace PlayniteAchievements
                 var isExcluded = IsGameExcluded(game.Id);
                 if (isExcluded)
                 {
-                    _achievementService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
+                    _achievementOverridesService.SetExcludedByUser(game.Id, false, clearCachedDataWhenExcluding: false);
                     gameIdsToRefresh.Add(game.Id);
                 }
                 else
@@ -440,7 +440,7 @@ namespace PlayniteAchievements
                 {
                     foreach (var game in gamesToExclude)
                     {
-                        _achievementService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: true);
+                        _achievementOverridesService.SetExcludedByUser(game.Id, true, clearCachedDataWhenExcluding: true);
                     }
                 }
             }
@@ -485,7 +485,7 @@ namespace PlayniteAchievements
 
             try
             {
-                _achievementService.RemoveGameCache(game.Id);
+                _cacheManager.RemoveGameCache(game.Id);
                 PlayniteApi?.Dialogs?.ShowMessage(
                     string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -532,7 +532,7 @@ namespace PlayniteAchievements
             {
                 try
                 {
-                    _achievementService.RemoveGameCache(game.Id);
+                    _cacheManager.RemoveGameCache(game.Id);
                     clearedCount++;
                 }
                 catch (Exception ex)
@@ -580,7 +580,7 @@ namespace PlayniteAchievements
                 }
             }
 
-            _achievementService.SetExcludedByUser(gameId, !isExcluded);
+            _achievementOverridesService.SetExcludedByUser(gameId, !isExcluded, clearCachedDataWhenExcluding: !isExcluded);
         }
 
         public override IEnumerable<MainMenuItem> GetMainMenuItems(GetMainMenuItemsArgs args)
@@ -676,7 +676,8 @@ namespace PlayniteAchievements
                     {
                         if (!CustomRefreshControl.TryShowDialog(
                             PlayniteApi,
-                            _achievementService,
+                            _refreshService,
+                            PersistSettingsForUi,
                             _settingsViewModel.Settings,
                             _logger,
                             out var customOptions))

@@ -5,6 +5,7 @@ using System.Threading;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 using Playnite.SDK;
@@ -13,13 +14,19 @@ namespace PlayniteAchievements.Services.Sidebar
 {
     public sealed class SidebarDataBuilder
     {
-        private readonly AchievementService _achievementService;
+        private readonly AchievementDataService _achievementDataService;
+        private readonly IReadOnlyList<IDataProvider> _providers;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
 
-        public SidebarDataBuilder(AchievementService achievementService, IPlayniteAPI playniteApi, ILogger logger)
+        public SidebarDataBuilder(
+            AchievementDataService achievementDataService,
+            IReadOnlyList<IDataProvider> providers,
+            IPlayniteAPI playniteApi,
+            ILogger logger)
         {
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _providers = providers ?? new List<IDataProvider>();
             _playniteApi = playniteApi;
             _logger = logger;
         }
@@ -59,7 +66,7 @@ namespace PlayniteAchievements.Services.Sidebar
             int totalUltraRarePossible = 0;
 
             var providerLookup = BuildProviderLookup();
-            var allGameData = _achievementService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
+            var allGameData = _achievementDataService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
             for (var i = 0; i < allGameData.Count; i++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -348,13 +355,12 @@ namespace PlayniteAchievements.Services.Sidebar
         private Dictionary<string, (string iconKey, string colorHex)> BuildProviderLookup()
         {
             var lookup = new Dictionary<string, (string iconKey, string colorHex)>(StringComparer.OrdinalIgnoreCase);
-            var providers = _achievementService?.GetProviders();
-            if (providers == null)
+            if (_providers == null)
             {
                 return lookup;
             }
 
-            foreach (var provider in providers)
+            foreach (var provider in _providers)
             {
                 if (provider == null || string.IsNullOrWhiteSpace(provider.ProviderKey))
                 {

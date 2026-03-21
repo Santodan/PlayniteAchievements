@@ -2695,7 +2695,7 @@ namespace PlayniteAchievements.Views
 
             if (importResult.ImportedGameIds.Count > 0)
             {
-                if (_plugin.AchievementService.IsRebuilding)
+                if (_plugin.RefreshRuntime.IsRebuilding)
                 {
                     autoRefreshSkipped = true;
                 }
@@ -2712,7 +2712,7 @@ namespace PlayniteAchievements.Views
                             ? (Guid?)refreshGameIds[0]
                             : null;
 
-                        await _plugin.RefreshCoordinator.ExecuteAsync(
+                        await _plugin.RefreshEntryPoint.ExecuteAsync(
                             new RefreshRequest
                             {
                                 GameIds = refreshGameIds
@@ -2737,7 +2737,7 @@ namespace PlayniteAchievements.Views
             var importer = new LegacyManualLinkImporter(
                 () => _settingsViewModel?.Settings?.Persisted,
                 gameId => _plugin.PlayniteApi?.Database?.Games?.Get(gameId) != null,
-                gameId => _plugin.AchievementService.GetRawGameAchievementData(gameId) != null,
+                gameId => _plugin.AchievementDataService.GetRawGameAchievementData(gameId) != null,
                 _logger);
 
             var result = importer.Import(folderPath) ?? new LegacyManualImportResult();
@@ -3051,8 +3051,8 @@ namespace PlayniteAchievements.Views
         {
             try
             {
-                _plugin.AchievementService.Cache.ClearCache();
-                var stillPresent = _plugin.AchievementService.Cache.CacheFileExists();
+                _plugin.RefreshRuntime.Cache.ClearCache();
+                var stillPresent = _plugin.RefreshRuntime.Cache.CacheFileExists();
                 
                 var (msg, img) = !stillPresent
                     ? (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_Wiped"), MessageBoxImage.Information)
@@ -3143,7 +3143,7 @@ namespace PlayniteAchievements.Views
             try
             {
                 var exportBaseDir = _plugin.GetPluginUserDataPath();
-                var cache = _plugin.AchievementService?.Cache;
+                var cache = _plugin.RefreshRuntime?.Cache;
 
                 if (cache == null)
                 {

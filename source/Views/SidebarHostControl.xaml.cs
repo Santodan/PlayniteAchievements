@@ -19,7 +19,8 @@ namespace PlayniteAchievements.Views
         private readonly Func<UserControl> _createView;
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _api;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
         private readonly PlayniteAchievementsPlugin _plugin;
 
         private SidebarControl _sidebar;
@@ -30,13 +31,15 @@ namespace PlayniteAchievements.Views
             Func<UserControl> createView,
             ILogger logger,
             IPlayniteAPI api,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
             PlayniteAchievementsPlugin plugin)
         {
             _createView = createView ?? throw new ArgumentNullException(nameof(createView));
             _logger = logger;
             _api = api ?? throw new ArgumentNullException(nameof(api));
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
 
             InitializeComponent();
@@ -166,7 +169,7 @@ namespace PlayniteAchievements.Views
 
                     var firstTimeCompleted = settings?.Persisted?.FirstTimeSetupCompleted ?? true;
                     var seenThemeMigration = settings?.Persisted?.SeenThemeMigration ?? false;
-                    var cachedIds = _achievementService.Cache.GetCachedGameIds();
+                    var cachedIds = _cacheManager.GetCachedGameIds();
                     var hasCachedData = cachedIds != null && cachedIds.Count > 0;
                     _logger.Info($"Sidebar opening: FirstTimeSetupCompleted={firstTimeCompleted}, SeenThemeMigration={seenThemeMigration}, HasCachedData={hasCachedData}, HasSteamAuth={!string.IsNullOrEmpty(settings?.Persisted?.SteamUserId)}, HasEpicAuth={!string.IsNullOrEmpty(settings?.Persisted?.EpicAccountId)}, HasRaAuth={!string.IsNullOrEmpty(settings?.Persisted?.RaUsername)}");
 
@@ -216,8 +219,9 @@ namespace PlayniteAchievements.Views
             _landingPage = new FirstTimeLandingPage(
                 _api,
                 _logger,
-                _achievementService,
-                _plugin.RefreshCoordinator,
+                _refreshService,
+                _cacheManager,
+                _plugin.RefreshEntryPoint,
                 settings,
                 _plugin,
                 _plugin.ProviderRegistry);
@@ -263,6 +267,7 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
 
 
 

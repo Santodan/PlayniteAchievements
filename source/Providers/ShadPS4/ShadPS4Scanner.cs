@@ -64,13 +64,13 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
             _logger?.Info($"[ShadPS4] Scanning {titleCache.Count} titles from game_data folder.");
 
-            return await RefreshPipeline.RunProviderGamesAsync(
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
                 {
                     var data = await FetchGameDataAsync(game, titleCache, token).ConfigureAwait(false);
-                    return new RefreshPipeline.ProviderGameResult
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
                     };
@@ -425,7 +425,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         /// <summary>
         /// Gets the trophy icon path from the ShadPS4 installation.
-        /// Icon caching is handled by DiskImageService via AchievementService.
+        /// Icon caching is handled by DiskImageService via RefreshRuntime.
         /// </summary>
         private string GetTrophyIconPath(string iconsFolder, string trophyId)
         {

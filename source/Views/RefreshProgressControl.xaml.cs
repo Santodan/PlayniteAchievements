@@ -12,20 +12,20 @@ namespace PlayniteAchievements.Views
     public partial class RefreshProgressControl : UserControl
     {
         private readonly RefreshProgressViewModel _viewModel;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
         private readonly ILogger _logger;
 
         public RefreshProgressControl(
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
             ILogger logger,
             Guid? singleGameRefreshId = null,
             Action<Guid> openSingleGameAction = null)
         {
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _logger = logger;
 
             _viewModel = new RefreshProgressViewModel(
-                achievementService,
+                refreshRuntime,
                 logger,
                 singleGameRefreshId,
                 openSingleGameAction);
@@ -35,8 +35,8 @@ namespace PlayniteAchievements.Views
 
             _viewModel.RequestClose += (s, e) => RequestClose?.Invoke(this, EventArgs.Empty);
 
-            _achievementService.RebuildProgress += OnRebuildProgress;
-            Unloaded += (s, e) => _achievementService.RebuildProgress -= OnRebuildProgress;
+            _refreshService.RebuildProgress += OnRebuildProgress;
+            Unloaded += (s, e) => _refreshService.RebuildProgress -= OnRebuildProgress;
         }
 
         public string WindowTitle => _viewModel.WindowTitle;
@@ -59,6 +59,7 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
 
 
 

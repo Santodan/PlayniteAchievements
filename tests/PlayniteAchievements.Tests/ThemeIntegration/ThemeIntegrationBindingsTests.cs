@@ -40,10 +40,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var state = SelectedGameRuntimeStateBuilder.Build(
                 gameId,
-                data,
-                ultraRareThreshold: 5,
-                rareThreshold: 10,
-                uncommonThreshold: 50);
+                data);
 
             AssertStat(state.Common, total: 1, unlocked: 1, locked: 0);
             AssertStat(state.Uncommon, total: 1, unlocked: 0, locked: 1);
@@ -174,10 +171,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var selected = SelectedGameRuntimeStateBuilder.Build(
                 gameId,
-                data,
-                ultraRareThreshold: 5,
-                rareThreshold: 10,
-                uncommonThreshold: 50);
+                data);
             var library = LibraryRuntimeStateBuilder.Build(
                 new List<GameAchievementData> { data },
                 api: null,
@@ -213,10 +207,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var selected = SelectedGameRuntimeStateBuilder.Build(
                 gameId,
-                data,
-                ultraRareThreshold: 5,
-                rareThreshold: 10,
-                uncommonThreshold: 50);
+                data);
             var library = LibraryRuntimeStateBuilder.Build(
                 new List<GameAchievementData> { data },
                 api: null,
@@ -239,11 +230,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             settings.Theme.RareAndUltraRare = new AchievementRarityStats { Total = 5, Unlocked = 3, Locked = 2 };
 
             var api = new FakePlayniteApi();
-            var achievementService = new AchievementService();
-            var refreshCoordinator = new RefreshCoordinator(achievementService, logger: null, providerRegistry: new ProviderRegistry());
+            var refreshRuntime = new RefreshRuntime();
+            var achievementDataService = new AchievementDataService();
+            var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null, providerRegistry: new ProviderRegistry());
             var windowService = new FullscreenWindowService(api, settings, _ => { });
             var logger = new FakeLogger();
-            using var service = new ThemeIntegrationService(api, achievementService, refreshCoordinator, settings, windowService, logger);
+            using var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
 
             var changedProperties = new HashSet<string>(StringComparer.Ordinal);
             settings.PropertyChanged += (_, args) =>

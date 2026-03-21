@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Providers.Epic
                 _settings.Persisted.ScanDelayMs,
                 _settings.Persisted.MaxRetryAttempts);
 
-            return await RefreshPipeline.RunProviderGamesAsync(
+            return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Providers.Epic
                     var gameId = game?.GameId?.Trim();
                     if (string.IsNullOrWhiteSpace(gameId))
                     {
-                        return RefreshPipeline.ProviderGameResult.Skipped();
+                        return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
 
                     var data = await rateLimiter.ExecuteWithRetryAsync(
@@ -72,7 +72,7 @@ namespace PlayniteAchievements.Providers.Epic
                         EpicApiClient.IsTransientError,
                         token).ConfigureAwait(false);
 
-                    return new RefreshPipeline.ProviderGameResult
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
                     };

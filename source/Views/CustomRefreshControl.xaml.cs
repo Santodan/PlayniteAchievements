@@ -100,7 +100,8 @@ namespace PlayniteAchievements.Views
         }
 
         private readonly IPlayniteAPI _api;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly Action _persistSettingsForUi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly Dictionary<string, IDataProvider> _providersByKey = new Dictionary<string, IDataProvider>(StringComparer.OrdinalIgnoreCase);
@@ -365,12 +366,14 @@ namespace PlayniteAchievements.Views
 
         public CustomRefreshControl(
             IPlayniteAPI api,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            Action persistSettingsForUi,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
 
@@ -402,14 +405,15 @@ namespace PlayniteAchievements.Views
 
         public static bool TryShowDialog(
             IPlayniteAPI api,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            Action persistSettingsForUi,
             PlayniteAchievementsSettings settings,
             ILogger logger,
             out CustomRefreshOptions options)
         {
             options = null;
 
-            var control = new CustomRefreshControl(api, achievementService, settings, logger);
+            var control = new CustomRefreshControl(api, refreshRuntime, persistSettingsForUi, settings, logger);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 ResourceProvider.GetString("LOCPlayAch_CustomRefresh_WindowTitle"),
                 control,
@@ -458,14 +462,14 @@ namespace PlayniteAchievements.Views
             var disabledText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Disabled", "Disabled");
             var noAuthText = L("LOCPlayAch_CustomRefresh_ProviderStatus_NoAuth", "Not authenticated");
 
-            foreach (var provider in _achievementService.GetProviders().OrderBy(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase))
+            foreach (var provider in _refreshService.GetProviders().OrderBy(provider => provider.ProviderName, StringComparer.OrdinalIgnoreCase))
             {
                 if (provider == null)
                 {
                     continue;
                 }
 
-                var isEnabled = _achievementService.ProviderRegistry.IsProviderEnabled(provider.ProviderKey);
+                var isEnabled = _refreshService.ProviderRegistry.IsProviderEnabled(provider.ProviderKey);
                 var item = new ProviderOptionItem(
                     provider.ProviderKey,
                     provider.ProviderName,
@@ -563,7 +567,7 @@ namespace PlayniteAchievements.Views
                     PresetOptions.Where(preset => preset?.Options != null),
                     CustomRefreshPreset.MaxPresetCount);
                 _settings.Persisted.CustomRefreshPresets = new List<CustomRefreshPreset>(normalized);
-                _achievementService.PersistSettingsForUi();
+                _persistSettingsForUi();
             }
             catch (Exception ex)
             {
@@ -642,7 +646,7 @@ namespace PlayniteAchievements.Views
             try
             {
                 return new HashSet<string>(
-                    _achievementService?.Cache?.GetCachedGameIds() ?? new List<string>(),
+                    _refreshService?.Cache?.GetCachedGameIds() ?? new List<string>(),
                     StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception ex)
@@ -1204,3 +1208,4 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+

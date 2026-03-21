@@ -79,7 +79,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             _logger?.Info($"[RPCS3] Scanning {trophyFolderCache.Count} cached trophy folders.");
 
-            var payload = await RefreshPipeline.RunProviderGamesAsync(
+            var payload = await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 game =>
                 {
@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 async (game, token) =>
                 {
                     var data = await FetchGameDataAsync(game, trophyFolderCache, token).ConfigureAwait(false);
-                    return new RefreshPipeline.ProviderGameResult
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
                     };

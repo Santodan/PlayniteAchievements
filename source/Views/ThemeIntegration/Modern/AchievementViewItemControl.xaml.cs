@@ -141,16 +141,16 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 return;
             }
 
-            var service = Plugin?.AchievementService;
+            var service = Plugin?.RefreshRuntime;
             if (service == null)
             {
                 return;
             }
 
-            service.CacheInvalidated -= AchievementService_CacheInvalidated;
-            service.CacheInvalidated += AchievementService_CacheInvalidated;
-            service.GameCacheUpdated -= AchievementService_GameCacheUpdated;
-            service.GameCacheUpdated += AchievementService_GameCacheUpdated;
+            service.CacheInvalidated -= RefreshService_CacheInvalidated;
+            service.CacheInvalidated += RefreshService_CacheInvalidated;
+            service.GameCacheUpdated -= RefreshService_GameCacheUpdated;
+            service.GameCacheUpdated += RefreshService_GameCacheUpdated;
             _isCacheEventSubscribed = true;
         }
 
@@ -163,8 +163,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
             try
             {
-                Plugin?.AchievementService.CacheInvalidated -= AchievementService_CacheInvalidated;
-                Plugin?.AchievementService.GameCacheUpdated -= AchievementService_GameCacheUpdated;
+                Plugin?.RefreshRuntime.CacheInvalidated -= RefreshService_CacheInvalidated;
+                Plugin?.RefreshRuntime.GameCacheUpdated -= RefreshService_GameCacheUpdated;
             }
             catch
             {
@@ -173,7 +173,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _isCacheEventSubscribed = false;
         }
 
-        private void AchievementService_CacheInvalidated(object sender, EventArgs e)
+        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
         {
             // CacheInvalidated fires when any cache change occurs (throttled).
             // Always refresh this control since we don't know which game changed.
@@ -207,7 +207,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
         }
 
-        private void AchievementService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
+        private void RefreshService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
         {
             var updatedGameId = ParseUpdatedGameId(e);
             if (!updatedGameId.HasValue)
@@ -445,7 +445,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         private void UpdateForGame(Guid gameId)
         {
-            var gameData = Plugin?.AchievementService?.GetGameAchievementData(gameId);
+            var gameData = Plugin?.AchievementDataService?.GetGameAchievementData(gameId);
 
             if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
             {

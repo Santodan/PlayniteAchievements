@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.ThemeMigration;
 using PlayniteAchievements.Views.Helpers;
@@ -21,8 +22,9 @@ namespace PlayniteAchievements.Views
     public partial class FirstTimeLandingPage : IDisposable, INotifyPropertyChanged
     {
         private readonly ILogger _logger;
-        private readonly AchievementService _achievementService;
-        private readonly RefreshCoordinator _refreshCoordinator;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
+        private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly PlayniteAchievementsPlugin _plugin;
         private PlayniteAchievementsSettings _settings;
         private readonly ProviderRegistry _providerRegistry;
@@ -194,16 +196,18 @@ namespace PlayniteAchievements.Views
         public FirstTimeLandingPage(
             IPlayniteAPI api,
             ILogger logger,
-            AchievementService achievementService,
-            RefreshCoordinator refreshCoordinator,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             PlayniteAchievementsPlugin plugin,
             ProviderRegistry providerRegistry)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
-            _refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
+            _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
             _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
@@ -217,7 +221,7 @@ namespace PlayniteAchievements.Views
                 _settings,
                 () => _plugin.SavePluginSettings(_settings));
 
-            var modes = _achievementService.GetRefreshModes();
+            var modes = _refreshService.GetRefreshModes();
             RefreshModes = new ObservableCollection<RefreshMode>(
                 modes.Where(m =>
                     m.Type != RefreshModeType.LibrarySelected &&
@@ -245,7 +249,7 @@ namespace PlayniteAchievements.Views
             // Sync provider registry from the latest persisted settings
             _providerRegistry.SyncFromSettings(_settings.Persisted);
 
-            var providers = _achievementService.GetProviders();
+            var providers = _refreshService.GetProviders();
             _providers.Clear();
 
             foreach (var provider in providers)
@@ -270,10 +274,10 @@ namespace PlayniteAchievements.Views
         }
 
         /// <summary>
-        /// Gets whether any provider authentication is configured.
-        /// Delegates to AchievementService to check if any provider is authenticated.
+        /// Gets whether at least one enabled provider is authenticated.
+        /// Delegates the auth check to RefreshRuntime.
         /// </summary>
-        public bool HasAnyProviderAuth => _achievementService.HasAnyAuthenticatedProvider();
+        public bool HasAnyProviderAuth => _refreshService.HasAnyAuthenticatedProvider();
 
         /// <summary>
         /// Gets the settings for checking if setup is complete.
@@ -289,7 +293,7 @@ namespace PlayniteAchievements.Views
             {
                 try
                 {
-                    var cachedIds = _achievementService.Cache.GetCachedGameIds();
+                    var cachedIds = _cacheManager.GetCachedGameIds();
                     return cachedIds != null && cachedIds.Count > 0;
                 }
                 catch (Exception ex)
@@ -361,7 +365,8 @@ namespace PlayniteAchievements.Views
                 {
                     if (!CustomRefreshControl.TryShowDialog(
                         _api,
-                        _achievementService,
+                        _refreshService,
+                        () => _plugin?.PersistSettingsForUi(),
                         CurrentSettings,
                         _logger,
                         out var customOptions))
@@ -482,7 +487,7 @@ namespace PlayniteAchievements.Views
 
         private bool GetProviderAuthenticated(string providerKey)
         {
-            var providers = _achievementService.GetProviders();
+            var providers = _refreshService.GetProviders();
             var provider = providers.FirstOrDefault(p => p.ProviderKey == providerKey);
             return provider?.IsAuthenticated ?? false;
         }
@@ -897,6 +902,7 @@ namespace PlayniteAchievements.Views
         HasData
     }
 }
+
 
 
 

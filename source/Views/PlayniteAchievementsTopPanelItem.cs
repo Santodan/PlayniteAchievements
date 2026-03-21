@@ -14,15 +14,19 @@ namespace PlayniteAchievements.Views
         public PlayniteAchievementsTopPanelItem(
             IPlayniteAPI api,
             ILogger logger,
-            AchievementService achievementService,
-            RefreshCoordinator refreshCoordinator,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            System.Action persistSettingsForUi,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
+            RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings)
         {
             Icon = GetTrophyIcon();
             Title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
             Activated = () =>
             {
-                var view = new SidebarControl(api, logger, achievementService, refreshCoordinator, settings);
+                var view = new SidebarControl(api, logger, refreshRuntime, cacheManager, persistSettingsForUi, achievementOverridesService, achievementDataService, refreshEntryPoint, settings);
 
                 var windowOptions = new WindowOptions
                 {
@@ -65,3 +69,4 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+

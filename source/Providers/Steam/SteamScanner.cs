@@ -99,7 +99,7 @@ namespace PlayniteAchievements.Providers.Steam
                     _settings.Persisted.ScanDelayMs,
                     _settings.Persisted.MaxRetryAttempts);
 
-                return await RefreshPipeline.RunProviderGamesAsync(
+                return await ProviderRefreshExecutor.RunProviderGamesAsync(
                     gamesToRefresh,
                     onGameStarting,
                     async (game, token) =>
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Providers.Steam
                         if (!TryGetPlatformAppId(game, out var appId))
                         {
                             _logger?.Warn($"Skipping game without valid AppId: {game?.Name}");
-                            return RefreshPipeline.ProviderGameResult.Skipped();
+                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                         }
 
                         var data = await rateLimiter.ExecuteWithRetryAsync(
@@ -115,7 +115,7 @@ namespace PlayniteAchievements.Providers.Steam
                             IsTransientError,
                             token).ConfigureAwait(false);
 
-                        return new RefreshPipeline.ProviderGameResult
+                        return new ProviderRefreshExecutor.ProviderGameResult
                         {
                             Data = data
                         };

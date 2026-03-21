@@ -84,13 +84,13 @@ namespace PlayniteAchievements.Providers.PSN
                     http.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", acceptLanguage);
                 }
 
-                return await RefreshPipeline.RunProviderGamesAsync(
+                return await ProviderRefreshExecutor.RunProviderGamesAsync(
                     gamesToRefresh,
                     onGameStarting,
                     async (game, tokenCancel) =>
                     {
                         var data = await FetchGameDataAsync(http, game, tokenCancel).ConfigureAwait(false);
-                        return new RefreshPipeline.ProviderGameResult
+                        return new ProviderRefreshExecutor.ProviderGameResult
                         {
                             Data = data
                         };

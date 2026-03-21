@@ -107,7 +107,6 @@ namespace PlayniteAchievements.Models.Settings
             target.GamesOverviewColumnWidths = source.GamesOverviewColumnWidths != null
                 ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            target.PointsColumnAutoEnabled = source.PointsColumnAutoEnabled;
             target.ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
                 ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
                 : new HashSet<Guid>();
@@ -228,7 +227,6 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewColumnWidths = source.GamesOverviewColumnWidths != null
                     ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
-                PointsColumnAutoEnabled = source.PointsColumnAutoEnabled,
                 ExcludedFromSummariesGameIds = source.ExcludedFromSummariesGameIds != null
                     ? new HashSet<Guid>(source.ExcludedFromSummariesGameIds)
                     : new HashSet<Guid>(),

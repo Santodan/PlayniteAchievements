@@ -14,7 +14,8 @@ namespace PlayniteAchievements.ViewModels
     public sealed class CapstoneViewModel : ObservableObject
     {
         private readonly Guid _gameId;
-        private readonly AchievementService _achievementService;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -25,13 +26,15 @@ namespace PlayniteAchievements.ViewModels
 
         public CapstoneViewModel(
             Guid gameId,
-            AchievementService achievementService,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
         {
             _gameId = gameId;
-            _achievementService = achievementService ?? throw new ArgumentNullException(nameof(achievementService));
+            _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings;
@@ -93,7 +96,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var result = _achievementService.SetCapstone(_gameId, item.ApiName);
+            var result = _achievementOverridesService.SetCapstone(_gameId, item.ApiName);
             if (!result.Success)
             {
                 ShowError(ResolveErrorMessage(result));
@@ -106,7 +109,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void ClearMarker()
         {
-            var result = _achievementService.SetCapstone(_gameId, null);
+            var result = _achievementOverridesService.SetCapstone(_gameId, null);
             if (!result.Success)
             {
                 ShowError(ResolveErrorMessage(result));
@@ -202,7 +205,7 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
 
-                var gameData = _achievementService.GetGameAchievementData(_gameId);
+                var gameData = _achievementDataService.GetGameAchievementData(_gameId);
                 var achievements = gameData?.Achievements ?? new List<AchievementDetail>();
                 var projectionOptions = AchievementProjectionService.CreateOptions(_settings, gameData);
 

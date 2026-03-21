@@ -23,7 +23,11 @@ namespace PlayniteAchievements.Services.UI
     {
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
-        private readonly AchievementService _achievementService;
+        private readonly RefreshRuntime _refreshService;
+        private readonly ICacheManager _cacheManager;
+        private readonly Action _persistSettingsForUi;
+        private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly AchievementDataService _achievementDataService;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ManualAchievementsProvider _manualProvider;
         private readonly Action _ensureAchievementResourcesLoaded;
@@ -31,14 +35,22 @@ namespace PlayniteAchievements.Services.UI
         public PluginWindowService(
             IPlayniteAPI api,
             ILogger logger,
-            AchievementService achievementService,
+            RefreshRuntime refreshRuntime,
+            ICacheManager cacheManager,
+            Action persistSettingsForUi,
+            AchievementOverridesService achievementOverridesService,
+            AchievementDataService achievementDataService,
             PlayniteAchievementsSettings settings,
             ManualAchievementsProvider manualProvider,
             Action ensureAchievementResourcesLoaded)
         {
             _api = api;
             _logger = logger;
-            _achievementService = achievementService;
+            _refreshService = refreshRuntime;
+            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
+            _achievementOverridesService = achievementOverridesService;
+            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _settings = settings;
             _manualProvider = manualProvider;
             _ensureAchievementResourcesLoaded = ensureAchievementResourcesLoaded;
@@ -57,13 +69,13 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
-                if (validateCanStart && !_achievementService.ValidateCanStartRefresh())
+                if (validateCanStart && !_refreshService.ValidateCanStartRefresh())
                 {
                     return;
                 }
 
                 var progressWindow = new RefreshProgressControl(
-                    _achievementService,
+                    _refreshService,
                     _logger,
                     singleGameRefreshId,
                     openSingleGameAchievementsView);
@@ -99,10 +111,10 @@ namespace PlayniteAchievements.Services.UI
 
                 window.Closed += (s, ev) =>
                 {
-                    if (_achievementService.IsRebuilding)
+                    if (_refreshService.IsRebuilding)
                     {
                         _logger?.Info("Progress window closed while refresh running - cancelling refresh.");
-                        _achievementService.CancelCurrentRebuild();
+                        _refreshService.CancelCurrentRebuild();
                     }
                 };
 
@@ -162,7 +174,8 @@ namespace PlayniteAchievements.Services.UI
             {
                 var view = new SingleGameControl(
                     gameId,
-                    _achievementService,
+                    _refreshService,
+                    _achievementDataService,
                     _api,
                     _logger,
                     _settings);
@@ -306,7 +319,11 @@ namespace PlayniteAchievements.Services.UI
                 var view = new GameOptionsControl(
                     gameId,
                     initialTab,
-                    _achievementService,
+                    _refreshService,
+                    _cacheManager,
+                    _persistSettingsForUi,
+                    _achievementOverridesService,
+                    _achievementDataService,
                     _api,
                     _logger,
                     _settings,
@@ -482,3 +499,4 @@ namespace PlayniteAchievements.Services.UI
         }
     }
 }
+

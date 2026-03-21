@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace PlayniteAchievements.Services.Tests
 {
     [TestClass]
-    public class RefreshCoordinatorTests
+    public class RefreshEntryPointTests
     {
         [TestMethod]
         public async Task ExecuteAsync_UsesExplicitGameIdsBeforeModes()
@@ -138,7 +138,7 @@ namespace PlayniteAchievements.Services.Tests
             Guid? capturedSingleGameId = null;
             var callbackCount = 0;
             var singleGameId = Guid.NewGuid();
-            var coordinator = new RefreshCoordinator(
+            var coordinator = new RefreshEntryPoint(
                 manager,
                 logger: null,
                 providerRegistry: new ProviderRegistry(),
@@ -168,12 +168,12 @@ namespace PlayniteAchievements.Services.Tests
             Assert.AreEqual(singleGameId, manager.LastRequest.SingleGameId);
         }
 
-        private static RefreshCoordinator CreateCoordinator(AchievementService manager)
+        private static RefreshEntryPoint CreateCoordinator(RefreshRuntime manager)
         {
-            return new RefreshCoordinator(manager, logger: null, providerRegistry: new ProviderRegistry());
+            return new RefreshEntryPoint(manager, logger: null, providerRegistry: new ProviderRegistry());
         }
 
-        private sealed class FakeAchievementService : AchievementService
+        private sealed class FakeAchievementService : RefreshRuntime
         {
             public bool ValidateResult { get; set; } = true;
 
