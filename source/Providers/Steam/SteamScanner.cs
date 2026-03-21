@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly SteamSettings _providerSettings;
         private readonly SteamHttpClient _steamClient;
         private readonly SteamSessionManager _sessionManager;
         private readonly SteamApiClient _steamApiClient;
@@ -42,6 +43,7 @@ namespace PlayniteAchievements.Providers.Steam
 
         public SteamScanner(
             PlayniteAchievementsSettings settings,
+            SteamSettings providerSettings,
             SteamHttpClient steamClient,
             SteamSessionManager sessionManager,
             SteamApiClient steamApiClient,
@@ -49,6 +51,7 @@ namespace PlayniteAchievements.Providers.Steam
             ILogger logger)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _steamClient = steamClient ?? throw new ArgumentNullException(nameof(steamClient));
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _steamApiClient = steamApiClient ?? throw new ArgumentNullException(nameof(steamApiClient));
@@ -66,7 +69,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             try
             {
-                if (string.IsNullOrWhiteSpace(_settings.Persisted.SteamUserId) || string.IsNullOrWhiteSpace(_settings.Persisted.SteamApiKey))
+                if (string.IsNullOrWhiteSpace(_providerSettings.SteamUserId) || string.IsNullOrWhiteSpace(_providerSettings.SteamApiKey))
                 {
                     _logger?.Warn("[SteamAch] Missing Steam credentials - cannot scan achievements.");
                     return new RebuildPayload { Summary = new RebuildSummary() };
@@ -91,7 +94,7 @@ namespace PlayniteAchievements.Providers.Steam
                     return new RebuildPayload { Summary = new RebuildSummary() };
                 }
 
-                var playtimes = await GetPlaytimesAsync(_settings.Persisted.SteamUserId.Trim(), cancel).ConfigureAwait(false)
+                var playtimes = await GetPlaytimesAsync(_providerSettings.SteamUserId.Trim(), cancel).ConfigureAwait(false)
                     ?? new Dictionary<int, int>();
 
                 // Create rate limiter with exponential backoff
@@ -225,7 +228,7 @@ namespace PlayniteAchievements.Providers.Steam
             if (string.IsNullOrWhiteSpace(resolved))
                 return new Dictionary<int, int>();
 
-            var apiKey = _settings.Persisted.SteamApiKey?.Trim();
+            var apiKey = _providerSettings.SteamApiKey?.Trim();
             if (string.IsNullOrWhiteSpace(apiKey))
                 return new Dictionary<int, int>();
 
@@ -333,7 +336,7 @@ namespace PlayniteAchievements.Providers.Steam
         {
             var language = string.IsNullOrWhiteSpace(_settings.Persisted.GlobalLanguage) ? "english" : _settings.Persisted.GlobalLanguage.Trim();
             return _steamApiClient.GetSchemaForGameDetailedAsync(
-                _settings.Persisted.SteamApiKey.Trim(),
+                _providerSettings.SteamApiKey.Trim(),
                 appId,
                 language,
                 cancel);
@@ -346,7 +349,7 @@ namespace PlayniteAchievements.Providers.Steam
             SchemaAndPercentages schema,
             CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(_settings.Persisted.SteamUserId) || string.IsNullOrWhiteSpace(_settings.Persisted.SteamApiKey))
+            if (string.IsNullOrWhiteSpace(_providerSettings.SteamUserId) || string.IsNullOrWhiteSpace(_providerSettings.SteamApiKey))
                 return new UserUnlockedAchievements();
 
             var playtimeMinutes = 0;
@@ -373,7 +376,7 @@ namespace PlayniteAchievements.Providers.Steam
             AchievementsScrapeResponse scraped = null;
             try
             {
-                scraped = await ScrapeAchievementsAsync(_settings.Persisted.SteamUserId.Trim(), appId, cancel, includeLocked: true, gameName: gameName)
+                scraped = await ScrapeAchievementsAsync(_providerSettings.SteamUserId.Trim(), appId, cancel, includeLocked: true, gameName: gameName)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) { throw; }
@@ -768,7 +771,7 @@ namespace PlayniteAchievements.Providers.Steam
             if (res == null || appId <= 0) return;
             if (!res.StatsUnavailable) return;
 
-            var apiKey = _settings.Persisted.SteamApiKey?.Trim();
+            var apiKey = _providerSettings.SteamApiKey?.Trim();
             if (string.IsNullOrWhiteSpace(apiKey)) return;
 
             bool? has;
