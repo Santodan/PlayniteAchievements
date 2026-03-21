@@ -3,18 +3,17 @@ using PlayniteAchievements.Providers.Xenia.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
     internal class GPDResolver
     {
-        private readonly string _pluginUserDataPath;
         byte[] gpdFile;
         Int32 gpdIndex;
 
-        public GPDResolver(string pluginUserDataPath)
+        public GPDResolver()
         {
-            _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
         }
 
         UInt16 ReverseEndianness(UInt16 value)
@@ -53,8 +52,10 @@ namespace PlayniteAchievements.Providers.Xenia
             return ReverseEndianness(BitConverter.ToUInt64(gpdFile, gpdIndex - 8));
         }
 
-        public List<AchievementDetail> LoadGPD(Guid gameID, string xeniaAccountPath, string TitleID)
+        public GPDFile LoadGPD(string path)
         {
+            GPDFile file = new GPDFile(); 
+
             Int32 freeIndex;
             UInt32 dataIndex;
 
@@ -62,7 +63,7 @@ namespace PlayniteAchievements.Providers.Xenia
             List<XdbfEntry> entries = new List<XdbfEntry>();
             List<XdbfFileEntry> freeEntries = new List<XdbfFileEntry>();
 
-            gpdFile = File.ReadAllBytes($"{xeniaAccountPath}\\{TitleID}.gpd");
+            gpdFile = File.ReadAllBytes(path);
             gpdIndex = 0;
 
             header = new XdbfHeader();
@@ -105,92 +106,100 @@ namespace PlayniteAchievements.Providers.Xenia
                 freeEntries.Add(entry);
             }
 
-            List<XdbfAchievement> xdbfAchievements = new List<XdbfAchievement>();
-            List<AchievementDetail> achievements = new List<AchievementDetail>();
-            var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{gameID}\\";
-
-            Directory.CreateDirectory(iconDirectory);
-
             foreach (var entry in entries)
             {
-                if (entry.section == 2)
+                var index = 0;
+
+                switch (entry.section)
                 {
-                    using (var fs = new FileStream($"{iconDirectory}{entry.id}.png", FileMode.Create, FileAccess.Write))
-                    {
-                        fs.Write(entry.data, 0, (Int32)entry.size);
-                    }
-                }
+                    case 1: // Achievement Data
 
-                if (entry.section == 1)
-                {
-                    var cheevoindex = 0;
+                        XdbfAchievement achievement = new XdbfAchievement();
+                        achievement.magic = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        achievement.id = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        achievement.icon_id = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        achievement.gamerscore = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        achievement.flags = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        achievement.unlock_time = ReverseEndianness(BitConverter.ToUInt64(entry.data, index));
+                        index += 8;
 
-                    XdbfAchievement achievement = new XdbfAchievement();
-                    achievement.magic = ReverseEndianness(BitConverter.ToUInt32(entry.data, cheevoindex));
-                    cheevoindex += 4;
-                    achievement.id = ReverseEndianness(BitConverter.ToUInt32(entry.data, cheevoindex));
-                    cheevoindex += 4;
-                    achievement.icon_id = ReverseEndianness(BitConverter.ToUInt32(entry.data, cheevoindex));
-                    cheevoindex += 4;
-                    achievement.gamerscore = ReverseEndianness(BitConverter.ToUInt32(entry.data, cheevoindex));
-                    cheevoindex += 4;
-                    achievement.flags = ReverseEndianness(BitConverter.ToUInt32(entry.data, cheevoindex));
-                    cheevoindex += 4;
-                    achievement.unlock_time = ReverseEndianness(BitConverter.ToUInt64(entry.data, cheevoindex));
-                    cheevoindex += 8;
+                        while (BitConverter.ToUInt16(entry.data, index) != 0)
+                        {
+                            achievement.title += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, index))).ToString();
+                            index += 2;
+                        }
+                        index += 2;
 
-                    while (BitConverter.ToUInt16(entry.data, cheevoindex) != 0)
-                    {
-                        achievement.title += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, cheevoindex))).ToString();
-                        cheevoindex += 2;
-                    }
-                    cheevoindex += 2;
+                        while (BitConverter.ToUInt16(entry.data, index) != 0)
+                        {
+                            achievement.unlockDescription += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, index))).ToString();
+                            index += 2;
+                        }
+                        index += 2;
 
-                    while (BitConverter.ToUInt16(entry.data, cheevoindex) != 0)
-                    {
-                        achievement.unlockDescription += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, cheevoindex))).ToString();
-                        cheevoindex += 2;
-                    }
-                    cheevoindex += 2;
+                        while (BitConverter.ToUInt16(entry.data, index) != 0)
+                        {
+                            achievement.description += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, index))).ToString();
+                            index += 2;
+                        }
+                        file.Achievements.Add(achievement);
+                        break;
 
-                    while (BitConverter.ToUInt16(entry.data, cheevoindex) != 0)
-                    {
-                        achievement.description += ((char)ReverseEndianness(BitConverter.ToUInt16(entry.data, cheevoindex))).ToString();
-                        cheevoindex += 2;
-                    }
+                    case 2: // Icon data
 
-                    xdbfAchievements.Add(achievement);
+                        file.IconData.Add(new KeyValuePair<Int32, byte[]>((Int32)entry.id, entry.data));
+                        break;
 
+                    case 3: // Settings data
+                        file.Settings.contentID = BitConverter.GetBytes(ReverseEndianness(BitConverter.ToUInt64(entry.data, index)));
+                        index += 8;
+                        file.Settings.settingID = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        file.Settings.data = new byte[entry.data.Length - index];
+                        Array.Copy(entry.data, index, file.Settings.data, 0, entry.data.Length - index);
+                        break;
+
+                    case 4: // Title data
+                        XdbfTitle title = new XdbfTitle();
+                        title.id = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.achievement_count = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.achievement_unlocked_count = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.gamerscore_total = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.gamerscore_unlocked = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.unknown1 = (Int64)ReverseEndianness(BitConverter.ToUInt64(entry.data, index));
+                        index += 8;
+                        title.unknown2 = (Int32)ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
+                        index += 4;
+                        title.last_played = (Int64)ReverseEndianness(BitConverter.ToUInt64(entry.data, index));
+                        index += 8;
+
+                        title.title = Encoding.UTF8.GetString(entry.data, index, entry.data.Length - index);
+                        file.Titles.Add(title);
+                        break;
+
+                    case 5: // String data
+                        file.StringData = Encoding.UTF8.GetString(entry.data);
+                        break;
+
+                    case 6: // Achievement security
+                        break;
+
+                    default:
+                        break;
                 }
             }
 
-            // Moved achievement creation outside of xbdf achievement processing so user doesn't have to scan twice to get 
-            // icon images to appear as the png data is usually after the achievement data in the gpd file so the icon is
-            // always set to null on the first scan
-            foreach (var achievement in xdbfAchievements)
-            {
-                var iconPath = $"{iconDirectory}{achievement.icon_id}.png";
-                if (!File.Exists(iconPath))
-                {
-                    iconPath = null;
-                }
-
-                achievements.Add(new AchievementDetail
-                {
-                    ApiName = achievement.id.ToString(),
-                    DisplayName = achievement.title,
-                    Description = achievement.unlock_time == 0 ? achievement.description : achievement.unlockDescription,
-                    UnlockedIconPath = iconPath,
-                    LockedIconPath = iconPath,
-                    Points = (int?)achievement.gamerscore,
-                    Unlocked = achievement.unlock_time != 0,
-                    UnlockTimeUtc = achievement.unlock_time != 0
-                        ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
-                        : (DateTime?)null,
-                });
-            }
-
-            return achievements;
+            return file;
         }
     }
 }

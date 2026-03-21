@@ -4,7 +4,9 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Xenia.Models;
 using PlayniteAchievements.Services;
+using SharpCompress.Common;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,7 +27,7 @@ namespace PlayniteAchievements.Providers.Xenia
         private readonly string _accountFolderPath;
 
         List<KeyValuePair<Guid, string>> _titleIDCache = new List<KeyValuePair<Guid, string>>();
-        List<string> KnownPublishers = new List<string>() { "5444", "464F", "4143", "4156", "4158", "4142", "4144", "4150", "4151", "4157", "414B", "4148", "4153", "4159", "4154", "424D", "4241", "4257", "4253", "4242", "4248", "4246", "4245", "4247", "4254", "4244", "4252", "4256", "4255", "4343", "434D", "4356", "4354", "4458", "4445", "4443", "4546", "4553", "4541", "454D", "4543", "454C", "4556", "464C", "4649", "4653", "4746", "4745", "4756", "4857", "4850", "4845", "4855", "4946", "494F", "494D", "4947", "494C", "4950", "4958", "4A41", "4A57", "4B59", "4B4F", "4B4E", "4B41", "4B54", "4C41", "4D4A", "4D45", "4D44", "4D53", "4D57", "4D4D", "4E4D", "4E4B", "4E4C", "4F47", "4F58", "5058", "504C", "5043", "5241", "5341", "5343", "5345", "5353", "534E", "5350", "5351", "5354", "5355", "5357", "5441", "5454", "544B", "544D", "5443", "5451", "5453", "5553", "5647", "5656", "5643", "5655", "5745", "5752", "584B", "584C", "5841", "5849", "5850", "5942", "5A44", "4450" };
+        List<string> KnownPublishers = new List<string>() { "5444", "464F", "4143", "4156", "4158", "4142", "4144", "4150", "4151", "4157", "414B", "4148", "4153", "4159", "4154", "424D", "4241", "4257", "4253", "4242", "4248", "4246", "4245", "4247", "4254", "4244", "4252", "4256", "4255", "4343", "434D", "4356", "4354", "4458", "4445", "4443", "4546", "4553", "4541", "454D", "4543", "454C", "4556", "464C", "4649", "4653", "4746", "4745", "4756", "4857", "4850", "4845", "4855", "4946", "494F", "494D", "4947", "494C", "4950", "4958", "4A41", "4A57", "4B59", "4B4F", "4B4E", "4B41", "4B54", "4C41", "4D4A", "4D45", "4D44", "4D53", "4D57", "4D4D", "4E4D", "4E4B", "4E4C", "4F47", "4F58", "5058", "504C", "5043", "5241", "5341", "5343", "5345", "5353", "534E", "5350", "5351", "5354", "5355", "5357", "5441", "5454", "544B", "544D", "5443", "5451", "5453", "5553", "5647", "5656", "5643", "5655", "5745", "5752", "584B", "584C", "5841", "5849", "5850", "5942", "5A44", "4450", "394F", "4C53", "4656", "3734", "4133", "545A", "435A", "4346", "4D4B", "434E", "4436", "5A45", "4645" };
 
         public XeniaScanner(
             ILogger logger,
@@ -99,11 +101,13 @@ namespace PlayniteAchievements.Providers.Xenia
             if (!game.IsInstalled)
             {
                 _logger.Warn("[Xenia] Game isn't installed unable to resolve titleID!");
+                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] Game isn't installed unable to resolve titleID!", NotificationType.Error));
                 return null;
             }
 
             if (!ResolveTitleID(game, out var titleID))
             {
+                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] TitleID not found for {game.Name}! Has the game been launched?", NotificationType.Error));
                 return null;
             }
 
@@ -111,7 +115,8 @@ namespace PlayniteAchievements.Providers.Xenia
 
             if (!File.Exists($"{_accountFolderPath}\\{titleID}.gpd"))
             {
-                _logger.Warn($"[Xenia] {titleID}.gpd file not found for {game.Name}! Has the game been launched?");
+                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] {titleID}.gpd file not found for {game.Name}! Has the game been launched?", NotificationType.Info));
+                _logger.Warn($"[Xenia] {titleID}.gpd file in {_accountFolderPath} not found for {game.Name}!");
                 data = new GameAchievementData
                 {
                     AppId = int.Parse(titleID, System.Globalization.NumberStyles.HexNumber),
@@ -125,8 +130,45 @@ namespace PlayniteAchievements.Providers.Xenia
             }
             else
             {
-                GPDResolver resolver = new GPDResolver(_pluginUserDataPath);
-                var achievements = resolver.LoadGPD(game.Id, _accountFolderPath, titleID);
+                GPDResolver resolver = new GPDResolver();
+                var gpdpath = $"{_accountFolderPath}\\{titleID}.gpd";
+                var gpdFile = resolver.LoadGPD(gpdpath);
+
+                // Write icon data to icon cache
+                var iconDirectory = $"{_pluginUserDataPath}\\icon_cache\\{game.Id}\\";
+                Directory.CreateDirectory(iconDirectory);
+                foreach (var icon in gpdFile.IconData)
+                {
+                    using (var fs = new FileStream($"{iconDirectory}{icon.Key}.png", FileMode.Create, FileAccess.Write))
+                    {
+                        fs.Write(icon.Value, 0, icon.Value.Length);
+                    }
+                }
+
+                List<AchievementDetail> achievements = new List<AchievementDetail>();
+                foreach (var achievement in gpdFile.Achievements)
+                {
+                    var iconPath = $"{iconDirectory}{achievement.icon_id}.png";
+                    if (!File.Exists(iconPath))
+                    {
+                        iconPath = null;
+                    }
+
+                    achievements.Add(new AchievementDetail
+                    {
+                        ApiName = achievement.id.ToString(),
+                        DisplayName = achievement.title,
+                        Description = achievement.unlock_time == 0 ? achievement.description : achievement.unlockDescription,
+                        UnlockedIconPath = iconPath,
+                        LockedIconPath = iconPath,
+                        Points = (int?)achievement.gamerscore,
+                        Unlocked = achievement.unlock_time != 0,
+                        UnlockTimeUtc = achievement.unlock_time != 0
+                            ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
+                            : (DateTime?)null,
+                    });
+                }
+
                 data = new GameAchievementData
                 {
                     AppId = int.Parse(titleID, System.Globalization.NumberStyles.HexNumber),
@@ -165,6 +207,78 @@ namespace PlayniteAchievements.Providers.Xenia
                 return true;
             }
 
+            // Try to find game in recent.toml
+            foreach (var rom in game.Roms)
+            {
+                var path = PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+
+                path = path.Replace("\\\\", "\\").Trim('"');
+
+                var xeniapath = _accountFolderPath + "\\..\\..\\..\\..\\..\\";
+                if (File.Exists($"{xeniapath}recent.toml"))
+                {
+                    bool foundROM = false;
+                    string ROMTitle = "";
+
+                    // Read all lines in toml file
+                    foreach (string line in File.ReadLines($"{xeniapath}recent.toml"))
+                    {
+                        if (foundROM)
+                        {
+                            var quoteMarks = line.IndexOf('"');
+                            if (quoteMarks == -1)
+                            {
+                                quoteMarks = line.IndexOf('\'');
+                            }
+
+                            if (quoteMarks >= 0)
+                            {
+                                quoteMarks++;
+
+                                ROMTitle = line.Substring(quoteMarks, (line.Length - quoteMarks) - 1);
+                                break;
+                            }
+                        }
+
+                        if (line.StartsWith("path", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var linepath = line.Replace("\\\\", "\\");
+                            if (linepath.Contains(path))
+                            {
+                                foundROM = true;
+                                continue;
+                            }
+                        }
+                    }
+
+                    if (foundROM)
+                    {
+                        // Read all gpd files
+                        foreach (var gpdFilePath in Directory.EnumerateFiles(_accountFolderPath, "*.gpd"))
+                        {
+                            // Skip base account data
+                            if (gpdFilePath.EndsWith("FFFE07D1.gpd"))
+                                continue;
+
+                            var gpdfile = new GPDResolver().LoadGPD(gpdFilePath);
+                            var gameName = gpdfile.StringData.Replace("\0", "");
+
+                            if (gameName.Contains(ROMTitle))
+                            {
+                                titleID = Path.GetFileNameWithoutExtension(gpdFilePath);
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+            }
+
+            // Try to find TitleID in file
             int exeAreaSize = 300;
             foreach (var rom in game.Roms)
             {

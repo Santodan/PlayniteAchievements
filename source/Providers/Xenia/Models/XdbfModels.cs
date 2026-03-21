@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace PlayniteAchievements.Providers.Xenia.Models
 {
@@ -41,4 +42,41 @@ namespace PlayniteAchievements.Providers.Xenia.Models
 
         public UInt32 icon_id;
     }
+    struct XdbfTitle
+    {
+        public UInt32 id;
+        public Int32 achievement_count;
+        public Int32 achievement_unlocked_count;
+        public Int32 gamerscore_total;
+        public Int32 gamerscore_unlocked;
+        public Int64 unknown1;
+        public Int32 unknown2;
+        public Int64 last_played;
+        public string title;
+    }
+    struct XdbfSettings
+    {
+        public byte[] contentID; // 8 bytes
+        public Int32 settingID;
+        public byte[] data;
+    }
+
+    struct GPDFile
+    {
+        public GPDFile()
+        {
+            Achievements = new List<XdbfAchievement>();
+            IconData = new List<KeyValuePair<int, byte[]>>();
+            Settings = new XdbfSettings();
+            Titles = new List<XdbfTitle>();
+            StringData = "";
+        }
+
+        public List<XdbfAchievement> Achievements;
+        public List<KeyValuePair<int, byte[]>> IconData;
+        public XdbfSettings Settings;
+        public List<XdbfTitle> Titles;
+        public string StringData;
+    }
+
 }
