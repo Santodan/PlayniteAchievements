@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Providers.Manual
     /// Data provider for manually linked achievements.
     /// Implements IDataProvider to integrate with the achievement refresh system.
     /// </summary>
-    internal sealed class ManualAchievementsProvider : IDataProvider
+    public sealed class ManualAchievementsProvider : IDataProvider
     {
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;

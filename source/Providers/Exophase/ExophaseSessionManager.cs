@@ -116,9 +116,9 @@ namespace PlayniteAchievements.Providers.Exophase
                     allowSnapshotRestore: true).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(extractedUsername))
                 {
-                    var exophaseSettings = GetProviderSettings();
-                    exophaseSettings.UserId = extractedUsername;
-                    SaveProviderSettings(exophaseSettings);
+                    var settings = GetProviderSettings();
+                    settings.UserId = extractedUsername;
+                    SaveProviderSettings(settings);
 
                     return ExophaseAuthResult.Create(
                         ExophaseAuthOutcome.AlreadyAuthenticated,

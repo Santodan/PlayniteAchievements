@@ -15,6 +15,7 @@ using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
@@ -759,33 +760,6 @@ namespace PlayniteAchievements.Views
             if (ThemeMigrationPresetButtons != null && ThemeMigrationCustomExpander != null)
             {
                 ThemeMigrationPresetButtons.IsEnabled = !ThemeMigrationCustomExpander.IsExpanded;
-            }
-        }
-
-        // -----------------------------
-        // Cache actions
-        // -----------------------------
-
-        private void WipeCache_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                _plugin.RefreshRuntime.Cache.ClearCache();
-                var stillPresent = _plugin.RefreshRuntime.Cache.CacheFileExists();
-
-                var (msg, img) = !stillPresent
-                    ? (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_Wiped"), MessageBoxImage.Information)
-                    : (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_WipeFailed"), MessageBoxImage.Error);
-
-                _plugin.PlayniteApi.Dialogs.ShowMessage(msg, ResourceProvider.GetString("LOCPlayAch_Title_PluginName"), MessageBoxButton.OK, img);
-            }
-            catch (Exception ex)
-            {
-                _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_Cache_WipeFailedWithError", "Failed to wipe cache: {0}", ex.Message),
-                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
             }
         }
 
