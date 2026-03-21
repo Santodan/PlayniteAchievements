@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using PlayniteAchievements.Models;
 #if !TEST
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Epic;
 using PlayniteAchievements.Providers.GOG;
@@ -302,10 +303,13 @@ namespace PlayniteAchievements.Models.Settings
                 };
                 settings.ProviderSettings["RetroAchievements"] = retro.SerializeToJson();
 
-                // Exophase
+                // Exophase - migrate collection properties too
                 var exophase = new ExophaseSettings
                 {
-                    IsEnabled = settings.ExophaseEnabled
+                    IsEnabled = settings.ExophaseEnabled,
+                    ManagedProviders = settings.ExophaseManagedProviders ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                    IncludedGames = settings.ExophaseIncludedGames ?? new HashSet<Guid>(),
+                    SlugOverrides = settings.ExophaseSlugOverrides ?? new Dictionary<Guid, string>()
                 };
                 settings.ProviderSettings["Exophase"] = exophase.SerializeToJson();
 
@@ -333,11 +337,12 @@ namespace PlayniteAchievements.Models.Settings
                 };
                 settings.ProviderSettings["Xenia"] = xenia.SerializeToJson();
 
-                // Manual
+                // Manual - migrate achievement links too
                 var manual = new ManualSettings
                 {
                     IsEnabled = settings.ManualEnabled,
-                    ManualTrackingOverrideEnabled = settings.ManualTrackingOverrideEnabled
+                    ManualTrackingOverrideEnabled = settings.ManualTrackingOverrideEnabled,
+                    AchievementLinks = settings.ManualAchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>()
                 };
                 settings.ProviderSettings["Manual"] = manual.SerializeToJson();
             }
