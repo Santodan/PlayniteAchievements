@@ -35,11 +35,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
             _scanner = new ShadPS4Scanner(_logger, _settings, this, _playniteApi);
 
-            _providerSettings = new ShadPS4Settings
-            {
-                IsEnabled = settings.Persisted.ShadPS4Enabled,
-                GameDataPath = settings.Persisted.ShadPS4GameDataPath
-            };
+            _providerSettings = ProviderSettingsHelper.Load<ShadPS4Settings>(settings.Persisted, "ShadPS4");
         }
 
         public string ProviderName
@@ -384,8 +380,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (settings is ShadPS4Settings shadps4Settings)
             {
                 _providerSettings = shadps4Settings;
-                _settings.Persisted.ShadPS4Enabled = shadps4Settings.IsEnabled;
-                _settings.Persisted.ShadPS4GameDataPath = shadps4Settings.GameDataPath;
+                ProviderSettingsHelper.Save(_settings.Persisted, shadps4Settings);
             }
         }
     }

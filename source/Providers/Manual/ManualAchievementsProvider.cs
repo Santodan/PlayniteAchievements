@@ -9,6 +9,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
+using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Images;
 
@@ -26,6 +27,7 @@ namespace PlayniteAchievements.Providers.Manual
         private readonly IManualSource _exophaseManualSource;
         private readonly ExophaseSessionManager _exophaseSessionManager;
         private readonly DiskImageService _diskImageService;
+        private ManualSettings _providerSettings;
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Manual");
         public string ProviderKey => "Manual";
@@ -72,6 +74,8 @@ namespace PlayniteAchievements.Providers.Manual
                 exophaseSessionManager,
                 logger,
                 () => settings.Persisted.GlobalLanguage);
+
+            _providerSettings = ProviderSettingsHelper.Load<ManualSettings>(settings.Persisted, "Manual");
         }
 
         /// <summary>
@@ -298,5 +302,21 @@ namespace PlayniteAchievements.Providers.Manual
         /// Gets the Exophase session manager for settings UI.
         /// </summary>
         public ExophaseSessionManager GetExophaseSessionManager() => _exophaseSessionManager;
+
+        /// <inheritdoc />
+        public IProviderSettings GetSettings() => _providerSettings;
+
+        /// <inheritdoc />
+        public IProviderSettings CreateDefaultSettings() => new ManualSettings();
+
+        /// <inheritdoc />
+        public void ApplySettings(IProviderSettings settings)
+        {
+            if (settings is ManualSettings manualSettings)
+            {
+                _providerSettings = manualSettings;
+                ProviderSettingsHelper.Save(_settings.Persisted, manualSettings);
+            }
+        }
     }
 }

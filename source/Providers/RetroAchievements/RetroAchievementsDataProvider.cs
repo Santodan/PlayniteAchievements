@@ -39,12 +39,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             _pathResolver = new RetroAchievementsPathResolver(playniteApi);
 
-            _providerSettings = new RetroAchievementsSettings
-            {
-                IsEnabled = settings.Persisted.RetroAchievementsEnabled,
-                RaUsername = settings.Persisted.RaUsername,
-                RaWebApiKey = settings.Persisted.RaWebApiKey
-            };
+            _providerSettings = ProviderSettingsHelper.Load<RetroAchievementsSettings>(settings.Persisted, "RetroAchievements");
         }
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
         public string ProviderKey => "RetroAchievements";
@@ -142,9 +137,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (settings is RetroAchievementsSettings raSettings)
             {
                 _providerSettings = raSettings;
-                _settings.Persisted.RetroAchievementsEnabled = raSettings.IsEnabled;
-                _settings.Persisted.RaUsername = raSettings.RaUsername;
-                _settings.Persisted.RaWebApiKey = raSettings.RaWebApiKey;
+                ProviderSettingsHelper.Save(_settings.Persisted, raSettings);
             }
         }
     }

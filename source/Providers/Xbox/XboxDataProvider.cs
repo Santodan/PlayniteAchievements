@@ -44,10 +44,7 @@ namespace PlayniteAchievements.Providers.Xbox
             _apiClient = new XboxApiClient(logger, settings.Persisted.GlobalLanguage);
             _scanner = new XboxScanner(settings, sessionManager, _apiClient, logger);
 
-            _providerSettings = new XboxSettings
-            {
-                IsEnabled = settings.Persisted.XboxEnabled
-            };
+            _providerSettings = ProviderSettingsHelper.Load<XboxSettings>(settings.Persisted, "Xbox");
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xbox");
@@ -114,7 +111,7 @@ namespace PlayniteAchievements.Providers.Xbox
             if (settings is XboxSettings xboxSettings)
             {
                 _providerSettings = xboxSettings;
-                _settings.Persisted.XboxEnabled = xboxSettings.IsEnabled;
+                ProviderSettingsHelper.Save(_settings.Persisted, xboxSettings);
             }
         }
     }
