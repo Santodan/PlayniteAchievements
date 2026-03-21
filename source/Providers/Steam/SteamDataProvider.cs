@@ -39,13 +39,8 @@ namespace PlayniteAchievements.Providers.Steam
             _settings = settings;
             _sessionManager = sessionManager;
 
-            // Initialize provider settings from persisted settings
-            _providerSettings = new SteamSettings
-            {
-                IsEnabled = settings.Persisted.SteamEnabled,
-                SteamUserId = settings.Persisted.SteamUserId,
-                SteamApiKey = settings.Persisted.SteamApiKey
-            };
+            // Initialize provider settings from persisted settings dictionary
+            _providerSettings = ProviderSettingsHelper.Load<SteamSettings>(settings.Persisted, "Steam");
 
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
@@ -98,11 +93,7 @@ namespace PlayniteAchievements.Providers.Steam
             if (settings is SteamSettings steamSettings)
             {
                 _providerSettings = steamSettings;
-
-                // Sync back to persisted settings for compatibility
-                _settings.Persisted.SteamEnabled = steamSettings.IsEnabled;
-                _settings.Persisted.SteamUserId = steamSettings.SteamUserId;
-                _settings.Persisted.SteamApiKey = steamSettings.SteamApiKey;
+                ProviderSettingsHelper.Save(_settings.Persisted, steamSettings);
             }
         }
 
