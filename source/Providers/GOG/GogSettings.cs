@@ -7,15 +7,27 @@ namespace PlayniteAchievements.Providers.GOG
     /// </summary>
     public class GogSettings : ProviderSettingsBase
     {
+        private string _userId;
+
         /// <inheritdoc />
         public override string ProviderKey => "GOG";
+
+        /// <summary>
+        /// GOG user ID.
+        /// </summary>
+        public string UserId
+        {
+            get => _userId;
+            set => SetValue(ref _userId, value);
+        }
 
         /// <inheritdoc />
         public override IProviderSettings Clone()
         {
             return new GogSettings
             {
-                IsEnabled = IsEnabled
+                IsEnabled = IsEnabled,
+                UserId = UserId
             };
         }
 
@@ -25,6 +37,7 @@ namespace PlayniteAchievements.Providers.GOG
             if (source is GogSettings other)
             {
                 IsEnabled = other.IsEnabled;
+                UserId = other.UserId;
             }
         }
     }

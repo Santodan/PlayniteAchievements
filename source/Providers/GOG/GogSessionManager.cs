@@ -1,6 +1,7 @@
 using PlayniteAchievements.Providers.GOG.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Data;
 using Playnite.SDK.Events;
@@ -37,11 +38,21 @@ namespace PlayniteAchievements.Providers.GOG
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-            var persistedUserId = _settings?.Persisted?.GogUserId;
-            if (!string.IsNullOrWhiteSpace(persistedUserId))
+            var gogSettings = GetProviderSettings();
+            if (!string.IsNullOrWhiteSpace(gogSettings.UserId))
             {
-                _userId = persistedUserId.Trim();
+                _userId = gogSettings.UserId.Trim();
             }
+        }
+
+        private GogSettings GetProviderSettings()
+        {
+            return ProviderSettingsHelper.Load<GogSettings>(_settings.Persisted, "GOG");
+        }
+
+        private void SaveProviderSettings(GogSettings providerSettings)
+        {
+            ProviderSettingsHelper.Save(_settings.Persisted, providerSettings);
         }
 
         /// <summary>
@@ -377,7 +388,9 @@ namespace PlayniteAchievements.Providers.GOG
 
             if (_isSessionAuthenticated)
             {
-                _settings.Persisted.GogUserId = _userId;
+                var gogSettings = GetProviderSettings();
+                gogSettings.UserId = _userId;
+                SaveProviderSettings(gogSettings);
             }
 
             if (string.IsNullOrWhiteSpace(_userId))
@@ -457,7 +470,10 @@ namespace PlayniteAchievements.Providers.GOG
             _tokenExpiryUtc = DateTime.MinValue;
             _isSessionAuthenticated = false;
             _authResult = (false, null);
-            _settings.Persisted.GogUserId = null;
+
+            var gogSettings = GetProviderSettings();
+            gogSettings.UserId = null;
+            SaveProviderSettings(gogSettings);
 
             // Also clear cookies from CEF
             try
