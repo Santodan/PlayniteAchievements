@@ -23,7 +23,7 @@ namespace PlayniteAchievements.Models.Settings
     {
         /// <summary>
         /// Copies all persisted settings from one PersistedSettings instance to another.
-        /// This includes Steam settings, update settings, notifications, display preferences,
+        /// This includes provider settings dictionary, update settings, notifications, display preferences,
         /// theme integration settings and RetroAchievements settings.
         /// </summary>
         /// <param name="target">The target settings instance to copy to.</param>
@@ -41,34 +41,10 @@ namespace PlayniteAchievements.Models.Settings
                 return;
             }
 
-            // Steam Settings
-            target.SteamUserId = source.SteamUserId;
-            target.GogUserId = source.GogUserId;
-            target.ExophaseUserId = source.ExophaseUserId;
-            target.EpicAccountId = source.EpicAccountId;
-            target.EpicAccessToken = source.EpicAccessToken;
-            target.EpicRefreshToken = source.EpicRefreshToken;
-            target.EpicTokenType = source.EpicTokenType;
-            target.EpicTokenExpiryUtc = source.EpicTokenExpiryUtc;
-            target.EpicRefreshTokenExpiryUtc = source.EpicRefreshTokenExpiryUtc;
-            target.SteamApiKey = source.SteamApiKey;
-            target.GlobalLanguage = source.GlobalLanguage;
-            target.SteamEnabled = source.SteamEnabled;
-            target.EpicEnabled = source.EpicEnabled;
-            target.GogEnabled = source.GogEnabled;
-            target.PsnEnabled = source.PsnEnabled;
-            target.RetroAchievementsEnabled = source.RetroAchievementsEnabled;
-            target.XboxEnabled = source.XboxEnabled;
-            target.XboxLowResIcons = source.XboxLowResIcons;
-            target.ShadPS4Enabled = source.ShadPS4Enabled;
-            target.ShadPS4GameDataPath = source.ShadPS4GameDataPath;
-            target.Rpcs3Enabled = source.Rpcs3Enabled;
-            target.Rpcs3ExecutablePath = source.Rpcs3ExecutablePath;
-            target.XeniaEnabled = source.XeniaEnabled;
-            target.XeniaAccountPath = source.XeniaAccountPath;
-            target.ManualEnabled = source.ManualEnabled;
-            target.LegacyManualImportPath = source.LegacyManualImportPath;
-            target.ManualTrackingOverrideEnabled = source.ManualTrackingOverrideEnabled;
+            // Provider Settings Dictionary
+            target.ProviderSettings = source.ProviderSettings != null
+                ? new Dictionary<string, string>(source.ProviderSettings, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             // Update and Refresh Settings
             target.EnablePeriodicUpdates = source.EnablePeriodicUpdates;
@@ -100,9 +76,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart;
             target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
 
-            // RetroAchievements Settings
-            target.RaUsername = source.RaUsername;
-            target.RaWebApiKey = source.RaWebApiKey;
+            // RetroAchievements Settings (non-provider specific)
             target.RaRarityStats = source.RaRarityStats;
             target.HashIndexMaxAgeDays = source.HashIndexMaxAgeDays;
             target.EnableArchiveScanning = source.EnableArchiveScanning;
@@ -168,34 +142,10 @@ namespace PlayniteAchievements.Models.Settings
 
             var clone = new PersistedSettings
             {
-                // Steam Settings
-                SteamUserId = source.SteamUserId,
-                GogUserId = source.GogUserId,
-                ExophaseUserId = source.ExophaseUserId,
-                EpicAccountId = source.EpicAccountId,
-                EpicAccessToken = source.EpicAccessToken,
-                EpicRefreshToken = source.EpicRefreshToken,
-                EpicTokenType = source.EpicTokenType,
-                EpicTokenExpiryUtc = source.EpicTokenExpiryUtc,
-                EpicRefreshTokenExpiryUtc = source.EpicRefreshTokenExpiryUtc,
-                SteamApiKey = source.SteamApiKey,
-                GlobalLanguage = source.GlobalLanguage,
-                SteamEnabled = source.SteamEnabled,
-                EpicEnabled = source.EpicEnabled,
-                GogEnabled = source.GogEnabled,
-                PsnEnabled = source.PsnEnabled,
-                RetroAchievementsEnabled = source.RetroAchievementsEnabled,
-                XboxEnabled = source.XboxEnabled,
-                XboxLowResIcons = source.XboxLowResIcons,
-                ShadPS4Enabled = source.ShadPS4Enabled,
-                ShadPS4GameDataPath = source.ShadPS4GameDataPath,
-                Rpcs3Enabled = source.Rpcs3Enabled,
-                Rpcs3ExecutablePath = source.Rpcs3ExecutablePath,
-                XeniaEnabled = source.XeniaEnabled,
-                XeniaAccountPath = source.XeniaAccountPath,
-                ManualEnabled = source.ManualEnabled,
-                LegacyManualImportPath = source.LegacyManualImportPath,
-                ManualTrackingOverrideEnabled = source.ManualTrackingOverrideEnabled,
+                // Provider Settings Dictionary
+                ProviderSettings = source.ProviderSettings != null
+                    ? new Dictionary<string, string>(source.ProviderSettings, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
 
                 // Update and Refresh Settings
                 EnablePeriodicUpdates = source.EnablePeriodicUpdates,
@@ -228,9 +178,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarBarCharts = source.ShowSidebarBarCharts,
                 EnableCompactGridMode = source.EnableCompactGridMode,
 
-                // RetroAchievements Settings
-                RaUsername = source.RaUsername,
-                RaWebApiKey = source.RaWebApiKey,
+                // RetroAchievements Settings (non-provider specific)
                 RaRarityStats = source.RaRarityStats,
                 HashIndexMaxAgeDays = source.HashIndexMaxAgeDays,
                 EnableArchiveScanning = source.EnableArchiveScanning,
