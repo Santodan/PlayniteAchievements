@@ -1,7 +1,6 @@
 using PlayniteAchievements.Providers.GOG.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Data;
 using Playnite.SDK.Events;
@@ -14,7 +13,7 @@ namespace PlayniteAchievements.Providers.GOG
     /// <summary>
     /// WebView-based authentication client for GOG.
     /// Uses Playnite's IWebView API for browser-based authentication.
-    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// Auth state is always probed from the source of truth before any provider work.
     /// </summary>
     public sealed class GogSessionManager : ISessionManager, IGogTokenProvider
     {
@@ -27,30 +26,23 @@ namespace PlayniteAchievements.Providers.GOG
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly AuthProbeCache _probeCache;
 
         public string ProviderKey => "GOG";
 
-        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.GOG;
-
-        public GogSessionManager(
-            IPlayniteAPI api,
-            ILogger logger,
-            PlayniteAchievementsSettings settings,
-            AuthProbeCache probeCache)
-        {
-            _api = api ?? throw new ArgumentNullException(nameof(api));
-            _logger = logger;
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
-        }
+        /// <summary>
+        /// Checks if currently authenticated based on persisted UserId setting.
+        /// </summary>
+        public bool IsAuthenticated =>
+            !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<GogSettings>().UserId);
 
         public GogSessionManager(
             IPlayniteAPI api,
             ILogger logger,
             PlayniteAchievementsSettings settings)
-            : this(api, logger, settings, new AuthProbeCache(logger))
         {
+            _api = api ?? throw new ArgumentNullException(nameof(api));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
         // ---------------------------------------------------------------------
@@ -81,48 +73,13 @@ namespace PlayniteAchievements.Providers.GOG
         }
 
         /// <summary>
-        /// Gets the current user ID from provider settings or cache.
+        /// Gets the current user ID from provider settings.
         /// </summary>
-        public string GetUserId()
-        {
-            if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var userId))
-            {
-                return userId;
-            }
-            return ProviderRegistry.Settings<GogSettings>().UserId;
-        }
-
-        /// <summary>
-        /// Checks if currently authenticated based on cached probe result.
-        /// </summary>
-        public bool IsAuthenticated
-        {
-            get
-            {
-                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-                {
-                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
-                }
-                return !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<GogSettings>().UserId);
-            }
-        }
+        public string GetUserId() => ProviderRegistry.Settings<GogSettings>().UserId;
 
         // ---------------------------------------------------------------------
         // ISessionManager Implementation
         // ---------------------------------------------------------------------
-
-        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
-        {
-            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
-                {
-                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
-                }
-            }
-
-            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-        }
 
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
@@ -136,7 +93,6 @@ namespace PlayniteAchievements.Providers.GOG
                     if (response != null && response.IsLoggedIn && !string.IsNullOrWhiteSpace(response.UserId))
                     {
                         var userId = response.UserId;
-                        _probeCache.RecordProbe(ProviderKey, true, userId);
 
                         var gogSettings = ProviderRegistry.Settings<GogSettings>();
                         if (gogSettings.UserId != userId)
@@ -155,7 +111,6 @@ namespace PlayniteAchievements.Providers.GOG
                         gogSettingsClear.UserId = null;
                         ProviderRegistry.Write(gogSettingsClear);
                     }
-                    _probeCache.RecordProbe(ProviderKey, false);
 
                     return AuthProbeResult.NotAuthenticated();
                 }
@@ -166,7 +121,6 @@ namespace PlayniteAchievements.Providers.GOG
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[GogAuth] Probe failed with exception.");
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -251,7 +205,6 @@ namespace PlayniteAchievements.Providers.GOG
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
 
-                _probeCache.RecordProbe(ProviderKey, true, extractedId);
                 var gogSettings = ProviderRegistry.Settings<GogSettings>();
                 gogSettings.UserId = extractedId;
                 ProviderRegistry.Write(gogSettings);
@@ -279,8 +232,6 @@ namespace PlayniteAchievements.Providers.GOG
             _logger?.Info("[GogAuth] Clearing session.");
             _authResult = (false, null);
 
-            _probeCache.Invalidate(ProviderKey);
-
             var gogSettings = ProviderRegistry.Settings<GogSettings>();
             if (!string.IsNullOrWhiteSpace(gogSettings.UserId))
             {
@@ -303,11 +254,6 @@ namespace PlayniteAchievements.Providers.GOG
             {
                 _logger?.Debug(ex, "[GogAuth] Failed to clear GOG cookies from CEF.");
             }
-        }
-
-        public void InvalidateProbeCache()
-        {
-            _probeCache.Invalidate(ProviderKey);
         }
 
         // ---------------------------------------------------------------------
