@@ -1,7 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +15,7 @@ namespace PlayniteAchievements.Providers.PSN
 {
     /// <summary>
     /// PSN session manager that probes authentication state from disk files.
-    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// Auth state is always probed from the source of truth before any provider work.
     /// </summary>
     public sealed class PsnSessionManager : ISessionManager
     {
@@ -35,7 +34,6 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly SemaphoreSlim _tokenSemaphore = new SemaphoreSlim(1, 1);
         private readonly string _tokenPath;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly AuthProbeCache _probeCache;
 
         // Temporary state for mobile token acquisition (not auth state)
         private MobileTokens _mobileToken;
@@ -44,13 +42,15 @@ namespace PlayniteAchievements.Providers.PSN
 
         public string ProviderKey => "PSN";
 
-        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.PSN;
+        /// <summary>
+        /// Checks if currently authenticated based on token file existence.
+        /// </summary>
+        public bool IsAuthenticated => File.Exists(_tokenPath);
 
         public PsnSessionManager(
             IPlayniteAPI api,
             ILogger logger,
             PlayniteAchievementsSettings settings,
-            AuthProbeCache probeCache,
             string pluginUserDataPath)
         {
             if (api == null) throw new ArgumentNullException(nameof(api));
@@ -59,25 +59,12 @@ namespace PlayniteAchievements.Providers.PSN
             _api = api;
             _logger = logger;
             _settings = settings;
-            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
 
             // Use pluginUserDataPath for token storage (consistent with RA and other providers)
             _tokenPath = Path.Combine(pluginUserDataPath ?? string.Empty, "psn", "cookies.bin");
 
             // Migrate from old location if needed
             MigrateTokenFile();
-        }
-
-        /// <summary>
-        /// Backward-compatible constructor that creates a default AuthProbeCache.
-        /// </summary>
-        public PsnSessionManager(
-            IPlayniteAPI api,
-            ILogger logger,
-            PlayniteAchievementsSettings settings,
-            string pluginUserDataPath)
-            : this(api, logger, settings, new AuthProbeCache(logger), pluginUserDataPath)
-        {
         }
 
         /// <summary>
@@ -112,47 +99,12 @@ namespace PlayniteAchievements.Providers.PSN
             }
         }
 
-        /// <summary>
-        /// Checks if currently authenticated based on cached probe result.
-        /// </summary>
-        public bool IsAuthenticated
-        {
-            get
-            {
-                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-                {
-                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
-                }
-                return File.Exists(_tokenPath);
-            }
-        }
-
         // ---------------------------------------------------------------------
         // ISessionManager Implementation
         // ---------------------------------------------------------------------
 
         /// <summary>
-        /// Ensures authentication is valid before data provider work.
-        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
-        /// </summary>
-        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
-        {
-            // Check if we have a valid cached result
-            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
-                {
-                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
-                }
-            }
-
-            // Cache expired or invalid - perform fresh probe
-            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-        }
-
-        /// <summary>
         /// Probes the current authentication state from disk file.
-        /// This always performs a fresh probe, bypassing any cache.
         /// </summary>
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
@@ -165,11 +117,9 @@ namespace PlayniteAchievements.Providers.PSN
                     var token = await TryAcquireTokenAsync(ct, forceRefresh: false).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(token))
                     {
-                        _probeCache.RecordProbe(ProviderKey, true);
                         return AuthProbeResult.AlreadyAuthenticated();
                     }
 
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
@@ -179,7 +129,6 @@ namespace PlayniteAchievements.Providers.PSN
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[PSNAuth] Probe failed with exception.");
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -233,7 +182,6 @@ namespace PlayniteAchievements.Providers.PSN
                     var token = await TryAcquireTokenAsync(ct, forceRefresh: true).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(token))
                     {
-                        _probeCache.RecordProbe(ProviderKey, true);
                         progress?.Report(AuthProgressStep.Completed);
                         return AuthProbeResult.Authenticated(windowOpened: windowOpened);
                     }
@@ -257,14 +205,11 @@ namespace PlayniteAchievements.Providers.PSN
         }
 
         /// <summary>
-        /// Clears the session by deleting token file and invalidating cache.
+        /// Clears the session by deleting token file.
         /// </summary>
         public void ClearSession()
         {
             _logger?.Info("[PSNAuth] Clearing session.");
-
-            // Invalidate cache
-            _probeCache.Invalidate(ProviderKey);
 
             // Reset mobile token state
             ResetMobileTokenState();
@@ -290,13 +235,7 @@ namespace PlayniteAchievements.Providers.PSN
         public void InvalidateAccessToken()
         {
             _logger?.Debug("[PSNAuth] Invalidating access token.");
-            _probeCache.Invalidate(ProviderKey);
             ResetMobileTokenState();
-        }
-
-        public void InvalidateProbeCache()
-        {
-            _probeCache.Invalidate(ProviderKey);
         }
 
         // ---------------------------------------------------------------------
@@ -771,30 +710,6 @@ namespace PlayniteAchievements.Providers.PSN
             }
 
             return null;
-        }
-
-        // ---------------------------------------------------------------------
-        // Legacy Type Conversion
-        // ---------------------------------------------------------------------
-
-        private PsnAuthResult ConvertToLegacyResult(AuthProbeResult result)
-        {
-            var outcome = result.Outcome switch
-            {
-                AuthOutcome.AlreadyAuthenticated => PsnAuthOutcome.AlreadyAuthenticated,
-                AuthOutcome.Authenticated => PsnAuthOutcome.Authenticated,
-                AuthOutcome.NotAuthenticated => PsnAuthOutcome.NotAuthenticated,
-                AuthOutcome.Cancelled => PsnAuthOutcome.Cancelled,
-                AuthOutcome.TimedOut => PsnAuthOutcome.TimedOut,
-                AuthOutcome.Failed => PsnAuthOutcome.Failed,
-                AuthOutcome.ProbeFailed => PsnAuthOutcome.ProbeFailed,
-                _ => PsnAuthOutcome.Failed
-            };
-
-            return PsnAuthResult.Create(
-                outcome,
-                result.MessageKey,
-                result.WindowOpened);
         }
     }
 }
