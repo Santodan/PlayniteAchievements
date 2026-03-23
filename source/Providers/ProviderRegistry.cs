@@ -9,7 +9,6 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Settings;
-using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers
 {
@@ -31,20 +30,14 @@ namespace PlayniteAchievements.Providers
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Dictionary<string, ProviderSettingsBase> _settingsCache = new Dictionary<string, ProviderSettingsBase>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, IDataProvider> _providersByKey = new Dictionary<string, IDataProvider>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, Func<CancellationToken, Task>> _authPrimers = new Dictionary<string, Func<CancellationToken, Task>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Func<ProviderSettingsViewBase>> _settingsViewFactories = new Dictionary<string, Func<ProviderSettingsViewBase>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, bool> _enabledState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private ManualAchievementsProvider _manualProvider;
-
-        // Singleton AuthProbeCache shared across all session managers
-        private readonly AuthProbeCache _probeCache;
-        public AuthProbeCache ProbeCache => _probeCache;
 
         public ProviderRegistry(PlayniteAchievementsSettings settings, ILogger logger = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
-            _probeCache = new AuthProbeCache(logger);
             _instance = this;
         }
 
@@ -123,24 +116,6 @@ namespace PlayniteAchievements.Providers
             if (string.IsNullOrWhiteSpace(providerKey)) return "Unknown";
             var value = ResourceProvider.GetString($"LOCPlayAch_Provider_{providerKey}");
             return string.IsNullOrWhiteSpace(value) ? providerKey : value;
-        }
-
-        // ===================== AUTH PRIMING =====================
-
-        public void RegisterAuthPrimer(string providerKey, Func<CancellationToken, Task> primeAsync)
-        {
-            if (!string.IsNullOrWhiteSpace(providerKey) && primeAsync != null)
-                _authPrimers[providerKey] = primeAsync;
-        }
-
-        public async Task PrimeEnabledProvidersAsync()
-        {
-            foreach (var kvp in _authPrimers)
-            {
-                if (!IsProviderEnabled(kvp.Key)) continue;
-                try { await kvp.Value(default); }
-                catch (Exception ex) { _logger?.Warn(ex, $"Failed to prime {kvp.Key} authentication state"); }
-            }
         }
 
         // ===================== ENABLED STATE =====================
@@ -266,7 +241,6 @@ namespace PlayniteAchievements.Providers
                 else if (paramType == typeof(PlayniteAchievementsSettings)) args[i] = settings;
                 else if (paramType == typeof(IPlayniteAPI)) args[i] = playniteApi;
                 else if (paramType == typeof(string) && param.Name?.ToLower().Contains("path") == true) args[i] = pluginUserDataPath;
-                else if (paramType == typeof(AuthProbeCache)) args[i] = _probeCache;
                 else return null;
             }
 
