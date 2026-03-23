@@ -1,5 +1,4 @@
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Services;
 using PlayniteAchievements.Models;
 using Playnite.SDK;
 using Playnite.SDK.Events;
@@ -14,7 +13,7 @@ namespace PlayniteAchievements.Providers.Exophase
     /// Cookie-based authentication client for Exophase.
     /// Uses Playnite's IWebView API for browser-based authentication.
     /// Exophase does not use OAuth tokens; session is maintained via cookies.
-    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// Auth state is always probed from the source of truth before any provider work.
     /// </summary>
     public sealed class ExophaseSessionManager : ISessionManager, IExophaseTokenProvider
     {
@@ -27,70 +26,28 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly AuthProbeCache _probeCache;
 
         public string ProviderKey => "Exophase";
 
-        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.Exophase;
-
-        public ExophaseSessionManager(
-            IPlayniteAPI api,
-            ILogger logger,
-            PlayniteAchievementsSettings settings,
-            AuthProbeCache probeCache)
-        {
-            _api = api ?? throw new ArgumentNullException(nameof(api));
-            _logger = logger;
-            _settings = settings;
-            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
-        }
+        /// <summary>
+        /// Checks if currently authenticated based on persisted UserId setting.
+        /// </summary>
+        public bool IsAuthenticated =>
+            !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<ExophaseSettings>().UserId);
 
         /// <summary>
-        /// Backward-compatible constructor that creates a default AuthProbeCache.
+        /// Gets the current username if authenticated.
         /// </summary>
+        public string Username => ProviderRegistry.Settings<ExophaseSettings>().UserId;
+
         public ExophaseSessionManager(
             IPlayniteAPI api,
             ILogger logger,
             PlayniteAchievementsSettings settings)
-            : this(api, logger, settings, new AuthProbeCache(logger))
         {
-        }
-
-        // ---------------------------------------------------------------------
-        // IExophaseTokenProvider (backward compatibility)
-        // ---------------------------------------------------------------------
-
-        /// <summary>
-        /// Checks if currently authenticated based on cached probe result.
-        /// This probes from source of truth if cache is invalid.
-        /// </summary>
-        public bool IsAuthenticated
-        {
-            get
-            {
-                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-                {
-                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
-                }
-                // Probe synchronously (this is a property getter, so we do a quick check)
-                return HasExophaseSessionCookies(_api, _logger);
-            }
-        }
-
-        /// <summary>
-        /// Gets the current username if authenticated.
-        /// Probes from source of truth if not cached.
-        /// </summary>
-        public string Username
-        {
-            get
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var userId))
-                {
-                    return userId;
-                }
-                return ProviderRegistry.Settings<ExophaseSettings>().UserId;
-            }
+            _api = api ?? throw new ArgumentNullException(nameof(api));
+            _logger = logger;
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
         // ---------------------------------------------------------------------
@@ -98,27 +55,7 @@ namespace PlayniteAchievements.Providers.Exophase
         // ---------------------------------------------------------------------
 
         /// <summary>
-        /// Ensures authentication is valid before data provider work.
-        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
-        /// </summary>
-        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
-        {
-            // Check if we have a valid cached result
-            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
-                {
-                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
-                }
-            }
-
-            // Cache expired or invalid - perform fresh probe
-            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-        }
-
-        /// <summary>
         /// Probes the current authentication state from CEF cookies.
-        /// This always performs a fresh probe, bypassing any cache.
         /// </summary>
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
@@ -134,7 +71,6 @@ namespace PlayniteAchievements.Providers.Exophase
 
                     if (!string.IsNullOrWhiteSpace(persistedUsername) && hasCookies)
                     {
-                        _probeCache.RecordProbe(ProviderKey, true, persistedUsername);
                         _logger?.Debug("[ExophaseAuth] Restored from persisted settings + cookie check.");
                         return AuthProbeResult.AlreadyAuthenticated(persistedUsername);
                     }
@@ -143,7 +79,6 @@ namespace PlayniteAchievements.Providers.Exophase
                     var extractedUsername = await QuickAuthCheckAsync(ct).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(extractedUsername))
                     {
-                        _probeCache.RecordProbe(ProviderKey, true, extractedUsername);
                         var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
                         exophaseSettings.UserId = extractedUsername;
                         ProviderRegistry.Write(exophaseSettings);
@@ -154,7 +89,6 @@ namespace PlayniteAchievements.Providers.Exophase
                     var clearSettings = ProviderRegistry.Settings<ExophaseSettings>();
                     clearSettings.UserId = null;
                     ProviderRegistry.Write(clearSettings);
-                    _probeCache.RecordProbe(ProviderKey, false);
 
                     return AuthProbeResult.NotAuthenticated();
                 }
@@ -165,7 +99,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[ExophaseAuth] Probe failed with exception.");
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -250,7 +183,6 @@ namespace PlayniteAchievements.Providers.Exophase
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
 
-                _probeCache.RecordProbe(ProviderKey, true, extractedUsername);
                 var saveSettings = ProviderRegistry.Settings<ExophaseSettings>();
                 saveSettings.UserId = extractedUsername;
                 ProviderRegistry.Write(saveSettings);
@@ -274,15 +206,12 @@ namespace PlayniteAchievements.Providers.Exophase
         }
 
         /// <summary>
-        /// Clears the session by clearing cookies and invalidating cache.
+        /// Clears the session by clearing cookies.
         /// </summary>
         public void ClearSession()
         {
             _logger?.Info("[ExophaseAuth] Clearing session.");
             _authResult = (false, null);
-
-            // Invalidate cache
-            _probeCache.Invalidate(ProviderKey);
 
             // Clear persisted user ID
             var clearSettings = ProviderRegistry.Settings<ExophaseSettings>();
@@ -305,11 +234,6 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 _logger?.Debug(ex, "[ExophaseAuth] Failed to clear Exophase cookies from CEF.");
             }
-        }
-
-        public void InvalidateProbeCache()
-        {
-            _probeCache.Invalidate(ProviderKey);
         }
 
         // ---------------------------------------------------------------------
@@ -560,31 +484,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
 
             return url.IndexOf("/login", StringComparison.OrdinalIgnoreCase) >= 0;
-        }
-
-        // ---------------------------------------------------------------------
-        // Legacy Type Conversion
-        // ---------------------------------------------------------------------
-
-        private ExophaseAuthResult ConvertToLegacyResult(AuthProbeResult result)
-        {
-            var outcome = result.Outcome switch
-            {
-                AuthOutcome.AlreadyAuthenticated => ExophaseAuthOutcome.AlreadyAuthenticated,
-                AuthOutcome.Authenticated => ExophaseAuthOutcome.Authenticated,
-                AuthOutcome.NotAuthenticated => ExophaseAuthOutcome.NotAuthenticated,
-                AuthOutcome.Cancelled => ExophaseAuthOutcome.Cancelled,
-                AuthOutcome.TimedOut => ExophaseAuthOutcome.TimedOut,
-                AuthOutcome.Failed => ExophaseAuthOutcome.Failed,
-                AuthOutcome.ProbeFailed => ExophaseAuthOutcome.ProbeFailed,
-                _ => ExophaseAuthOutcome.Failed
-            };
-
-            return ExophaseAuthResult.Create(
-                outcome,
-                result.MessageKey,
-                result.UserId,
-                result.WindowOpened);
         }
     }
 }
