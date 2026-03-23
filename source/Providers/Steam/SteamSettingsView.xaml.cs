@@ -8,6 +8,7 @@ using System.Diagnostics;
 using Playnite.SDK;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
@@ -97,22 +98,41 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
-                await _sessionManager.PrimeAuthenticationStateAsync(CancellationToken.None);
+                var result = await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);
+                UpdateAuthStatusFromResult(result);
             }
             catch (Exception ex)
             {
                 Logger.Debug(ex, "Steam auth probe failed during settings refresh.");
+                UpdateAuthStatusFromResult(AuthProbeResult.ProbeFailed());
             }
+        }
 
-            RefreshAuthStatus();
+        private void UpdateAuthStatusFromResult(AuthProbeResult result)
+        {
+            var hasWebAuth = result.IsSuccess;
+            var hasApiKey = !string.IsNullOrWhiteSpace(_steamSettings?.SteamApiKey);
+
+            WebAuthenticated = hasWebAuth;
+            FullyConfigured = hasWebAuth && hasApiKey;
+
+            if (hasWebAuth)
+            {
+                WebAuthStatus = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"),
+                    ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
+            }
+            else
+            {
+                WebAuthStatus = ResourceProvider.GetString(result.MessageKey) ?? result.MessageKey;
+            }
         }
 
         private void RefreshAuthStatus()
         {
-            var steamId64 = _sessionManager?.GetCachedSteamId64();
-            var hasWebAuth = !string.IsNullOrWhiteSpace(steamId64);
+            var cachedId = _sessionManager.GetCachedSteamId64();
+            var hasWebAuth = !string.IsNullOrWhiteSpace(cachedId);
             var hasApiKey = !string.IsNullOrWhiteSpace(_steamSettings?.SteamApiKey);
-            var hasUserId = !string.IsNullOrWhiteSpace(_steamSettings?.SteamUserId);
 
             WebAuthenticated = hasWebAuth;
             FullyConfigured = hasWebAuth && hasApiKey;
@@ -136,8 +156,8 @@ namespace PlayniteAchievements.Providers.Steam
             try
             {
                 SetAuthBusy(true);
-                await _sessionManager.AuthenticateInteractiveAsync(CancellationToken.None);
-                RefreshAuthStatus();
+                var result = await _sessionManager.AuthenticateInteractiveAsync(forceInteractive: true, ct: CancellationToken.None);
+                UpdateAuthStatusFromResult(result);
             }
             catch (Exception ex)
             {

@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Providers.Epic
         {
             try
             {
-                await _sessionManager.ProbeAuthenticationAsync(CancellationToken.None);
+                await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {
