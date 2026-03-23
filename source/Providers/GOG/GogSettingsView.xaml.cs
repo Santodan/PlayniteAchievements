@@ -100,7 +100,7 @@ namespace PlayniteAchievements.Providers.GOG
         {
             try
             {
-                await _sessionManager.ProbeAuthenticationAsync(CancellationToken.None).ConfigureAwait(false);
+                await _sessionManager.ProbeAuthStateAsync(CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
