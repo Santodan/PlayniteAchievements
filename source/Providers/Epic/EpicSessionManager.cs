@@ -1,7 +1,6 @@
 using Newtonsoft.Json;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using System;
@@ -16,7 +15,7 @@ namespace PlayniteAchievements.Providers.Epic
 {
     /// <summary>
     /// Epic Games session manager that probes authentication state from EpicSettings.
-    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// Auth state is always probed from the source of truth before any provider work.
     /// </summary>
     public sealed class EpicSessionManager : ISessionManager, IEpicSessionProvider
     {
@@ -35,7 +34,6 @@ namespace PlayniteAchievements.Providers.Epic
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly AuthProbeCache _probeCache;
         private readonly SemaphoreSlim _tokenRefreshSemaphore = new SemaphoreSlim(1, 1);
 
         // Temporary state for interactive login dialog coordination only
@@ -44,44 +42,19 @@ namespace PlayniteAchievements.Providers.Epic
 
         public string ProviderKey => "Epic";
 
-        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.Epic;
-
-        public EpicSessionManager(
-            IPlayniteAPI api,
-            ILogger logger,
-            PlayniteAchievementsSettings settings,
-            AuthProbeCache probeCache)
-        {
-            _api = api ?? throw new ArgumentNullException(nameof(api));
-            _logger = logger;
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
-        }
-
         /// <summary>
-        /// Backward-compatible constructor that creates a default AuthProbeCache.
+        /// Checks if currently authenticated based on token validity.
         /// </summary>
+        public bool IsAuthenticated => HasValidAccessToken();
+
         public EpicSessionManager(
             IPlayniteAPI api,
             ILogger logger,
             PlayniteAchievementsSettings settings)
-            : this(api, logger, settings, new AuthProbeCache(logger))
         {
-        }
-
-        /// <summary>
-        /// Checks if currently authenticated based on cached probe result or token validity.
-        /// </summary>
-        public bool IsAuthenticated
-        {
-            get
-            {
-                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-                {
-                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
-                }
-                return HasValidAccessToken();
-            }
+            _api = api ?? throw new ArgumentNullException(nameof(api));
+            _logger = logger;
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         }
 
         public string GetAccountId() => GetEpicSettings().AccountId?.Trim();
@@ -175,19 +148,6 @@ namespace PlayniteAchievements.Providers.Epic
         // ISessionManager Implementation
         // ---------------------------------------------------------------------
 
-        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
-        {
-            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
-                {
-                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
-                }
-            }
-
-            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-        }
-
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
             using (PerfScope.Start(_logger, "Epic.ProbeAuthStateAsync", thresholdMs: 50))
@@ -200,7 +160,6 @@ namespace PlayniteAchievements.Providers.Epic
                     if (HasValidAccessToken())
                     {
                         var accountId = GetEpicSettings().AccountId?.Trim();
-                        _probeCache.RecordProbe(ProviderKey, true, accountId);
                         return AuthProbeResult.AlreadyAuthenticated(accountId, GetTokenExpiryUtc());
                     }
 
@@ -219,7 +178,6 @@ namespace PlayniteAchievements.Providers.Epic
                         if (HasValidAccessToken())
                         {
                             var accountId = GetEpicSettings().AccountId?.Trim();
-                            _probeCache.RecordProbe(ProviderKey, true, accountId);
                             return AuthProbeResult.AlreadyAuthenticated(accountId, GetTokenExpiryUtc());
                         }
                     }
@@ -232,12 +190,10 @@ namespace PlayniteAchievements.Providers.Epic
                         if (HasValidAccessToken())
                         {
                             var accountId = GetEpicSettings().AccountId?.Trim();
-                            _probeCache.RecordProbe(ProviderKey, true, accountId);
                             return AuthProbeResult.AlreadyAuthenticated(accountId, GetTokenExpiryUtc());
                         }
                     }
 
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
@@ -247,7 +203,6 @@ namespace PlayniteAchievements.Providers.Epic
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[EpicAuth] Probe failed with exception.");
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -328,7 +283,6 @@ namespace PlayniteAchievements.Providers.Epic
                 }
 
                 var accountId = GetEpicSettings().AccountId?.Trim();
-                _probeCache.RecordProbe(ProviderKey, true, accountId);
                 progress?.Report(AuthProgressStep.Completed);
 
                 return AuthProbeResult.Authenticated(accountId, windowOpened: windowOpened, expiresUtc: GetTokenExpiryUtc());
@@ -349,8 +303,6 @@ namespace PlayniteAchievements.Providers.Epic
         public void ClearSession()
         {
             _logger?.Info("[EpicAuth] Clearing session.");
-
-            _probeCache.Invalidate(ProviderKey);
 
             // Clear cookies from CEF
             try
@@ -380,11 +332,6 @@ namespace PlayniteAchievements.Providers.Epic
             epicSettings.TokenExpiryUtc = DateTime.MinValue;
             epicSettings.RefreshTokenExpiryUtc = DateTime.MinValue;
             ProviderRegistry.Write(epicSettings);
-        }
-
-        public void InvalidateProbeCache()
-        {
-            _probeCache.Invalidate(ProviderKey);
         }
 
         // ---------------------------------------------------------------------
@@ -585,7 +532,6 @@ namespace PlayniteAchievements.Providers.Epic
                 }
 
                 var accountId = GetEpicSettings().AccountId?.Trim();
-                _probeCache.RecordProbe(ProviderKey, true, accountId);
 
                 return AuthProbeResult.Authenticated(accountId, windowOpened: windowOpened);
             }
@@ -890,7 +836,7 @@ namespace PlayniteAchievements.Providers.Epic
                 throw new EpicAuthRequiredException("Epic token response was missing required fields.");
             }
 
-            // Save to provider settings - the source of truth in this worktree
+            // Save to provider settings - the source of truth
             var epicSettings = GetEpicSettings();
             epicSettings.AccountId = payload.account_id?.Trim();
             epicSettings.AccessToken = payload.access_token;
@@ -899,9 +845,6 @@ namespace PlayniteAchievements.Providers.Epic
             epicSettings.TokenExpiryUtc = NormalizeUtc(payload.expires_at, payload.expires_in);
             epicSettings.RefreshTokenExpiryUtc = NormalizeUtc(payload.refresh_expires_at, payload.refresh_expires_in);
             ProviderRegistry.Write(epicSettings);
-
-            // Update cache
-            _probeCache.RecordProbe(ProviderKey, true, payload.account_id?.Trim());
         }
 
         private static DateTime NormalizeUtc(DateTime? explicitUtc, int? expiresInSeconds)
