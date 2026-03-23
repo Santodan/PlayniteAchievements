@@ -99,9 +99,6 @@ namespace PlayniteAchievements
         public MemoryImageService ImageService => _imageService;
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
-        public SteamSessionManager SteamSessionManager => _steamSessionManager;
-        public ExophaseSessionManager ExophaseSessionManager => _exophaseSessionManager;
-        public EpicSessionManager EpicSessionManager => _epicSessionManager;
         public TagSyncService TagSyncService => _tagSyncService;
         internal RefreshEntryPoint RefreshEntryPoint => _refreshCoordinator;
         public static PlayniteAchievementsPlugin Instance { get; private set; }
