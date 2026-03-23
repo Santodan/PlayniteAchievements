@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
                 }
-                return !string.IsNullOrWhiteSpace(_settings?.Persisted?.SteamUserId);
+                return !string.IsNullOrWhiteSpace(ProviderRegistry.Settings<SteamSettings>().SteamUserId);
             }
         }
 
@@ -103,10 +103,9 @@ namespace PlayniteAchievements.Providers.Steam
                     if (!string.IsNullOrWhiteSpace(steamId))
                     {
                         _probeCache.RecordProbe(ProviderKey, true, steamId);
-                        if (_settings?.Persisted != null)
-                        {
-                            _settings.Persisted.SteamUserId = steamId;
-                        }
+                        var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+                        steamSettings.SteamUserId = steamId;
+                        ProviderRegistry.Write(steamSettings);
                         return AuthProbeResult.AlreadyAuthenticated(steamId);
                     }
 
@@ -115,10 +114,9 @@ namespace PlayniteAchievements.Providers.Steam
                     if (!string.IsNullOrWhiteSpace(steamId))
                     {
                         _probeCache.RecordProbe(ProviderKey, true, steamId);
-                        if (_settings?.Persisted != null)
-                        {
-                            _settings.Persisted.SteamUserId = steamId;
-                        }
+                        var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+                        steamSettings.SteamUserId = steamId;
+                        ProviderRegistry.Write(steamSettings);
                         return AuthProbeResult.AlreadyAuthenticated(steamId);
                     }
 
@@ -212,10 +210,9 @@ namespace PlayniteAchievements.Providers.Steam
                 }
 
                 _probeCache.RecordProbe(ProviderKey, true, extractedId);
-                if (_settings?.Persisted != null)
-                {
-                    _settings.Persisted.SteamUserId = extractedId;
-                }
+                var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+                steamSettings.SteamUserId = extractedId;
+                ProviderRegistry.Write(steamSettings);
                 progress?.Report(AuthProgressStep.Completed);
 
                 return AuthProbeResult.Authenticated(extractedId, windowOpened: windowOpened);
@@ -240,10 +237,9 @@ namespace PlayniteAchievements.Providers.Steam
         {
             ClearSteamCookiesFromCef(_api, _logger);
             _probeCache.Invalidate(ProviderKey);
-            if (_settings?.Persisted != null)
-            {
-                _settings.Persisted.SteamUserId = null;
-            }
+            var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+            steamSettings.SteamUserId = null;
+            ProviderRegistry.Write(steamSettings);
         }
 
         public void InvalidateProbeCache()
@@ -261,7 +257,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 return cachedId;
             }
-            return _settings?.Persisted?.SteamUserId;
+            return ProviderRegistry.Settings<SteamSettings>().SteamUserId;
         }
 
         // ---------------------------------------------------------------------

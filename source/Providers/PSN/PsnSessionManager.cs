@@ -1,7 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +14,11 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.PSN
 {
-    public sealed class PsnSessionManager
+    /// <summary>
+    /// PSN session manager that probes authentication state from disk files.
+    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// </summary>
+    public sealed class PsnSessionManager : ISessionManager
     {
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
         private static readonly TimeSpan CachedTokenLifetime = TimeSpan.FromMinutes(45);
@@ -30,17 +34,24 @@ namespace PlayniteAchievements.Providers.PSN
         private readonly ILogger _logger;
         private readonly SemaphoreSlim _tokenSemaphore = new SemaphoreSlim(1, 1);
         private readonly string _tokenPath;
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly AuthProbeCache _probeCache;
 
-        private readonly PersistedSettings _settings;
+        // Temporary state for mobile token acquisition (not auth state)
         private MobileTokens _mobileToken;
         private DateTime _mobileTokenAcquiredUtc = DateTime.MinValue;
         private DateTime _mobileTokenExpiryUtc = DateTime.MinValue;
 
-        private string _accessToken;
-        private DateTime _tokenAcquiredUtc = DateTime.MinValue;
-        private bool _isSessionAuthenticated;
+        public string ProviderKey => "PSN";
 
-        public PsnSessionManager(IPlayniteAPI api, ILogger logger, PersistedSettings settings)
+        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.PSN;
+
+        public PsnSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PlayniteAchievementsSettings settings,
+            AuthProbeCache probeCache,
+            string pluginUserDataPath)
         {
             if (api == null) throw new ArgumentNullException(nameof(api));
             if (settings == null) throw new ArgumentNullException(nameof(settings));
@@ -48,29 +59,253 @@ namespace PlayniteAchievements.Providers.PSN
             _api = api;
             _logger = logger;
             _settings = settings;
-            _tokenPath = Path.Combine(api.Paths.ExtensionsDataPath, "PlayniteAchievements", "psn_cookies.bin");
+            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
+
+            // Use pluginUserDataPath for token storage (consistent with RA and other providers)
+            _tokenPath = Path.Combine(pluginUserDataPath ?? string.Empty, "psn", "cookies.bin");
+
+            // Migrate from old location if needed
+            MigrateTokenFile();
         }
 
-        public bool IsAuthenticated => _isSessionAuthenticated;
-
-        public async Task PrimeAuthenticationStateAsync(CancellationToken ct)
+        /// <summary>
+        /// Backward-compatible constructor that creates a default AuthProbeCache.
+        /// </summary>
+        public PsnSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PlayniteAchievementsSettings settings,
+            string pluginUserDataPath)
+            : this(api, logger, settings, new AuthProbeCache(logger), pluginUserDataPath)
         {
+        }
+
+        /// <summary>
+        /// Migrates token file from old location to new plugin data location.
+        /// </summary>
+        private void MigrateTokenFile()
+        {
+            var oldPath = Path.Combine(_api.Paths.ExtensionsDataPath, "PlayniteAchievements", "psn_cookies.bin");
+            if (File.Exists(oldPath) && !File.Exists(_tokenPath))
+            {
+                try
+                {
+                    var directory = Path.GetDirectoryName(_tokenPath);
+                    if (!Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
+                    File.Move(oldPath, _tokenPath);
+
+                    // Try to clean up old directory if empty
+                    var oldDir = Path.GetDirectoryName(oldPath);
+                    if (Directory.Exists(oldDir) && Directory.GetFiles(oldDir).Length == 0)
+                    {
+                        Directory.Delete(oldDir);
+                    }
+                    _logger?.Info("[PSNAuth] Migrated token file to new location.");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "[PSNAuth] Failed to migrate token file.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks if currently authenticated based on cached probe result.
+        /// </summary>
+        public bool IsAuthenticated
+        {
+            get
+            {
+                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+                {
+                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
+                }
+                return File.Exists(_tokenPath);
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // ISessionManager Implementation
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Ensures authentication is valid before data provider work.
+        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
+        /// </summary>
+        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
+        {
+            // Check if we have a valid cached result
+            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+            {
+                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
+                {
+                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
+                }
+            }
+
+            // Cache expired or invalid - perform fresh probe
+            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Probes the current authentication state from disk file.
+        /// This always performs a fresh probe, bypassing any cache.
+        /// </summary>
+        public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
+        {
+            using (PerfScope.Start(_logger, "PSN.ProbeAuthStateAsync", thresholdMs: 50))
+            {
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var token = await TryAcquireTokenAsync(ct, forceRefresh: false).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        _probeCache.RecordProbe(ProviderKey, true);
+                        return AuthProbeResult.AlreadyAuthenticated();
+                    }
+
+                    _probeCache.RecordProbe(ProviderKey, false);
+                    return AuthProbeResult.NotAuthenticated();
+                }
+                catch (OperationCanceledException)
+                {
+                    return AuthProbeResult.Cancelled();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "[PSNAuth] Probe failed with exception.");
+                    _probeCache.RecordProbe(ProviderKey, false);
+                    return AuthProbeResult.ProbeFailed();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Performs interactive authentication via WebView.
+        /// </summary>
+        public async Task<AuthProbeResult> AuthenticateInteractiveAsync(
+            bool forceInteractive,
+            CancellationToken ct,
+            IProgress<AuthProgressStep> progress = null)
+        {
+            var windowOpened = false;
+
             try
             {
                 ct.ThrowIfCancellationRequested();
-                var result = await ProbeAuthenticationAsync(ct).ConfigureAwait(false);
-                _logger?.Debug($"[PSNAch] Startup auth probe completed with outcome={result?.Outcome}.");
+                progress?.Report(AuthProgressStep.CheckingExistingSession);
+
+                if (!forceInteractive)
+                {
+                    var existingResult = await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                    if (existingResult.IsSuccess)
+                    {
+                        progress?.Report(AuthProgressStep.Completed);
+                        return existingResult;
+                    }
+                }
+                else
+                {
+                    ClearSession();
+                }
+
+                progress?.Report(AuthProgressStep.OpeningLoginWindow);
+                windowOpened = await LoginAsync(ct).ConfigureAwait(false);
+
+                if (!windowOpened)
+                {
+                    progress?.Report(AuthProgressStep.Failed);
+                    return AuthProbeResult.Failed(windowOpened: false);
+                }
+
+                progress?.Report(AuthProgressStep.WaitingForUserLogin);
+                var deadlineUtc = DateTime.UtcNow.Add(InteractiveAuthTimeout);
+
+                while (DateTime.UtcNow < deadlineUtc)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var token = await TryAcquireTokenAsync(ct, forceRefresh: true).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        _probeCache.RecordProbe(ProviderKey, true);
+                        progress?.Report(AuthProgressStep.Completed);
+                        return AuthProbeResult.Authenticated(windowOpened: windowOpened);
+                    }
+
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                }
+
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.TimedOut(windowOpened);
             }
             catch (OperationCanceledException)
             {
-                _logger?.Debug("[PSNAch] Startup auth probe cancelled.");
+                return AuthProbeResult.TimedOut(windowOpened);
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[PSNAch] Startup auth probe failed.");
+                _logger?.Error(ex, "[PSNAuth] Interactive auth failed.");
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.Failed(windowOpened);
             }
         }
 
+        /// <summary>
+        /// Clears the session by deleting token file and invalidating cache.
+        /// </summary>
+        public void ClearSession()
+        {
+            _logger?.Info("[PSNAuth] Clearing session.");
+
+            // Invalidate cache
+            _probeCache.Invalidate(ProviderKey);
+
+            // Reset mobile token state
+            ResetMobileTokenState();
+
+            // Delete token file
+            try
+            {
+                if (File.Exists(_tokenPath))
+                {
+                    File.Delete(_tokenPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[PSNAuth] Failed to delete token file.");
+            }
+        }
+
+        /// <summary>
+        /// Invalidates the cached access token, forcing a refresh on next API call.
+        /// Called when an API call receives an unauthorized response.
+        /// </summary>
+        public void InvalidateAccessToken()
+        {
+            _logger?.Debug("[PSNAuth] Invalidating access token.");
+            _probeCache.Invalidate(ProviderKey);
+            ResetMobileTokenState();
+        }
+
+        public void InvalidateProbeCache()
+        {
+            _probeCache.Invalidate(ProviderKey);
+        }
+
+        // ---------------------------------------------------------------------
+        // Token Provider Methods
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Gets the access token for API calls.
+        /// </summary>
         public async Task<string> GetAccessTokenAsync(CancellationToken ct, bool forceRefresh = false)
         {
             ct.ThrowIfCancellationRequested();
@@ -84,143 +319,9 @@ namespace PlayniteAchievements.Providers.PSN
             throw new PsnAuthRequiredException("PlayStation authentication required. Please login.");
         }
 
-        public async Task<PsnAuthResult> ProbeAuthenticationAsync(CancellationToken ct)
-        {
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var token = await TryAcquireTokenAsync(ct, forceRefresh: false).ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(token))
-                {
-                    return PsnAuthResult.Create(
-                        PsnAuthOutcome.AlreadyAuthenticated,
-                        "LOCPlayAch_Settings_Auth_AlreadyAuthenticated",
-                        windowOpened: false);
-                }
-
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.NotAuthenticated,
-                    "LOCPlayAch_Settings_Auth_NotAuthenticated",
-                    windowOpened: false);
-            }
-            catch (OperationCanceledException)
-            {
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.Cancelled,
-                    "LOCPlayAch_Settings_Auth_Cancelled",
-                    windowOpened: false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[PSNAch] Probe failed with exception.");
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.ProbeFailed,
-                    "LOCPlayAch_Settings_Auth_ProbeFailed",
-                    windowOpened: false);
-            }
-        }
-
-        public async Task<PsnAuthResult> AuthenticateInteractiveAsync(
-            bool forceInteractive,
-            CancellationToken ct,
-            IProgress<PsnAuthProgressStep> progress = null)
-        {
-            var windowOpened = false;
-
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                progress?.Report(PsnAuthProgressStep.CheckingExistingSession);
-
-                if (!forceInteractive)
-                {
-                    var existingToken = await TryAcquireTokenAsync(ct, forceRefresh: false).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(existingToken))
-                    {
-                        progress?.Report(PsnAuthProgressStep.Completed);
-                        return PsnAuthResult.Create(
-                            PsnAuthOutcome.AlreadyAuthenticated,
-                            "LOCPlayAch_Settings_Auth_AlreadyAuthenticated",
-                            windowOpened: false);
-                    }
-                }
-
-                progress?.Report(PsnAuthProgressStep.OpeningLoginWindow);
-                windowOpened = await LoginAsync(ct).ConfigureAwait(false);
-
-                if (!windowOpened)
-                {
-                    progress?.Report(PsnAuthProgressStep.Failed);
-                    return PsnAuthResult.Create(
-                        PsnAuthOutcome.Failed,
-                        "LOCPlayAch_Settings_Auth_WindowNotOpened",
-                        windowOpened: false);
-                }
-
-                progress?.Report(PsnAuthProgressStep.WaitingForUserLogin);
-                var deadlineUtc = DateTime.UtcNow.Add(InteractiveAuthTimeout);
-
-                while (DateTime.UtcNow < deadlineUtc)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    var token = await TryAcquireTokenAsync(ct, forceRefresh: true).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(token))
-                    {
-                        progress?.Report(PsnAuthProgressStep.Completed);
-                        return PsnAuthResult.Create(
-                            PsnAuthOutcome.Authenticated,
-                            "LOCPlayAch_Settings_Auth_Verified",
-                            windowOpened: true);
-                    }
-
-                    await Task.Delay(1000, ct).ConfigureAwait(false);
-                }
-
-                progress?.Report(PsnAuthProgressStep.Failed);
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.TimedOut,
-                    "LOCPlayAch_Settings_Auth_TimedOut",
-                    windowOpened: true);
-            }
-            catch (OperationCanceledException)
-            {
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.Cancelled,
-                    "LOCPlayAch_Settings_Auth_Cancelled",
-                    windowOpened: windowOpened);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[PSNAch] Interactive auth failed.");
-                progress?.Report(PsnAuthProgressStep.Failed);
-                return PsnAuthResult.Create(
-                    PsnAuthOutcome.Failed,
-                    "LOCPlayAch_Settings_Auth_Failed",
-                    windowOpened: windowOpened);
-            }
-        }
-
-        public void ClearSession()
-        {
-            try
-            {
-                ClearAuthentication();
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[PSNAch] Failed to clear PSN auth state.");
-            }
-
-            SetCachedToken(null);
-        }
-
-        internal void InvalidateAccessToken()
-        {
-            _logger?.Debug("[PSNAch] Invalidating cached PSN token state.");
-            SetCachedToken(null);
-        }
+        // ---------------------------------------------------------------------
+        // Private Helper Methods
+        // ---------------------------------------------------------------------
 
         private async Task<bool> LoginAsync(CancellationToken ct)
         {
@@ -277,7 +378,7 @@ namespace PlayniteAchievements.Providers.PSN
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[PSNAch] Login failed.");
+                _logger?.Error(ex, "[PSNAuth] Login failed.");
                 return false;
             }
         }
@@ -289,34 +390,34 @@ namespace PlayniteAchievements.Providers.PSN
                 var npsso = ProviderRegistry.Settings<PsnSettings>().Npsso;
                 var hasTokenFile = File.Exists(_tokenPath);
 
-                _logger?.Debug($"[PSNAch] CheckAuthentication: hasTokenFile={hasTokenFile}, npsso length={npsso?.Length ?? 0}");
+                _logger?.Debug($"[PSNAuth] CheckAuthentication: hasTokenFile={hasTokenFile}, npsso length={npsso?.Length ?? 0}");
 
                 if (!hasTokenFile && string.IsNullOrWhiteSpace(npsso))
                 {
-                    _logger?.Debug("[PSNAch] No token file or NPSSO configured.");
+                    _logger?.Debug("[PSNAuth] No token file or NPSSO configured.");
                     return false;
                 }
 
                 // If we have NPSSO but no token file, try NPSSO authentication first
                 if (!hasTokenFile && !string.IsNullOrWhiteSpace(npsso))
                 {
-                    _logger?.Debug("[PSNAch] No token file, trying NPSSO authentication");
+                    _logger?.Debug("[PSNAuth] No token file, trying NPSSO authentication");
                     TryRefreshCookies(npsso);
                 }
 
                 // Check if user is logged in
                 var isLoggedIn = await GetIsUserLoggedInAsync().ConfigureAwait(false);
-                _logger?.Debug($"[PSNAch] GetIsUserLoggedIn result: {isLoggedIn}");
+                _logger?.Debug($"[PSNAuth] GetIsUserLoggedIn result: {isLoggedIn}");
 
                 if (!isLoggedIn)
                 {
                     // Try refreshing with NPSSO if we haven't already
                     if (hasTokenFile && !string.IsNullOrWhiteSpace(npsso))
                     {
-                        _logger?.Debug("[PSNAch] Token file exists but not logged in, trying NPSSO refresh");
+                        _logger?.Debug("[PSNAuth] Token file exists but not logged in, trying NPSSO refresh");
                         TryRefreshCookies(npsso);
                         isLoggedIn = await GetIsUserLoggedInAsync().ConfigureAwait(false);
-                        _logger?.Debug($"[PSNAch] After NPSSO refresh, isLoggedIn: {isLoggedIn}");
+                        _logger?.Debug($"[PSNAuth] After NPSSO refresh, isLoggedIn: {isLoggedIn}");
                     }
 
                     if (!isLoggedIn)
@@ -329,39 +430,22 @@ namespace PlayniteAchievements.Providers.PSN
                 if (!HasValidMobileToken())
                 {
                     _logger?.Debug(
-                        $"[PSNAch] Mobile token missing or stale (hasToken={!string.IsNullOrWhiteSpace(_mobileToken?.access_token)}, expiryUtc={_mobileTokenExpiryUtc:O}); requesting new token.");
+                        $"[PSNAuth] Mobile token missing or stale (hasToken={!string.IsNullOrWhiteSpace(_mobileToken?.access_token)}, expiryUtc={_mobileTokenExpiryUtc:O}); requesting new token.");
                     if (!await GetMobileTokenAsync().ConfigureAwait(false))
                     {
-                        _logger?.Debug("[PSNAch] Failed to get mobile token");
+                        _logger?.Debug("[PSNAuth] Failed to get mobile token");
                         return false;
                     }
 
-                    _logger?.Debug($"[PSNAch] Mobile token reissued; valid until {_mobileTokenExpiryUtc:O}.");
+                    _logger?.Debug($"[PSNAuth] Mobile token reissued; valid until {_mobileTokenExpiryUtc:O}.");
                 }
 
                 return true;
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[PSNAch] CheckAuthentication failed.");
+                _logger?.Error(ex, "[PSNAuth] CheckAuthentication failed.");
                 return false;
-            }
-        }
-
-        private void ClearAuthentication()
-        {
-            try
-            {
-                if (File.Exists(_tokenPath))
-                {
-                    File.Delete(_tokenPath);
-                }
-                ResetMobileTokenState();
-                _logger?.Info("[PSNAch] Authentication cleared.");
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[PSNAch] Failed to clear authentication.");
             }
         }
 
@@ -386,7 +470,7 @@ namespace PlayniteAchievements.Providers.PSN
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[PSNAch] GetIsUserLoggedIn check failed.");
+                _logger?.Debug(ex, "[PSNAuth] GetIsUserLoggedIn check failed.");
                 return false;
             }
         }
@@ -408,7 +492,7 @@ namespace PlayniteAchievements.Providers.PSN
                     var mobileCodeResponse = await httpClient.GetAsync(MobileCodeUrl).ConfigureAwait(false);
                     if (mobileCodeResponse.StatusCode != HttpStatusCode.Redirect)
                     {
-                        _logger?.Debug($"[PSNAch] Mobile code request returned {mobileCodeResponse.StatusCode}, expected redirect.");
+                        _logger?.Debug($"[PSNAuth] Mobile code request returned {mobileCodeResponse.StatusCode}, expected redirect.");
                         return false;
                     }
 
@@ -426,7 +510,7 @@ namespace PlayniteAchievements.Providers.PSN
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Debug(ex, "[PSNAch] Failed to get mobile code.");
+                    _logger?.Debug(ex, "[PSNAuth] Failed to get mobile code.");
                     return false;
                 }
 
@@ -448,7 +532,7 @@ namespace PlayniteAchievements.Providers.PSN
 
                     if (!tokenResponse.IsSuccessStatusCode)
                     {
-                        _logger?.Debug($"[PSNAch] Token request failed: {tokenResponse.StatusCode} - {responseContent}");
+                        _logger?.Debug($"[PSNAuth] Token request failed: {tokenResponse.StatusCode} - {responseContent}");
                         return false;
                     }
 
@@ -469,7 +553,7 @@ namespace PlayniteAchievements.Providers.PSN
                 catch (Exception ex)
                 {
                     ResetMobileTokenState();
-                    _logger?.Error(ex, "[PSNAch] Failed to exchange mobile code for token.");
+                    _logger?.Error(ex, "[PSNAuth] Failed to exchange mobile code for token.");
                     return false;
                 }
             }
@@ -479,7 +563,7 @@ namespace PlayniteAchievements.Providers.PSN
         {
             try
             {
-                _logger?.Debug($"[PSNAch] Attempting to refresh cookies with NPSSO (length={npsso?.Length ?? 0})");
+                _logger?.Debug($"[PSNAuth] Attempting to refresh cookies with NPSSO (length={npsso?.Length ?? 0})");
 
                 using (var webView = _api.WebViews.CreateOffscreenView())
                 {
@@ -497,7 +581,7 @@ namespace PlayniteAchievements.Providers.PSN
                     webView.NavigateAndWait(LoginUrl);
 
                     var finalAddress = webView.GetCurrentAddress();
-                    _logger?.Debug($"[PSNAch] After NPSSO navigation, final address: {finalAddress}");
+                    _logger?.Debug($"[PSNAuth] After NPSSO navigation, final address: {finalAddress}");
                 }
 
                 // Dump the cookies that were set during authentication
@@ -505,7 +589,7 @@ namespace PlayniteAchievements.Providers.PSN
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[PSNAch] Failed to refresh cookies with NPSSO.");
+                _logger?.Error(ex, "[PSNAuth] Failed to refresh cookies with NPSSO.");
             }
         }
 
@@ -526,7 +610,7 @@ namespace PlayniteAchievements.Providers.PSN
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[PSNAch] Failed to read cookies from disk.");
+                _logger?.Debug(ex, "[PSNAuth] Failed to read cookies from disk.");
                 return new CookieContainer();
             }
         }
@@ -554,7 +638,7 @@ namespace PlayniteAchievements.Providers.PSN
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[PSNAch] Failed to write cookies to disk.");
+                _logger?.Error(ex, "[PSNAuth] Failed to write cookies to disk.");
             }
         }
 
@@ -565,13 +649,13 @@ namespace PlayniteAchievements.Providers.PSN
                 using (var view = _api.WebViews.CreateOffscreenView())
                 {
                     var cookies = view.GetCookies();
-                    _logger?.Debug($"[PSNAch] DumpCookies: found {cookies?.Count ?? 0} cookies");
+                    _logger?.Debug($"[PSNAuth] DumpCookies: found {cookies?.Count ?? 0} cookies");
 
                     var cookieContainer = new CookieContainer();
 
                     foreach (var cookie in cookies)
                     {
-                        _logger?.Debug($"[PSNAch] Cookie: {cookie.Name}@{cookie.Domain} (value length={cookie.Value?.Length ?? 0})");
+                        _logger?.Debug($"[PSNAuth] Cookie: {cookie.Name}@{cookie.Domain} (value length={cookie.Value?.Length ?? 0})");
                         try
                         {
                             if (cookie.Domain == ".playstation.com")
@@ -589,57 +673,50 @@ namespace PlayniteAchievements.Providers.PSN
                         }
                         catch (Exception ex)
                         {
-                            _logger?.Debug(ex, $"[PSNAch] Failed to add cookie: {cookie.Name}@{cookie.Domain}");
+                            _logger?.Debug(ex, $"[PSNAuth] Failed to add cookie: {cookie.Name}@{cookie.Domain}");
                         }
                     }
 
-                    _logger?.Debug($"[PSNAch] Cookie container has {cookieContainer.Count} cookies");
+                    _logger?.Debug($"[PSNAuth] Cookie container has {cookieContainer.Count} cookies");
                     WriteCookiesToDisk(cookieContainer);
                 }
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[PSNAch] Failed to dump cookies.");
+                _logger?.Error(ex, "[PSNAuth] Failed to dump cookies.");
             }
         }
 
         private async Task<string> TryAcquireTokenAsync(CancellationToken ct, bool forceRefresh)
         {
-            if (!forceRefresh && HasFreshCachedToken())
+            // Check if we have a valid cached token in mobile token state
+            if (!forceRefresh && HasValidMobileToken())
             {
-                return _accessToken;
+                return _mobileToken?.access_token;
             }
 
             await _tokenSemaphore.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                if (!forceRefresh && HasFreshCachedToken())
+                if (!forceRefresh && HasValidMobileToken())
                 {
-                    return _accessToken;
+                    return _mobileToken?.access_token;
                 }
 
                 if (!await CheckAuthenticationAsync().ConfigureAwait(false))
                 {
-                    SetCachedToken(null);
+                    ResetMobileTokenState();
                     return null;
                 }
 
                 if (!HasValidMobileToken())
                 {
-                    _logger?.Debug("[PSNAch] Authentication check completed but mobile token is still invalid.");
-                    SetCachedToken(null);
+                    _logger?.Debug("[PSNAuth] Authentication check completed but mobile token is still invalid.");
+                    ResetMobileTokenState();
                     return null;
                 }
 
-                var token = _mobileToken?.access_token;
-                if (string.IsNullOrWhiteSpace(token))
-                {
-                    SetCachedToken(null);
-                    return null;
-                }
-
-                SetCachedToken(token);
-                return token;
+                return _mobileToken?.access_token;
             }
             finally
             {
@@ -696,31 +773,28 @@ namespace PlayniteAchievements.Providers.PSN
             return null;
         }
 
-        private bool HasFreshCachedToken()
-        {
-            return !string.IsNullOrWhiteSpace(_accessToken) &&
-                   (DateTime.UtcNow - _tokenAcquiredUtc) < CachedTokenLifetime;
-        }
+        // ---------------------------------------------------------------------
+        // Legacy Type Conversion
+        // ---------------------------------------------------------------------
 
-        private void SetCachedToken(string token)
+        private PsnAuthResult ConvertToLegacyResult(AuthProbeResult result)
         {
-            if (string.IsNullOrWhiteSpace(token))
+            var outcome = result.Outcome switch
             {
-                _accessToken = null;
-                _tokenAcquiredUtc = DateTime.MinValue;
-                _isSessionAuthenticated = false;
-                ResetMobileTokenState();
-                return;
-            }
+                AuthOutcome.AlreadyAuthenticated => PsnAuthOutcome.AlreadyAuthenticated,
+                AuthOutcome.Authenticated => PsnAuthOutcome.Authenticated,
+                AuthOutcome.NotAuthenticated => PsnAuthOutcome.NotAuthenticated,
+                AuthOutcome.Cancelled => PsnAuthOutcome.Cancelled,
+                AuthOutcome.TimedOut => PsnAuthOutcome.TimedOut,
+                AuthOutcome.Failed => PsnAuthOutcome.Failed,
+                AuthOutcome.ProbeFailed => PsnAuthOutcome.ProbeFailed,
+                _ => PsnAuthOutcome.Failed
+            };
 
-            _accessToken = token;
-            _tokenAcquiredUtc = DateTime.UtcNow;
-            _isSessionAuthenticated = true;
+            return PsnAuthResult.Create(
+                outcome,
+                result.MessageKey,
+                result.WindowOpened);
         }
     }
 }
-
-
-
-
-

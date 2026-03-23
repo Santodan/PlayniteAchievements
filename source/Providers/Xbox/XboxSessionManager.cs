@@ -1,6 +1,8 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,10 +17,10 @@ using PlayniteAchievements.Providers.Xbox.Models;
 namespace PlayniteAchievements.Providers.Xbox
 {
     /// <summary>
-    /// Manages Xbox Live authentication via Microsoft Live OAuth.
-    /// Handles token storage, refresh, and session validation.
+    /// Xbox Live session manager that probes authentication state from encrypted disk files.
+    /// Auth state is never cached in memory - always probed from the source of truth.
     /// </summary>
-    public sealed class XboxSessionManager
+    public sealed class XboxSessionManager : ISessionManager
     {
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
         private static readonly TimeSpan CachedTokenLifetime = TimeSpan.FromMinutes(45);
@@ -39,45 +41,278 @@ namespace PlayniteAchievements.Providers.Xbox
         private readonly SemaphoreSlim _tokenSemaphore = new SemaphoreSlim(1, 1);
         private readonly string _liveTokensPath;
         private readonly string _xstsTokensPath;
+        private readonly AuthProbeCache _probeCache;
 
+        // Cached authorization data for the lifetime of a single operation
         private AuthorizationData _cachedAuthData;
         private DateTime _tokenAcquiredUtc = DateTime.MinValue;
-        private bool _isSessionAuthenticated;
 
-        public XboxSessionManager(IPlayniteAPI api, ILogger logger, PersistedSettings settings)
+        public string ProviderKey => "Xbox";
+
+        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.Xbox;
+
+        public XboxSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PersistedSettings settings,
+            AuthProbeCache probeCache,
+            string pluginUserDataPath)
         {
             if (api == null) throw new ArgumentNullException(nameof(api));
             if (settings == null) throw new ArgumentNullException(nameof(settings));
 
             _api = api;
             _logger = logger;
-            var basePath = Path.Combine(api.Paths.ExtensionsDataPath, "PlayniteAchievements");
-            _liveTokensPath = Path.Combine(basePath, "xbox_live.json");
-            _xstsTokensPath = Path.Combine(basePath, "xbox_xsts.json");
+            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
+
+            // Use pluginUserDataPath for token storage (consistent with RA and other providers)
+            var basePath = Path.Combine(pluginUserDataPath ?? string.Empty, "xbox");
+            _liveTokensPath = Path.Combine(basePath, "live.json");
+            _xstsTokensPath = Path.Combine(basePath, "xsts.json");
+
+            // Migrate from old location if needed
+            MigrateTokenFiles();
         }
 
-        public bool IsAuthenticated => _isSessionAuthenticated;
+        /// <summary>
+        /// Backward-compatible constructor that creates a default AuthProbeCache.
+        /// </summary>
+        public XboxSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PersistedSettings settings,
+            string pluginUserDataPath)
+            : this(api, logger, settings, new AuthProbeCache(logger), pluginUserDataPath)
+        {
+        }
 
         /// <summary>
-        /// Primes the authentication state on startup.
+        /// Migrates token files from old location to new plugin data location.
         /// </summary>
-        public async Task PrimeAuthenticationStateAsync(CancellationToken ct)
+        private void MigrateTokenFiles()
         {
+            var oldBasePath = Path.Combine(_api.Paths.ExtensionsDataPath, "PlayniteAchievements");
+            var oldLivePath = Path.Combine(oldBasePath, "xbox_live.json");
+            var oldXstsPath = Path.Combine(oldBasePath, "xbox_xsts.json");
+
             try
             {
-                ct.ThrowIfCancellationRequested();
-                var result = await ProbeAuthenticationAsync(ct).ConfigureAwait(false);
-                _logger?.Debug($"[XboxAch] Startup auth probe completed with outcome={result?.Outcome}.");
-            }
-            catch (OperationCanceledException)
-            {
-                _logger?.Debug("[XboxAch] Startup auth probe cancelled.");
+                var newDir = Path.GetDirectoryName(_liveTokensPath);
+                if (!Directory.Exists(newDir))
+                {
+                    Directory.CreateDirectory(newDir);
+                }
+
+                if (File.Exists(oldLivePath) && !File.Exists(_liveTokensPath))
+                {
+                    File.Move(oldLivePath, _liveTokensPath);
+                    _logger?.Info("[XboxAuth] Migrated Live tokens to new location.");
+                }
+
+                if (File.Exists(oldXstsPath) && !File.Exists(_xstsTokensPath))
+                {
+                    File.Move(oldXstsPath, _xstsTokensPath);
+                    _logger?.Info("[XboxAuth] Migrated XSTS tokens to new location.");
+                }
+
+                // Try to clean up old directory if empty
+                if (Directory.Exists(oldBasePath) && Directory.GetFiles(oldBasePath).Length == 0)
+                {
+                    Directory.Delete(oldBasePath);
+                }
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[XboxAch] Startup auth probe failed.");
+                _logger?.Debug(ex, "[XboxAuth] Failed to migrate token files.");
             }
         }
+
+        /// <summary>
+        /// Checks if currently authenticated based on cached probe result.
+        /// </summary>
+        public bool IsAuthenticated
+        {
+            get
+            {
+                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+                {
+                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
+                }
+                return File.Exists(_xstsTokensPath);
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // ISessionManager Implementation
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Ensures authentication is valid before data provider work.
+        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
+        /// </summary>
+        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
+        {
+            // Check if we have a valid cached result
+            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+            {
+                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
+                {
+                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
+                }
+            }
+
+            // Cache expired or invalid - perform fresh probe
+            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Probes the current authentication state from encrypted disk files.
+        /// This always performs a fresh probe, bypassing any cache.
+        /// </summary>
+        public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
+        {
+            using (PerfScope.Start(_logger, "Xbox.ProbeAuthStateAsync", thresholdMs: 50))
+            {
+                try
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var authData = await TryAcquireAuthorizationAsync(ct, forceRefresh: false).ConfigureAwait(false);
+                    if (authData != null)
+                    {
+                        var userId = authData.DisplayClaims?.xui?[0]?.xid?.ToString();
+                        _probeCache.RecordProbe(ProviderKey, true, userId);
+                        return AuthProbeResult.AlreadyAuthenticated(userId);
+                    }
+
+                    _probeCache.RecordProbe(ProviderKey, false);
+                    return AuthProbeResult.NotAuthenticated();
+                }
+                catch (OperationCanceledException)
+                {
+                    return AuthProbeResult.Cancelled();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "[XboxAuth] Probe failed with exception.");
+                    _probeCache.RecordProbe(ProviderKey, false);
+                    return AuthProbeResult.ProbeFailed();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Performs interactive authentication via WebView.
+        /// </summary>
+        public async Task<AuthProbeResult> AuthenticateInteractiveAsync(
+            bool forceInteractive,
+            CancellationToken ct,
+            IProgress<AuthProgressStep> progress = null)
+        {
+            var windowOpened = false;
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                progress?.Report(AuthProgressStep.CheckingExistingSession);
+
+                if (!forceInteractive)
+                {
+                    var existingResult = await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                    if (existingResult.IsSuccess)
+                    {
+                        progress?.Report(AuthProgressStep.Completed);
+                        return existingResult;
+                    }
+                }
+                else
+                {
+                    ClearSession();
+                }
+
+                progress?.Report(AuthProgressStep.OpeningLoginWindow);
+                windowOpened = await LoginAsync(ct).ConfigureAwait(false);
+
+                if (!windowOpened)
+                {
+                    progress?.Report(AuthProgressStep.Failed);
+                    return AuthProbeResult.Failed(windowOpened: false);
+                }
+
+                progress?.Report(AuthProgressStep.WaitingForUserLogin);
+                var deadlineUtc = DateTime.UtcNow.Add(InteractiveAuthTimeout);
+
+                while (DateTime.UtcNow < deadlineUtc)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var authData = await TryAcquireAuthorizationAsync(ct, forceRefresh: true).ConfigureAwait(false);
+                    if (authData != null)
+                    {
+                        var userId = authData.DisplayClaims?.xui?[0]?.xid?.ToString();
+                        _probeCache.RecordProbe(ProviderKey, true, userId);
+                        progress?.Report(AuthProgressStep.Completed);
+                        return AuthProbeResult.Authenticated(userId, windowOpened: windowOpened);
+                    }
+
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                }
+
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.TimedOut(windowOpened);
+            }
+            catch (OperationCanceledException)
+            {
+                return AuthProbeResult.TimedOut(windowOpened);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[XboxAuth] Interactive auth failed.");
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.Failed(windowOpened);
+            }
+        }
+
+        /// <summary>
+        /// Clears the session by deleting token files and invalidating cache.
+        /// </summary>
+        public void ClearSession()
+        {
+            _logger?.Info("[XboxAuth] Clearing session.");
+
+            // Invalidate cache
+            _probeCache.Invalidate(ProviderKey);
+
+            // Clear cached auth data
+            _cachedAuthData = null;
+            _tokenAcquiredUtc = DateTime.MinValue;
+
+            // Delete token files
+            try
+            {
+                if (File.Exists(_liveTokensPath))
+                {
+                    File.Delete(_liveTokensPath);
+                }
+                if (File.Exists(_xstsTokensPath))
+                {
+                    File.Delete(_xstsTokensPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[XboxAuth] Failed to delete token files.");
+            }
+        }
+
+        public void InvalidateProbeCache()
+        {
+            _probeCache.Invalidate(ProviderKey);
+        }
+
+        // ---------------------------------------------------------------------
+        // Authorization Provider Methods
+        // ---------------------------------------------------------------------
 
         /// <summary>
         /// Gets the authorization data needed for API calls.
@@ -95,146 +330,9 @@ namespace PlayniteAchievements.Providers.Xbox
             throw new XboxAuthRequiredException("Xbox authentication required. Please login.");
         }
 
-        /// <summary>
-        /// Probes current authentication state without triggering a login.
-        /// </summary>
-        public async Task<XboxAuthResult> ProbeAuthenticationAsync(CancellationToken ct)
-        {
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var authData = await TryAcquireAuthorizationAsync(ct, forceRefresh: false).ConfigureAwait(false);
-                if (authData != null)
-                {
-                    return XboxAuthResult.Create(
-                        XboxAuthOutcome.AlreadyAuthenticated,
-                        "LOCPlayAch_Settings_Auth_AlreadyAuthenticated",
-                        windowOpened: false);
-                }
-
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.NotAuthenticated,
-                    "LOCPlayAch_Settings_Auth_NotAuthenticated",
-                    windowOpened: false);
-            }
-            catch (OperationCanceledException)
-            {
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.Cancelled,
-                    "LOCPlayAch_Settings_Auth_Cancelled",
-                    windowOpened: false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[XboxAch] Probe failed with exception.");
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.ProbeFailed,
-                    "LOCPlayAch_Settings_Auth_ProbeFailed",
-                    windowOpened: false);
-            }
-        }
-
-        /// <summary>
-        /// Performs interactive authentication via WebView.
-        /// </summary>
-        public async Task<XboxAuthResult> AuthenticateInteractiveAsync(
-            bool forceInteractive,
-            CancellationToken ct,
-            IProgress<XboxAuthProgressStep> progress = null)
-        {
-            var windowOpened = false;
-
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-                progress?.Report(XboxAuthProgressStep.CheckingExistingSession);
-
-                if (!forceInteractive)
-                {
-                    var existingAuth = await TryAcquireAuthorizationAsync(ct, forceRefresh: false).ConfigureAwait(false);
-                    if (existingAuth != null)
-                    {
-                        progress?.Report(XboxAuthProgressStep.Completed);
-                        return XboxAuthResult.Create(
-                            XboxAuthOutcome.AlreadyAuthenticated,
-                            "LOCPlayAch_Settings_Auth_AlreadyAuthenticated",
-                            windowOpened: false);
-                    }
-                }
-
-                progress?.Report(XboxAuthProgressStep.OpeningLoginWindow);
-                windowOpened = await LoginAsync(ct).ConfigureAwait(false);
-
-                if (!windowOpened)
-                {
-                    progress?.Report(XboxAuthProgressStep.Failed);
-                    return XboxAuthResult.Create(
-                        XboxAuthOutcome.Failed,
-                        "LOCPlayAch_Settings_Auth_WindowNotOpened",
-                        windowOpened: false);
-                }
-
-                progress?.Report(XboxAuthProgressStep.WaitingForUserLogin);
-                var deadlineUtc = DateTime.UtcNow.Add(InteractiveAuthTimeout);
-
-                while (DateTime.UtcNow < deadlineUtc)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    var authData = await TryAcquireAuthorizationAsync(ct, forceRefresh: true).ConfigureAwait(false);
-                    if (authData != null)
-                    {
-                        progress?.Report(XboxAuthProgressStep.Completed);
-                        return XboxAuthResult.Create(
-                            XboxAuthOutcome.Authenticated,
-                            "LOCPlayAch_Settings_Auth_Verified",
-                            windowOpened: true);
-                    }
-
-                    await Task.Delay(1000, ct).ConfigureAwait(false);
-                }
-
-                progress?.Report(XboxAuthProgressStep.Failed);
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.TimedOut,
-                    "LOCPlayAch_Settings_Auth_TimedOut",
-                    windowOpened: true);
-            }
-            catch (OperationCanceledException)
-            {
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.Cancelled,
-                    "LOCPlayAch_Settings_Auth_Cancelled",
-                    windowOpened: windowOpened);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[XboxAch] Interactive auth failed.");
-                progress?.Report(XboxAuthProgressStep.Failed);
-                return XboxAuthResult.Create(
-                    XboxAuthOutcome.Failed,
-                    "LOCPlayAch_Settings_Auth_Failed",
-                    windowOpened: windowOpened);
-            }
-        }
-
-        /// <summary>
-        /// Clears the stored session data.
-        /// </summary>
-        public void ClearSession()
-        {
-            try
-            {
-                ClearAuthentication();
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[XboxAch] Failed to clear Xbox auth state.");
-            }
-
-            SetCachedAuthorization(null);
-        }
+        // ---------------------------------------------------------------------
+        // Private Helper Methods
+        // ---------------------------------------------------------------------
 
         private async Task<bool> LoginAsync(CancellationToken ct)
         {
@@ -502,6 +600,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private async Task<AuthorizationData> TryAcquireAuthorizationAsync(CancellationToken ct, bool forceRefresh)
         {
+            // Check if we have fresh cached authorization data
             if (!forceRefresh && HasFreshCachedAuthorization())
             {
                 return _cachedAuthData;
@@ -519,7 +618,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 var authData = LoadXstsTokens();
                 if (authData == null)
                 {
-                    SetCachedAuthorization(null);
+                    ClearCachedAuthorization();
                     return null;
                 }
 
@@ -543,14 +642,14 @@ namespace PlayniteAchievements.Providers.Xbox
                         }
                         catch (Exception ex)
                         {
-                            _logger?.Debug(ex, "[XboxAch] Token refresh failed.");
+                            _logger?.Debug(ex, "[XboxAuth] Token refresh failed.");
                         }
                     }
 
                     isValid = await CheckAuthenticationAsync().ConfigureAwait(false);
                     if (!isValid)
                     {
-                        SetCachedAuthorization(null);
+                        ClearCachedAuthorization();
                         return null;
                     }
                 }
@@ -564,24 +663,28 @@ namespace PlayniteAchievements.Providers.Xbox
             }
         }
 
-        private void ClearAuthentication()
+        private bool HasFreshCachedAuthorization()
         {
-            try
+            return _cachedAuthData != null &&
+                   (DateTime.UtcNow - _tokenAcquiredUtc) < CachedTokenLifetime;
+        }
+
+        private void SetCachedAuthorization(AuthorizationData authData)
+        {
+            if (authData == null)
             {
-                if (File.Exists(_liveTokensPath))
-                {
-                    File.Delete(_liveTokensPath);
-                }
-                if (File.Exists(_xstsTokensPath))
-                {
-                    File.Delete(_xstsTokensPath);
-                }
-                _logger?.Info("[XboxAch] Authentication cleared.");
+                ClearCachedAuthorization();
+                return;
             }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[XboxAch] Failed to clear authentication.");
-            }
+
+            _cachedAuthData = authData;
+            _tokenAcquiredUtc = DateTime.UtcNow;
+        }
+
+        private void ClearCachedAuthorization()
+        {
+            _cachedAuthData = null;
+            _tokenAcquiredUtc = DateTime.MinValue;
         }
 
         private void SaveLiveTokens(LiveTokens tokens)
@@ -606,7 +709,7 @@ namespace PlayniteAchievements.Providers.Xbox
             }
             catch (Exception ex)
             {
-                _logger?.Error(ex, "[XboxAch] Failed to save Live tokens.");
+                _logger?.Error(ex, "[XboxAuth] Failed to save Live tokens.");
             }
         }
 
@@ -630,7 +733,7 @@ namespace PlayniteAchievements.Providers.Xbox
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[XboxAch] Failed to load Live tokens.");
+                _logger?.Debug(ex, "[XboxAuth] Failed to load Live tokens.");
                 return null;
             }
         }
@@ -655,30 +758,33 @@ namespace PlayniteAchievements.Providers.Xbox
             }
             catch (Exception ex)
             {
-                _logger?.Debug(ex, "[XboxAch] Failed to load XSTS tokens.");
+                _logger?.Debug(ex, "[XboxAuth] Failed to load XSTS tokens.");
                 return null;
             }
         }
 
-        private bool HasFreshCachedAuthorization()
-        {
-            return _cachedAuthData != null &&
-                   (DateTime.UtcNow - _tokenAcquiredUtc) < CachedTokenLifetime;
-        }
+        // ---------------------------------------------------------------------
+        // Legacy Type Conversion
+        // ---------------------------------------------------------------------
 
-        private void SetCachedAuthorization(AuthorizationData authData)
+        private XboxAuthResult ConvertToLegacyResult(AuthProbeResult result)
         {
-            if (authData == null)
+            var outcome = result.Outcome switch
             {
-                _cachedAuthData = null;
-                _tokenAcquiredUtc = DateTime.MinValue;
-                _isSessionAuthenticated = false;
-                return;
-            }
+                AuthOutcome.AlreadyAuthenticated => XboxAuthOutcome.AlreadyAuthenticated,
+                AuthOutcome.Authenticated => XboxAuthOutcome.Authenticated,
+                AuthOutcome.NotAuthenticated => XboxAuthOutcome.NotAuthenticated,
+                AuthOutcome.Cancelled => XboxAuthOutcome.Cancelled,
+                AuthOutcome.TimedOut => XboxAuthOutcome.TimedOut,
+                AuthOutcome.Failed => XboxAuthOutcome.Failed,
+                AuthOutcome.ProbeFailed => XboxAuthOutcome.ProbeFailed,
+                _ => XboxAuthOutcome.Failed
+            };
 
-            _cachedAuthData = authData;
-            _tokenAcquiredUtc = DateTime.UtcNow;
-            _isSessionAuthenticated = true;
+            return XboxAuthResult.Create(
+                outcome,
+                result.MessageKey,
+                result.WindowOpened);
         }
 
         /// <summary>

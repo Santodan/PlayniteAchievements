@@ -1,11 +1,10 @@
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
+using PlayniteAchievements.Models;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,173 +15,190 @@ namespace PlayniteAchievements.Providers.Exophase
     /// Cookie-based authentication client for Exophase.
     /// Uses Playnite's IWebView API for browser-based authentication.
     /// Exophase does not use OAuth tokens; session is maintained via cookies.
+    /// Auth state is never cached in memory - always probed from the source of truth.
     /// </summary>
-    public sealed class ExophaseSessionManager : IExophaseTokenProvider
+    public sealed class ExophaseSessionManager : ISessionManager, IExophaseTokenProvider
     {
         private const string UrlLogin = "https://www.exophase.com/login";
         private const string UrlAccount = "https://www.exophase.com/account";
         private static readonly TimeSpan InteractiveAuthTimeout = TimeSpan.FromMinutes(3);
 
-        private bool _isSessionAuthenticated;
-        private string _username;
         private (bool Success, string Username) _authResult;
         private int _authCheckInProgress;
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
-        private readonly ExophaseCookieSnapshotStore _cookieSnapshotStore;
+        private readonly AuthProbeCache _probeCache;
 
-        public ExophaseSessionManager(IPlayniteAPI api, ILogger logger, PlayniteAchievementsSettings settings, string pluginUserDataPath)
+        public string ProviderKey => "Exophase";
+
+        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.Exophase;
+
+        public ExophaseSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PlayniteAchievementsSettings settings,
+            AuthProbeCache probeCache)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger;
             _settings = settings;
+            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
+        }
 
-            var resolvedPluginUserDataPath = string.IsNullOrWhiteSpace(pluginUserDataPath)
-                ? Path.Combine(api.Paths.ExtensionsDataPath, "PlayniteAchievements")
-                : pluginUserDataPath;
-            _cookieSnapshotStore = new ExophaseCookieSnapshotStore(resolvedPluginUserDataPath, logger);
+        /// <summary>
+        /// Backward-compatible constructor that creates a default AuthProbeCache.
+        /// </summary>
+        public ExophaseSessionManager(
+            IPlayniteAPI api,
+            ILogger logger,
+            PlayniteAchievementsSettings settings)
+            : this(api, logger, settings, new AuthProbeCache(logger))
+        {
+        }
 
-            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (!string.IsNullOrWhiteSpace(exophaseSettings.UserId))
+        // ---------------------------------------------------------------------
+        // IExophaseTokenProvider (backward compatibility)
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Checks if currently authenticated based on cached probe result.
+        /// This probes from source of truth if cache is invalid.
+        /// </summary>
+        public bool IsAuthenticated
+        {
+            get
             {
-                _username = exophaseSettings.UserId.Trim();
+                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+                {
+                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
+                }
+                // Probe synchronously (this is a property getter, so we do a quick check)
+                return HasExophaseSessionCookies(_api, _logger);
             }
         }
 
         /// <summary>
-        /// Checks if currently authenticated based on verified web session.
-        /// </summary>
-        public bool IsAuthenticated => _isSessionAuthenticated;
-
-        /// <summary>
         /// Gets the current username if authenticated.
+        /// Probes from source of truth if not cached.
         /// </summary>
-        public string Username => _username;
+        public string Username
+        {
+            get
+            {
+                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var userId))
+                {
+                    return userId;
+                }
+                return _settings?.Persisted?.ExophaseUserId;
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // ISessionManager Implementation
+        // ---------------------------------------------------------------------
 
         /// <summary>
-        /// Runs a best-effort background probe to hydrate authentication state from current web session cookies.
-        /// Safe to call at startup; failures are logged and not propagated.
+        /// Ensures authentication is valid before data provider work.
+        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
         /// </summary>
-        public async Task PrimeAuthenticationStateAsync(CancellationToken ct)
+        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
         {
-            using (PerfScope.Start(_logger, "Exophase.PrimeAuthenticationStateAsync", thresholdMs: 50))
+            // Check if we have a valid cached result
+            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
+            {
+                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
+                {
+                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
+                }
+            }
+
+            // Cache expired or invalid - perform fresh probe
+            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Probes the current authentication state from CEF cookies.
+        /// This always performs a fresh probe, bypassing any cache.
+        /// </summary>
+        public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
+        {
+            using (PerfScope.Start(_logger, "Exophase.ProbeAuthStateAsync", thresholdMs: 50))
             {
                 try
                 {
                     ct.ThrowIfCancellationRequested();
-                    var result = await ProbeAuthenticationAsync(ct).ConfigureAwait(false);
-                    _logger?.Debug($"[ExophaseAuth] Startup auth probe completed with outcome={result?.Outcome}.");
+
+                    // Fast path: check persisted username AND cookies exist
+                    var persistedUsername = _settings?.Persisted?.ExophaseUserId;
+                    var hasCookies = HasExophaseSessionCookies(_api, _logger);
+
+                    if (!string.IsNullOrWhiteSpace(persistedUsername) && hasCookies)
+                    {
+                        _probeCache.RecordProbe(ProviderKey, true, persistedUsername);
+                        _logger?.Debug("[ExophaseAuth] Restored from persisted settings + cookie check.");
+                        return AuthProbeResult.AlreadyAuthenticated(persistedUsername);
+                    }
+
+                    // Do full verification by navigating to account page
+                    var extractedUsername = await QuickAuthCheckAsync(ct).ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(extractedUsername))
+                    {
+                        _probeCache.RecordProbe(ProviderKey, true, extractedUsername);
+                        if (_settings?.Persisted != null)
+                        {
+                            _settings.Persisted.ExophaseUserId = extractedUsername;
+                        }
+                        return AuthProbeResult.AlreadyAuthenticated(extractedUsername);
+                    }
+
+                    // Verification failed, clear any stale persisted state
+                    if (_settings?.Persisted != null)
+                    {
+                        _settings.Persisted.ExophaseUserId = null;
+                    }
+                    _probeCache.RecordProbe(ProviderKey, false);
+
+                    return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
                 {
-                    _logger?.Debug("[ExophaseAuth] Startup auth probe cancelled.");
+                    return AuthProbeResult.Cancelled();
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Debug(ex, "[ExophaseAuth] Startup auth probe failed.");
+                    _logger?.Error(ex, "[ExophaseAuth] Probe failed with exception.");
+                    _probeCache.RecordProbe(ProviderKey, false);
+                    return AuthProbeResult.ProbeFailed();
                 }
-            }
-        }
-
-        public async Task<ExophaseAuthResult> ProbeAuthenticationAsync(CancellationToken ct)
-        {
-            try
-            {
-                ct.ThrowIfCancellationRequested();
-
-                if (_isSessionAuthenticated && !string.IsNullOrWhiteSpace(_username))
-                {
-                    return ExophaseAuthResult.Create(
-                        ExophaseAuthOutcome.AlreadyAuthenticated,
-                        "LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated",
-                        _username,
-                        windowOpened: false);
-                }
-
-                var extractedUsername = await QuickAuthCheckAsync(
-                    ct,
-                    allowSnapshotRestore: true).ConfigureAwait(false);
-                if (!string.IsNullOrWhiteSpace(extractedUsername))
-                {
-                    var settings = ProviderRegistry.Settings<ExophaseSettings>();
-                    settings.UserId = extractedUsername;
-                    ProviderRegistry.Write(settings);
-
-                    return ExophaseAuthResult.Create(
-                        ExophaseAuthOutcome.AlreadyAuthenticated,
-                        "LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated",
-                        extractedUsername,
-                        windowOpened: false);
-                }
-
-                var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
-                exophaseSettings.UserId = null;
-                ProviderRegistry.Write(exophaseSettings);
-
-                _isSessionAuthenticated = false;
-                _username = null;
-
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.NotAuthenticated,
-                    "LOCPlayAch_Settings_ExophaseAuth_NotAuthenticated",
-                    windowOpened: false);
-            }
-            catch (OperationCanceledException)
-            {
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.Cancelled,
-                    "LOCPlayAch_Settings_ExophaseAuth_Cancelled",
-                    windowOpened: false);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, "[ExophaseAuth] Probe failed with exception.");
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.ProbeFailed,
-                    "LOCPlayAch_Settings_ExophaseAuth_ProbeFailed",
-                    windowOpened: false);
             }
         }
 
         /// <summary>
-        /// Main authentication entry point.
+        /// Performs interactive authentication via WebView.
         /// </summary>
-        public async Task<ExophaseAuthResult> AuthenticateInteractiveAsync(
+        public async Task<AuthProbeResult> AuthenticateInteractiveAsync(
             bool forceInteractive,
             CancellationToken ct,
-            IProgress<ExophaseAuthProgressStep> progress = null)
+            IProgress<AuthProgressStep> progress = null)
         {
             var windowOpened = false;
 
             try
             {
                 ct.ThrowIfCancellationRequested();
-                progress?.Report(ExophaseAuthProgressStep.CheckingExistingSession);
+                progress?.Report(AuthProgressStep.CheckingExistingSession);
 
                 _logger?.Info("[ExophaseAuth] Starting interactive authentication.");
 
                 if (!forceInteractive)
                 {
-                    try
+                    var existingResult = await ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                    if (existingResult.IsSuccess)
                     {
-                        var existingUsername = await QuickAuthCheckAsync(
-                            ct,
-                            allowSnapshotRestore: true).ConfigureAwait(false);
-                        if (!string.IsNullOrWhiteSpace(existingUsername))
-                        {
-                            _logger?.Info("[ExophaseAuth] Quick auth check succeeded - already authenticated.");
-                            progress?.Report(ExophaseAuthProgressStep.Completed);
-                            return ExophaseAuthResult.Create(
-                                ExophaseAuthOutcome.AlreadyAuthenticated,
-                                "LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated",
-                                existingUsername,
-                                windowOpened: false);
-                        }
-                    }
-                    catch (Exception quickCheckEx)
-                    {
-                        _logger?.Debug(quickCheckEx, "[ExophaseAuth] Quick check failed before interactive login, proceeding.");
+                        _logger?.Info("[ExophaseAuth] Already authenticated.");
+                        progress?.Report(AuthProgressStep.Completed);
+                        return existingResult;
                     }
                 }
                 else
@@ -191,7 +207,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
 
                 _logger?.Info("[ExophaseAuth] Opening login dialog.");
-                progress?.Report(ExophaseAuthProgressStep.OpeningLoginWindow);
+                progress?.Report(AuthProgressStep.OpeningLoginWindow);
 
                 var loginTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -200,7 +216,7 @@ namespace PlayniteAchievements.Providers.Exophase
                     try
                     {
                         var result = LoginInteractively();
-                        loginTcs.TrySetResult(result ?? string.Empty);
+                        loginTcs.TrySetResult(result ?? "");
                     }
                     catch (Exception ex)
                     {
@@ -209,339 +225,76 @@ namespace PlayniteAchievements.Providers.Exophase
                 }));
                 windowOpened = true;
 
-                progress?.Report(ExophaseAuthProgressStep.WaitingForUserLogin);
+                progress?.Report(AuthProgressStep.WaitingForUserLogin);
                 var completed = await Task.WhenAny(
                     loginTcs.Task,
                     Task.Delay(InteractiveAuthTimeout, ct)).ConfigureAwait(false);
 
                 if (completed != loginTcs.Task)
                 {
-                    _logger?.Warn("[ExophaseAuth] Interactive login timed out while waiting for dialog completion.");
-                    progress?.Report(ExophaseAuthProgressStep.Failed);
-                    return ExophaseAuthResult.Create(
-                        ExophaseAuthOutcome.TimedOut,
-                        "LOCPlayAch_Settings_ExophaseAuth_TimedOut",
-                        windowOpened: windowOpened);
+                    _logger?.Warn("[ExophaseAuth] Interactive login timed out.");
+                    progress?.Report(AuthProgressStep.Failed);
+                    return AuthProbeResult.TimedOut(windowOpened);
                 }
 
                 var extractedUsername = await loginTcs.Task.ConfigureAwait(false);
 
-                progress?.Report(ExophaseAuthProgressStep.VerifyingSession);
+                progress?.Report(AuthProgressStep.VerifyingSession);
                 if (string.IsNullOrWhiteSpace(extractedUsername))
                 {
-                    extractedUsername = await QuickAuthCheckAsync(
-                        ct,
-                        allowSnapshotRestore: false).ConfigureAwait(false);
+                    // Fallback: dialog may have been manually closed after successful login
+                    extractedUsername = await QuickAuthCheckAsync(ct).ConfigureAwait(false);
                 }
 
                 if (string.IsNullOrWhiteSpace(extractedUsername))
                 {
                     _logger?.Warn("[ExophaseAuth] Interactive login failed or was cancelled.");
-                    progress?.Report(ExophaseAuthProgressStep.Failed);
-                    return ExophaseAuthResult.Create(
-                        ExophaseAuthOutcome.Cancelled,
-                        "LOCPlayAch_Settings_ExophaseAuth_Cancelled",
-                        windowOpened: windowOpened);
+                    progress?.Report(AuthProgressStep.Failed);
+                    return AuthProbeResult.Cancelled(windowOpened);
                 }
 
-                _username = extractedUsername;
-                _isSessionAuthenticated = true;
-
-                var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
-                exophaseSettings.UserId = extractedUsername;
-                ProviderRegistry.Write(exophaseSettings);
-
-                await SaveCurrentCookiesSnapshotAsync(ct).ConfigureAwait(false);
+                _probeCache.RecordProbe(ProviderKey, true, extractedUsername);
+                if (_settings?.Persisted != null)
+                {
+                    _settings.Persisted.ExophaseUserId = extractedUsername;
+                }
 
                 _logger?.Info("[ExophaseAuth] Interactive login succeeded.");
-                progress?.Report(ExophaseAuthProgressStep.Completed);
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.Authenticated,
-                    "LOCPlayAch_Settings_ExophaseAuth_Verified",
-                    extractedUsername,
-                    windowOpened: windowOpened);
+                progress?.Report(AuthProgressStep.Completed);
+                return AuthProbeResult.Authenticated(extractedUsername, windowOpened: windowOpened);
             }
             catch (OperationCanceledException)
             {
                 _logger?.Info("[ExophaseAuth] Authentication was cancelled or timed out.");
-                progress?.Report(ExophaseAuthProgressStep.Failed);
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.TimedOut,
-                    "LOCPlayAch_Settings_ExophaseAuth_TimedOut",
-                    windowOpened: windowOpened);
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.TimedOut(windowOpened);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "[ExophaseAuth] Authentication failed with exception.");
-                progress?.Report(ExophaseAuthProgressStep.Failed);
-                return ExophaseAuthResult.Create(
-                    ExophaseAuthOutcome.Failed,
-                    "LOCPlayAch_Settings_ExophaseAuth_Failed",
-                    windowOpened: windowOpened);
+                progress?.Report(AuthProgressStep.Failed);
+                return AuthProbeResult.Failed(windowOpened);
             }
-        }
-
-        private async Task<string> QuickAuthCheckAsync(
-            CancellationToken ct,
-            bool allowSnapshotRestore)
-        {
-            using (PerfScope.Start(_logger, "Exophase.QuickAuthCheckAsync", thresholdMs: 50))
-            {
-                ct.ThrowIfCancellationRequested();
-
-                List<HttpCookie> snapshotCookies = null;
-                var snapshotLoaded = allowSnapshotRestore && _cookieSnapshotStore.TryLoad(out snapshotCookies);
-
-                var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
-                {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        var cefProbeResult = await VerifyAccountSessionAsync(view, ct);
-                        if (cefProbeResult.IsAuthenticated)
-                        {
-                            return new ExophaseQuickCheckResult
-                            {
-                                Username = cefProbeResult.Username,
-                                CookiesToPersist = cefProbeResult.Cookies
-                            };
-                        }
-                    }
-
-                    if (!snapshotLoaded || snapshotCookies == null || snapshotCookies.Count == 0)
-                    {
-                        return new ExophaseQuickCheckResult();
-                    }
-
-                    _logger?.Debug("[ExophaseAuth] Existing Exophase cookies were not authenticated, trying saved cookie snapshot.");
-
-                    using (var restoreView = _api.WebViews.CreateOffscreenView())
-                    {
-                        await ReplaceExophaseCookiesAsync(restoreView, snapshotCookies, ct);
-                        var restoreProbeResult = await VerifyAccountSessionAsync(restoreView, ct);
-
-                        return new ExophaseQuickCheckResult
-                        {
-                            Username = restoreProbeResult.Username,
-                            CookiesToPersist = restoreProbeResult.Cookies,
-                            RestoredFromSnapshot = restoreProbeResult.IsAuthenticated
-                        };
-                    }
-                });
-
-                var resultTask = await dispatchOperation.Task.ConfigureAwait(false);
-                var result = await resultTask.ConfigureAwait(false);
-                if (result?.IsAuthenticated != true)
-                {
-                    return null;
-                }
-
-                _isSessionAuthenticated = true;
-                _username = result.Username;
-
-                if (result.RestoredFromSnapshot)
-                {
-                    if (result.CookiesToPersist?.Count > 0)
-                    {
-                        _cookieSnapshotStore.Save(result.CookiesToPersist);
-                    }
-
-                    _logger?.Info("[ExophaseAuth] Restored authenticated session from saved Exophase cookie snapshot.");
-                }
-
-                _logger?.Debug($"[ExophaseAuth] Extracted username: {result.Username}");
-                return result.Username;
-            }
-        }
-
-        private async Task<ExophaseAccountProbeResult> VerifyAccountSessionAsync(
-            IWebView view,
-            CancellationToken ct)
-        {
-            var result = new ExophaseAccountProbeResult();
-
-            try
-            {
-                await view.NavigateAndWaitAsync(UrlAccount, timeoutMs: 10000);
-                await Task.Delay(1000, ct);
-
-                result.FinalUrl = view.GetCurrentAddress();
-                result.Cookies = GetExophaseCookies(view.GetCookies());
-
-                _logger?.Debug($"[ExophaseAuth] After navigation, current URL: {result.FinalUrl}");
-
-                if (IsLoginPageUrl(result.FinalUrl))
-                {
-                    _logger?.Debug("[ExophaseAuth] Account page redirected to login, not authenticated.");
-                    return result;
-                }
-
-                var html = await view.GetPageSourceAsync();
-                result.Username = ExtractUsernameFromHtml(html);
-                if (string.IsNullOrWhiteSpace(result.Username))
-                {
-                    _logger?.Debug("[ExophaseAuth] Could not extract username from account page HTML.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[ExophaseAuth] Failed to check account page.");
-            }
-
-            return result;
-        }
-
-        private async Task ReplaceExophaseCookiesAsync(IWebView view, IReadOnlyList<HttpCookie> cookies, CancellationToken ct)
-        {
-            view.DeleteDomainCookies(".exophase.com");
-            view.DeleteDomainCookies("exophase.com");
-
-            foreach (var cookie in cookies ?? Enumerable.Empty<HttpCookie>())
-            {
-                ct.ThrowIfCancellationRequested();
-
-                if (cookie == null || string.IsNullOrWhiteSpace(cookie.Name))
-                {
-                    continue;
-                }
-
-                var cookieCopy = CloneCookie(cookie);
-                view.SetCookies(BuildCookieOriginUrl(cookieCopy), cookieCopy);
-            }
-
-            await Task.Delay(250, ct);
-        }
-
-        private async Task SaveCurrentCookiesSnapshotAsync(CancellationToken ct)
-        {
-            var currentCookies = await CaptureCurrentCookiesAsync(ct).ConfigureAwait(false);
-            if (currentCookies.Count == 0)
-            {
-                _logger?.Debug("[ExophaseAuth] No current Exophase cookies found while attempting to save snapshot.");
-                return;
-            }
-
-            if (_cookieSnapshotStore.Save(currentCookies))
-            {
-                _logger?.Debug("[ExophaseAuth] Saved Exophase cookie snapshot.");
-            }
-        }
-
-        private async Task<List<HttpCookie>> CaptureCurrentCookiesAsync(CancellationToken ct)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(() =>
-            {
-                using (var view = _api.WebViews.CreateOffscreenView())
-                {
-                    return GetExophaseCookies(view.GetCookies());
-                }
-            });
-
-            return await dispatchOperation.Task.ConfigureAwait(false);
-        }
-
-        private static string NormalizeDomain(string domain)
-        {
-            return string.IsNullOrWhiteSpace(domain) ? "unknown-domain" : domain.Trim();
-        }
-
-        private static string NormalizePath(string path)
-        {
-            return string.IsNullOrWhiteSpace(path) ? "/" : path.Trim();
-        }
-
-        private static string BuildCookieOriginUrl(HttpCookie cookie)
-        {
-            var domain = NormalizeDomain(cookie?.Domain).TrimStart('.');
-            if (string.IsNullOrWhiteSpace(domain) || domain.Equals("unknown-domain", StringComparison.OrdinalIgnoreCase))
-            {
-                domain = "www.exophase.com";
-            }
-
-            return $"https://{domain}";
-        }
-
-        private static List<HttpCookie> GetExophaseCookies(IEnumerable<HttpCookie> cookies)
-        {
-            return ExophaseCookieSnapshotStore.FilterExophaseCookies(cookies);
-        }
-
-        private static HttpCookie CloneCookie(HttpCookie cookie)
-        {
-            if (cookie == null)
-            {
-                return null;
-            }
-
-            return new HttpCookie
-            {
-                Name = cookie.Name,
-                Value = cookie.Value,
-                Domain = cookie.Domain,
-                Path = NormalizePath(cookie.Path),
-                Expires = cookie.Expires,
-                Secure = cookie.Secure,
-                HttpOnly = cookie.HttpOnly,
-                SameSite = cookie.SameSite,
-                Priority = cookie.Priority
-            };
         }
 
         /// <summary>
-        /// Extracts username from the account page HTML.
-        /// Exophase embeds user info in window.me JavaScript object.
-        /// </summary>
-        private string ExtractUsernameFromHtml(string html)
-        {
-            if (string.IsNullOrWhiteSpace(html))
-            {
-                return null;
-            }
-
-            var meIndex = html.IndexOf("window.me = {", StringComparison.OrdinalIgnoreCase);
-            if (meIndex >= 0)
-            {
-                var usernameKeyIndex = html.IndexOf("username:", meIndex, StringComparison.OrdinalIgnoreCase);
-                if (usernameKeyIndex >= 0 && usernameKeyIndex < meIndex + 500)
-                {
-                    var startQuote = html.IndexOf('\'', usernameKeyIndex);
-                    if (startQuote < 0)
-                    {
-                        startQuote = html.IndexOf('"', usernameKeyIndex);
-                    }
-
-                    if (startQuote >= 0 && startQuote < usernameKeyIndex + 50)
-                    {
-                        var quoteChar = html[startQuote];
-                        var endQuote = html.IndexOf(quoteChar, startQuote + 1);
-                        if (endQuote > startQuote)
-                        {
-                            return html.Substring(startQuote + 1, endQuote - startQuote - 1);
-                        }
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Clears the session by resetting stored state and clearing cookies.
+        /// Clears the session by clearing cookies and invalidating cache.
         /// </summary>
         public void ClearSession()
         {
             _logger?.Info("[ExophaseAuth] Clearing session.");
-            _username = null;
-            _isSessionAuthenticated = false;
             _authResult = (false, null);
 
-            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
-            exophaseSettings.UserId = null;
-            ProviderRegistry.Write(exophaseSettings);
+            // Invalidate cache
+            _probeCache.Invalidate(ProviderKey);
 
-            _cookieSnapshotStore.Delete();
+            // Clear persisted user ID
+            if (_settings?.Persisted != null)
+            {
+                _settings.Persisted.ExophaseUserId = null;
+            }
 
+            // Clear cookies from CEF
             try
             {
                 _api.MainView.UIDispatcher.Invoke(() =>
@@ -559,9 +312,140 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
+        public void InvalidateProbeCache()
+        {
+            _probeCache.Invalidate(ProviderKey);
+        }
+
+        // ---------------------------------------------------------------------
+        // Private Helper Methods
+        // ---------------------------------------------------------------------
+
+        /// <summary>
+        /// Checks if any exophase.com session cookies exist.
+        /// </summary>
+        public static bool HasExophaseSessionCookies(IPlayniteAPI api, ILogger logger)
+        {
+            try
+            {
+                using (var view = api.WebViews.CreateOffscreenView())
+                {
+                    var cookies = view.GetCookies();
+                    if (cookies == null)
+                        return false;
+
+                    return cookies.Any(c =>
+                        c != null &&
+                        !string.IsNullOrWhiteSpace(c.Domain) &&
+                        c.Domain.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, "[ExophaseAuth] Failed to check session cookies.");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Quick check using offscreen view to verify authentication.
+        /// </summary>
+        private async Task<string> QuickAuthCheckAsync(CancellationToken ct)
+        {
+            using (PerfScope.Start(_logger, "Exophase.QuickAuthCheckAsync", thresholdMs: 50))
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+                {
+                    using (var view = _api.WebViews.CreateOffscreenView())
+                    {
+                        try
+                        {
+                            // First check if we have Exophase session cookies
+                            var cookies = view.GetCookies();
+                            var hasExophaseCookies = cookies?.Any(c =>
+                                c != null &&
+                                !string.IsNullOrWhiteSpace(c.Domain) &&
+                                c.Domain.IndexOf("exophase.com", StringComparison.OrdinalIgnoreCase) >= 0) == true;
+
+                            _logger?.Debug($"[ExophaseAuth] Has exophase.com cookies: {hasExophaseCookies}");
+
+                            // Navigate to account page to verify session
+                            await view.NavigateAndWaitAsync(UrlAccount, timeoutMs: 10000);
+                            var currentUrl = view.GetCurrentAddress();
+
+                            _logger?.Debug($"[ExophaseAuth] After navigation, current URL: {currentUrl}");
+
+                            // If redirected to login page, not authenticated
+                            if (IsLoginPageUrl(currentUrl))
+                            {
+                                _logger?.Debug("[ExophaseAuth] Account page redirected to login, not authenticated.");
+                                return null;
+                            }
+
+                            // We're on the account page, extract username
+                            var html = await view.GetPageSourceAsync();
+                            var username = ExtractUsernameFromHtml(html);
+                            if (!string.IsNullOrWhiteSpace(username))
+                            {
+                                _logger?.Debug($"[ExophaseAuth] Extracted username: {username}");
+                                return username;
+                            }
+
+                            _logger?.Debug("[ExophaseAuth] Could not extract username from account page HTML.");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "[ExophaseAuth] Failed to check account page.");
+                        }
+                    }
+                    return null;
+                });
+
+                var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
+                return await responseTask.ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Extracts username from the account page HTML.
+        /// </summary>
+        private string ExtractUsernameFromHtml(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            // Pattern: window.me = { username: 'jdd056', ... }
+            var meIndex = html.IndexOf("window.me = {", StringComparison.OrdinalIgnoreCase);
+            if (meIndex >= 0)
+            {
+                var usernameKeyIndex = html.IndexOf("username:", meIndex, StringComparison.OrdinalIgnoreCase);
+                if (usernameKeyIndex >= 0 && usernameKeyIndex < meIndex + 500)
+                {
+                    var startQuote = html.IndexOf('\'', usernameKeyIndex);
+                    if (startQuote < 0)
+                        startQuote = html.IndexOf('"', usernameKeyIndex);
+
+                    if (startQuote >= 0 && startQuote < usernameKeyIndex + 50)
+                    {
+                        var quoteChar = html[startQuote];
+                        var endQuote = html.IndexOf(quoteChar, startQuote + 1);
+                        if (endQuote > startQuote)
+                        {
+                            return html.Substring(startQuote + 1, endQuote - startQuote - 1);
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Synchronous login method matching GOG session manager pattern.
-        /// Blocks until CloseWhenLoggedIn closes the view.
         /// </summary>
         private string LoginInteractively()
         {
@@ -576,6 +460,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 view.LoadingChanged += CloseWhenLoggedIn;
                 view.Navigate(UrlLogin);
+
                 view.OpenDialog();
 
                 return _authResult.Success ? _authResult.Username : null;
@@ -590,17 +475,12 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
-        /// <summary>
-        /// Event handler that auto-closes the WebView when auth is detected.
-        /// </summary>
         private async void CloseWhenLoggedIn(object sender, WebViewLoadingChangedEventArgs e)
         {
             try
             {
                 if (e.IsLoading)
-                {
                     return;
-                }
 
                 var view = (IWebView)sender;
                 var address = view.GetCurrentAddress();
@@ -612,9 +492,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
 
                 if (Interlocked.CompareExchange(ref _authCheckInProgress, 1, 0) != 0)
-                {
                     return;
-                }
 
                 _logger?.Debug($"[ExophaseAuth] Navigation to: {address}");
 
@@ -622,8 +500,6 @@ namespace PlayniteAchievements.Providers.Exophase
                 if (!string.IsNullOrWhiteSpace(extractedUsername))
                 {
                     _authResult = (true, extractedUsername);
-                    _isSessionAuthenticated = true;
-                    _username = extractedUsername;
                     _logger?.Info($"[ExophaseAuth] Authenticated as user: {extractedUsername}");
                     _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                     {
@@ -657,15 +533,13 @@ namespace PlayniteAchievements.Providers.Exophase
             const int attempts = 8;
             const int delayMs = 500;
 
-            for (var attempt = 1; attempt <= attempts; attempt++)
+            for (int attempt = 1; attempt <= attempts; attempt++)
             {
                 ct.ThrowIfCancellationRequested();
 
                 try
                 {
-                    var extractedUsername = await QuickAuthCheckAsync(
-                        ct,
-                        allowSnapshotRestore: false).ConfigureAwait(false);
+                    var extractedUsername = await QuickAuthCheckAsync(ct).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(extractedUsername))
                     {
                         return extractedUsername;
@@ -685,45 +559,37 @@ namespace PlayniteAchievements.Providers.Exophase
             return null;
         }
 
-        /// <summary>
-        /// Checks if URL is a login page.
-        /// </summary>
         private static bool IsLoginPageUrl(string url)
         {
             if (string.IsNullOrWhiteSpace(url))
-            {
                 return false;
-            }
 
             return url.IndexOf("/login", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private sealed class ExophaseQuickCheckResult
+        // ---------------------------------------------------------------------
+        // Legacy Type Conversion
+        // ---------------------------------------------------------------------
+
+        private ExophaseAuthResult ConvertToLegacyResult(AuthProbeResult result)
         {
-            public string Username { get; set; }
+            var outcome = result.Outcome switch
+            {
+                AuthOutcome.AlreadyAuthenticated => ExophaseAuthOutcome.AlreadyAuthenticated,
+                AuthOutcome.Authenticated => ExophaseAuthOutcome.Authenticated,
+                AuthOutcome.NotAuthenticated => ExophaseAuthOutcome.NotAuthenticated,
+                AuthOutcome.Cancelled => ExophaseAuthOutcome.Cancelled,
+                AuthOutcome.TimedOut => ExophaseAuthOutcome.TimedOut,
+                AuthOutcome.Failed => ExophaseAuthOutcome.Failed,
+                AuthOutcome.ProbeFailed => ExophaseAuthOutcome.ProbeFailed,
+                _ => ExophaseAuthOutcome.Failed
+            };
 
-            public List<HttpCookie> CookiesToPersist { get; set; } = new List<HttpCookie>();
-
-            public bool RestoredFromSnapshot { get; set; }
-
-            public bool IsAuthenticated => !string.IsNullOrWhiteSpace(Username);
-        }
-
-        private sealed class ExophaseAccountProbeResult
-        {
-            public string Username { get; set; }
-
-            public string FinalUrl { get; set; }
-
-            public List<HttpCookie> Cookies { get; set; } = new List<HttpCookie>();
-
-            public bool IsAuthenticated => !string.IsNullOrWhiteSpace(Username);
+            return ExophaseAuthResult.Create(
+                outcome,
+                result.MessageKey,
+                result.UserId,
+                result.WindowOpened);
         }
     }
 }
-
-
-
-
-
-
