@@ -4,8 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
-using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 
@@ -252,7 +252,7 @@ namespace PlayniteAchievements.Views
             var availableSources = _manualProvider.GetAllSources();
 
             // Load manual settings to check for existing link
-            var manualSettings = ProviderSettings.Load<ManualSettings>();
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
 
             // Determine the initial source based on existing link or default to Steam
             IManualSource initialSource;
@@ -441,4 +441,8 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
+
+
+
 

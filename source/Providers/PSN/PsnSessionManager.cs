@@ -286,7 +286,7 @@ namespace PlayniteAchievements.Providers.PSN
         {
             try
             {
-                var npsso = ProviderSettings.Load<PsnSettings>().Npsso;
+                var npsso = ProviderRegistry.Settings<PsnSettings>().Npsso;
                 var hasTokenFile = File.Exists(_tokenPath);
 
                 _logger?.Debug($"[PSNAch] CheckAuthentication: hasTokenFile={hasTokenFile}, npsso length={npsso?.Length ?? 0}");
@@ -719,3 +719,8 @@ namespace PlayniteAchievements.Providers.PSN
         }
     }
 }
+
+
+
+
+

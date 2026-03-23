@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Settings;
 using System;
@@ -102,7 +103,7 @@ namespace PlayniteAchievements.Services
                 return result;
             }
 
-            var manualSettings = ProviderSettings.Load<ManualSettings>();
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
             var manualLinks = manualSettings.AchievementLinks ?? new Dictionary<Guid, ManualAchievementLink>();
             manualSettings.AchievementLinks = manualLinks;
 
@@ -201,7 +202,7 @@ namespace PlayniteAchievements.Services
                 }
             }
 
-            manualSettings.Save();
+            ProviderRegistry.Write(manualSettings);
             return result;
         }
 
@@ -476,3 +477,8 @@ namespace PlayniteAchievements.Services
         }
     }
 }
+
+
+
+
+

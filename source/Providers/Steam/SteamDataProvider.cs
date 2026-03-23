@@ -40,7 +40,7 @@ namespace PlayniteAchievements.Providers.Steam
             _sessionManager = sessionManager;
 
             // Initialize provider settings from persisted settings dictionary
-            _providerSettings = ProviderSettings.Load<SteamSettings>();
+            _providerSettings = ProviderRegistry.Settings<SteamSettings>();
 
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
@@ -85,15 +85,11 @@ namespace PlayniteAchievements.Providers.Steam
         public IProviderSettings GetSettings() => _providerSettings;
 
         /// <inheritdoc />
-        public IProviderSettings CreateDefaultSettings() => new SteamSettings();
-
-        /// <inheritdoc />
         public void ApplySettings(IProviderSettings settings)
         {
             if (settings is SteamSettings steamSettings)
             {
-                _providerSettings = steamSettings;
-                steamSettings.Save();
+                _providerSettings.CopyFrom(steamSettings);
             }
         }
 
@@ -106,3 +102,9 @@ namespace PlayniteAchievements.Providers.Steam
         }
     }
 }
+
+
+
+
+
+

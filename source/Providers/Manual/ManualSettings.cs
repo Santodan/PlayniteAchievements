@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Settings;
 
@@ -34,28 +33,6 @@ namespace PlayniteAchievements.Providers.Manual
         {
             get => _achievementLinks;
             set => SetValue(ref _achievementLinks, value ?? new Dictionary<Guid, ManualAchievementLink>());
-        }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new ManualSettings
-            {
-                IsEnabled = IsEnabled,
-                ManualTrackingOverrideEnabled = ManualTrackingOverrideEnabled,
-                AchievementLinks = AchievementLinks?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.Clone()) ?? new Dictionary<Guid, ManualAchievementLink>()
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is ManualSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                ManualTrackingOverrideEnabled = other.ManualTrackingOverrideEnabled;
-                AchievementLinks = other.AchievementLinks?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.Clone()) ?? new Dictionary<Guid, ManualAchievementLink>();
-            }
         }
     }
 }

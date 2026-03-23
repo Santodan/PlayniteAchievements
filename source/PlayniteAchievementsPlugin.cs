@@ -127,6 +127,7 @@ namespace PlayniteAchievements
         {
             try
             {
+                _providerRegistry?.PersistAllProviderSettings(false);
                 SavePluginSettings(_settingsViewModel.Settings);
             }
             catch (Exception ex)
@@ -193,25 +194,23 @@ namespace PlayniteAchievements
                     _exophaseSessionManager = new ExophaseSessionManager(PlayniteApi, _logger, settings, pluginUserDataPath);
                 }
 
-                // Create provider registry early so it can create providers and register everything in one place
+                // Create provider registry and register session managers for discovery-based provider creation
                 _providerRegistry = new ProviderRegistry(settings, _logger);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
+
+                // Register session managers for dependency injection during provider creation
+                _providerRegistry.RegisterSessionManager(_steamSessionManager);
+                _providerRegistry.RegisterSessionManager(_gogSessionManager);
+                _providerRegistry.RegisterSessionManager(_epicSessionManager);
+                _providerRegistry.RegisterSessionManager(_psnSessionManager);
+                _providerRegistry.RegisterSessionManager(_xboxSessionManager);
+                _providerRegistry.RegisterSessionManager(_exophaseSessionManager);
 
                 List<IDataProvider> providers;
                 using (PerfScope.StartStartup(_logger, "PluginCtor.ProviderCreation", thresholdMs: 50))
                 {
-                    providers = _providerRegistry.CreateProviders(
-                        settings,
-                        PlayniteApi,
-                        pluginUserDataPath,
-                        _steamSessionManager,
-                        _gogSessionManager,
-                        _epicSessionManager,
-                        _psnSessionManager,
-                        _xboxSessionManager,
-                        _exophaseSessionManager,
-                        out var manualProvider);
-                    _manualProvider = manualProvider;
+                    providers = _providerRegistry.CreateProviders(settings, PlayniteApi, pluginUserDataPath);
+                    _manualProvider = _providerRegistry.ManualProvider;
                 }
 
                 // Phase 3: Wire core services, refresh pipeline, and tagging.

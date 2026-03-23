@@ -20,25 +20,5 @@ namespace PlayniteAchievements.Providers.Xbox
             get => _lowResIcons;
             set => SetValue(ref _lowResIcons, value);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new XboxSettings
-            {
-                IsEnabled = IsEnabled,
-                LowResIcons = LowResIcons
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is XboxSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                LowResIcons = other.LowResIcons;
-            }
-        }
     }
 }

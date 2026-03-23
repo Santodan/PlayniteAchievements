@@ -1,7 +1,6 @@
 using PlayniteAchievements.Providers.GOG.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Data;
 using Playnite.SDK.Events;
@@ -38,21 +37,11 @@ namespace PlayniteAchievements.Providers.GOG
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
-            var gogSettings = GetProviderSettings();
+            var gogSettings = ProviderRegistry.Settings<GogSettings>();
             if (!string.IsNullOrWhiteSpace(gogSettings.UserId))
             {
                 _userId = gogSettings.UserId.Trim();
             }
-        }
-
-        private GogSettings GetProviderSettings()
-        {
-            return ProviderSettings.Load<GogSettings>();
-        }
-
-        private void SaveProviderSettings(GogSettings providerSettings)
-        {
-            providerSettings.Save();
         }
 
         /// <summary>
@@ -388,9 +377,9 @@ namespace PlayniteAchievements.Providers.GOG
 
             if (_isSessionAuthenticated)
             {
-                var gogSettings = GetProviderSettings();
+                var gogSettings = ProviderRegistry.Settings<GogSettings>();
                 gogSettings.UserId = _userId;
-                SaveProviderSettings(gogSettings);
+                ProviderRegistry.Write(gogSettings);
             }
 
             if (string.IsNullOrWhiteSpace(_userId))
@@ -471,9 +460,9 @@ namespace PlayniteAchievements.Providers.GOG
             _isSessionAuthenticated = false;
             _authResult = (false, null);
 
-            var gogSettings = GetProviderSettings();
+            var gogSettings = ProviderRegistry.Settings<GogSettings>();
             gogSettings.UserId = null;
-            SaveProviderSettings(gogSettings);
+            ProviderRegistry.Write(gogSettings);
 
             // Also clear cookies from CEF
             try
@@ -592,3 +581,9 @@ namespace PlayniteAchievements.Providers.GOG
     }
 
 }
+
+
+
+
+
+

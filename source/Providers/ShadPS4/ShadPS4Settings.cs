@@ -20,25 +20,5 @@ namespace PlayniteAchievements.Providers.ShadPS4
             get => _gameDataPath;
             set => SetValue(ref _gameDataPath, value);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new ShadPS4Settings
-            {
-                IsEnabled = IsEnabled,
-                GameDataPath = GameDataPath
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is ShadPS4Settings other)
-            {
-                IsEnabled = other.IsEnabled;
-                GameDataPath = other.GameDataPath;
-            }
-        }
     }
 }

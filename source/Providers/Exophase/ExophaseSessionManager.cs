@@ -1,7 +1,6 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using System;
@@ -44,21 +43,11 @@ namespace PlayniteAchievements.Providers.Exophase
                 : pluginUserDataPath;
             _cookieSnapshotStore = new ExophaseCookieSnapshotStore(resolvedPluginUserDataPath, logger);
 
-            var exophaseSettings = GetProviderSettings();
+            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
             if (!string.IsNullOrWhiteSpace(exophaseSettings.UserId))
             {
                 _username = exophaseSettings.UserId.Trim();
             }
-        }
-
-        private ExophaseSettings GetProviderSettings()
-        {
-            return ProviderSettings.Load<ExophaseSettings>();
-        }
-
-        private void SaveProviderSettings(ExophaseSettings providerSettings)
-        {
-            providerSettings.Save();
         }
 
         /// <summary>
@@ -116,9 +105,9 @@ namespace PlayniteAchievements.Providers.Exophase
                     allowSnapshotRestore: true).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(extractedUsername))
                 {
-                    var settings = GetProviderSettings();
+                    var settings = ProviderRegistry.Settings<ExophaseSettings>();
                     settings.UserId = extractedUsername;
-                    SaveProviderSettings(settings);
+                    ProviderRegistry.Write(settings);
 
                     return ExophaseAuthResult.Create(
                         ExophaseAuthOutcome.AlreadyAuthenticated,
@@ -127,9 +116,9 @@ namespace PlayniteAchievements.Providers.Exophase
                         windowOpened: false);
                 }
 
-                var exophaseSettings = GetProviderSettings();
+                var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
                 exophaseSettings.UserId = null;
-                SaveProviderSettings(exophaseSettings);
+                ProviderRegistry.Write(exophaseSettings);
 
                 _isSessionAuthenticated = false;
                 _username = null;
@@ -258,9 +247,9 @@ namespace PlayniteAchievements.Providers.Exophase
                 _username = extractedUsername;
                 _isSessionAuthenticated = true;
 
-                var exophaseSettings = GetProviderSettings();
+                var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
                 exophaseSettings.UserId = extractedUsername;
-                SaveProviderSettings(exophaseSettings);
+                ProviderRegistry.Write(exophaseSettings);
 
                 await SaveCurrentCookiesSnapshotAsync(ct).ConfigureAwait(false);
 
@@ -547,9 +536,9 @@ namespace PlayniteAchievements.Providers.Exophase
             _isSessionAuthenticated = false;
             _authResult = (false, null);
 
-            var exophaseSettings = GetProviderSettings();
+            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
             exophaseSettings.UserId = null;
-            SaveProviderSettings(exophaseSettings);
+            ProviderRegistry.Write(exophaseSettings);
 
             _cookieSnapshotStore.Delete();
 
@@ -732,3 +721,9 @@ namespace PlayniteAchievements.Providers.Exophase
         }
     }
 }
+
+
+
+
+
+

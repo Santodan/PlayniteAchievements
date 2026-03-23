@@ -66,7 +66,7 @@ namespace PlayniteAchievements.Providers.Exophase
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _apiClient = new ExophaseApiClient(playniteApi, logger);
 
-            _providerSettings = ProviderSettings.Load<ExophaseSettings>();
+            _providerSettings = ProviderRegistry.Settings<ExophaseSettings>();
         }
 
         #endregion
@@ -686,15 +686,11 @@ namespace PlayniteAchievements.Providers.Exophase
         public IProviderSettings GetSettings() => _providerSettings;
 
         /// <inheritdoc />
-        public IProviderSettings CreateDefaultSettings() => new ExophaseSettings();
-
-        /// <inheritdoc />
         public void ApplySettings(IProviderSettings settings)
         {
             if (settings is ExophaseSettings exophaseSettings)
             {
-                _providerSettings = exophaseSettings;
-                exophaseSettings.Save();
+                _providerSettings.CopyFrom(exophaseSettings);
             }
         }
 
@@ -704,3 +700,9 @@ namespace PlayniteAchievements.Providers.Exophase
         #endregion
     }
 }
+
+
+
+
+
+

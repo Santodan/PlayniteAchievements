@@ -191,7 +191,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _useExophaseForGame, value))
                 {
                     // Update the persisted settings via provider settings
-                    var exophaseSettings = ProviderSettings.Load<ExophaseSettings>();
+                    var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
                     if (value)
                     {
                         if (!exophaseSettings.IncludedGames.Contains(_gameId))
@@ -208,7 +208,7 @@ namespace PlayniteAchievements.ViewModels
                         }
                     }
 
-                    exophaseSettings.Save();
+                    ProviderRegistry.Write(exophaseSettings);
                     _persistSettingsForUi();
                     TriggerRefresh();
                 }
@@ -576,7 +576,7 @@ namespace PlayniteAchievements.ViewModels
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
-                var allowManualOverride = ProviderSettings.Load<ManualSettings>().ManualTrackingOverrideEnabled;
+                var allowManualOverride = ProviderRegistry.Settings<ManualSettings>().ManualTrackingOverrideEnabled;
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
                 ShowManualTrackingTab = allowManualOverride ||
@@ -626,7 +626,7 @@ namespace PlayniteAchievements.ViewModels
                     ?.FirstOrDefault(p => p.ProviderKey == "Xenia");
                 IsXeniaCapable = xeniaProvider?.IsCapable(game) == true;
 
-                var raSettings = ProviderSettings.Load<RetroAchievementsSettings>();
+                var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var hasOverride = false;
                 var overrideValue = string.Empty;
                 if (raSettings?.RaGameIdOverrides != null &&
@@ -641,7 +641,7 @@ namespace PlayniteAchievements.ViewModels
                 RaOverrideInput = hasOverride ? overrideValue : string.Empty;
 
                 ManualAchievementLink link = null;
-                var manualSettings = ProviderSettings.Load<ManualSettings>();
+                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
                 var hasManualLink = manualSettings?.AchievementLinks != null &&
                                     manualSettings.AchievementLinks.TryGetValue(_gameId, out link) &&
                                     link != null;
@@ -663,7 +663,7 @@ namespace PlayniteAchievements.ViewModels
 
                 // Exophase inclusion toggle
                 // Check if Exophase provider is enabled and game has platforms
-                var exophaseSettings = ProviderSettings.Load<ExophaseSettings>();
+                var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
                 var exophaseEnabled = exophaseSettings?.IsEnabled == true;
 
                 if (exophaseEnabled && game != null)
@@ -777,9 +777,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            var raSettings = ProviderSettings.Load<RetroAchievementsSettings>();
+            var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
             raSettings.RaGameIdOverrides[_gameId] = newId;
-            raSettings.Save();
+            ProviderRegistry.Write(raSettings);
             _persistSettingsForUi();
 
             _logger?.Info($"Set RA game ID override for '{game.Name}' to {newId}");
@@ -790,14 +790,14 @@ namespace PlayniteAchievements.ViewModels
 
         private bool TryClearRaOverride()
         {
-            var raSettings = ProviderSettings.Load<RetroAchievementsSettings>();
+            var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
             if (!raSettings.RaGameIdOverrides.ContainsKey(_gameId))
             {
                 return false;
             }
 
             raSettings.RaGameIdOverrides.Remove(_gameId);
-            raSettings.Save();
+            ProviderRegistry.Write(raSettings);
             _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -842,9 +842,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            var exophaseSettings = ProviderSettings.Load<ExophaseSettings>();
+            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
             exophaseSettings.SlugOverrides[_gameId] = slug;
-            exophaseSettings.Save();
+            ProviderRegistry.Write(exophaseSettings);
             _persistSettingsForUi();
 
             _logger?.Info($"Set Exophase slug override for '{game.Name}' to '{slug}'");
@@ -853,7 +853,7 @@ namespace PlayniteAchievements.ViewModels
             if (!exophaseSettings.IncludedGames.Contains(_gameId))
             {
                 exophaseSettings.IncludedGames.Add(_gameId);
-                exophaseSettings.Save();
+                ProviderRegistry.Write(exophaseSettings);
                 _logger?.Info($"Added game '{game.Name}' to Exophase included games (via slug override)");
             }
 
@@ -863,14 +863,14 @@ namespace PlayniteAchievements.ViewModels
 
         private bool TryClearExophaseSlugOverride()
         {
-            var exophaseSettings = ProviderSettings.Load<ExophaseSettings>();
+            var exophaseSettings = ProviderRegistry.Settings<ExophaseSettings>();
             if (!exophaseSettings.SlugOverrides.ContainsKey(_gameId))
             {
                 return false;
             }
 
             exophaseSettings.SlugOverrides.Remove(_gameId);
-            exophaseSettings.Save();
+            ProviderRegistry.Write(exophaseSettings);
             _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -917,9 +917,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            var manualSettings = ProviderSettings.Load<ManualSettings>();
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
             manualSettings.AchievementLinks.Remove(_gameId);
-            manualSettings.Save();
+            ProviderRegistry.Write(manualSettings);
             _plugin?.SavePluginSettings(_settings);
             PlayniteAchievementsPlugin.NotifySettingsSaved();
 
@@ -1131,9 +1131,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            var xeniaSettings = ProviderSettings.Load<XeniaSettings>();
+            var xeniaSettings = ProviderRegistry.Settings<XeniaSettings>();
             xeniaSettings.GameIdOverrides[_gameId] = newTitleId;
-            xeniaSettings.Save();
+            ProviderRegistry.Write(xeniaSettings);
             _persistSettingsForUi();
             _logger?.Info($"Set Xenia TitleID override for '{game.Name}' to {newTitleId}");
             TriggerRefresh();
@@ -1142,14 +1142,14 @@ namespace PlayniteAchievements.ViewModels
 
         private bool TryClearXeniaOverride()
         {
-            var xeniaSettings = ProviderSettings.Load<XeniaSettings>();
+            var xeniaSettings = ProviderRegistry.Settings<XeniaSettings>();
             if (!xeniaSettings.GameIdOverrides.ContainsKey(_gameId))
             {
                 return false;
             }
 
             xeniaSettings.GameIdOverrides.Remove(_gameId);
-            xeniaSettings.Save();
+            ProviderRegistry.Write(xeniaSettings);
             _persistSettingsForUi();
 
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -1218,4 +1218,9 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+
+
+
+
+
 

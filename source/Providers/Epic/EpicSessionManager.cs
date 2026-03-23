@@ -1,7 +1,6 @@
 using Newtonsoft.Json;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using System;
@@ -50,23 +49,13 @@ namespace PlayniteAchievements.Providers.Epic
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
             // Load token state from provider settings
-            var epicSettings = GetProviderSettings();
+            var epicSettings = ProviderRegistry.Settings<EpicSettings>();
             _accountId = epicSettings.AccountId?.Trim();
             _accessToken = epicSettings.AccessToken;
             _refreshToken = epicSettings.RefreshToken;
             _tokenType = string.IsNullOrWhiteSpace(epicSettings.TokenType) ? "bearer" : epicSettings.TokenType.Trim();
             _tokenExpiryUtc = epicSettings.TokenExpiryUtc;
             _refreshTokenExpiryUtc = epicSettings.RefreshTokenExpiryUtc;
-        }
-
-        private EpicSettings GetProviderSettings()
-        {
-            return ProviderSettings.Load<EpicSettings>();
-        }
-
-        private void SaveProviderSettings(EpicSettings providerSettings)
-        {
-            providerSettings.Save();
         }
 
         public bool IsAuthenticated => HasValidAccessToken();
@@ -919,14 +908,14 @@ namespace PlayniteAchievements.Providers.Epic
 
         private void SavePersistedTokenState()
         {
-            var epicSettings = GetProviderSettings();
+                var epicSettings = ProviderRegistry.Settings<EpicSettings>();
             epicSettings.AccountId = _accountId;
             epicSettings.AccessToken = _accessToken;
             epicSettings.RefreshToken = _refreshToken;
             epicSettings.TokenType = _tokenType;
             epicSettings.TokenExpiryUtc = _tokenExpiryUtc;
             epicSettings.RefreshTokenExpiryUtc = _refreshTokenExpiryUtc;
-            SaveProviderSettings(epicSettings);
+                ProviderRegistry.Write(epicSettings);
 
             // Persist to disk so tokens survive restart
             _settings._plugin?.SavePluginSettings(_settings);
@@ -960,3 +949,9 @@ namespace PlayniteAchievements.Providers.Epic
         }
     }
 }
+
+
+
+
+
+

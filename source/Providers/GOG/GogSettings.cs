@@ -20,25 +20,5 @@ namespace PlayniteAchievements.Providers.GOG
             get => _userId;
             set => SetValue(ref _userId, value);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new GogSettings
-            {
-                IsEnabled = IsEnabled,
-                UserId = UserId
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is GogSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                UserId = other.UserId;
-            }
-        }
     }
 }

@@ -33,27 +33,5 @@ namespace PlayniteAchievements.Providers.Xenia
             get => _gameIdOverrides;
             set => SetValue(ref _gameIdOverrides, value ?? new Dictionary<Guid, string>());
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new XeniaSettings
-            {
-                IsEnabled = IsEnabled,
-                AccountPath = AccountPath,
-                GameIdOverrides = GameIdOverrides != null ? new Dictionary<Guid, string>(GameIdOverrides) : new Dictionary<Guid, string>()
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is XeniaSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                AccountPath = other.AccountPath;
-                GameIdOverrides = other.GameIdOverrides != null ? new Dictionary<Guid, string>(other.GameIdOverrides) : new Dictionary<Guid, string>();
-            }
-        }
     }
 }

@@ -7,41 +7,34 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Epic;
-using PlayniteAchievements.Providers.Exophase;
-using PlayniteAchievements.Providers.GOG;
 using PlayniteAchievements.Providers.Manual;
-using PlayniteAchievements.Providers.PSN;
-using PlayniteAchievements.Providers.RetroAchievements;
-using PlayniteAchievements.Providers.RPCS3;
 using PlayniteAchievements.Providers.Settings;
-using PlayniteAchievements.Providers.ShadPS4;
-using PlayniteAchievements.Providers.Steam;
-using PlayniteAchievements.Providers.Xenia;
-using PlayniteAchievements.Providers.Xbox;
-using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers
 {
     /// <summary>
     /// Central registry for provider management at runtime.
-    /// Manages provider enabled state, settings access/caching, and settings view registration.
     /// </summary>
     public class ProviderRegistry
     {
-        private static ProviderRegistry _instance;
+        private static readonly string[] ProviderDisplayOrder =
+        {
+            "Steam", "Epic", "GOG", "PSN", "Xbox", "Exophase",
+            "RetroAchievements", "Manual", "Xenia", "RPCS3", "ShadPS4"
+        };
 
-        /// <summary>
-        /// Gets the current registry instance.
-        /// Set during plugin initialization.
-        /// </summary>
+        private static ProviderRegistry _instance;
         public static ProviderRegistry Instance => _instance;
 
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Dictionary<string, ProviderSettingsBase> _settingsCache = new Dictionary<string, ProviderSettingsBase>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, IDataProvider> _providersByKey = new Dictionary<string, IDataProvider>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Func<CancellationToken, Task>> _authPrimers = new Dictionary<string, Func<CancellationToken, Task>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Func<ProviderSettingsViewBase>> _settingsViewFactories = new Dictionary<string, Func<ProviderSettingsViewBase>>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<Type, object> _sessionManagers = new Dictionary<Type, object>();
+        private readonly Dictionary<string, bool> _enabledState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        private ManualAchievementsProvider _manualProvider;
 
         public ProviderRegistry(PlayniteAchievementsSettings settings, ILogger logger = null)
         {
@@ -50,363 +43,276 @@ namespace PlayniteAchievements.Providers
             _instance = this;
         }
 
-        // ===================== SETTINGS ACCESS =====================
+        public ManualAchievementsProvider ManualProvider => _manualProvider;
 
-        /// <summary>
-        /// Gets provider settings of the specified type, loading and caching on first access.
-        /// The provider key is determined by the settings type's ProviderKey property.
-        /// </summary>
-        /// <typeparam name="T">The provider settings type.</typeparam>
-        /// <returns>The cached provider settings instance.</returns>
-        public T Settings<T>() where T : ProviderSettingsBase, new()
+        // ===================== SESSION MANAGERS =====================
+
+        public void RegisterSessionManager<T>(T sessionManager) where T : class
         {
-            var key = new T().ProviderKey;
+            _sessionManagers[typeof(T)] = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
 
-            if (_settingsCache.TryGetValue(key, out var cached))
+            // Auto-register auth primer if session manager has PrimeAuthenticationStateAsync method
+            var primeMethod = typeof(T).GetMethod("PrimeAuthenticationStateAsync");
+            if (primeMethod != null)
             {
-                return (T)cached;
+                var providerKey = ExtractProviderKey(typeof(T));
+                if (providerKey != null)
+                {
+                    _authPrimers[providerKey] = ct => (Task)primeMethod.Invoke(sessionManager, new object[] { ct });
+                }
             }
-
-            var loaded = LoadFromPersisted<T>(key);
-            _settingsCache[key] = loaded;
-            return loaded;
         }
 
-        /// <summary>
-        /// Saves provider settings back to persisted storage and updates the cache.
-        /// Also persists the entire settings to disk.
-        /// </summary>
-        /// <typeparam name="T">The provider settings type.</typeparam>
-        /// <param name="settings">The settings instance to save.</param>
+        private static string ExtractProviderKey(Type sessionManagerType)
+        {
+            // Convention: SteamSessionManager -> Steam, GogSessionManager -> GOG, etc.
+            var name = sessionManagerType.Name;
+            if (name.EndsWith("SessionManager"))
+                return name.Substring(0, name.Length - "SessionManager".Length);
+            return null;
+        }
+
+        // ===================== SETTINGS ACCESS =====================
+
         public void Save<T>(T settings) where T : ProviderSettingsBase
         {
-            if (settings == null)
-            {
-                throw new ArgumentNullException(nameof(settings));
-            }
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
 
             _settingsCache[settings.ProviderKey] = settings;
+            _enabledState[settings.ProviderKey] = settings.IsEnabled;
             SaveToPersisted(settings);
-
-            // Persist to disk
             _settings._plugin?.SavePluginSettings(_settings);
+
+            if (_providersByKey.TryGetValue(settings.ProviderKey, out var provider))
+                provider.ApplySettings(settings);
+        }
+
+        public T GetSettings<T>() where T : ProviderSettingsBase, new()
+        {
+            var temp = new T();
+            var key = temp.ProviderKey;
+
+            if (_settingsCache.TryGetValue(key, out var cached) && cached is T typed)
+                return typed;
+
+            var settings = LoadFromPersisted<T>(key);
+            _settingsCache[key] = settings;
+            return settings;
+        }
+
+        public static T Settings<T>() where T : ProviderSettingsBase, new()
+            => Instance?.GetSettings<T>() ?? new T();
+
+        public static void Write(ProviderSettingsBase settings)
+            => Instance?.Save(settings);
+
+        // ===================== PERSISTENCE =====================
+
+        public void PersistAllProviderSettings(bool persistToDisk = true)
+        {
+            foreach (var providerKey in _providersByKey.Keys.ToList())
+            {
+                if (!_providersByKey.TryGetValue(providerKey, out var provider)) continue;
+                if (!(provider.GetSettings() is ProviderSettingsBase settings)) continue;
+
+                settings.IsEnabled = IsProviderEnabled(providerKey);
+                _settingsCache[providerKey] = settings;
+                SaveToPersisted(settings);
+            }
+
+            if (persistToDisk)
+                _settings._plugin?.SavePluginSettings(_settings);
         }
 
         private T LoadFromPersisted<T>(string providerKey) where T : ProviderSettingsBase, new()
         {
             var settings = new T();
-
-            if (_settings.Persisted?.ProviderSettings != null &&
-                _settings.Persisted.ProviderSettings.TryGetValue(providerKey, out var jsonObj) &&
-                jsonObj != null)
-            {
+            if (_settings.Persisted?.ProviderSettings?.TryGetValue(providerKey, out var jsonObj) == true && jsonObj != null)
                 settings.DeserializeFromJson(jsonObj.ToString());
-            }
-
             return settings;
         }
 
         private void SaveToPersisted(ProviderSettingsBase settings)
         {
-            if (_settings.Persisted?.ProviderSettings == null)
-            {
-                return;
-            }
-
-            _settings.Persisted.ProviderSettings[settings.ProviderKey] = JObject.Parse(settings.SerializeToJson());
+            if (_settings.Persisted?.ProviderSettings != null)
+                _settings.Persisted.ProviderSettings[settings.ProviderKey] = JObject.Parse(settings.SerializeToJson());
         }
 
-        /// <summary>
-        /// Clears the settings cache, forcing reload on next access.
-        /// Call this when persisted settings are reloaded from disk.
-        /// </summary>
-        public void ClearSettingsCache()
-        {
-            _settingsCache.Clear();
-        }
+        // ===================== LOCALIZATION =====================
 
-        /// <summary>
-        /// Gets the localized display name for a provider key.
-        /// Maps ProviderKey to the correct localization resource key.
-        /// </summary>
-        /// <param name="providerKey">The stable provider key (e.g., "PSN", "Steam").</param>
-        /// <returns>Localized display name, or the key itself if no localization found.</returns>
         public static string GetLocalizedName(string providerKey)
         {
-            if (string.IsNullOrWhiteSpace(providerKey))
-                return "Unknown";
-
-            var locKey = GetLocalizationKey(providerKey);
-            var value = ResourceProvider.GetString(locKey);
+            if (string.IsNullOrWhiteSpace(providerKey)) return "Unknown";
+            var value = ResourceProvider.GetString($"LOCPlayAch_Provider_{providerKey}");
             return string.IsNullOrWhiteSpace(value) ? providerKey : value;
         }
 
-        private static string GetLocalizationKey(string providerKey)
-        {
-            return $"LOCPlayAch_Provider_{providerKey}";
-        }
+        // ===================== AUTH PRIMING =====================
 
-        /// <summary>
-        /// Registers an authentication priming function for a provider.
-        /// Call this during plugin initialization for providers with web-based auth.
-        /// </summary>
         public void RegisterAuthPrimer(string providerKey, Func<CancellationToken, Task> primeAsync)
         {
             if (!string.IsNullOrWhiteSpace(providerKey) && primeAsync != null)
-            {
                 _authPrimers[providerKey] = primeAsync;
-            }
         }
 
-        /// <summary>
-        /// Primes authentication state for all enabled providers that have registered primers.
-        /// </summary>
         public async Task PrimeEnabledProvidersAsync()
         {
             foreach (var kvp in _authPrimers)
             {
-                if (!IsProviderEnabled(kvp.Key))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    await kvp.Value(default);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Warn(ex, $"Failed to prime {kvp.Key} authentication state");
-                }
+                if (!IsProviderEnabled(kvp.Key)) continue;
+                try { await kvp.Value(default); }
+                catch (Exception ex) { _logger?.Warn(ex, $"Failed to prime {kvp.Key} authentication state"); }
             }
         }
 
-        private readonly Dictionary<string, bool> _enabledState = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        // ===================== ENABLED STATE =====================
 
-        /// <summary>
-        /// Event raised when a provider's enabled state changes.
-        /// </summary>
         public event EventHandler<ProviderEnabledChangedEventArgs> ProviderEnabledChanged;
 
-        /// <summary>
-        /// Checks if a provider is enabled at runtime.
-        /// </summary>
-        /// <param name="providerKey">The provider key (e.g., "Steam", "Epic", "GOG", "RetroAchievements").</param>
-        /// <returns>True if the provider is enabled, false otherwise. Defaults to true for unknown providers.</returns>
         public bool IsProviderEnabled(string providerKey)
-        {
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                return true;
-            }
+            => string.IsNullOrWhiteSpace(providerKey) || !_enabledState.TryGetValue(providerKey, out var enabled) || enabled;
 
-            return _enabledState.TryGetValue(providerKey, out var enabled) && enabled;
-        }
-
-        /// <summary>
-        /// Sets the enabled state for a provider and raises the change event.
-        /// </summary>
-        /// <param name="providerKey">The provider key.</param>
-        /// <param name="enabled">The enabled state.</param>
         public void SetProviderEnabled(string providerKey, bool enabled)
         {
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(providerKey)) return;
 
             var previousState = IsProviderEnabled(providerKey);
             _enabledState[providerKey] = enabled;
 
             if (previousState != enabled)
-            {
                 ProviderEnabledChanged?.Invoke(this, new ProviderEnabledChangedEventArgs(providerKey, enabled));
-            }
         }
 
-        /// <summary>
-        /// Synchronizes the runtime enabled state from persisted settings.
-        /// Call this after settings are loaded or saved.
-        /// </summary>
-        /// <param name="settings">The persisted settings containing provider enable flags.</param>
         public void SyncFromSettings(PersistedSettings settings)
         {
-            if (settings == null)
-            {
-                return;
-            }
+            if (settings == null) return;
 
-            // Iterate over ProviderSettings dictionary and extract IsEnabled from each JObject
             foreach (var kvp in settings.ProviderSettings)
             {
-                if (kvp.Value == null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var isEnabled = kvp.Value["IsEnabled"]?.Value<bool>() ?? true;
-                    _enabledState[kvp.Key] = isEnabled;
-                }
-                catch
-                {
-                    // If parsing fails, default to enabled
-                    _enabledState[kvp.Key] = true;
-                }
+                if (kvp.Value == null) continue;
+                try { _enabledState[kvp.Key] = kvp.Value["IsEnabled"]?.Value<bool>() ?? true; }
+                catch { _enabledState[kvp.Key] = true; }
             }
         }
 
-        /// <summary>
-        /// Writes the runtime enabled state back to persisted settings.
-        /// Call this when toggling providers from the landing page.
-        /// </summary>
-        /// <param name="settings">The persisted settings to update.</param>
         public void SyncToSettings(PersistedSettings settings)
         {
-            if (settings == null)
-            {
-                return;
-            }
+            if (settings == null) return;
 
-            // Update IsEnabled in each provider's JObject
-            var keysToUpdate = _enabledState.Keys.ToList();
-            foreach (var key in keysToUpdate)
+            foreach (var key in _enabledState.Keys.ToList())
             {
                 var isEnabled = _enabledState[key];
-
                 if (settings.ProviderSettings.TryGetValue(key, out var jsonObj) && jsonObj != null)
-                {
                     jsonObj["IsEnabled"] = isEnabled;
-                }
                 else
-                {
-                    // Create a minimal entry if it doesn't exist
                     settings.ProviderSettings[key] = new JObject { ["IsEnabled"] = isEnabled };
-                }
             }
         }
 
-        // ===================== SETTINGS VIEW REGISTRATION =====================
+        // ===================== SETTINGS VIEWS =====================
 
-        /// <summary>
-        /// Registers a settings view factory for a provider.
-        /// </summary>
-        /// <param name="providerKey">The provider's unique key.</param>
-        /// <param name="viewFactory">Factory function that creates the settings view.</param>
-        public void RegisterSettingsView(string providerKey, Func<ProviderSettingsViewBase> viewFactory)
-        {
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                throw new ArgumentNullException(nameof(providerKey));
-            }
+        public IEnumerable<string> GetSettingsViewProviderKeys() => _settingsViewFactories.Keys;
 
-            _settingsViewFactories[providerKey] = viewFactory ?? throw new ArgumentNullException(nameof(viewFactory));
-        }
-
-        /// <summary>
-        /// Gets all registered provider keys that have settings views, in display order.
-        /// </summary>
-        /// <summary>
-        /// Gets all registered provider keys that have settings views, in registration order.
-        /// </summary>
-        public IEnumerable<string> GetSettingsViewProviderKeys()
-        {
-            return _settingsViewFactories.Keys;
-        }
-
-        /// <summary>
-        /// Creates the settings view for a provider.
-        /// </summary>
-        /// <param name="providerKey">The provider's unique key.</param>
-        /// <returns>The settings view, or null if not registered.</returns>
         public ProviderSettingsViewBase CreateSettingsView(string providerKey)
-        {
-            return _settingsViewFactories.TryGetValue(providerKey, out var factory)
-                ? factory()
-                : null;
-        }
-
-        /// <summary>
-        /// Checks if a provider has a registered settings view.
-        /// </summary>
-        public bool HasSettingsView(string providerKey)
-        {
-            return _settingsViewFactories.ContainsKey(providerKey);
-        }
+            => _settingsViewFactories.TryGetValue(providerKey, out var factory) ? factory() : null;
 
         // ===================== PROVIDER CREATION =====================
 
-        /// <summary>
-        /// Creates all data providers and registers their auth primers and settings views.
-        /// This is the single entry point for provider initialization.
-        /// </summary>
-        public List<IDataProvider> CreateProviders(
-            PlayniteAchievementsSettings settings,
-            IPlayniteAPI playniteApi,
-            string pluginUserDataPath,
-            SteamSessionManager steamSessionManager,
-            GogSessionManager gogSessionManager,
-            EpicSessionManager epicSessionManager,
-            PsnSessionManager psnSessionManager,
-            XboxSessionManager xboxSessionManager,
-            ExophaseSessionManager exophaseSessionManager,
-            out ManualAchievementsProvider manualProvider)
+        public List<IDataProvider> CreateProviders(PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
-            manualProvider = new ManualAchievementsProvider(
-                _logger,
-                settings,
-                pluginUserDataPath,
-                playniteApi,
-                exophaseSessionManager);
+            var providers = new List<IDataProvider>();
 
-            // Order is determined by list position
-            var providers = new List<IDataProvider>
+            foreach (var providerType in DiscoverProviderTypes())
             {
-                new SteamDataProvider(_logger, settings, playniteApi, steamSessionManager, pluginUserDataPath),
-                new RetroAchievementsDataProvider(_logger, settings, playniteApi, pluginUserDataPath),
-                new GogDataProvider(_logger, settings, playniteApi, pluginUserDataPath, gogSessionManager),
-                new EpicDataProvider(_logger, settings, playniteApi, epicSessionManager),
-                new PsnDataProvider(_logger, settings, psnSessionManager),
-                new XboxDataProvider(_logger, settings, xboxSessionManager),
-                new ExophaseDataProvider(_logger, settings, playniteApi, exophaseSessionManager),
-                new ShadPS4DataProvider(_logger, settings, playniteApi),
-                new Rpcs3DataProvider(_logger, settings, playniteApi),
-                new XeniaDataProvider(_logger, settings, playniteApi, pluginUserDataPath),
-                manualProvider,
-                // Add new providers here in desired position
-            };
-
-            // Register auth primers
-            RegisterAuthPrimer("Steam", steamSessionManager.PrimeAuthenticationStateAsync);
-            RegisterAuthPrimer("GOG", gogSessionManager.PrimeAuthenticationStateAsync);
-            RegisterAuthPrimer("Epic", epicSessionManager.PrimeAuthenticationStateAsync);
-            RegisterAuthPrimer("PSN", psnSessionManager.PrimeAuthenticationStateAsync);
-            RegisterAuthPrimer("Xbox", xboxSessionManager.PrimeAuthenticationStateAsync);
-            RegisterAuthPrimer("Exophase", exophaseSessionManager.PrimeAuthenticationStateAsync);
-
-            // Auto-register settings views and enabled state from providers
-            foreach (var provider in providers)
-            {
-                var key = provider.ProviderKey;
-
-                // Default to enabled if not already set from persisted settings
-                if (!_enabledState.ContainsKey(key))
+                try
                 {
-                    _enabledState[key] = true;
+                    var provider = CreateProviderInstance(providerType, settings, playniteApi, pluginUserDataPath);
+                    if (provider != null)
+                    {
+                        if (provider is ManualAchievementsProvider manual)
+                            _manualProvider = manual;
+                        providers.Add(provider);
+                    }
                 }
-
-                // Register settings view factory from provider
-                _settingsViewFactories[key] = () => provider.CreateSettingsView();
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, $"Failed to create provider: {providerType.Name}");
+                }
             }
 
-            return providers;
+            var sorted = providers
+                .OrderBy(p => Array.IndexOf(ProviderDisplayOrder, p.ProviderKey) is var idx && idx >= 0 ? idx : int.MaxValue)
+                .ThenBy(p => p.ProviderKey)
+                .ToList();
+
+            foreach (var provider in sorted)
+                RegisterProviderInternals(provider);
+
+            return sorted;
+        }
+
+        private IEnumerable<Type> DiscoverProviderTypes()
+            => GetType().Assembly.GetTypes()
+                .Where(t => typeof(IDataProvider).IsAssignableFrom(t) && !t.IsAbstract && t.Name.EndsWith("DataProvider"));
+
+        private IDataProvider CreateProviderInstance(Type providerType, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
+        {
+            var ctors = providerType.GetConstructors();
+            if (ctors.Length == 0) { _logger?.Warn($"No public constructor for {providerType.Name}"); return null; }
+
+            foreach (var ctor in ctors.OrderByDescending(c => c.GetParameters().Length))
+            {
+                var args = ResolveConstructorArguments(ctor, settings, playniteApi, pluginUserDataPath);
+                if (args != null)
+                {
+                    try { return (IDataProvider)ctor.Invoke(args); }
+                    catch (Exception ex) { _logger?.Error(ex, $"Failed to invoke constructor for {providerType.Name}"); }
+                }
+            }
+
+            _logger?.Warn($"Could not resolve constructor for {providerType.Name}");
+            return null;
+        }
+
+        private object[] ResolveConstructorArguments(System.Reflection.ConstructorInfo ctor, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
+        {
+            var parameters = ctor.GetParameters();
+            var args = new object[parameters.Length];
+
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i];
+                var paramType = param.ParameterType;
+
+                if (paramType == typeof(ILogger)) args[i] = _logger;
+                else if (paramType == typeof(PlayniteAchievementsSettings)) args[i] = settings;
+                else if (paramType == typeof(IPlayniteAPI)) args[i] = playniteApi;
+                else if (paramType == typeof(string) && param.Name?.ToLower().Contains("path") == true) args[i] = pluginUserDataPath;
+                else if (_sessionManagers.TryGetValue(paramType, out var sessionManager)) args[i] = sessionManager;
+                else return null;
+            }
+
+            return args;
+        }
+
+        private void RegisterProviderInternals(IDataProvider provider)
+        {
+            var key = provider.ProviderKey;
+            _providersByKey[key] = provider;
+
+            if (!_enabledState.ContainsKey(key))
+                _enabledState[key] = true;
+
+            if (provider.GetSettings() is ProviderSettingsBase providerSettings)
+            {
+                providerSettings.IsEnabled = _enabledState[key];
+                _settingsCache[key] = providerSettings;
+            }
+
+            _settingsViewFactories[key] = () => provider.CreateSettingsView();
         }
     }
 
-    /// <summary>
-    /// Event arguments for provider enabled state changes.
-    /// </summary>
     public class ProviderEnabledChangedEventArgs : EventArgs
     {
         public string ProviderKey { get; }

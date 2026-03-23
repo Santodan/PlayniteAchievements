@@ -21,25 +21,5 @@ namespace PlayniteAchievements.Providers.PSN
             get => _npsso;
             set => SetValue(ref _npsso, value ?? string.Empty);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new PsnSettings
-            {
-                IsEnabled = IsEnabled,
-                Npsso = Npsso
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is PsnSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                Npsso = other.Npsso;
-            }
-        }
     }
 }

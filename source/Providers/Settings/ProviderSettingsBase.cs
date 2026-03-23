@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -24,10 +25,21 @@ namespace PlayniteAchievements.Providers.Settings
         }
 
         /// <inheritdoc />
-        public abstract IProviderSettings Clone();
+        public virtual IProviderSettings Clone()
+        {
+            var json = SerializeToJson();
+            var clone = (ProviderSettingsBase)Activator.CreateInstance(GetType());
+            clone.DeserializeFromJson(json);
+            return clone;
+        }
 
         /// <inheritdoc />
-        public abstract void CopyFrom(IProviderSettings source);
+        public virtual void CopyFrom(IProviderSettings source)
+        {
+            if (source == null) return;
+            var json = source.SerializeToJson();
+            DeserializeFromJson(json);
+        }
 
         /// <summary>
         /// Serializes the settings to a JSON string, excluding ProviderKey.
@@ -72,15 +84,9 @@ namespace PlayniteAchievements.Providers.Settings
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        /// <summary>
-        /// Saves this settings instance to persisted storage.
-        /// </summary>
-        public void Save()
-        {
-            ProviderSettings.Save(this);
-        }
-
         /// <inheritdoc />
         public event PropertyChangedEventHandler PropertyChanged;
     }
 }
+
+

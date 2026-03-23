@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers.PSN
 
             _scanner = new PsnScanner(logger, _settings, _sessionManager);
 
-            _providerSettings = ProviderSettings.Load<PsnSettings>();
+            _providerSettings = ProviderRegistry.Settings<PsnSettings>();
         }
 
         public string ProviderName
@@ -44,7 +44,6 @@ namespace PlayniteAchievements.Providers.PSN
 
         public string ProviderKey => "PSN";
 
-        // Reuse an existing icon key so older sidebar icon templates keep rendering without additional XAML edits.
         public string ProviderIconKey => "ProviderIconPSN";
 
         public string ProviderColorHex => "#0070D1";
@@ -87,15 +86,11 @@ namespace PlayniteAchievements.Providers.PSN
         public IProviderSettings GetSettings() => _providerSettings;
 
         /// <inheritdoc />
-        public IProviderSettings CreateDefaultSettings() => new PsnSettings();
-
-        /// <inheritdoc />
         public void ApplySettings(IProviderSettings settings)
         {
             if (settings is PsnSettings psnSettings)
             {
-                _providerSettings = psnSettings;
-                psnSettings.Save();
+                _providerSettings.CopyFrom(psnSettings);
             }
         }
 
@@ -122,3 +117,6 @@ namespace PlayniteAchievements.Providers.PSN
         }
     }
 }
+
+
+

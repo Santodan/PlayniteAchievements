@@ -30,27 +30,5 @@ namespace PlayniteAchievements.Providers.Steam
             get => _steamApiKey;
             set => SetValue(ref _steamApiKey, value);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new SteamSettings
-            {
-                IsEnabled = IsEnabled,
-                SteamUserId = SteamUserId,
-                SteamApiKey = SteamApiKey
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is SteamSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                SteamUserId = other.SteamUserId;
-                SteamApiKey = other.SteamApiKey;
-            }
-        }
     }
 }

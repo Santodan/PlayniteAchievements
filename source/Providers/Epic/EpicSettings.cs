@@ -71,35 +71,5 @@ namespace PlayniteAchievements.Providers.Epic
             get => _refreshTokenExpiryUtc;
             set => SetValue(ref _refreshTokenExpiryUtc, value);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new EpicSettings
-            {
-                IsEnabled = IsEnabled,
-                AccountId = AccountId,
-                AccessToken = AccessToken,
-                RefreshToken = RefreshToken,
-                TokenType = TokenType,
-                TokenExpiryUtc = TokenExpiryUtc,
-                RefreshTokenExpiryUtc = RefreshTokenExpiryUtc
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is EpicSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                AccountId = other.AccountId;
-                AccessToken = other.AccessToken;
-                RefreshToken = other.RefreshToken;
-                TokenType = other.TokenType;
-                TokenExpiryUtc = other.TokenExpiryUtc;
-                RefreshTokenExpiryUtc = other.RefreshTokenExpiryUtc;
-            }
-        }
     }
 }

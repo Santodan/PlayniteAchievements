@@ -116,6 +116,8 @@ namespace PlayniteAchievements.ViewModels
 
         public void EndEdit()
         {
+            _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
+
             // Save the settings via the plugin
             _plugin.SavePluginSettings(Settings);
 

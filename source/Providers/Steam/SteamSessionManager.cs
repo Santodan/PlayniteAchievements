@@ -1,7 +1,6 @@
 using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Common;
-using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Events;
 using Playnite.SDK.Data;
@@ -37,21 +36,11 @@ namespace PlayniteAchievements.Providers.Steam
             // No longer loading from disk
         }
 
-        private SteamSettings GetProviderSettings()
-        {
-            return ProviderSettings.Load<SteamSettings>();
-        }
-
-        private void SaveProviderSettings(SteamSettings providerSettings)
-        {
-            providerSettings.Save();
-        }
-
         private void UpdateSteamUserId(string steamUserId)
         {
-            var settings = GetProviderSettings();
+            var settings = ProviderRegistry.Settings<SteamSettings>();
             settings.SteamUserId = steamUserId;
-            SaveProviderSettings(settings);
+            ProviderRegistry.Write(settings);
         }
 
         public string GetCachedSteamId64() => _selfSteamId64;
@@ -690,6 +679,12 @@ namespace PlayniteAchievements.Providers.Steam
         }
     }
 }
+
+
+
+
+
+
 
 
 

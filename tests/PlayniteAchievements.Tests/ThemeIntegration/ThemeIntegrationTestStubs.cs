@@ -144,6 +144,15 @@ namespace PlayniteAchievements.Services
         {
             return Task.CompletedTask;
         }
+
+        public static T Settings<T>() where T : Providers.Settings.ProviderSettingsBase, new()
+        {
+            return new T();
+        }
+
+        public static void Write(Providers.Settings.ProviderSettingsBase settings)
+        {
+        }
     }
 }
 

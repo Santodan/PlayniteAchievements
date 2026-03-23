@@ -49,7 +49,7 @@ namespace PlayniteAchievements.Providers.GOG
             _sessionManager = sessionManager;
             _scanner = new GogScanner(settings, apiClient, sessionManager, logger);
 
-            _providerSettings = ProviderSettings.Load<GogSettings>();
+            _providerSettings = ProviderRegistry.Settings<GogSettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_GOG");
@@ -88,15 +88,11 @@ namespace PlayniteAchievements.Providers.GOG
         public IProviderSettings GetSettings() => _providerSettings;
 
         /// <inheritdoc />
-        public IProviderSettings CreateDefaultSettings() => new GogSettings();
-
-        /// <inheritdoc />
         public void ApplySettings(IProviderSettings settings)
         {
             if (settings is GogSettings gogSettings)
             {
-                _providerSettings = gogSettings;
-                gogSettings.Save();
+                _providerSettings.CopyFrom(gogSettings);
             }
         }
 
@@ -104,3 +100,9 @@ namespace PlayniteAchievements.Providers.GOG
         public ProviderSettingsViewBase CreateSettingsView() => new GogSettingsView(_sessionManager);
     }
 }
+
+
+
+
+
+

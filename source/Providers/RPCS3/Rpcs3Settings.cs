@@ -20,25 +20,5 @@ namespace PlayniteAchievements.Providers.RPCS3
             get => _executablePath;
             set => SetValue(ref _executablePath, value ?? string.Empty);
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new Rpcs3Settings
-            {
-                IsEnabled = IsEnabled,
-                ExecutablePath = ExecutablePath
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is Rpcs3Settings other)
-            {
-                IsEnabled = other.IsEnabled;
-                ExecutablePath = other.ExecutablePath;
-            }
-        }
     }
 }

@@ -1,4 +1,4 @@
-﻿using Playnite.SDK;
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Providers.Xenia
             _playniteApi = playniteApi;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
-            _providerSettings = ProviderSettings.Load<XeniaSettings>();
+            _providerSettings = ProviderRegistry.Settings<XeniaSettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xenia");
@@ -155,8 +155,7 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             if (settings is XeniaSettings xeniaSettings)
             {
-                _providerSettings = xeniaSettings;
-                xeniaSettings.Save();
+                _providerSettings.CopyFrom(xeniaSettings);
             }
         }
 
@@ -164,3 +163,5 @@ namespace PlayniteAchievements.Providers.Xenia
         public ProviderSettingsViewBase CreateSettingsView() => new XeniaSettingsView(_playniteApi);
     }
 }
+
+

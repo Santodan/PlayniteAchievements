@@ -37,11 +37,6 @@ namespace PlayniteAchievements.Providers
         IProviderSettings GetSettings();
 
         /// <summary>
-        /// Creates a default settings instance for this provider.
-        /// </summary>
-        IProviderSettings CreateDefaultSettings();
-
-        /// <summary>
         /// Called after settings are loaded to apply them to the provider.
         /// </summary>
         void ApplySettings(IProviderSettings settings);

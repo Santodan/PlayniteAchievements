@@ -33,7 +33,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             _logger = logger;
             _playniteApi = playniteApi;
 
-            _providerSettings = ProviderSettings.Load<ShadPS4Settings>();
+            _providerSettings = ProviderRegistry.Settings<ShadPS4Settings>();
             _scanner = new ShadPS4Scanner(_logger, _settings, _providerSettings, this, _playniteApi);
         }
 
@@ -371,15 +371,11 @@ namespace PlayniteAchievements.Providers.ShadPS4
         public IProviderSettings GetSettings() => _providerSettings;
 
         /// <inheritdoc />
-        public IProviderSettings CreateDefaultSettings() => new ShadPS4Settings();
-
-        /// <inheritdoc />
         public void ApplySettings(IProviderSettings settings)
         {
             if (settings is ShadPS4Settings shadps4Settings)
             {
-                _providerSettings = shadps4Settings;
-                shadps4Settings.Save();
+                _providerSettings.CopyFrom(shadps4Settings);
             }
         }
 
@@ -387,3 +383,9 @@ namespace PlayniteAchievements.Providers.ShadPS4
         public ProviderSettingsViewBase CreateSettingsView() => new ShadPS4SettingsView(_playniteApi);
     }
 }
+
+
+
+
+
+

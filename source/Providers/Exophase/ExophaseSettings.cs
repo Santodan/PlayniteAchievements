@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Exophase
@@ -57,32 +56,6 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             get => _slugOverrides;
             set => SetValue(ref _slugOverrides, value ?? new Dictionary<Guid, string>());
-        }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new ExophaseSettings
-            {
-                IsEnabled = IsEnabled,
-                UserId = UserId,
-                ManagedProviders = ManagedProviders != null ? new HashSet<string>(ManagedProviders, StringComparer.OrdinalIgnoreCase) : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                IncludedGames = IncludedGames != null ? new HashSet<Guid>(IncludedGames) : new HashSet<Guid>(),
-                SlugOverrides = SlugOverrides != null ? new Dictionary<Guid, string>(SlugOverrides) : new Dictionary<Guid, string>()
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is ExophaseSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                UserId = other.UserId;
-                ManagedProviders = other.ManagedProviders != null ? new HashSet<string>(other.ManagedProviders, StringComparer.OrdinalIgnoreCase) : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                IncludedGames = other.IncludedGames != null ? new HashSet<Guid>(other.IncludedGames) : new HashSet<Guid>();
-                SlugOverrides = other.SlugOverrides != null ? new Dictionary<Guid, string>(other.SlugOverrides) : new Dictionary<Guid, string>();
-            }
         }
     }
 }

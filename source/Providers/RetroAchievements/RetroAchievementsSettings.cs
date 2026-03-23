@@ -123,45 +123,5 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             get => _raGameIdOverrides;
             set => SetValue(ref _raGameIdOverrides, value ?? new Dictionary<Guid, int>());
         }
-
-        /// <inheritdoc />
-        public override IProviderSettings Clone()
-        {
-            return new RetroAchievementsSettings
-            {
-                IsEnabled = IsEnabled,
-                RaUsername = RaUsername,
-                RaWebApiKey = RaWebApiKey,
-                RaRarityStats = RaRarityStats,
-                RaPointsMode = RaPointsMode,
-                HashIndexMaxAgeDays = HashIndexMaxAgeDays,
-                EnableArchiveScanning = EnableArchiveScanning,
-                EnableDiscHashing = EnableDiscHashing,
-                EnableRaNameFallback = EnableRaNameFallback,
-                RaGameIdOverrides = RaGameIdOverrides != null
-                    ? new Dictionary<Guid, int>(RaGameIdOverrides)
-                    : new Dictionary<Guid, int>()
-            };
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(IProviderSettings source)
-        {
-            if (source is RetroAchievementsSettings other)
-            {
-                IsEnabled = other.IsEnabled;
-                RaUsername = other.RaUsername;
-                RaWebApiKey = other.RaWebApiKey;
-                RaRarityStats = other.RaRarityStats;
-                RaPointsMode = other.RaPointsMode;
-                HashIndexMaxAgeDays = other.HashIndexMaxAgeDays;
-                EnableArchiveScanning = other.EnableArchiveScanning;
-                EnableDiscHashing = other.EnableDiscHashing;
-                EnableRaNameFallback = other.EnableRaNameFallback;
-                RaGameIdOverrides = other.RaGameIdOverrides != null
-                    ? new Dictionary<Guid, int>(other.RaGameIdOverrides)
-                    : new Dictionary<Guid, int>();
-            }
-        }
     }
 }
