@@ -1,7 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,7 +16,7 @@ namespace PlayniteAchievements.Providers.Xbox
 {
     /// <summary>
     /// Xbox Live session manager that probes authentication state from encrypted disk files.
-    /// Auth state is never cached in memory - always probed from the source of truth.
+    /// Auth state is always probed from the source of truth before any provider work.
     /// </summary>
     public sealed class XboxSessionManager : ISessionManager
     {
@@ -40,7 +39,6 @@ namespace PlayniteAchievements.Providers.Xbox
         private readonly SemaphoreSlim _tokenSemaphore = new SemaphoreSlim(1, 1);
         private readonly string _liveTokensPath;
         private readonly string _xstsTokensPath;
-        private readonly AuthProbeCache _probeCache;
 
         // Cached authorization data for the lifetime of a single operation
         private AuthorizationData _cachedAuthData;
@@ -48,19 +46,20 @@ namespace PlayniteAchievements.Providers.Xbox
 
         public string ProviderKey => "Xbox";
 
-        public TimeSpan ProbeCacheDuration => AuthProbeCache.ProviderCacheDurations.Xbox;
+        /// <summary>
+        /// Checks if currently authenticated based on token file existence.
+        /// </summary>
+        public bool IsAuthenticated => File.Exists(_xstsTokensPath);
 
         public XboxSessionManager(
             IPlayniteAPI api,
             ILogger logger,
-            AuthProbeCache probeCache,
             string pluginUserDataPath)
         {
             if (api == null) throw new ArgumentNullException(nameof(api));
 
             _api = api;
             _logger = logger;
-            _probeCache = probeCache ?? throw new ArgumentNullException(nameof(probeCache));
 
             // Use pluginUserDataPath for token storage (consistent with RA and other providers)
             var basePath = Path.Combine(pluginUserDataPath ?? string.Empty, "xbox");
@@ -69,17 +68,6 @@ namespace PlayniteAchievements.Providers.Xbox
 
             // Migrate from old location if needed
             MigrateTokenFiles();
-        }
-
-        /// <summary>
-        /// Backward-compatible constructor that creates a default AuthProbeCache.
-        /// </summary>
-        public XboxSessionManager(
-            IPlayniteAPI api,
-            ILogger logger,
-            string pluginUserDataPath)
-            : this(api, logger, new AuthProbeCache(logger), pluginUserDataPath)
-        {
         }
 
         /// <summary>
@@ -123,47 +111,12 @@ namespace PlayniteAchievements.Providers.Xbox
             }
         }
 
-        /// <summary>
-        /// Checks if currently authenticated based on cached probe result.
-        /// </summary>
-        public bool IsAuthenticated
-        {
-            get
-            {
-                if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-                {
-                    return _probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out _);
-                }
-                return File.Exists(_xstsTokensPath);
-            }
-        }
-
         // ---------------------------------------------------------------------
         // ISessionManager Implementation
         // ---------------------------------------------------------------------
 
         /// <summary>
-        /// Ensures authentication is valid before data provider work.
-        /// Uses cached probe results if within ProbeCacheDuration, otherwise probes fresh.
-        /// </summary>
-        public async Task<AuthProbeResult> EnsureAuthAsync(CancellationToken ct)
-        {
-            // Check if we have a valid cached result
-            if (_probeCache.IsCacheValid(ProviderKey, ProbeCacheDuration))
-            {
-                if (_probeCache.TryGetCachedUserId(ProviderKey, ProbeCacheDuration, out var cachedUserId))
-                {
-                    return AuthProbeResult.AlreadyAuthenticated(cachedUserId);
-                }
-            }
-
-            // Cache expired or invalid - perform fresh probe
-            return await ProbeAuthStateAsync(ct).ConfigureAwait(false);
-        }
-
-        /// <summary>
         /// Probes the current authentication state from encrypted disk files.
-        /// This always performs a fresh probe, bypassing any cache.
         /// </summary>
         public async Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {
@@ -177,11 +130,9 @@ namespace PlayniteAchievements.Providers.Xbox
                     if (authData != null)
                     {
                         var userId = authData.DisplayClaims?.xui?[0]?.xid?.ToString();
-                        _probeCache.RecordProbe(ProviderKey, true, userId);
                         return AuthProbeResult.AlreadyAuthenticated(userId);
                     }
 
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
@@ -191,7 +142,6 @@ namespace PlayniteAchievements.Providers.Xbox
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, "[XboxAuth] Probe failed with exception.");
-                    _probeCache.RecordProbe(ProviderKey, false);
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -246,7 +196,6 @@ namespace PlayniteAchievements.Providers.Xbox
                     if (authData != null)
                     {
                         var userId = authData.DisplayClaims?.xui?[0]?.xid?.ToString();
-                        _probeCache.RecordProbe(ProviderKey, true, userId);
                         progress?.Report(AuthProgressStep.Completed);
                         return AuthProbeResult.Authenticated(userId, windowOpened: windowOpened);
                     }
@@ -270,14 +219,11 @@ namespace PlayniteAchievements.Providers.Xbox
         }
 
         /// <summary>
-        /// Clears the session by deleting token files and invalidating cache.
+        /// Clears the session by deleting token files.
         /// </summary>
         public void ClearSession()
         {
             _logger?.Info("[XboxAuth] Clearing session.");
-
-            // Invalidate cache
-            _probeCache.Invalidate(ProviderKey);
 
             // Clear cached auth data
             _cachedAuthData = null;
@@ -299,11 +245,6 @@ namespace PlayniteAchievements.Providers.Xbox
             {
                 _logger?.Debug(ex, "[XboxAuth] Failed to delete token files.");
             }
-        }
-
-        public void InvalidateProbeCache()
-        {
-            _probeCache.Invalidate(ProviderKey);
         }
 
         // ---------------------------------------------------------------------
@@ -757,30 +698,6 @@ namespace PlayniteAchievements.Providers.Xbox
                 _logger?.Debug(ex, "[XboxAuth] Failed to load XSTS tokens.");
                 return null;
             }
-        }
-
-        // ---------------------------------------------------------------------
-        // Legacy Type Conversion
-        // ---------------------------------------------------------------------
-
-        private XboxAuthResult ConvertToLegacyResult(AuthProbeResult result)
-        {
-            var outcome = result.Outcome switch
-            {
-                AuthOutcome.AlreadyAuthenticated => XboxAuthOutcome.AlreadyAuthenticated,
-                AuthOutcome.Authenticated => XboxAuthOutcome.Authenticated,
-                AuthOutcome.NotAuthenticated => XboxAuthOutcome.NotAuthenticated,
-                AuthOutcome.Cancelled => XboxAuthOutcome.Cancelled,
-                AuthOutcome.TimedOut => XboxAuthOutcome.TimedOut,
-                AuthOutcome.Failed => XboxAuthOutcome.Failed,
-                AuthOutcome.ProbeFailed => XboxAuthOutcome.ProbeFailed,
-                _ => XboxAuthOutcome.Failed
-            };
-
-            return XboxAuthResult.Create(
-                outcome,
-                result.MessageKey,
-                result.WindowOpened);
         }
 
         /// <summary>
