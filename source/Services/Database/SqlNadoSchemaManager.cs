@@ -651,37 +651,12 @@ namespace PlayniteAchievements.Services.Database
             var root = string.IsNullOrWhiteSpace(_pluginDataDir)
                 ? Path.GetDirectoryName(_databasePath)
                 : _pluginDataDir;
-            if (string.IsNullOrWhiteSpace(root))
-            {
-                throw new InvalidOperationException("Unable to create migration backup: plugin data directory is unknown.");
-            }
-
-            var backupRoot = Path.Combine(root, "migration_backups");
-            Directory.CreateDirectory(backupRoot);
-
-            var backupPath = Path.Combine(
-                backupRoot,
-                $"db-schema-{DateTime.UtcNow:yyyyMMdd_HHmmssfff}");
-            Directory.CreateDirectory(backupPath);
-
-            var filesToBackup = new[]
-            {
+            var backupPath = BackupHelper.CreateBackup(
+                root,
+                "db-schema",
                 _databasePath,
                 _databasePath + "-wal",
-                _databasePath + "-shm"
-            };
-
-            for (var i = 0; i < filesToBackup.Length; i++)
-            {
-                var sourcePath = filesToBackup[i];
-                if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
-                {
-                    continue;
-                }
-
-                var destinationPath = Path.Combine(backupPath, Path.GetFileName(sourcePath));
-                File.Copy(sourcePath, destinationPath, overwrite: true);
-            }
+                _databasePath + "-shm");
 
             _logger?.Info($"[Schema] Migration backup created: {backupPath}");
             return backupPath;

@@ -5,6 +5,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services;
 using Playnite.SDK;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
@@ -81,7 +82,22 @@ namespace PlayniteAchievements.ViewModels
                 if (migratedJson != rawJson)
                 {
                     _logger.Info("Provider settings migrated from flat properties to ProviderSettings dictionary.");
-                    File.WriteAllText(settingsFilePath, migratedJson);
+
+                    try
+                    {
+                        var backupPath = BackupHelper.CreateBackup(
+                            pluginUserDataPath,
+                            "config-migration",
+                            settingsFilePath);
+                        _logger.Info($"Config migration backup created: {backupPath}");
+                        File.WriteAllText(settingsFilePath, migratedJson);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(
+                            ex,
+                            "Failed to create config migration backup or persist migrated config. Using migrated settings in memory for this session.");
+                    }
                 }
 
                 // Deserialize the (potentially migrated) JSON
