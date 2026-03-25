@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Models.Achievements
         public Game Game { get; set; }
 
         /// <summary>
-        /// Runtime provider key used for non-persisted provider-specific rarity logic.
+        /// Runtime provider key used for display context and other provider-specific UI behavior.
         /// Hydrated from the parent GameAchievementData.
         /// </summary>
         [IgnoreDataMember]
@@ -73,6 +73,8 @@ namespace PlayniteAchievements.Models.Achievements
         public DateTime? UnlockTimeUtc { get; set; }
 
         public double? GlobalPercentUnlocked { get; set; }
+
+        public RarityTier Rarity { get; set; } = RarityTier.Common;
 
         /// <summary>
         /// Current progress value for achievements with partial completion (e.g., 25 out of 100).
@@ -118,7 +120,7 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public double? Percent
         {
-            get => AchievementRarityResolver.NormalizePercent(GlobalPercentUnlocked);
+            get => GlobalPercentUnlocked;
         }
 
         [IgnoreDataMember]
@@ -128,19 +130,13 @@ namespace PlayniteAchievements.Models.Achievements
         public bool HasRarityPercent => Percent.HasValue;
 
         [IgnoreDataMember]
-        public RarityTier? Rarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, Points);
+        public string RarityText => AchievementRarityResolver.GetDisplayText(GlobalPercentUnlocked, Rarity);
 
         [IgnoreDataMember]
-        public bool HasRarity => Rarity.HasValue;
+        public string RarityDetailText => AchievementRarityResolver.GetDetailText(GlobalPercentUnlocked, Rarity);
 
         [IgnoreDataMember]
-        public string RarityText => AchievementRarityResolver.GetDisplayText(ProviderKey, GlobalPercentUnlocked, Points);
-
-        [IgnoreDataMember]
-        public string RarityDetailText => AchievementRarityResolver.GetDetailText(ProviderKey, GlobalPercentUnlocked, Points);
-
-        [IgnoreDataMember]
-        public double RaritySortValue => AchievementRarityResolver.GetSortValue(ProviderKey, GlobalPercentUnlocked, Points);
+        public double RaritySortValue => AchievementRarityResolver.GetSortValue(GlobalPercentUnlocked, Rarity);
 
         [IgnoreDataMember]
         public DateTime? DateUnlocked
@@ -168,22 +164,16 @@ namespace PlayniteAchievements.Models.Achievements
         {
             get
             {
-                var tier = Rarity;
-                if (!tier.HasValue)
-                {
-                    return 10;
-                }
-
                 // Use values Aniki expects in its triggers (10/25/50/90/180).
                 // - UltraRare -> 180 (platinum-ish)
                 // - Rare -> 90 (gold-ish)
                 // - Uncommon -> 50 (silver-ish)
                 // - Common -> 25 (bronze-ish)
                 // - Unknown/0 -> 10 (fallback)
-                if (tier.Value == RarityTier.UltraRare) return 180;
-                if (tier.Value == RarityTier.Rare) return 90;
-                if (tier.Value == RarityTier.Uncommon) return 50;
-                if (tier.Value == RarityTier.Common) return 25;
+                if (Rarity == RarityTier.UltraRare) return 180;
+                if (Rarity == RarityTier.Rare) return 90;
+                if (Rarity == RarityTier.Uncommon) return 50;
+                if (Rarity == RarityTier.Common) return 25;
                 return 10;
             }
         }

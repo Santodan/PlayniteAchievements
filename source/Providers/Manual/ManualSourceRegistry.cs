@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Http;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Steam;
 
@@ -77,6 +79,16 @@ namespace PlayniteAchievements.Providers.Manual
         public IManualSource GetDefaultSource()
         {
             return GetSourceByKey("Steam") ?? _sources.FirstOrDefault();
+        }
+
+        public Action<ManualAchievementLink, IList<AchievementDetail>> GetPostProcessorByKey(string sourceKey)
+        {
+            if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
+            {
+                return ExophaseDataProvider.ApplyManualSourceRarity;
+            }
+
+            return null;
         }
 
         public void Dispose()

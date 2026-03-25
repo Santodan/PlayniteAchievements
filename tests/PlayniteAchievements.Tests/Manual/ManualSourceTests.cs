@@ -3,6 +3,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using System;
@@ -126,6 +127,7 @@ namespace PlayniteAchievements.Manual.Tests
             Assert.AreEqual("Lokalisierter Titel", achievements[0].DisplayName);
             Assert.AreEqual("Beschreibung", achievements[0].Description);
             Assert.AreEqual(95.49d, achievements[0].GlobalPercentUnlocked.Value, 0.001d);
+            Assert.AreEqual(RarityTier.Common, achievements[0].Rarity);
         }
 
         private sealed class StubHttpMessageHandler : HttpMessageHandler

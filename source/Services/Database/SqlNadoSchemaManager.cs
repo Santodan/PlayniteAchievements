@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 8;
+        public const int SchemaVersion = 9;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -80,6 +80,7 @@ namespace PlayniteAchievements.Services.Database
                 Hidden INTEGER NOT NULL DEFAULT 0,
                 IsCapstone INTEGER NOT NULL DEFAULT 0,
                 GlobalPercentUnlocked REAL NULL,
+                Rarity TEXT NOT NULL DEFAULT 'Common',
                 ProgressMax INTEGER NULL,
                 CreatedUtc TEXT NOT NULL,
                 UpdatedUtc TEXT NOT NULL,
@@ -290,6 +291,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureColumn(db, "AchievementDefinitions", "TrophyType", "TEXT NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "IsCapstone", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "ScaledPoints", "INTEGER NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "Rarity", "TEXT NOT NULL DEFAULT 'Common'", definitionColumns, ref backupPath);
 
             // Migrate UserGameProgress: NoAchievements -> HasAchievements (inverted) + add ExcludedByUser
             var progressColumns = GetColumnNames(db, "UserGameProgress");
@@ -675,6 +677,7 @@ namespace PlayniteAchievements.Services.Database
             EnsureRequiredColumn(definitionColumns, "CategoryType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "TrophyType", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "IsCapstone", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "Rarity", "AchievementDefinitions", missing);
 
             // Verify ProviderKey column exists in Games and Users tables (migration from ProviderName)
             var gamesColumns = GetColumnNames(db, "Games");

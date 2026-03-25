@@ -277,12 +277,22 @@ namespace PlayniteAchievements.Providers.Steam
                         Points = null,
                         Category = null,
                         Hidden = schemaAch.Hidden == 1,
-                        GlobalPercentUnlocked = globalPercent,
                         UnlockTimeUtc = unlockTime,
                         Unlocked = isUnlocked,
                         ProgressNum = progressNum,
-                        ProgressDenom = progressDenom
+                        ProgressDenom = progressDenom,
+                        Rarity = GetFallbackRarity(
+                            schemaAch.Hidden == 1,
+                            progressNum,
+                            progressDenom)
                     };
+
+                    var normalizedPercent = NormalizePercent(globalPercent);
+                    detail.GlobalPercentUnlocked = normalizedPercent;
+                    if (normalizedPercent.HasValue)
+                    {
+                        detail.Rarity = PercentRarityHelper.GetRarityTier(normalizedPercent.Value);
+                    }
 
                     gameData.Achievements.Add(detail);
                 }
@@ -882,6 +892,49 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return ProviderRegistry.Settings<SteamSettings>().SteamUserId?.Trim();
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetFallbackRarity(bool hidden, int? progressNum, int? progressDenom)
+        {
+            if ((progressNum.HasValue || progressDenom.HasValue) &&
+                progressDenom.HasValue &&
+                progressDenom.Value > 0)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            if (hidden)
+            {
+                return RarityTier.Rare;
+            }
+
+            return RarityTier.Common;
         }
     }
 }

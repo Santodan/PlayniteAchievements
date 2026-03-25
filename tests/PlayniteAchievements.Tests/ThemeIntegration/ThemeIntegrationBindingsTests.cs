@@ -17,7 +17,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
     public class ThemeIntegrationBindingsTests
     {
         [TestMethod]
-        public void SelectedGameBuilder_CombinesRareAndUltraRareStats()
+        public void SelectedGameBuilder_IncludesStoredFallbackRarityInStats()
         {
             var gameId = Guid.NewGuid();
             var game = new Game { Id = gameId, Name = "Selected Game" };
@@ -42,11 +42,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 gameId,
                 data);
 
-            AssertStat(state.Common, total: 1, unlocked: 1, locked: 0);
+            AssertStat(state.Common, total: 2, unlocked: 2, locked: 0);
             AssertStat(state.Uncommon, total: 1, unlocked: 0, locked: 1);
             AssertStat(state.Rare, total: 1, unlocked: 1, locked: 0);
-            AssertStat(state.UltraRare, total: 2, unlocked: 1, locked: 1);
-            AssertStat(state.RareAndUltraRare, total: 3, unlocked: 2, locked: 1);
+            AssertStat(state.UltraRare, total: 3, unlocked: 1, locked: 2);
+            AssertStat(state.RareAndUltraRare, total: 4, unlocked: 2, locked: 2);
         }
 
         [TestMethod]
@@ -113,7 +113,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void LibraryBuilder_ExcludesMissingAndNonPositivePercentsFromTotals()
+        public void LibraryBuilder_IncludesFallbackAndNormalizedPercentRarityInTotals()
         {
             PercentRarityHelper.Configure(5, 10, 50);
 
@@ -138,10 +138,10 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var state = LibraryRuntimeStateBuilder.Build(allData, api: null, token: default, includeHeavyAchievementLists: false);
 
-            AssertStat(state.TotalCommon, total: 1, unlocked: 1, locked: 0);
+            AssertStat(state.TotalCommon, total: 2, unlocked: 2, locked: 0);
             AssertStat(state.TotalRare, total: 1, unlocked: 0, locked: 1);
-            AssertStat(state.TotalUltraRare, total: 0, unlocked: 0, locked: 0);
-            AssertStat(state.TotalOverall, total: 2, unlocked: 1, locked: 1);
+            AssertStat(state.TotalUltraRare, total: 2, unlocked: 1, locked: 1);
+            AssertStat(state.TotalOverall, total: 5, unlocked: 3, locked: 2);
         }
 
         [TestMethod]
@@ -263,16 +263,46 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
         private static AchievementDetail Achievement(string name, double? percent, bool unlocked)
         {
+            var normalizedPercent = NormalizePercent(percent);
             return new AchievementDetail
             {
                 ApiName = name,
                 DisplayName = name,
-                GlobalPercentUnlocked = percent,
+                GlobalPercentUnlocked = normalizedPercent,
+                Rarity = normalizedPercent.HasValue
+                    ? PercentRarityHelper.GetRarityTier(normalizedPercent.Value)
+                    : RarityTier.Common,
                 Unlocked = unlocked,
                 UnlockTimeUtc = unlocked
                     ? DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc)
                     : (DateTime?)null
             };
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
         }
 
         private static void AssertStat(AchievementRarityStats stats, int total, int unlocked, int locked)

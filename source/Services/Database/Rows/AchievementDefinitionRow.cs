@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Services.Database.Rows
         public long Hidden { get; set; }
         public long IsCapstone { get; set; }
         public double? GlobalPercentUnlocked { get; set; }
+        public string Rarity { get; set; }
         public int? ProgressMax { get; set; }
         public string CreatedUtc { get; set; }
         public string UpdatedUtc { get; set; }

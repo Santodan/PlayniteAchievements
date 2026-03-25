@@ -556,10 +556,37 @@ namespace PlayniteAchievements.Providers.Exophase
                 TrophyType = trophyType,
                 IsCapstone = isCapstone,
                 Hidden = isHidden,
-                GlobalPercentUnlocked = globalPercent,
+                GlobalPercentUnlocked = NormalizePercent(globalPercent),
+                Rarity = RarityTier.Common,
                 Unlocked = isUnlocked,
                 UnlockTimeUtc = unlockTimeUtc
             };
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
         }
 
         private static int? ParseAwardPointsValue(HtmlNode awardPointsNode)

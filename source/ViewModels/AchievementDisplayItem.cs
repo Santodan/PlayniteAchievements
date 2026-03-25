@@ -27,19 +27,7 @@ namespace PlayniteAchievements.ViewModels
         public string ProviderKey
         {
             get => _providerKey;
-            set
-            {
-                if (SetValueAndReturn(ref _providerKey, value))
-                {
-                    OnPropertyChanged(nameof(HasRarity));
-                    OnPropertyChanged(nameof(HasRarityPercent));
-                    OnPropertyChanged(nameof(GlobalPercentText));
-                    OnPropertyChanged(nameof(RarityDetailText));
-                    OnPropertyChanged(nameof(GamerScore));
-                    OnPropertyChanged(nameof(Rarity));
-                    OnPropertyChanged(nameof(RaritySortValue));
-                }
-            }
+            set => SetValue(ref _providerKey, value);
         }
 
         private string _displayName;
@@ -106,15 +94,12 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _globalPercentUnlocked, value))
                 {
-                    OnPropertyChanged(nameof(HasRarity));
                     OnPropertyChanged(nameof(HasRarityPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(RarityDetailText));
                     OnPropertyChanged(nameof(GlobalPercent));
                     OnPropertyChanged(nameof(RarityPercentValue));
                     OnPropertyChanged(nameof(Percent));
-                    OnPropertyChanged(nameof(GamerScore));
-                    OnPropertyChanged(nameof(Rarity));
                     OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
@@ -128,13 +113,23 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _pointsValue, value))
                 {
-                    OnPropertyChanged(nameof(HasRarity));
                     OnPropertyChanged(nameof(Points));
                     OnPropertyChanged(nameof(PointsText));
+                }
+            }
+        }
+
+        private RarityTier _rarity = RarityTier.Common;
+        public RarityTier Rarity
+        {
+            get => _rarity;
+            set
+            {
+                if (SetValueAndReturn(ref _rarity, value))
+                {
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(RarityDetailText));
                     OnPropertyChanged(nameof(GamerScore));
-                    OnPropertyChanged(nameof(Rarity));
                     OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
@@ -509,7 +504,8 @@ namespace PlayniteAchievements.ViewModels
             Description = source.Description ?? "No description";
             IconPath = source.UnlockedIconPath;
             UnlockTimeUtc = source.UnlockTimeUtc;
-            GlobalPercentUnlocked = source.Percent;
+            GlobalPercentUnlocked = source.GlobalPercentUnlocked;
+            Rarity = source.Rarity;
             Unlocked = source.Unlocked;
             Hidden = source.Hidden;
             ApiName = source.ApiName;
@@ -537,20 +533,13 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
-        /// <summary>
-        /// True if this achievement has either percent-backed or points-derived rarity.
-        /// </summary>
-        public bool HasRarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue).HasValue;
+        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(GlobalPercentUnlocked, Rarity);
 
-        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(ProviderKey, GlobalPercentUnlocked, PointsValue);
-
-        public string RarityDetailText => AchievementRarityResolver.GetDetailText(ProviderKey, GlobalPercentUnlocked, PointsValue);
+        public string RarityDetailText => AchievementRarityResolver.GetDetailText(GlobalPercentUnlocked, Rarity);
 
         public int Points => PointsValue ?? 0;
 
         public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
-
-        public RarityTier Rarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue) ?? RarityTier.Common;
 
         private static string DefaultIcon => "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
 
@@ -608,7 +597,7 @@ namespace PlayniteAchievements.ViewModels
 
         public double RarityPercentValue => GlobalPercentUnlocked ?? 0;
 
-        public double RaritySortValue => AchievementRarityResolver.GetSortValue(ProviderKey, GlobalPercentUnlocked, PointsValue);
+        public double RaritySortValue => AchievementRarityResolver.GetSortValue(GlobalPercentUnlocked, Rarity);
 
         // --- Theme integration compatibility (SuccessStory-style bindings) ---
 
@@ -645,18 +634,12 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
-                if (!HasRarity)
-                {
-                    return 10;
-                }
-
-                var tier = Rarity;
-                return tier switch
+                return Rarity switch
                 {
                     RarityTier.UltraRare => 180,
                     RarityTier.Rare => 90,
-                    RarityTier.Uncommon => 30,
-                    _ => 10
+                    RarityTier.Uncommon => 50,
+                    _ => 25
                 };
             }
         }
@@ -714,6 +697,7 @@ namespace PlayniteAchievements.ViewModels
                 IconPath = _iconPath,
                 UnlockTimeUtc = _unlockTimeUtc,
                 GlobalPercentUnlocked = _globalPercentUnlocked,
+                Rarity = _rarity,
                 PointsValue = _pointsValue,
                 Unlocked = _unlocked,
                 Hidden = _hidden,

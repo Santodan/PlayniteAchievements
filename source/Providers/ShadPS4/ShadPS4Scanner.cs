@@ -285,6 +285,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
                         Unlocked = isUnlocked,
                         UnlockTimeUtc = unlockTime,
                         GlobalPercentUnlocked = null,
+                        Rarity = GetRarityFromTrophyType(trophyTypeNormalized),
                         TrophyType = trophyTypeNormalized,
                         IsCapstone = trophyType?.ToUpperInvariant() == "P",
                         CategoryType = MapGroupIdToCategoryType(groupId),
@@ -423,6 +424,24 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 "B" => "bronze",
                 _ => null
             };
+        }
+
+        private static RarityTier GetRarityFromTrophyType(string trophyType)
+        {
+            switch ((trophyType ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "platinum":
+                case "p":
+                    return RarityTier.UltraRare;
+                case "gold":
+                case "g":
+                    return RarityTier.Rare;
+                case "silver":
+                case "s":
+                    return RarityTier.Uncommon;
+                default:
+                    return RarityTier.Common;
+            }
         }
 
         /// <summary>

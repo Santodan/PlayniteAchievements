@@ -384,6 +384,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 UnlockedIconPath = iconUrl,
                 LockedIconPath = iconUrl,
                 Points = gamerscore,
+                Rarity = GetRarityFromXboxPoints(gamerscore),
                 Category = null,
                 Hidden = xboxAch.isSecret,
                 GlobalPercentUnlocked = null,
@@ -413,6 +414,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 UnlockedIconPath = iconUrl,
                 LockedIconPath = iconUrl,
                 Points = xboxAch.gamerscore,
+                Rarity = GetRarityFromXboxPoints(xboxAch.gamerscore),
                 Category = null,
                 Hidden = xboxAch.isSecret,
                 GlobalPercentUnlocked = null,
@@ -453,6 +455,27 @@ namespace PlayniteAchievements.Providers.Xbox
             }
 
             return url;
+        }
+
+        private static RarityTier GetRarityFromXboxPoints(int? points)
+        {
+            var value = Math.Max(0, points ?? 0);
+            if (value >= 100)
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (value >= 50)
+            {
+                return RarityTier.Rare;
+            }
+
+            if (value >= 25)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
         }
     }
 }

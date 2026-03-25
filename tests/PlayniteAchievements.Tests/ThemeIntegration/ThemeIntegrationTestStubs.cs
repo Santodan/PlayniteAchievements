@@ -50,13 +50,6 @@ namespace PlayniteAchievements.Models.Achievements
         }
     }
 
-    public static class PointsRarityHelper
-    {
-        public static void Configure(int xboxUltraRareThreshold, int xboxRareThreshold, int xboxUncommonThreshold)
-        {
-        }
-    }
-
     public sealed class AchievementDetail
     {
         public string ApiName { get; set; }
@@ -95,12 +88,27 @@ namespace PlayniteAchievements.Models.Achievements
 
         public Game Game { get; set; }
 
-        public RarityTier? Rarity =>
-            GlobalPercentUnlocked.HasValue && GlobalPercentUnlocked.Value > 0
-                ? PercentRarityHelper.GetRarityTier(GlobalPercentUnlocked.Value)
-                : (RarityTier?)null;
+        public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
-        public double RaritySortValue => GlobalPercentUnlocked ?? double.MaxValue;
+        public RarityTier Rarity { get; set; } = RarityTier.Common;
+
+        public double RaritySortValue
+        {
+            get
+            {
+                var band = Rarity switch
+                {
+                    RarityTier.UltraRare => 0,
+                    RarityTier.Rare => 1_000_000,
+                    RarityTier.Uncommon => 2_000_000,
+                    _ => 3_000_000
+                };
+
+                return GlobalPercentUnlocked.HasValue
+                    ? band + Math.Round(GlobalPercentUnlocked.Value * 1000, MidpointRounding.AwayFromZero)
+                    : band + 999_999;
+            }
+        }
     }
 
     public sealed class GameAchievementData

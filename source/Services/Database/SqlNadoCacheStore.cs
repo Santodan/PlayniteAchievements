@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoCacheStore : IDisposable
     {
+        private const string PercentNormalizationMetadataKey = "achievement_percent_normalization_v1";
+
         private sealed class CacheKeyRow
         {
             public string CacheKey { get; set; }
@@ -57,6 +59,7 @@ namespace PlayniteAchievements.Services.Database
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
             public long? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
             public int? ProgressNum { get; set; }
@@ -78,10 +81,18 @@ namespace PlayniteAchievements.Services.Database
             public long Hidden { get; set; }
             public long IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
             public long? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }
             public int? ProgressNum { get; set; }
             public int? ProgressDenom { get; set; }
+        }
+
+        private sealed class AchievementPercentNormalizationRow
+        {
+            public long Id { get; set; }
+            public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
         }
 
         private sealed class ResolvedUser
@@ -301,6 +312,7 @@ namespace PlayniteAchievements.Services.Database
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                        ad.Rarity AS Rarity,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -336,6 +348,7 @@ namespace PlayniteAchievements.Services.Database
                         Hidden = row.Hidden != 0,
                         IsCapstone = row.IsCapstone != 0,
                         GlobalPercentUnlocked = row.GlobalPercentUnlocked,
+                        Rarity = ParseStoredRarity(row.Rarity),
                         UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
                         ProgressNum = row.ProgressNum,
                         ProgressDenom = row.ProgressDenom
@@ -456,6 +469,7 @@ namespace PlayniteAchievements.Services.Database
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                        ad.Rarity AS Rarity,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -493,6 +507,7 @@ namespace PlayniteAchievements.Services.Database
                         Hidden = row.Hidden != 0,
                         IsCapstone = row.IsCapstone != 0,
                         GlobalPercentUnlocked = row.GlobalPercentUnlocked,
+                        Rarity = ParseStoredRarity(row.Rarity),
                         UnlockTimeUtc = ParseUtc(row.UnlockTimeUtc),
                         ProgressNum = row.ProgressNum,
                         ProgressDenom = row.ProgressDenom
@@ -546,6 +561,7 @@ namespace PlayniteAchievements.Services.Database
             var updatedIso = ToIso(payload.LastUpdatedUtc);
 
             var achievements = payload.Achievements ?? new List<AchievementDetail>();
+            NormalizeIncomingAchievements(achievements);
             var unlockedCount = achievements.Count(IsUnlocked);
             var totalCount = achievements.Count;
 
@@ -857,6 +873,7 @@ namespace PlayniteAchievements.Services.Database
 
                 _db.EnableStatementsCache = true;
                 _schemaManager.EnsureSchema(_db);
+                EnsureLegacyAchievementPercentNormalization(_db);
                 _initialized = true;
             }
             catch
@@ -878,6 +895,59 @@ namespace PlayniteAchievements.Services.Database
             }
         }
 
+        private void EnsureLegacyAchievementPercentNormalization(SQLiteDatabase db)
+        {
+            var status = GetMetadataValue(db, PercentNormalizationMetadataKey);
+            if (string.Equals(status, "done", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            db.RunTransaction(() =>
+            {
+                var rows = db.Load<AchievementPercentNormalizationRow>(
+                    @"SELECT
+                        ad.Id AS Id,
+                        ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                        ad.Rarity AS Rarity
+                      FROM AchievementDefinitions ad;").ToList();
+
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    var row = rows[i];
+                    if (row == null)
+                    {
+                        continue;
+                    }
+
+                    var normalizedPercent = NormalizeStoredPercent(
+                        row.GlobalPercentUnlocked,
+                        convertLegacyRatio: true);
+                    var storedRarity = ParseStoredRarity(row.Rarity);
+                    var resolvedRarity = normalizedPercent.HasValue
+                        ? PercentRarityHelper.GetRarityTier(normalizedPercent.Value)
+                        : storedRarity;
+
+                    if (row.GlobalPercentUnlocked == normalizedPercent &&
+                        storedRarity == resolvedRarity)
+                    {
+                        continue;
+                    }
+
+                    db.ExecuteNonQuery(
+                        @"UPDATE AchievementDefinitions
+                          SET GlobalPercentUnlocked = ?,
+                              Rarity = ?
+                          WHERE Id = ?;",
+                        normalizedPercent.HasValue ? (object)normalizedPercent.Value : DBNull.Value,
+                        resolvedRarity.ToString(),
+                        row.Id);
+                }
+
+                SetMetadataValue(db, PercentNormalizationMetadataKey, "done");
+            });
+        }
+
         private T WithDb<T>(Func<SQLiteDatabase, T> action)
         {
             lock (_sync)
@@ -894,6 +964,32 @@ namespace PlayniteAchievements.Services.Database
                 EnsureInitializedLocked();
                 action(_db);
             }
+        }
+
+        private static string GetMetadataValue(SQLiteDatabase db, string key)
+        {
+            if (db == null || string.IsNullOrWhiteSpace(key))
+            {
+                return null;
+            }
+
+            var row = db.Load<CacheMetadataRow>(
+                "SELECT Key, Value FROM CacheMetadata WHERE Key = ? LIMIT 1;",
+                key.Trim()).FirstOrDefault();
+            return row?.Value;
+        }
+
+        private static void SetMetadataValue(SQLiteDatabase db, string key, string value)
+        {
+            if (db == null || string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            db.ExecuteNonQuery(
+                "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
+                key.Trim(),
+                value ?? string.Empty);
         }
 
         private long UpsertCurrentUser(SQLiteDatabase db, ResolvedUser user, string nowIso)
@@ -1189,7 +1285,7 @@ namespace PlayniteAchievements.Services.Database
             var desiredApiNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var existingByApiName = db.Load<AchievementDefinitionRow>(
-                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, ProgressMax, CreatedUtc, UpdatedUtc
+                    @"SELECT Id, GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc
                       FROM AchievementDefinitions
                       WHERE GameId = ?;",
                     gameId)
@@ -1207,6 +1303,8 @@ namespace PlayniteAchievements.Services.Database
                 desiredApiNames.Add(apiName);
                 var incomingCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
                 var incomingCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
+                var incomingGlobalPercent = NormalizeStoredPercent(achievement.GlobalPercentUnlocked);
+                var incomingRarity = achievement.Rarity.ToString();
 
                 // Compute IsCapstone: provider-set value or auto-detect platinum trophies.
                 // Manual capstones from settings are applied on top at load time.
@@ -1217,9 +1315,9 @@ namespace PlayniteAchievements.Services.Database
                 {
                     db.ExecuteNonQuery(
                         @"INSERT INTO AchievementDefinitions
-                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, ProgressMax, CreatedUtc, UpdatedUtc)
+                            (GameId, ApiName, DisplayName, Description, UnlockedIconPath, LockedIconPath, Points, ScaledPoints, Category, CategoryType, TrophyType, Hidden, IsCapstone, GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc)
                           VALUES
-                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
                         gameId,
                         apiName,
                         DbValue(achievement.DisplayName),
@@ -1233,7 +1331,8 @@ namespace PlayniteAchievements.Services.Database
                         DbValue(achievement.TrophyType),
                         achievement.Hidden ? 1 : 0,
                         isCapstone ? 1 : 0,
-                        achievement.GlobalPercentUnlocked.HasValue ? (object)achievement.GlobalPercentUnlocked.Value : DBNull.Value,
+                        incomingGlobalPercent.HasValue ? (object)incomingGlobalPercent.Value : DBNull.Value,
+                        incomingRarity,
                         achievement.ProgressDenom.HasValue ? (object)achievement.ProgressDenom.Value : DBNull.Value,
                         nowIso,
                         updatedIso);
@@ -1258,7 +1357,7 @@ namespace PlayniteAchievements.Services.Database
                 var incomingTrophyType = NormalizeDbText(achievement.TrophyType);
                 var incomingHidden = achievement.Hidden ? 1L : 0L;
                 var incomingIsCapstone = isCapstone ? 1L : 0L;
-                var incomingGlobalPercent = achievement.GlobalPercentUnlocked;
+                var incomingStoredRarity = incomingRarity;
                 var incomingProgressMax = achievement.ProgressDenom;
 
                 var changed = !NullableEquals(NormalizeDbText(existing.DisplayName), incomingDisplayName) ||
@@ -1273,6 +1372,7 @@ namespace PlayniteAchievements.Services.Database
                               existing.Hidden != incomingHidden ||
                               existing.IsCapstone != incomingIsCapstone ||
                               existing.GlobalPercentUnlocked != incomingGlobalPercent ||
+                              !NullableEquals(NormalizeDbText(existing.Rarity), incomingStoredRarity) ||
                               existing.ProgressMax != incomingProgressMax;
 
                 if (!changed)
@@ -1295,6 +1395,7 @@ namespace PlayniteAchievements.Services.Database
                           Hidden = ?,
                           IsCapstone = ?,
                           GlobalPercentUnlocked = ?,
+                          Rarity = ?,
                           ProgressMax = ?,
                           UpdatedUtc = ?
                       WHERE Id = ?;",
@@ -1310,6 +1411,7 @@ namespace PlayniteAchievements.Services.Database
                                         incomingHidden,
                                         incomingIsCapstone,
                                         incomingGlobalPercent.HasValue ? (object)incomingGlobalPercent.Value : DBNull.Value,
+                                        incomingStoredRarity,
                                         incomingProgressMax.HasValue ? (object)incomingProgressMax.Value : DBNull.Value,
                     updatedIso,
                     existing.Id);
@@ -1461,6 +1563,63 @@ namespace PlayniteAchievements.Services.Database
         private static string NormalizeDbText(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        private static void NormalizeIncomingAchievements(IEnumerable<AchievementDetail> achievements)
+        {
+            if (achievements == null)
+            {
+                return;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                achievement.GlobalPercentUnlocked = NormalizeStoredPercent(
+                    achievement.GlobalPercentUnlocked);
+            }
+        }
+
+        private static double? NormalizeStoredPercent(double? rawPercent, bool convertLegacyRatio = false)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (convertLegacyRatio && value > 0 && value <= 1)
+            {
+                value *= 100.0;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier ParseStoredRarity(string value)
+        {
+            return RarityTierExtensions.TryParse(value, out var rarity)
+                ? rarity
+                : RarityTier.Common;
         }
 
         private static string NormalizeMarkerApiName(string value)
@@ -1677,17 +1836,17 @@ namespace PlayniteAchievements.Services.Database
             var rows = _db.Load<AchievementDefinitionExportRow>(
                 "SELECT Id, GameId, ApiName, DisplayName, Description, " +
                 "UnlockedIconPath, LockedIconPath, Points, Category, CategoryType, TrophyType, Hidden, IsCapstone, " +
-                "GlobalPercentUnlocked, ProgressMax, CreatedUtc, UpdatedUtc " +
+                "GlobalPercentUnlocked, Rarity, ProgressMax, CreatedUtc, UpdatedUtc " +
                 "FROM AchievementDefinitions").ToList();
             WriteCsv(filePath, rows, new[]
             {
                 "Id", "GameId", "ApiName", "DisplayName", "Description",
                 "UnlockedIconPath", "LockedIconPath", "Points", "Category", "CategoryType", "TrophyType", "Hidden", "IsCapstone",
-                "GlobalPercentUnlocked", "ProgressMax", "CreatedUtc", "UpdatedUtc"
+                "GlobalPercentUnlocked", "Rarity", "ProgressMax", "CreatedUtc", "UpdatedUtc"
             }, r => new[] {
                 r.Id?.ToString(), r.GameId?.ToString(), r.ApiName, r.DisplayName, r.Description,
                 r.UnlockedIconPath, r.LockedIconPath, r.Points?.ToString(), r.Category, r.CategoryType, r.TrophyType, r.Hidden?.ToString(), r.IsCapstone?.ToString(),
-                r.GlobalPercentUnlocked?.ToString(), r.ProgressMax?.ToString(), r.CreatedUtc, r.UpdatedUtc
+                r.GlobalPercentUnlocked?.ToString(), r.Rarity, r.ProgressMax?.ToString(), r.CreatedUtc, r.UpdatedUtc
             });
             _logger.Info($"Exported {rows.Count} rows to {filePath}");
         }
@@ -1776,7 +1935,7 @@ namespace PlayniteAchievements.Services.Database
             var rows = _db.Load<AchievementSummaryExportRow>(
                 "SELECT g.GameName, g.ProviderKey, g.PlayniteGameId, " +
                 "ad.ApiName, ad.DisplayName AS AchievementName, ad.Description, ad.Points, ad.Category, ad.CategoryType, ad.TrophyType, " +
-                "ad.GlobalPercentUnlocked, ad.Hidden, " +
+                "ad.GlobalPercentUnlocked, ad.Rarity, ad.Hidden, " +
                 "ua.Unlocked, ua.UnlockTimeUtc, u.DisplayName AS UserName " +
                 "FROM AchievementDefinitions ad " +
                 "JOIN Games g ON ad.GameId = g.Id " +
@@ -1788,12 +1947,12 @@ namespace PlayniteAchievements.Services.Database
             {
                 "GameName", "ProviderKey", "PlayniteGameId",
                 "ApiName", "AchievementName", "Description", "Points", "Category", "CategoryType", "TrophyType",
-                "GlobalPercentUnlocked", "Hidden",
+                "GlobalPercentUnlocked", "Rarity", "Hidden",
                 "Unlocked", "UnlockTimeUtc", "UserName"
             }, r => new[] {
                 r.GameName, r.ProviderKey, r.PlayniteGameId,
                 r.ApiName, r.AchievementName, r.Description, r.Points?.ToString(), r.Category, r.CategoryType, r.TrophyType,
-                r.GlobalPercentUnlocked?.ToString(), r.Hidden?.ToString(),
+                r.GlobalPercentUnlocked?.ToString(), r.Rarity, r.Hidden?.ToString(),
                 r.Unlocked?.ToString(), r.UnlockTimeUtc, r.UserName
             });
             _logger.Info($"Exported {rows.Count} rows to {filePath}");
@@ -1844,6 +2003,7 @@ namespace PlayniteAchievements.Services.Database
             public bool? Hidden { get; set; }
             public bool? IsCapstone { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
             public int? ProgressMax { get; set; }
             public string CreatedUtc { get; set; }
             public string UpdatedUtc { get; set; }
@@ -1914,6 +2074,7 @@ namespace PlayniteAchievements.Services.Database
             public string CategoryType { get; set; }
             public string TrophyType { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
             public bool? Hidden { get; set; }
             public bool? Unlocked { get; set; }
             public string UnlockTimeUtc { get; set; }

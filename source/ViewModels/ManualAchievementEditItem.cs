@@ -39,7 +39,6 @@ namespace PlayniteAchievements.ViewModels
         public bool Unlocked => IsUnlocked;
         public double? GlobalPercentUnlocked => Source.GlobalPercentUnlocked;
         public int? Points => Source.Points;
-        public bool HasRarity => Source.HasRarity;
 
         public bool IsUnlocked
         {

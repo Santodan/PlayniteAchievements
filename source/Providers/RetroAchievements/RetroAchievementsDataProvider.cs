@@ -134,6 +134,50 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _apiClient?.Dispose();
         }
 
+        internal static bool TryGetGameIdOverride(Guid gameId, out int gameIdOverride)
+        {
+            gameIdOverride = 0;
+            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
+            return settings?.RaGameIdOverrides != null &&
+                   settings.RaGameIdOverrides.TryGetValue(gameId, out gameIdOverride);
+        }
+
+        internal static bool TrySetGameIdOverride(Guid gameId, int newId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (newId <= 0)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
+            settings.RaGameIdOverrides[gameId] = newId;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+
+            logger?.Info($"Set RA game ID override for '{gameName}' to {newId}");
+            return true;
+        }
+
+        internal static bool TryClearGameIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
+            if (!settings.RaGameIdOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared RA game ID override for '{gameName}'");
+            return true;
+        }
+
+        internal static bool UseScaledPoints(GameAchievementData gameData)
+        {
+            return string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(ProviderRegistry.Settings<RetroAchievementsSettings>().RaPointsMode, "scaled", StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <inheritdoc />
         public IProviderSettings GetSettings() => _providerSettings;
 

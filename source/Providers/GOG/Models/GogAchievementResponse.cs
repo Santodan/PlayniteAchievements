@@ -61,7 +61,7 @@ namespace PlayniteAchievements.Providers.GOG.Models
         public string ImageUrlLocked2 { get; set; }
 
         [DataMember(Name = "rarity")]
-        public double Rarity { get; set; }
+        public double? Rarity { get; set; }
 
         [DataMember(Name = "date_unlocked")]
         public DateTime? DateUnlocked { get; set; }
@@ -155,24 +155,30 @@ namespace PlayniteAchievements.Providers.GOG.Models
             return null;
         }
 
-        private static double? ClampPercent(double value)
+        private static double? ClampPercent(double? value)
         {
-            if (double.IsNaN(value) || double.IsInfinity(value))
+            if (!value.HasValue)
             {
                 return null;
             }
 
-            if (value < 0)
+            var rawValue = value.Value;
+            if (double.IsNaN(rawValue) || double.IsInfinity(rawValue))
+            {
+                return null;
+            }
+
+            if (rawValue < 0)
             {
                 return 0;
             }
 
-            if (value > 100)
+            if (rawValue > 100)
             {
                 return 100;
             }
 
-            return value;
+            return rawValue;
         }
 
         private static bool LooksLikeNumericId(string value)

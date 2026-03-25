@@ -779,6 +779,7 @@ namespace PlayniteAchievements.Services
                         : (DateTime?)null,
                     Unlocked = achievement.Unlocked,
                     GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
+                    Rarity = achievement.Rarity,
                     ProgressNum = achievement.ProgressNum,
                     ProgressDenom = achievement.ProgressDenom
                 });

@@ -249,6 +249,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                         Unlocked = trophy.Unlocked,
                         UnlockTimeUtc = trophy.UnlockTimeUtc,
                         GlobalPercentUnlocked = null,
+                        Rarity = GetRarityFromTrophyType(normalizedTrophyType),
                         TrophyType = normalizedTrophyType,
                         IsCapstone = normalizedTrophyType == "platinum",
                         CategoryType = MapGroupIdToCategoryType(trophy.GroupId),
@@ -321,6 +322,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                         Unlocked = false, // Pre-launch: all locked
                         UnlockTimeUtc = null,
                         GlobalPercentUnlocked = null,
+                        Rarity = GetRarityFromTrophyType(normalizedTrophyType),
                         TrophyType = normalizedTrophyType,
                         IsCapstone = normalizedTrophyType == "platinum",
                         Category = trophy.GroupName
@@ -1082,6 +1084,24 @@ namespace PlayniteAchievements.Providers.RPCS3
                 "B" => "bronze",
                 _ => null
             };
+        }
+
+        private static RarityTier GetRarityFromTrophyType(string trophyType)
+        {
+            switch ((trophyType ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "platinum":
+                case "p":
+                    return RarityTier.UltraRare;
+                case "gold":
+                case "g":
+                    return RarityTier.Rare;
+                case "silver":
+                case "s":
+                    return RarityTier.Uncommon;
+                default:
+                    return RarityTier.Common;
+            }
         }
 
         private static string MapGroupIdToCategoryType(string groupId)

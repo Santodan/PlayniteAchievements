@@ -17,18 +17,7 @@ namespace PlayniteAchievements.ViewModels
         public string ProviderKey
         {
             get => _providerKey;
-            set
-            {
-                if (SetValueAndReturn(ref _providerKey, value))
-                {
-                    OnPropertyChanged(nameof(GlobalPercentText));
-                    OnPropertyChanged(nameof(HasRarity));
-                    OnPropertyChanged(nameof(HasRarityPercent));
-                    OnPropertyChanged(nameof(Rarity));
-                    OnPropertyChanged(nameof(RarityBrush));
-                    OnPropertyChanged(nameof(RaritySortValue));
-                }
-            }
+            set => SetValue(ref _providerKey, value);
         }
 
         private bool _hidden;
@@ -137,10 +126,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(GlobalPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
-                    OnPropertyChanged(nameof(HasRarity));
                     OnPropertyChanged(nameof(HasRarityPercent));
-                    OnPropertyChanged(nameof(Rarity));
-                    OnPropertyChanged(nameof(RarityBrush));
                     OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
@@ -153,6 +139,21 @@ namespace PlayniteAchievements.ViewModels
 
         public double RarityPercentValue => GlobalPercentUnlocked ?? 0;
 
+        private RarityTier _rarity = RarityTier.Common;
+        public RarityTier Rarity
+        {
+            get => _rarity;
+            set
+            {
+                if (SetValueAndReturn(ref _rarity, value))
+                {
+                    OnPropertyChanged(nameof(GlobalPercentText));
+                    OnPropertyChanged(nameof(RarityBrush));
+                    OnPropertyChanged(nameof(RaritySortValue));
+                }
+            }
+        }
+
         private int? _pointsValue;
         public int? PointsValue
         {
@@ -163,11 +164,6 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(Points));
                     OnPropertyChanged(nameof(PointsText));
-                    OnPropertyChanged(nameof(GlobalPercentText));
-                    OnPropertyChanged(nameof(HasRarity));
-                    OnPropertyChanged(nameof(Rarity));
-                    OnPropertyChanged(nameof(RarityBrush));
-                    OnPropertyChanged(nameof(RaritySortValue));
                 }
             }
         }
@@ -245,7 +241,7 @@ namespace PlayniteAchievements.ViewModels
         public bool HasTrophyType => !string.IsNullOrWhiteSpace(TrophyType);
 
         public string UnlockTimeText => UnlockTime.ToLocalTime().ToString("g");
-        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(ProviderKey, GlobalPercentUnlocked, PointsValue);
+        public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(GlobalPercentUnlocked, Rarity);
         public int Points => PointsValue ?? 0;
         public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
 
@@ -254,11 +250,7 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool HasRarityPercent => GlobalPercentUnlocked.HasValue;
 
-        public bool HasRarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue).HasValue;
-
-        public RarityTier Rarity => AchievementRarityResolver.GetRarityTier(ProviderKey, GlobalPercentUnlocked, PointsValue) ?? RarityTier.Common;
-
-        public double RaritySortValue => AchievementRarityResolver.GetSortValue(ProviderKey, GlobalPercentUnlocked, PointsValue);
+        public double RaritySortValue => AchievementRarityResolver.GetSortValue(GlobalPercentUnlocked, Rarity);
 
         public System.Windows.Media.SolidColorBrush RarityBrush => Rarity.ToBrush();
         public string HiddenTitleSuffix => ShowHiddenSuffix && Hidden ? ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle_WithParens") : string.Empty;
@@ -278,6 +270,7 @@ namespace PlayniteAchievements.ViewModels
             IconPath = other.IconPath;
             UnlockTime = other.UnlockTime;
             GlobalPercentUnlocked = other.GlobalPercentUnlocked;
+            Rarity = other.Rarity;
             PointsValue = other.PointsValue;
             ProgressNum = other.ProgressNum;
             ProgressDenom = other.ProgressDenom;

@@ -159,6 +159,8 @@ namespace PlayniteAchievements.Providers.Manual
                 };
             }
 
+            _manualSourceRegistry.GetPostProcessorByKey(link.SourceKey)?.Invoke(link, achievements);
+
             // Apply unlock times from link to each achievement
             foreach (var detail in achievements)
             {
@@ -216,6 +218,80 @@ namespace PlayniteAchievements.Providers.Manual
 
         /// <inheritdoc />
         public ProviderSettingsViewBase CreateSettingsView() => new ManualSettingsView(_playniteApi, _logger, _settings);
+
+        internal static bool IsTrackingOverrideEnabled()
+        {
+            return ProviderRegistry.Settings<ManualSettings>().ManualTrackingOverrideEnabled;
+        }
+
+        internal static bool TryGetManualLink(Guid gameId, out ManualAchievementLink link)
+        {
+            link = null;
+            var settings = ProviderRegistry.Settings<ManualSettings>();
+            return settings?.AchievementLinks != null &&
+                   settings.AchievementLinks.TryGetValue(gameId, out link) &&
+                   link != null;
+        }
+
+        internal static string GetGameOptionsLinkSummary(ManualAchievementLink link)
+        {
+            if (link == null)
+            {
+                return L("LOCPlayAch_GameOptions_Manual_LinkSummary_None", "No manual link configured.");
+            }
+
+            return string.Format(
+                L("LOCPlayAch_GameOptions_Manual_LinkSummary", "{0} ({1})"),
+                string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
+                string.IsNullOrWhiteSpace(link.SourceGameId)
+                    ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
+                    : link.SourceGameId);
+        }
+
+        internal static bool TryUnlinkGameOptionsLink(
+            Guid gameId,
+            string gameName,
+            IPlayniteAPI playniteApi,
+            PlayniteAchievementsPlugin plugin,
+            PlayniteAchievementsSettings settings,
+            ILogger logger)
+        {
+            var result = playniteApi?.Dialogs?.ShowMessage(
+                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm", "Remove the manual achievement link for \"{0}\"?"), gameName),
+                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question) ?? System.Windows.MessageBoxResult.None;
+            if (result != System.Windows.MessageBoxResult.Yes)
+            {
+                return false;
+            }
+
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+            if (!manualSettings.AchievementLinks.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(manualSettings);
+            plugin?.SavePluginSettings(settings);
+            PlayniteAchievementsPlugin.NotifySettingsSaved();
+
+            logger?.Info($"Unlinked manual achievements for '{gameName}'");
+
+            playniteApi?.Dialogs?.ShowMessage(
+                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Success", "Manual achievement link removed for \"{0}\"."), gameName),
+                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+
+            return true;
+        }
+
+        private static string L(string key, string fallback)
+        {
+            var value = ResourceProvider.GetString(key);
+            return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
     }
 }
 

@@ -183,6 +183,7 @@ namespace PlayniteAchievements.Providers.GOG
                     if (string.IsNullOrWhiteSpace(achievementId))
                         continue;
 
+                    var normalizedPercent = NormalizePercent(ach.ResolvedRarityPercent);
                     var detail = new AchievementDetail
                     {
                         ApiName = achievementId,
@@ -195,8 +196,13 @@ namespace PlayniteAchievements.Providers.GOG
                         Points = null,
                         Category = null,
                         Hidden = !ach.ResolvedVisible,
-                        GlobalPercentUnlocked = ach.ResolvedRarityPercent,
-                        UnlockTimeUtc = ach.UnlockTimeUtc
+                        UnlockTimeUtc = ach.UnlockTimeUtc,
+                        Rarity = normalizedPercent.HasValue
+                            ? PercentRarityHelper.GetRarityTier(normalizedPercent.Value)
+                            : GetRarityFromGogMetadata(
+                                ach.RarityLevelSlug,
+                                ach.RarityLevelDescription),
+                        GlobalPercentUnlocked = normalizedPercent
                     };
 
                     gameData.Achievements.Add(detail);
@@ -204,6 +210,64 @@ namespace PlayniteAchievements.Providers.GOG
             }
 
             return gameData;
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetRarityFromGogMetadata(string rarityLevelSlug, string rarityLevelDescription)
+        {
+            var combined = ((rarityLevelSlug ?? string.Empty) + " " + (rarityLevelDescription ?? string.Empty))
+                .Trim()
+                .ToLowerInvariant();
+
+            if (string.IsNullOrWhiteSpace(combined))
+            {
+                return RarityTier.Common;
+            }
+
+            if (combined.Contains("legend") ||
+                combined.Contains("mythic") ||
+                combined.Contains("ultra rare") ||
+                combined.Contains("ultrarare"))
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (combined.Contains("rare"))
+            {
+                return RarityTier.Rare;
+            }
+
+            if (combined.Contains("uncommon"))
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
         }
     }
 }

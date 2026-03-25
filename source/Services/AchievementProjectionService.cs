@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
-using PlayniteAchievements.Providers;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.RetroAchievements;
-using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services
@@ -38,8 +36,7 @@ namespace PlayniteAchievements.Services
                 ShowHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true,
                 ShowLockedIcon = settings?.Persisted?.ShowLockedIcon ?? true,
                 ShowRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true,
-                UseScaledPoints = (ProviderRegistry.Settings<RetroAchievementsSettings>().RaPointsMode == "scaled") &&
-                                  string.Equals(gameData?.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase),
+                UseScaledPoints = RetroAchievementsDataProvider.UseScaledPoints(gameData),
                 RevealedKeys = revealedKeys
             };
         }
@@ -69,7 +66,8 @@ namespace PlayniteAchievements.Services
                 Description = achievement.Description ?? string.Empty,
                 IconPath = iconPath,
                 UnlockTimeUtc = achievement.UnlockTimeUtc,
-                GlobalPercentUnlocked = achievement.Percent,
+                GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
+                Rarity = achievement.Rarity,
                 Unlocked = achievement.Unlocked,
                 Hidden = achievement.Hidden,
                 ApiName = achievement.ApiName,
@@ -112,7 +110,8 @@ namespace PlayniteAchievements.Services
                 SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown",
                 IconPath = iconPath,
                 UnlockTimeUtc = achievement.UnlockTimeUtc.Value,
-                GlobalPercentUnlocked = achievement.Percent,
+                GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
+                Rarity = achievement.Rarity,
                 PointsValue = ResolvePoints(achievement, options),
                 ProgressNum = achievement.ProgressNum,
                 ProgressDenom = achievement.ProgressDenom,
@@ -162,13 +161,12 @@ namespace PlayniteAchievements.Services
 
         public static void AccumulateRarity(AchievementDetail achievement, ref int common, ref int uncommon, ref int rare, ref int ultraRare)
         {
-            var tier = achievement?.Rarity;
-            if (!tier.HasValue)
+            if (achievement == null)
             {
                 return;
             }
 
-            switch (tier.Value)
+            switch (achievement.Rarity)
             {
                 case RarityTier.UltraRare:
                     ultraRare++;

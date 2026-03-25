@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using Playnite.SDK.Models;
-using PlayniteAchievements.Providers;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -19,13 +18,6 @@ namespace PlayniteAchievements.Models.Achievements
         /// Used for database storage and internal lookups.
         /// </summary>
         public string ProviderKey { get; set; }
-
-        /// <summary>
-        /// Localized display name resolved from the active display provider key.
-        /// Not persisted - computed at runtime for UI display.
-        /// </summary>
-        [IgnoreDataMember]
-        public string ProviderDisplayName => ProviderRegistry.GetLocalizedName(EffectiveProviderKey);
 
         /// <summary>
         /// If this data is being fetched by a proxy provider (e.g. Exophase), this holds 

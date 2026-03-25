@@ -1,3 +1,4 @@
+using System;
 using System.Windows.Media;
 using Playnite.SDK;
 
@@ -39,6 +40,17 @@ namespace PlayniteAchievements.Models.Achievements
                 RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon") ?? "Uncommon",
                 _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common") ?? "Common"
             };
+        }
+
+        public static bool TryParse(string value, out RarityTier tier)
+        {
+            if (Enum.TryParse(value, true, out tier))
+            {
+                return true;
+            }
+
+            tier = RarityTier.Common;
+            return false;
         }
     }
 

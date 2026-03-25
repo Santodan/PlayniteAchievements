@@ -145,6 +145,7 @@ namespace PlayniteAchievements.Providers.Epic
                     continue;
                 }
 
+                var normalizedPercent = NormalizePercent(item.RarityPercent);
                 data.Achievements.Add(new AchievementDetail
                 {
                     ApiName = item.AchievementId,
@@ -156,12 +157,62 @@ namespace PlayniteAchievements.Providers.Epic
                     Category = null,
                     Hidden = item.Hidden,
                     UnlockTimeUtc = item.UnlockTimeUtc,
-                    GlobalPercentUnlocked = item.RarityPercent
+                    Rarity = normalizedPercent.HasValue
+                        ? PercentRarityHelper.GetRarityTier(normalizedPercent.Value)
+                        : GetRarityFromEpicXp(item.XP),
+                    GlobalPercentUnlocked = normalizedPercent
                 });
             }
 
             data.HasAchievements = data.Achievements.Count > 0;
             return data;
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetRarityFromEpicXp(int? xp)
+        {
+            var value = Math.Max(0, xp ?? 0);
+            if (value >= 200)
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (value >= 100)
+            {
+                return RarityTier.Rare;
+            }
+
+            if (value >= 50)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
         }
     }
 }

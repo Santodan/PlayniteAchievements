@@ -92,13 +92,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             for (int i = 0; i < all.Count; i++)
             {
                 var achievement = all[i];
-                var tier = achievement?.Rarity;
-                if (!tier.HasValue)
+                if (achievement == null)
                 {
                     continue;
                 }
 
-                var target = tier.Value switch
+                var target = achievement.Rarity switch
                 {
                     RarityTier.UltraRare => ultra,
                     RarityTier.Rare => rare,
@@ -142,4 +141,3 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
     }
 }
-

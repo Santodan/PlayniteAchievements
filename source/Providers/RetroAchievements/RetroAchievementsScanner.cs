@@ -578,8 +578,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     Category = null,
                     IsCapstone = string.Equals(ach.Type, "win_condition", StringComparison.OrdinalIgnoreCase),
                     UnlockTimeUtc = unlockUtc,
-                    GlobalPercentUnlocked = globalPercent,
-                    Hidden = false
+                    Hidden = false,
+                    Rarity = globalPercent.HasValue
+                        ? PercentRarityHelper.GetRarityTier(globalPercent.Value)
+                        : RarityTier.Common,
+                    GlobalPercentUnlocked = NormalizePercent(globalPercent)
                 };
 
                 list.Add(detail);
@@ -598,6 +601,32 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
 
             return null;
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
         }
 
         private async Task<int> TryMatchGameByNameAsync(Game game, int consoleId, CancellationToken cancel)

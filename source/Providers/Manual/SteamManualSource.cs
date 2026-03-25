@@ -214,10 +214,20 @@ namespace PlayniteAchievements.Providers.Manual
                             UnlockedIconPath = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.Icon}",
                             LockedIconPath = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.IconGray}",
                             Hidden = ach.Hidden,
-                            GlobalPercentUnlocked = globalPercent,
                             Unlocked = false,
-                            UnlockTimeUtc = null
+                            UnlockTimeUtc = null,
+                            Rarity = GetFallbackRarity(
+                                ach.Hidden,
+                                null,
+                                null)
                         };
+
+                        var normalizedPercent = NormalizePercent(globalPercent);
+                        detail.GlobalPercentUnlocked = normalizedPercent;
+                        if (normalizedPercent.HasValue)
+                        {
+                            detail.Rarity = PercentRarityHelper.GetRarityTier(normalizedPercent.Value);
+                        }
 
                         result.Add(detail);
                     }
@@ -388,6 +398,49 @@ namespace PlayniteAchievements.Providers.Manual
                 return item.ImgGridUrl;
             }
             return item.IconUrl ?? string.Empty;
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetFallbackRarity(bool hidden, int? progressNum, int? progressDenom)
+        {
+            if ((progressNum.HasValue || progressDenom.HasValue) &&
+                progressDenom.HasValue &&
+                progressDenom.Value > 0)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            if (hidden)
+            {
+                return RarityTier.Rare;
+            }
+
+            return RarityTier.Common;
         }
 
         #region Steam Store Search API Models

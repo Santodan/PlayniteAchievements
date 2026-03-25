@@ -147,7 +147,7 @@ namespace PlayniteAchievements.Providers.Manual
                 }
 
                 // Manual linking uses Exophase only as a schema/text source.
-                // Stored manual unlock states are applied later by ManualAchievementsProvider.
+                // ManualAchievementsProvider applies stored unlock state and manual-provider rarity rules later.
                 foreach (var achievement in achievements)
                 {
                     if (achievement == null)
@@ -193,5 +193,6 @@ namespace PlayniteAchievements.Providers.Manual
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             return httpClient;
         }
+
     }
 }

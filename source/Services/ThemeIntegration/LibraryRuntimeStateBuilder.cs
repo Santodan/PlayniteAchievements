@@ -435,12 +435,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private static bool TryGetEffectiveRarityTier(AchievementDetail achievement, out RarityTier tier)
         {
             tier = RarityTier.Common;
-            if (achievement?.Rarity is not RarityTier rarityTier)
+            if (achievement == null)
             {
                 return false;
             }
 
-            tier = rarityTier;
+            tier = achievement.Rarity;
             return true;
         }
 

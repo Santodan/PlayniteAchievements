@@ -226,6 +226,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return CreateGameResult(game, providerPlatformKey, false, new List<AchievementDetail>());
             }
 
+            ApplyProviderOwnedRarity(achievements, providerPlatformKey);
             return CreateGameResult(game, providerPlatformKey, true, achievements);
         }
 
@@ -246,6 +247,289 @@ namespace PlayniteAchievements.Providers.Exophase
                 PlayniteGameId = game.Id,
                 Achievements = achievements ?? new List<AchievementDetail>()
             };
+        }
+
+        internal static void ApplyProviderOwnedRarity(IEnumerable<AchievementDetail> achievements, string providerPlatformKey)
+        {
+            if (achievements == null)
+            {
+                return;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                var normalizedPercent = NormalizePercent(achievement.GlobalPercentUnlocked);
+                achievement.GlobalPercentUnlocked = normalizedPercent;
+                achievement.Rarity = ResolveProviderOwnedRarity(
+                    providerPlatformKey,
+                    normalizedPercent,
+                    achievement.Points,
+                    achievement.TrophyType,
+                    achievement.Hidden,
+                    achievement.ProgressNum,
+                    achievement.ProgressDenom);
+            }
+        }
+
+        internal static void ApplyManualSourceRarity(ManualAchievementLink link, IList<AchievementDetail> achievements)
+        {
+            if (link == null || achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            ApplyProviderOwnedRarity(achievements, ResolveManualPlatformKey(link.SourceGameId));
+        }
+
+        internal static void GetGameOptionsState(
+            Game game,
+            Guid gameId,
+            out bool showToggle,
+            out bool isManagedByPlatform,
+            out bool useForGame,
+            out string autoSlug,
+            out bool hasSlugOverride,
+            out string slugOverrideValue)
+        {
+            showToggle = false;
+            isManagedByPlatform = false;
+            useForGame = false;
+            autoSlug = null;
+            hasSlugOverride = false;
+            slugOverrideValue = null;
+
+            var settings = ProviderRegistry.Settings<ExophaseSettings>();
+            if (settings?.IsEnabled != true || game == null)
+            {
+                return;
+            }
+
+            var gamePlatformSlug = GetExophasePlatformSlug(game);
+            if (string.IsNullOrWhiteSpace(gamePlatformSlug))
+            {
+                return;
+            }
+
+            showToggle = true;
+            isManagedByPlatform = settings.ManagedProviders.Contains(gamePlatformSlug);
+            useForGame = settings.IncludedGames.Contains(gameId);
+            autoSlug = GeneratePreviewSlug(game);
+            hasSlugOverride = settings.SlugOverrides.TryGetValue(gameId, out slugOverrideValue);
+        }
+
+        internal static bool SetIncludedGame(Guid gameId, string gameName, bool include, Action persistSettingsForUi, ILogger logger)
+        {
+            var settings = ProviderRegistry.Settings<ExophaseSettings>();
+            if (settings == null)
+            {
+                return false;
+            }
+
+            var changed = include
+                ? settings.IncludedGames.Add(gameId)
+                : settings.IncludedGames.Remove(gameId);
+            if (!changed)
+            {
+                return true;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+
+            if (include)
+            {
+                logger?.Info($"Added game '{gameName}' to Exophase included games");
+            }
+            else
+            {
+                logger?.Info($"Removed game '{gameName}' from Exophase included games");
+            }
+
+            return true;
+        }
+
+        internal static bool TrySetSlugOverride(Guid gameId, string gameName, string slug, Action persistSettingsForUi, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<ExophaseSettings>();
+            if (settings == null)
+            {
+                return false;
+            }
+
+            settings.SlugOverrides[gameId] = slug;
+            settings.IncludedGames.Add(gameId);
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+
+            logger?.Info($"Set Exophase slug override for '{gameName}' to '{slug}'");
+            return true;
+        }
+
+        internal static bool TryClearSlugOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            var settings = ProviderRegistry.Settings<ExophaseSettings>();
+            if (settings == null || !settings.SlugOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Exophase slug override for '{gameName}'");
+            return true;
+        }
+
+        private static RarityTier ResolveProviderOwnedRarity(
+            string providerPlatformKey,
+            double? normalizedPercent,
+            int? points,
+            string trophyType,
+            bool hidden,
+            int? progressNum,
+            int? progressDenom)
+        {
+            if (normalizedPercent.HasValue)
+            {
+                return PercentRarityHelper.GetRarityTier(normalizedPercent.Value);
+            }
+
+            if (string.Equals(providerPlatformKey, "Xbox", StringComparison.OrdinalIgnoreCase))
+            {
+                return GetRarityFromXboxPoints(points);
+            }
+
+            if (string.Equals(providerPlatformKey, "PSN", StringComparison.OrdinalIgnoreCase))
+            {
+                return GetRarityFromTrophyType(trophyType);
+            }
+
+            if (string.Equals(providerPlatformKey, "Epic", StringComparison.OrdinalIgnoreCase))
+            {
+                return GetRarityFromEpicXp(points);
+            }
+
+            return GetFallbackRarity(hidden, progressNum, progressDenom);
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetRarityFromXboxPoints(int? points)
+        {
+            var value = Math.Max(0, points ?? 0);
+            if (value >= 100)
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (value >= 50)
+            {
+                return RarityTier.Rare;
+            }
+
+            if (value >= 25)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
+        }
+
+        private static RarityTier GetRarityFromEpicXp(int? xp)
+        {
+            var value = Math.Max(0, xp ?? 0);
+            if (value >= 200)
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (value >= 100)
+            {
+                return RarityTier.Rare;
+            }
+
+            if (value >= 50)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
+        }
+
+        private static RarityTier GetRarityFromTrophyType(string trophyType)
+        {
+            switch ((trophyType ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "platinum":
+                case "p":
+                    return RarityTier.UltraRare;
+                case "gold":
+                case "g":
+                    return RarityTier.Rare;
+                case "silver":
+                case "s":
+                    return RarityTier.Uncommon;
+                default:
+                    return RarityTier.Common;
+            }
+        }
+
+        private static RarityTier GetFallbackRarity(bool hidden, int? progressNum, int? progressDenom)
+        {
+            if ((progressNum.HasValue || progressDenom.HasValue) &&
+                progressDenom.HasValue &&
+                progressDenom.Value > 0)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            if (hidden)
+            {
+                return RarityTier.Rare;
+            }
+
+            return RarityTier.Common;
+        }
+
+        private static string ResolveManualPlatformKey(string sourceGameId)
+        {
+            var platformToken = ExtractPlatformTokenFromSlug(sourceGameId);
+            return string.IsNullOrWhiteSpace(platformToken)
+                ? "Unknown"
+                : MapSlugToProviderPlatformKey(platformToken) ?? "Unknown";
         }
 
         #endregion

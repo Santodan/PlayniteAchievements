@@ -155,6 +155,7 @@ namespace PlayniteAchievements.Providers.Xenia
                         UnlockedIconPath = iconPath,
                         LockedIconPath = iconPath,
                         Points = (int?)achievement.gamerscore,
+                        Rarity = GetRarityFromXboxPoints((int?)achievement.gamerscore),
                         Unlocked = achievement.unlock_time != 0,
                         UnlockTimeUtc = achievement.unlock_time != 0
                             ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
@@ -185,14 +186,6 @@ namespace PlayniteAchievements.Providers.Xenia
 
         bool ResolveTitleID(Game game, out string titleID)
         {
-#if false
-            if (_settings.Persisted.XeniaGameIdOverrides.ContainsKey(game.Id))
-            {
-                titleID = _settings.Persisted.XeniaGameIdOverrides[game.Id];
-                return true;
-            }
-#endif
-
             // Skip titleID search if it has been cached
             if (_titleIDCache.Any(x => x.Key == game.Id))
             {
@@ -441,6 +434,27 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             return -1;
+        }
+
+        private static RarityTier GetRarityFromXboxPoints(int? points)
+        {
+            var value = Math.Max(0, points ?? 0);
+            if (value >= 100)
+            {
+                return RarityTier.UltraRare;
+            }
+
+            if (value >= 50)
+            {
+                return RarityTier.Rare;
+            }
+
+            if (value >= 25)
+            {
+                return RarityTier.Uncommon;
+            }
+
+            return RarityTier.Common;
         }
     }
 }

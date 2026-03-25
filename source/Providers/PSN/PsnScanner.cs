@@ -235,10 +235,23 @@ namespace PlayniteAchievements.Providers.PSN
                     Hidden = detail.Hidden,
                     Unlocked = unlocked,
                     UnlockTimeUtc = unlockUtc,
-                    GlobalPercentUnlocked = userEntry?.TrophyEarnedRate,
                     TrophyType = detail.TrophyType,
-                    IsCapstone = string.Equals(detail.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase)
+                    IsCapstone = string.Equals(detail.TrophyType, "platinum", StringComparison.OrdinalIgnoreCase),
+                    Rarity = GetRarityFromTrophyType(detail.TrophyType)
                 });
+
+                var currentAchievement = achievements[achievements.Count - 1];
+                var normalizedPercent = NormalizePercent(userEntry?.TrophyEarnedRate);
+                currentAchievement.GlobalPercentUnlocked = normalizedPercent;
+                if (normalizedPercent.HasValue)
+                {
+                    currentAchievement.Rarity = PercentRarityHelper.GetRarityTier(normalizedPercent.Value);
+                }
+
+                if (!currentAchievement.HasRarityPercent)
+                {
+                    currentAchievement.Rarity = GetRarityFromTrophyType(detail.TrophyType);
+                }
             }
 
             if (fallbackMatchCount > 0)
@@ -365,6 +378,50 @@ namespace PlayniteAchievements.Providers.PSN
             }
 
             return "DLC";
+        }
+
+        private static double? NormalizePercent(double? rawPercent)
+        {
+            if (!rawPercent.HasValue)
+            {
+                return null;
+            }
+
+            var value = rawPercent.Value;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return null;
+            }
+
+            if (value < 0)
+            {
+                return 0;
+            }
+
+            if (value > 100)
+            {
+                return 100;
+            }
+
+            return value;
+        }
+
+        private static RarityTier GetRarityFromTrophyType(string trophyType)
+        {
+            switch ((trophyType ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "platinum":
+                case "p":
+                    return RarityTier.UltraRare;
+                case "gold":
+                case "g":
+                    return RarityTier.Rare;
+                case "silver":
+                case "s":
+                    return RarityTier.Uncommon;
+                default:
+                    return RarityTier.Common;
+            }
         }
 
         private static string NormalizeGameId(string raw)

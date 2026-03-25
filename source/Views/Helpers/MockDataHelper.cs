@@ -109,6 +109,9 @@ namespace PlayniteAchievements.Views.Helpers
                 Unlocked = unlocked,
                 Hidden = hidden,
                 GlobalPercentUnlocked = globalPercent,
+                Rarity = globalPercent.HasValue
+                    ? PercentRarityHelper.GetRarityTier(globalPercent.Value)
+                    : (hidden ? RarityTier.Rare : RarityTier.Common),
                 IconPath = UnlockedIconPath, // Same icon for all - grayscale applied by DisplayIcon when locked
                 ShowHiddenIcon = showHiddenIcon,
                 ShowHiddenTitle = showHiddenTitle,
@@ -260,6 +263,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Unlocked = unlocked,
                 Hidden = hidden,
                 GlobalPercentUnlocked = unlocked ? 8.0 : (hidden ? 15.0 : 25.0),
+                Rarity = unlocked ? RarityTier.Rare : (hidden ? RarityTier.Rare : RarityTier.Uncommon),
                 UnlockTimeUtc = unlocked ? DateTime.UtcNow.AddDays(-1) : (DateTime?)null
             };
 
@@ -332,6 +336,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Unlocked = true,
                 Hidden = false,
                 GlobalPercentUnlocked = 2.5,
+                Rarity = RarityTier.UltraRare,
                 UnlockTimeUtc = DateTime.UtcNow.AddDays(-1)
             });
 
@@ -346,6 +351,7 @@ namespace PlayniteAchievements.Views.Helpers
                 Unlocked = true,
                 Hidden = false,
                 GlobalPercentUnlocked = 8.0,
+                Rarity = RarityTier.Rare,
                 UnlockTimeUtc = DateTime.UtcNow.AddDays(-2)
             });
 
@@ -359,7 +365,8 @@ namespace PlayniteAchievements.Views.Helpers
                 LockedIconPath = UnlockedIconPath,
                 Unlocked = false,
                 Hidden = false,
-                GlobalPercentUnlocked = 25.0
+                GlobalPercentUnlocked = 25.0,
+                Rarity = RarityTier.Uncommon
             });
 
             // Locked Hidden (15.0%)
@@ -372,7 +379,8 @@ namespace PlayniteAchievements.Views.Helpers
                 LockedIconPath = UnlockedIconPath,
                 Unlocked = false,
                 Hidden = true,
-                GlobalPercentUnlocked = 15.0
+                GlobalPercentUnlocked = 15.0,
+                Rarity = RarityTier.Rare
             });
 
             // Locked Hidden Common (75.0%)
@@ -385,7 +393,8 @@ namespace PlayniteAchievements.Views.Helpers
                 LockedIconPath = UnlockedIconPath,
                 Unlocked = false,
                 Hidden = true,
-                GlobalPercentUnlocked = 75.0
+                GlobalPercentUnlocked = 75.0,
+                Rarity = RarityTier.Common
             });
 
             return achievements;

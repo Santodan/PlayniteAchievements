@@ -343,11 +343,8 @@
                    VerticalAlignment="Center">
                 <Image.Style>
                     <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasRarity}" Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
                             <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.UltraRare}">
                                 <Setter Property="Source" Value="{StaticResource BadgePlatinumHexagon}"/>
                             </DataTrigger>
