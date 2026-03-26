@@ -481,7 +481,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, ct).ConfigureAwait(false);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, ct);
 
                 var results = await _source.SearchGamesAsync(SearchText.Trim(), _language, ct);
 
@@ -561,7 +561,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None).ConfigureAwait(false);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None);
             }
             catch (ManualSourceAuthenticationException ex)
             {
@@ -759,7 +759,7 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, _refreshCts.Token).ConfigureAwait(false);
+                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, _refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 

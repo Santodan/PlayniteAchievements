@@ -908,6 +908,9 @@
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarTrophyPieChart}"
                                                   IsChecked="{Binding Persisted.ShowSidebarTrophyPieChart}"
                                                   Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarPiePercentages}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarPiePercentages}"
+                                                  Margin="0,0,0,8"/>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SidebarPieSmallSliceMode}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,8,0,8"/>

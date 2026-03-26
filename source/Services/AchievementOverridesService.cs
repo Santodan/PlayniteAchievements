@@ -1,5 +1,7 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Manual;
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
@@ -200,7 +202,7 @@ namespace PlayniteAchievements.Services
                 _settings.Persisted.ExcludedGameIds.Add(playniteGameId);
                 if (clearCachedDataWhenExcluding)
                 {
-                    _cacheService.RemoveGameData(playniteGameId);
+                    ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
                 }
             }
             else
@@ -223,7 +225,7 @@ namespace PlayniteAchievements.Services
             if (hidden)
             {
                 _settings.Persisted.ExcludedGameIds.Add(playniteGameId);
-                _cacheService.RemoveGameData(playniteGameId);
+                ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
             }
             else
             {
@@ -254,6 +256,52 @@ namespace PlayniteAchievements.Services
             _persistSettings(true);
             _notifyCacheInvalidated(true);
             _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
+        }
+
+        public void ClearGameData(Guid playniteGameId, string gameName = null, bool clearIconCache = true, bool persistAfter = true)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var removedManualLink = RemoveManualTrackingLink(playniteGameId, gameName);
+            if (clearIconCache)
+            {
+                _cacheService.RemoveGameCache(playniteGameId);
+            }
+            else
+            {
+                _cacheService.RemoveGameData(playniteGameId);
+            }
+
+            if (removedManualLink && persistAfter)
+            {
+                _persistSettings(true);
+            }
+        }
+
+        private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
+        {
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+            if (manualSettings?.AchievementLinks == null ||
+                !manualSettings.AchievementLinks.Remove(playniteGameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(manualSettings);
+
+            if (string.IsNullOrWhiteSpace(gameName))
+            {
+                _logger?.Info($"Unlinked manual achievements for gameId={playniteGameId}");
+            }
+            else
+            {
+                _logger?.Info($"Unlinked manual achievements for '{gameName}'");
+            }
+
+            return true;
         }
     }
 }

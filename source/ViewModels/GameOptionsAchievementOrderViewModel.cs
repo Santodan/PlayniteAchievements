@@ -130,31 +130,49 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
-        public bool MoveItems(
-            IReadOnlyList<AchievementDisplayItem> draggedItems,
-            AchievementDisplayItem targetItem,
+        public bool MoveItemsByApiName(
+            IReadOnlyList<string> draggedApiNames,
+            string targetApiName,
             bool insertAfterTarget)
         {
-            if (draggedItems == null || draggedItems.Count == 0 || targetItem == null)
+            if (draggedApiNames == null || draggedApiNames.Count == 0 || string.IsNullOrWhiteSpace(targetApiName))
             {
                 return false;
             }
 
             var source = AchievementRows.ToList();
-            var selectedIndexes = draggedItems
-                .Select(item => source.IndexOf(item))
-                .Where(index => index >= 0)
-                .Distinct()
-                .OrderBy(index => index)
-                .ToList();
+            var selectedIndexes = ResolveSelectedIndexes(source, draggedApiNames);
+            var targetIndex = source.FindIndex(item =>
+                string.Equals(
+                    (item?.ApiName ?? string.Empty).Trim(),
+                    targetApiName.Trim(),
+                    StringComparison.OrdinalIgnoreCase));
+            return TryMoveItems(source, selectedIndexes, targetIndex, insertAfterTarget);
+        }
 
-            if (selectedIndexes.Count == 0)
+        public bool MoveItemsToEndByApiName(IReadOnlyList<string> draggedApiNames)
+        {
+            if (draggedApiNames == null || draggedApiNames.Count == 0 || AchievementRows.Count == 0)
             {
                 return false;
             }
 
-            var targetIndex = source.IndexOf(targetItem);
-            if (targetIndex < 0)
+            var source = AchievementRows.ToList();
+            var selectedIndexes = ResolveSelectedIndexes(source, draggedApiNames);
+            return TryMoveItems(source, selectedIndexes, source.Count - 1, insertAfterTarget: true);
+        }
+
+        private bool TryMoveItems(
+            List<AchievementDisplayItem> source,
+            IReadOnlyList<int> selectedIndexes,
+            int targetIndex,
+            bool insertAfterTarget)
+        {
+            if (source == null ||
+                source.Count == 0 ||
+                selectedIndexes == null ||
+                selectedIndexes.Count == 0 ||
+                targetIndex < 0)
             {
                 return false;
             }
@@ -174,39 +192,29 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
-        public bool MoveItemsToEnd(IReadOnlyList<AchievementDisplayItem> draggedItems)
+        private static List<int> ResolveSelectedIndexes(
+            IReadOnlyList<AchievementDisplayItem> source,
+            IReadOnlyList<string> draggedApiNames)
         {
-            if (draggedItems == null || draggedItems.Count == 0 || AchievementRows.Count == 0)
+            var normalizedApiNames = AchievementOrderHelper.NormalizeApiNames(draggedApiNames);
+            if (normalizedApiNames.Count == 0)
             {
-                return false;
+                return new List<int>();
             }
 
-            var source = AchievementRows.ToList();
-            var selectedIndexes = draggedItems
-                .Select(item => source.IndexOf(item))
-                .Where(index => index >= 0)
-                .Distinct()
-                .OrderBy(index => index)
-                .ToList();
+            var selectedApiNameSet = new HashSet<string>(normalizedApiNames, StringComparer.OrdinalIgnoreCase);
+            var indexes = new List<int>();
 
-            if (selectedIndexes.Count == 0)
+            for (var i = 0; i < source.Count; i++)
             {
-                return false;
+                var apiName = (source[i]?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(apiName) && selectedApiNameSet.Contains(apiName))
+                {
+                    indexes.Add(i);
+                }
             }
 
-            if (!AchievementOrderHelper.TryReorder(
-                source,
-                selectedIndexes,
-                source.Count - 1,
-                insertAfterTarget: true,
-                out var reordered))
-            {
-                return false;
-            }
-
-            CollectionHelper.SynchronizeCollection(AchievementRows, reordered);
-            PersistCurrentOrder();
-            return true;
+            return indexes;
         }
 
         private void PersistCurrentOrder()

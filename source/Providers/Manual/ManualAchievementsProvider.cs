@@ -252,10 +252,13 @@ namespace PlayniteAchievements.Providers.Manual
             Guid gameId,
             string gameName,
             IPlayniteAPI playniteApi,
-            PlayniteAchievementsPlugin plugin,
-            PlayniteAchievementsSettings settings,
-            ILogger logger)
+            AchievementOverridesService achievementOverridesService)
         {
+            if (!TryGetManualLink(gameId, out _))
+            {
+                return false;
+            }
+
             var result = playniteApi?.Dialogs?.ShowMessage(
                 string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm", "Remove the manual achievement link for \"{0}\"?"), gameName),
                 L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
@@ -266,17 +269,12 @@ namespace PlayniteAchievements.Providers.Manual
                 return false;
             }
 
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-            if (!manualSettings.AchievementLinks.Remove(gameId))
+            if (achievementOverridesService == null)
             {
                 return false;
             }
 
-            ProviderRegistry.Write(manualSettings);
-            plugin?.SavePluginSettings(settings);
-            PlayniteAchievementsPlugin.NotifySettingsSaved();
-
-            logger?.Info($"Unlinked manual achievements for '{gameName}'");
+            achievementOverridesService.ClearGameData(gameId, gameName);
 
             playniteApi?.Dialogs?.ShowMessage(
                 string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Success", "Manual achievement link removed for \"{0}\"."), gameName),

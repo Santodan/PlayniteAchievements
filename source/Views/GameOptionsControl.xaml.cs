@@ -72,7 +72,8 @@ namespace PlayniteAchievements.Views
             InitializeComponent();
 
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
-            _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
+            _refreshService.GameCacheUpdated += RefreshService_GameCacheUpdated;
+            _refreshService.CacheDeltaUpdated += RefreshService_CacheDeltaUpdated;
             Loaded += GameOptionsControl_Loaded;
         }
 
@@ -105,7 +106,8 @@ namespace PlayniteAchievements.Views
             }
             if (_refreshService != null)
             {
-                _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated;
+                _refreshService.GameCacheUpdated -= RefreshService_GameCacheUpdated;
+                _refreshService.CacheDeltaUpdated -= RefreshService_CacheDeltaUpdated;
             }
 
             CleanupCapstone();
@@ -340,21 +342,51 @@ namespace PlayniteAchievements.Views
             HandleStateChanged(refreshCapstone: false);
         }
 
-        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
+        private void RefreshService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
         {
-            if (Dispatcher.CheckAccess())
+            if (_viewModel == null ||
+                !Guid.TryParse(e?.GameId, out var updatedGameId) ||
+                updatedGameId != _viewModel.GameId)
             {
-                HandleStateChanged(refreshCapstone: true);
                 return;
             }
 
-            _ = Dispatcher.BeginInvoke(new Action(() => HandleStateChanged(refreshCapstone: true)));
+            DispatchHandleStateChanged(refreshCapstone: true);
+        }
+
+        private void RefreshService_CacheDeltaUpdated(object sender, CacheDeltaEventArgs e)
+        {
+            if (e?.IsFullReset != true)
+            {
+                return;
+            }
+
+            DispatchHandleStateChanged(refreshCapstone: true);
+        }
+
+        private void DispatchHandleStateChanged(bool refreshCapstone)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                HandleStateChanged(refreshCapstone);
+                return;
+            }
+
+            _ = Dispatcher.BeginInvoke(new Action(() => HandleStateChanged(refreshCapstone)));
         }
 
         private void HandleStateChanged(bool refreshCapstone)
         {
             _viewModel.Reload();
-            _achievementOrderViewModel?.ReloadData();
+            if (_achievementOrderControl != null)
+            {
+                _achievementOrderControl.RefreshData();
+            }
+            else
+            {
+                _achievementOrderViewModel?.ReloadData();
+            }
+
             _categoryViewModel?.ReloadData();
 
             if (refreshCapstone)

@@ -82,6 +82,10 @@ namespace PlayniteAchievements.Views.Controls
             DependencyProperty.Register(nameof(ExactTotalCount), typeof(int), typeof(PieChartWithRadialIcons),
                 new PropertyMetadata(-1, OnCenterPercentageSourceChanged));
 
+        public static readonly DependencyProperty ShowCenterPercentageProperty =
+            DependencyProperty.Register(nameof(ShowCenterPercentage), typeof(bool), typeof(PieChartWithRadialIcons),
+                new PropertyMetadata(true, OnShowCenterPercentageChanged));
+
         private static readonly DependencyPropertyKey CenterPercentageTextPropertyKey =
             DependencyProperty.RegisterReadOnly(nameof(CenterPercentageText), typeof(string), typeof(PieChartWithRadialIcons),
                 new PropertyMetadata(string.Empty));
@@ -146,6 +150,12 @@ namespace PlayniteAchievements.Views.Controls
         {
             get => (int)GetValue(ExactTotalCountProperty);
             set => SetValue(ExactTotalCountProperty, value);
+        }
+
+        public bool ShowCenterPercentage
+        {
+            get => (bool)GetValue(ShowCenterPercentageProperty);
+            set => SetValue(ShowCenterPercentageProperty, value);
         }
 
         public string CenterPercentageText
@@ -318,6 +328,18 @@ namespace PlayniteAchievements.Views.Controls
         private static void OnCenterPercentageSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             ((PieChartWithRadialIcons)d).ScheduleCalculation();
+        }
+
+        private static void OnShowCenterPercentageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (PieChartWithRadialIcons)d;
+            if (e.NewValue is bool showCenterPercentage && !showCenterPercentage)
+            {
+                control.ClearCenterPercentage();
+                return;
+            }
+
+            control.ScheduleCalculation();
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -597,6 +619,12 @@ namespace PlayniteAchievements.Views.Controls
 
         private void UpdateCenterPercentage(IReadOnlyList<PieSliceChartData> sliceData, double controlSize)
         {
+            if (!ShowCenterPercentage)
+            {
+                ClearCenterPercentage();
+                return;
+            }
+
             if (TryGetExactCounts(out var exactUnlockedCount, out var exactTotalCount))
             {
                 UpdateCenterPercentage(exactUnlockedCount, exactTotalCount, controlSize);

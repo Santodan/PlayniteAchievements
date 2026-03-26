@@ -842,9 +842,7 @@ namespace PlayniteAchievements.ViewModels
                 _gameId,
                 GameName,
                 _playniteApi,
-                _plugin,
-                _settings,
-                _logger);
+                _achievementOverridesService);
         }
 
         private async Task RefreshGameAsync()
@@ -912,7 +910,15 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                _refreshService?.Cache?.RemoveGameCache(_gameId);
+                if (_achievementOverridesService != null)
+                {
+                    _achievementOverridesService.ClearGameData(_gameId, GameName);
+                }
+                else
+                {
+                    _refreshService?.Cache?.RemoveGameCache(_gameId);
+                }
+
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(
                         L("LOCPlayAch_Menu_ClearData_SuccessSingle", "Cleared cached data for \"{0}\"."),

@@ -1285,7 +1285,15 @@ namespace PlayniteAchievements.Views
 
             try
             {
-                _cacheManager.RemoveGameCache(game.Id);
+                if (_achievementOverridesService != null)
+                {
+                    _achievementOverridesService.ClearGameData(game.Id, game.Name);
+                }
+                else
+                {
+                    _cacheManager.RemoveGameCache(game.Id);
+                }
+
                 _playniteApi?.Dialogs?.ShowMessage(
                     string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -1418,7 +1426,6 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
 
 
 

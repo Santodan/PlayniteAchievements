@@ -60,6 +60,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarProviderPieChart">Show Platform Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Show Rarity Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarPiePercentages">Show Pie Percentages</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Small Slice Handling</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">Exact</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact_Description">Shows exact slice sizes. Radial icons are hidden for slices under 5% to reduce overlaps.</sys:String>
@@ -124,8 +125,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">View</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear cached data for "{0}"?&#10;&#10;This removes cached achievements and icons for this game. Refresh again to fetch fresh data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear cached data for {0} selected games?&#10;&#10;This removes cached achievements and icons for those games. Refresh again to fetch fresh data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for "{0}"?&#10;&#10;This removes cached achievements and icons for this game. If the game has a manual tracking link, that link and its manual unlock times will also be removed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This removes cached achievements and icons for those games. Any manual tracking links and manual unlock times for those games will also be removed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSingle">Cleared cached data for "{0}".</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSelected">Cleared cached data for {0} games.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_Failed">Failed to clear cached data: {0}</sys:String>
@@ -142,8 +143,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInSummaries">Include in Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">Include in Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">Include in Refreshes and Refresh Selected Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude "{0}" and clear cached data?&#10;&#10;This will remove the game from the achievements view and delete its cached data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear cached data?&#10;&#10;This will remove these games from the achievements view and delete their cached data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude "{0}" and clear data?&#10;&#10;This will remove the game from the achievements view, delete its cached data, and remove any manual tracking link for the game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear data?&#10;&#10;This will remove these games from the achievements view, delete their cached data, and remove any manual tracking links for those games.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetRaGameId">Set RetroAchievements Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ChangeRaGameId">Change RetroAchievements Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearRaGameId">Clear RetroAchievements Game ID Override</sys:String>
@@ -898,7 +899,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_LinkSteamAchievements">Enable Manual Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_EditManualAchievements">Edit Manual Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">Unlink Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for "{0}"?&#10;&#10;This will remove the manual achievement link and delete all manually set unlock times. The cached achievement data will be removed on next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for "{0}"?&#10;&#10;This will remove the manual achievement link, delete all manually set unlock times, and clear cached data for this game immediately.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Success">Achievements unlinked for "{0}".</sys:String>
 
     <!-- Search dialog -->

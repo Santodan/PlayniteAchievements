@@ -60,6 +60,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarProviderPieChart">Afficher le graphique des plateformes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Afficher le graphique de rareté</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Afficher le graphique des trophées</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarPiePercentages">Afficher les pourcentages des graphiques circulaires</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Gestion des petites parts</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">Exact</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact_Description">Affiche les parts avec leur taille exacte. Les icônes radiales sont masquées sous 5 % pour limiter les chevauchements.</sys:String>
@@ -123,8 +124,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Actualisation en cours]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">Voir</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Effacer les données</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Effacer les données en cache pour "{0}" ?&#10;&#10;Cela supprime les succès et icônes en cache pour ce jeu. Relancez une actualisation pour récupérer des données à jour.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Effacer les données en cache pour {0} jeux sélectionnés ?&#10;&#10;Cela supprime les succès et icônes en cache pour ces jeux. Relancez une actualisation pour récupérer des données à jour.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Effacer les données pour "{0}" ?&#10;&#10;Cela supprime les succès et icônes en cache pour ce jeu. Si le jeu possède un lien de suivi manuel, ce lien et ses dates de déblocage manuelles seront aussi supprimés.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Effacer les données pour {0} jeux sélectionnés ?&#10;&#10;Cela supprime les succès et icônes en cache pour ces jeux. Tous les liens de suivi manuel et dates de déblocage manuelles pour ces jeux seront aussi supprimés.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSingle">Données en cache effacées pour "{0}".</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSelected">Données en cache effacées pour {0} jeux.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_Failed">Échec de la suppression des données en cache : {0}</sys:String>
@@ -141,8 +142,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInSummaries">Inclure dans les résumés</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">Inclure dans les actualisations</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">Inclure dans les actualisations et actualiser la sélection de jeux</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclure "{0}" et effacer les données en cache ?&#10;&#10;Cela supprimera le jeu de la vue des succès et effacera ses données en cache.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclure {0} jeu(x) sélectionnés et effacer les données en cache ?&#10;&#10;Cela supprimera ces jeux de la vue des succès et effacera leurs données en cache.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclure "{0}" et effacer les données ?&#10;&#10;Cela supprimera le jeu de la vue des succès, effacera ses données en cache et supprimera tout lien de suivi manuel pour ce jeu.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclure {0} jeu(x) sélectionnés et effacer les données ?&#10;&#10;Cela supprimera ces jeux de la vue des succès, effacera leurs données en cache et supprimera tous les liens de suivi manuel pour ces jeux.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_SetRaGameId">Définir l'ID de jeu RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ChangeRaGameId">Modifier l'ID de jeu RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearRaGameId">Effacer le remplacement d'ID RetroAchievements</sys:String>
@@ -877,7 +878,7 @@
     <sys:String x:Key="LOCPlayAch_Menu_LinkSteamAchievements">Activer le suivi manuel</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_EditManualAchievements">Modifier les succès manuels</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">Dissocier les succès</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Dissocier les succès pour "{0}" ?&#10;&#10;Cela supprimera la liaison manuelle et effacera tous les temps de déblocage définis manuellement. Les données de succès en cache seront supprimées lors de la prochaine actualisation.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Dissocier les succès pour "{0}" ?&#10;&#10;Cela supprimera la liaison manuelle, effacera tous les temps de déblocage définis manuellement et supprimera immédiatement les données de succès en cache pour ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Success">Succès dissociés pour "{0}".</sys:String>
 
     <!-- Search dialog -->

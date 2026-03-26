@@ -44,6 +44,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showSidebarProviderPieChart = true;
         private bool _showSidebarRarityPieChart = true;
         private bool _showSidebarTrophyPieChart = true;
+        private bool _showSidebarPiePercentages = true;
         private SidebarPieSmallSliceMode _sidebarPieSmallSliceMode = SidebarPieSmallSliceMode.Round;
         private bool _sidebarPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showSidebarBarCharts = true;
@@ -344,6 +345,15 @@ namespace PlayniteAchievements.Models.Settings
                 _sidebarPieChartVisibilityInitializedFromIndividualSettings = true;
                 SetValue(ref _showSidebarTrophyPieChart, value);
             }
+        }
+
+        /// <summary>
+        /// When true, shows the center percentage text on sidebar pie charts.
+        /// </summary>
+        public bool ShowSidebarPiePercentages
+        {
+            get => _showSidebarPiePercentages;
+            set => SetValue(ref _showSidebarPiePercentages, value);
         }
 
         /// <summary>
@@ -835,6 +845,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarProviderPieChart = this.ShowSidebarProviderPieChart,
                 ShowSidebarRarityPieChart = this.ShowSidebarRarityPieChart,
                 ShowSidebarTrophyPieChart = this.ShowSidebarTrophyPieChart,
+                ShowSidebarPiePercentages = this.ShowSidebarPiePercentages,
                 SidebarPieSmallSliceMode = this.SidebarPieSmallSliceMode,
                 ShowSidebarBarCharts = this.ShowSidebarBarCharts,
                 ShowGamesWithNoUnlocks = this.ShowGamesWithNoUnlocks,

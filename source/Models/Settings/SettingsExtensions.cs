@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowSidebarProviderPieChart = source.ShowSidebarProviderPieChart;
             target.ShowSidebarRarityPieChart = source.ShowSidebarRarityPieChart;
             target.ShowSidebarTrophyPieChart = source.ShowSidebarTrophyPieChart;
+            target.ShowSidebarPiePercentages = source.ShowSidebarPiePercentages;
             target.SidebarPieSmallSliceMode = source.SidebarPieSmallSliceMode;
             target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
             target.ShowGamesWithNoUnlocks = source.ShowGamesWithNoUnlocks;

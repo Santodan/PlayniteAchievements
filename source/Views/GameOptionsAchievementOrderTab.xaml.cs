@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
@@ -27,6 +28,7 @@ namespace PlayniteAchievements.Views
         private readonly DispatcherTimer _autoScrollTimer;
         private bool _isDragging;
         private int _dragItemCount;
+        private bool _pendingRefreshRequested;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT
@@ -50,6 +52,22 @@ namespace PlayniteAchievements.Views
         }
 
         private GameOptionsAchievementOrderViewModel ViewModel => DataContext as GameOptionsAchievementOrderViewModel;
+
+        public void RefreshData()
+        {
+            if (ViewModel == null)
+            {
+                return;
+            }
+
+            if (_isDragging)
+            {
+                _pendingRefreshRequested = true;
+                return;
+            }
+
+            RefreshDataCore(CaptureSelectedApiNames());
+        }
 
         private void Control_Loaded(object sender, RoutedEventArgs e)
         {
@@ -149,10 +167,17 @@ namespace PlayniteAchievements.Views
                 .OrderBy(item => sourceOrder.IndexOf(item))
                 .ToList();
 
-            var dragData = new DataObject(DragDataFormat, selectedRows);
+            var draggedApiNames = AchievementOrderHelper.NormalizeApiNames(
+                selectedRows.Select(item => item.ApiName));
+            if (draggedApiNames.Count == 0)
+            {
+                return;
+            }
+
+            var dragData = new DataObject(DragDataFormat, draggedApiNames);
             _hasDragStartPoint = false;
             _dragAnchorItem = null;
-            _dragItemCount = selectedRows.Count;
+            _dragItemCount = draggedApiNames.Count;
             _isDragging = true;
             ShowDragCountPopup();
             StartAutoScroll();
@@ -168,6 +193,7 @@ namespace PlayniteAchievements.Views
                 _dragItemCount = 0;
                 HideDragCountPopup();
                 HideDropIndicator();
+                ApplyPendingRefreshIfNeeded();
             }
         }
 
@@ -238,9 +264,9 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            var draggedItems = e.Data.GetData(DragDataFormat)
-                as List<AchievementDisplayItem>;
-            if (draggedItems == null || draggedItems.Count == 0)
+            var draggedApiNames = (e.Data.GetData(DragDataFormat) as IEnumerable<string>)?
+                .ToList();
+            if (draggedApiNames == null || draggedApiNames.Count == 0)
             {
                 HideDragCountPopup();
                 return;
@@ -253,11 +279,11 @@ namespace PlayniteAchievements.Views
             {
                 var pos = e.GetPosition(row);
                 var insertAfter = pos.Y > row.ActualHeight / 2.0;
-                moved = ViewModel.MoveItems(draggedItems, targetItem, insertAfter);
+                moved = ViewModel.MoveItemsByApiName(draggedApiNames, targetItem.ApiName, insertAfter);
             }
             else
             {
-                moved = ViewModel.MoveItemsToEnd(draggedItems);
+                moved = ViewModel.MoveItemsToEndByApiName(draggedApiNames);
             }
 
             if (!moved)
@@ -266,14 +292,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            AchievementOrderDataGrid.SelectedItems.Clear();
-            foreach (var item in draggedItems)
-            {
-                if (ViewModel.AchievementRows.Contains(item))
-                {
-                    AchievementOrderDataGrid.SelectedItems.Add(item);
-                }
-            }
+            RestoreSelectionByApiNames(draggedApiNames);
 
             _isDragging = false;
             _dragItemCount = 0;
@@ -468,6 +487,68 @@ namespace PlayniteAchievements.Views
         {
             var cell = VisualTreeHelpers.FindVisualParent<DataGridCell>(source);
             return cell?.Column?.DisplayIndex == 0;
+        }
+
+        private void RefreshDataCore(IReadOnlyList<string> selectedApiNames)
+        {
+            HideDropIndicator();
+            HideDragCountPopup();
+            _hasDragStartPoint = false;
+            _dragAnchorItem = null;
+            ViewModel?.ReloadData();
+            RestoreSelectionByApiNames(selectedApiNames);
+        }
+
+        private List<string> CaptureSelectedApiNames()
+        {
+            var selectedItems = AchievementOrderDataGrid?.SelectedItems;
+            if (selectedItems == null)
+            {
+                return new List<string>();
+            }
+
+            return AchievementOrderHelper.NormalizeApiNames(
+                selectedItems
+                    .OfType<AchievementDisplayItem>()
+                    .Select(item => item.ApiName));
+        }
+
+        private void RestoreSelectionByApiNames(IEnumerable<string> apiNames)
+        {
+            if (AchievementOrderDataGrid == null)
+            {
+                return;
+            }
+
+            var selectedApiNames = new HashSet<string>(
+                AchievementOrderHelper.NormalizeApiNames(apiNames),
+                StringComparer.OrdinalIgnoreCase);
+
+            AchievementOrderDataGrid.SelectedItems.Clear();
+            if (selectedApiNames.Count == 0 || ViewModel?.AchievementRows == null)
+            {
+                return;
+            }
+
+            foreach (var row in ViewModel.AchievementRows)
+            {
+                var apiName = (row?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(apiName) && selectedApiNames.Contains(apiName))
+                {
+                    AchievementOrderDataGrid.SelectedItems.Add(row);
+                }
+            }
+        }
+
+        private void ApplyPendingRefreshIfNeeded()
+        {
+            if (!_pendingRefreshRequested)
+            {
+                return;
+            }
+
+            _pendingRefreshRequested = false;
+            RefreshDataCore(CaptureSelectedApiNames());
         }
     }
 }

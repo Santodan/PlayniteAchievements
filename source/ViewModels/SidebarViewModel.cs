@@ -538,6 +538,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowSidebarTrophyPieChart => _settings?.Persisted?.ShowSidebarTrophyPieChart ?? true;
 
+        public bool ShowSidebarPiePercentages => _settings?.Persisted?.ShowSidebarPiePercentages ?? true;
+
         public bool ShowSidebarBarCharts => _settings?.Persisted?.ShowSidebarBarCharts ?? true;
 
         private int _totalGamesOverview;
@@ -1493,6 +1495,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
                 ApplySidebarPieSmallSliceMode();
                 RaiseSidebarPieChartVisibilityChanged();
+                OnPropertyChanged(nameof(ShowSidebarPiePercentages));
                 OnPropertyChanged(nameof(ShowSidebarBarCharts));
                 OnPropertyChanged(nameof(ShowGamesWithNoUnlocks));
                 OnPropertyChanged(nameof(ShowUnplayedGames));
@@ -1521,6 +1524,10 @@ namespace PlayniteAchievements.ViewModels
                 || propertyName == nameof(PersistedSettings.ShowSidebarTrophyPieChart))
             {
                 RaiseSidebarPieChartVisibilityChanged();
+            }
+            else if (propertyName == nameof(PersistedSettings.ShowSidebarPiePercentages))
+            {
+                OnPropertyChanged(nameof(ShowSidebarPiePercentages));
             }
             else if (propertyName == nameof(PersistedSettings.ShowSidebarBarCharts))
             {

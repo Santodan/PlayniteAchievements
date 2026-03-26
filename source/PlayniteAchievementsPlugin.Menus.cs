@@ -485,7 +485,15 @@ namespace PlayniteAchievements
 
             try
             {
-                _cacheManager.RemoveGameCache(game.Id);
+                if (_achievementOverridesService != null)
+                {
+                    _achievementOverridesService.ClearGameData(game.Id, game.Name);
+                }
+                else
+                {
+                    _cacheManager.RemoveGameCache(game.Id);
+                }
+
                 PlayniteApi?.Dialogs?.ShowMessage(
                     string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -532,7 +540,15 @@ namespace PlayniteAchievements
             {
                 try
                 {
-                    _cacheManager.RemoveGameCache(game.Id);
+                    if (_achievementOverridesService != null)
+                    {
+                        _achievementOverridesService.ClearGameData(game.Id, game.Name);
+                    }
+                    else
+                    {
+                        _cacheManager.RemoveGameCache(game.Id);
+                    }
+
                     clearedCount++;
                 }
                 catch (Exception ex)
