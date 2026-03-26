@@ -6,7 +6,9 @@ using System.Windows.Media;
 using LiveCharts;
 using LiveCharts.Wpf;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using Playnite.SDK;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 
 namespace PlayniteAchievements.ViewModels
@@ -45,6 +47,9 @@ namespace PlayniteAchievements.ViewModels
             public bool IsLocked { get; set; }
             public bool ShowRadialIcon { get; set; } = true;
             public bool SuppressRadialIconOnCollision { get; set; }
+            public int PieTotalCount { get; set; }
+            public string PrimaryMetricText { get; set; }
+            public string SecondaryMetricText { get; set; }
         }
 
         public SeriesCollection PieSeries { get; } = new SeriesCollection();
@@ -483,12 +488,12 @@ namespace PlayniteAchievements.ViewModels
 
             var totalCount = dataPoints.Sum(d => d.Count);
             var minSlice = totalCount * 0.05;
-            var slices = BuildSlicesForMode(dataPoints, minSlice);
+            var slices = BuildSlicesForMode(dataPoints, minSlice, totalCount);
 
             SynchronizePieChartAndLegend(slices);
         }
 
-        private List<PieSliceData> BuildSlicesForMode(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice)
+        private List<PieSliceData> BuildSlicesForMode(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice, int pieTotalCount)
         {
             switch (SmallSliceMode)
             {
@@ -496,13 +501,14 @@ namespace PlayniteAchievements.ViewModels
                     return BuildExactSlices(
                         dataPoints,
                         minSlice,
+                        pieTotalCount,
                         hideSmallIcons: false,
                         suppressOnCollision: !AlwaysShowSmallSliceIcons);
                 case SidebarPieSmallSliceMode.Hide:
-                    return BuildHiddenSlices(dataPoints, minSlice);
+                    return BuildHiddenSlices(dataPoints, minSlice, pieTotalCount);
                 case SidebarPieSmallSliceMode.Round:
                 default:
-                    if (TryBuildRoundedSlices(dataPoints, minSlice, out var roundedSlices))
+                    if (TryBuildRoundedSlices(dataPoints, minSlice, pieTotalCount, out var roundedSlices))
                     {
                         return roundedSlices;
                     }
@@ -510,6 +516,7 @@ namespace PlayniteAchievements.ViewModels
                     return BuildExactSlices(
                         dataPoints,
                         minSlice,
+                        pieTotalCount,
                         hideSmallIcons: true,
                         suppressOnCollision: false);
             }
@@ -518,6 +525,7 @@ namespace PlayniteAchievements.ViewModels
         private List<PieSliceData> BuildExactSlices(
             IReadOnlyList<PieSliceInputData> dataPoints,
             double minSlice,
+            int pieTotalCount,
             bool hideSmallIcons,
             bool suppressOnCollision)
         {
@@ -529,6 +537,7 @@ namespace PlayniteAchievements.ViewModels
                 slices.Add(CreateSliceData(
                     dataPoint,
                     dataPoint.Count,
+                    pieTotalCount,
                     showRadialIcon,
                     suppressOnCollision && showRadialIcon));
             }
@@ -536,7 +545,7 @@ namespace PlayniteAchievements.ViewModels
             return slices;
         }
 
-        private List<PieSliceData> BuildHiddenSlices(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice)
+        private List<PieSliceData> BuildHiddenSlices(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice, int pieTotalCount)
         {
             var slices = new List<PieSliceData>(dataPoints.Count);
             for (int i = 0; i < dataPoints.Count; i++)
@@ -547,13 +556,13 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                slices.Add(CreateSliceData(dataPoint, dataPoint.Count, true, false));
+                slices.Add(CreateSliceData(dataPoint, dataPoint.Count, pieTotalCount, true, false));
             }
 
             return slices;
         }
 
-        private bool TryBuildRoundedSlices(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice, out List<PieSliceData> slices)
+        private bool TryBuildRoundedSlices(IReadOnlyList<PieSliceInputData> dataPoints, double minSlice, int pieTotalCount, out List<PieSliceData> slices)
         {
             var adjustments = new Dictionary<int, double>();
             var totalAdjustment = 0.0;
@@ -583,6 +592,7 @@ namespace PlayniteAchievements.ViewModels
                 slices = BuildExactSlices(
                     dataPoints,
                     minSlice,
+                    pieTotalCount,
                     hideSmallIcons: false,
                     suppressOnCollision: false);
                 return true;
@@ -611,7 +621,7 @@ namespace PlayniteAchievements.ViewModels
                     chartValue = dataPoints[i].Count;
                 }
 
-                slices.Add(CreateSliceData(dataPoints[i], chartValue, true, false));
+                slices.Add(CreateSliceData(dataPoints[i], chartValue, pieTotalCount, true, false));
             }
 
             return true;
@@ -620,9 +630,13 @@ namespace PlayniteAchievements.ViewModels
         private PieSliceData CreateSliceData(
             PieSliceInputData dataPoint,
             double chartValue,
+            int pieTotalCount,
             bool showRadialIcon,
             bool suppressOnCollision)
         {
+            var primaryMetricText = FormatPrimaryMetricText(dataPoint);
+            var secondaryMetricText = FormatSecondaryMetricText(dataPoint, pieTotalCount);
+
             return new PieSliceData
             {
                 Label = dataPoint.Label,
@@ -635,8 +649,51 @@ namespace PlayniteAchievements.ViewModels
                 TotalCount = dataPoint.TotalCount,
                 IsLocked = dataPoint.IsLocked,
                 ShowRadialIcon = showRadialIcon,
-                SuppressRadialIconOnCollision = suppressOnCollision
+                SuppressRadialIconOnCollision = suppressOnCollision,
+                PieTotalCount = pieTotalCount,
+                PrimaryMetricText = primaryMetricText,
+                SecondaryMetricText = secondaryMetricText
             };
+        }
+
+        private static string FormatPrimaryMetricText(PieSliceInputData dataPoint)
+        {
+            if (dataPoint == null)
+            {
+                return string.Empty;
+            }
+
+            if (dataPoint.IsLocked || IsCompletedGamesSlice(dataPoint.IconKey))
+            {
+                return dataPoint.Count.ToString();
+            }
+
+            return $"{dataPoint.UnlockedCount} / {dataPoint.TotalCount}";
+        }
+
+        private static string FormatSecondaryMetricText(PieSliceInputData dataPoint, int pieTotalCount)
+        {
+            if (dataPoint == null || pieTotalCount <= 0)
+            {
+                return string.Empty;
+            }
+
+            var totalLabel = ResourceProvider.GetString("LOCPlayAch_Column_Total") ?? "Total";
+            var piePercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(dataPoint.Count, pieTotalCount);
+
+            if (dataPoint.IsLocked || IsCompletedGamesSlice(dataPoint.IconKey))
+            {
+                return $"{piePercent}% {totalLabel}";
+            }
+
+            var unlockedLabel = ResourceProvider.GetString("LOCPlayAch_Column_Unlocked") ?? "Unlocked";
+            var categoryPercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(dataPoint.UnlockedCount, dataPoint.TotalCount);
+            return $"{categoryPercent}% {unlockedLabel} ({piePercent}% {totalLabel})";
+        }
+
+        private static bool IsCompletedGamesSlice(string iconKey)
+        {
+            return string.Equals(iconKey, "BadgeCompletedGame", StringComparison.Ordinal);
         }
 
         private static string ResolveLegendColor(PieSliceInputData dataPoint)
@@ -748,6 +805,9 @@ namespace PlayniteAchievements.ViewModels
             chartData.IsLocked = slice?.IsLocked ?? false;
             chartData.ShowRadialIcon = slice?.ShowRadialIcon ?? false;
             chartData.SuppressRadialIconOnCollision = slice?.SuppressRadialIconOnCollision ?? false;
+            chartData.PieTotalCount = slice?.PieTotalCount ?? 0;
+            chartData.PrimaryMetricText = slice?.PrimaryMetricText ?? string.Empty;
+            chartData.SecondaryMetricText = slice?.SecondaryMetricText ?? string.Empty;
         }
 
         private void SynchronizeLegendItems(IReadOnlyList<PieSliceData> slices)

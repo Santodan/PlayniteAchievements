@@ -244,37 +244,4 @@ namespace PlayniteAchievements.Views.Converters
         }
     }
 
-    /// <summary>
-    /// Converts pie chart tooltip data to display string.
-    /// For locked slices: shows just the count.
-    /// For completed-games slices: shows just the count.
-    /// For all other slices: shows "unlocked / total" format.
-    /// </summary>
-    public class PieTooltipConverter : IMultiValueConverter
-    {
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (values.Length >= 3 &&
-                values[0] is int unlockedCount &&
-                values[1] is int totalCount &&
-                values[2] is bool isLocked)
-            {
-                var iconKey = values.Length > 3 ? values[3] as string : null;
-                var isCompletedGamesSlice = string.Equals(iconKey, "BadgeCompletedGame", StringComparison.Ordinal);
-
-                if (isLocked || isCompletedGamesSlice)
-                {
-                    return unlockedCount.ToString();
-                }
-
-                return $"{unlockedCount} / {totalCount}";
-            }
-            return string.Empty;
-        }
-
-        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
 }

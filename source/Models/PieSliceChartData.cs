@@ -95,5 +95,35 @@ namespace PlayniteAchievements.Models
             get => _suppressRadialIconOnCollision;
             set => SetValue(ref _suppressRadialIconOnCollision, value);
         }
+
+        /// <summary>
+        /// Exact total count for the full pie, used for tooltip percentages.
+        /// </summary>
+        private int _pieTotalCount;
+        public int PieTotalCount
+        {
+            get => _pieTotalCount;
+            set => SetValue(ref _pieTotalCount, value);
+        }
+
+        /// <summary>
+        /// Primary tooltip metric text (count or unlocked/total).
+        /// </summary>
+        private string _primaryMetricText;
+        public string PrimaryMetricText
+        {
+            get => _primaryMetricText;
+            set => SetValue(ref _primaryMetricText, value);
+        }
+
+        /// <summary>
+        /// Secondary tooltip metric text (percentages).
+        /// </summary>
+        private string _secondaryMetricText;
+        public string SecondaryMetricText
+        {
+            get => _secondaryMetricText;
+            set => SetValue(ref _secondaryMetricText, value);
+        }
     }
 }

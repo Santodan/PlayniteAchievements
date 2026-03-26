@@ -15,6 +15,9 @@ namespace PlayniteAchievements.Views.Controls
         {
             InitializeComponent();
             DataContext = this;
+            Focusable = false;
+            IsHitTestVisible = false;
+            IsTabStop = false;
         }
 
         public TooltipSelectionMode? SelectionMode { get; set; } = TooltipSelectionMode.OnlySender;

@@ -6,6 +6,8 @@
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:models="clr-namespace:PlayniteAchievements.Models"
              xmlns:wpf="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
+             Focusable="False"
+             IsHitTestVisible="False"
              mc:Ignorable="d"
              d:DesignHeight="30" d:DesignWidth="80">
 
@@ -13,7 +15,6 @@
         <ResourceDictionary>
             <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
             <converters:ProviderIconConverter x:Key="ProviderIconConverter"/>
-            <converters:PieTooltipConverter x:Key="PieTooltipConverter"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -21,6 +22,7 @@
             BorderBrush="{DynamicResource PopupBorderBrush}"
             BorderThickness="1"
             CornerRadius="4"
+            IsHitTestVisible="False"
             Padding="8,4">
         <ItemsControl ItemsSource="{Binding Data.Points}">
             <ItemsControl.ItemTemplate>
@@ -41,19 +43,15 @@
                                 </Image.Source>
                             </Image>
                         </Grid>
-                        <!-- Count display with conditional format -->
-                        <TextBlock VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   FontSize="{DynamicResource FontSize}">
-                            <TextBlock.Text>
-                                <MultiBinding Converter="{StaticResource PieTooltipConverter}">
-                                    <Binding Path="ChartPoint.Instance.UnlockedCount"/>
-                                    <Binding Path="ChartPoint.Instance.TotalCount"/>
-                                    <Binding Path="ChartPoint.Instance.IsLocked"/>
-                                    <Binding Path="ChartPoint.Instance.IconKey"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
+                        <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ChartPoint.Instance.PrimaryMetricText}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontSize="{DynamicResource FontSize}"/>
+                            <TextBlock Text="{Binding ChartPoint.Instance.SecondaryMetricText}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontSize="{DynamicResource FontSizeSmall}"
+                                       Opacity="0.72"/>
+                        </StackPanel>
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
