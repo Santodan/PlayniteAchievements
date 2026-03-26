@@ -28,11 +28,13 @@ namespace PlayniteAchievements.Providers.Exophase
 
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
+        private readonly ExophaseCookieSnapshotStore _cookieSnapshotStore;
 
-        public ExophaseApiClient(IPlayniteAPI playniteApi, ILogger logger)
+        internal ExophaseApiClient(IPlayniteAPI playniteApi, ILogger logger, ExophaseCookieSnapshotStore cookieSnapshotStore)
         {
             _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
             _logger = logger;
+            _cookieSnapshotStore = cookieSnapshotStore;
         }
 
         /// <summary>
@@ -343,15 +345,34 @@ namespace PlayniteAchievements.Providers.Exophase
 
         /// <summary>
         /// Fetches HTML from a URL using offscreen WebView to bypass Cloudflare.
+        /// Restores cookies from snapshot before fetching to ensure authenticated session.
         /// </summary>
         private async Task<string> FetchHtmlViaWebViewAsync(string url, CancellationToken ct)
         {
+            _logger?.Debug($"[Exophase] FetchHtmlViaWebViewAsync: Starting fetch for {url}");
+
+            // Load cookies from snapshot before creating WebView
+            List<HttpCookie> snapshotCookies = null;
+            var snapshotLoaded = _cookieSnapshotStore?.TryLoad(out snapshotCookies) ?? false;
+            _logger?.Info($"[Exophase] Cookie snapshot loaded: {snapshotLoaded}, cookie count: {snapshotCookies?.Count ?? 0}");
+
             var dispatchOperation = _playniteApi.MainView.UIDispatcher.InvokeAsync(async () =>
             {
                 using (var view = _playniteApi.WebViews.CreateOffscreenView())
                 {
                     try
                     {
+                        // Restore cookies from snapshot if available
+                        if (snapshotLoaded && snapshotCookies != null && snapshotCookies.Count > 0)
+                        {
+                            _logger?.Info($"[Exophase] Restoring {snapshotCookies.Count} cookies to WebView before fetch...");
+                            await RestoreCookiesAsync(view, snapshotCookies, ct);
+                        }
+                        else
+                        {
+                            _logger?.Warn("[Exophase] No snapshot cookies to restore - fetching may not show unlocked achievements");
+                        }
+
                         await view.NavigateAndWaitAsync(url, timeoutMs: 20000);
 
                         var html = await view.GetPageSourceAsync();
@@ -404,6 +425,62 @@ namespace PlayniteAchievements.Providers.Exophase
 
             var responseTask = await dispatchOperation.Task.ConfigureAwait(false);
             return await responseTask.ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Restores cookies to a WebView from a snapshot.
+        /// </summary>
+        private async Task RestoreCookiesAsync(IWebView view, IReadOnlyList<HttpCookie> cookies, CancellationToken ct)
+        {
+            view.DeleteDomainCookies(".exophase.com");
+            view.DeleteDomainCookies("exophase.com");
+
+            foreach (var cookie in cookies ?? Enumerable.Empty<HttpCookie>())
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (cookie == null || string.IsNullOrWhiteSpace(cookie.Name))
+                {
+                    continue;
+                }
+
+                var cookieCopy = CloneCookie(cookie);
+                view.SetCookies(BuildCookieOriginUrl(cookieCopy), cookieCopy);
+            }
+
+            await Task.Delay(250, ct);
+        }
+
+        private static HttpCookie CloneCookie(HttpCookie cookie)
+        {
+            if (cookie == null)
+            {
+                return null;
+            }
+
+            return new HttpCookie
+            {
+                Name = cookie.Name,
+                Value = cookie.Value,
+                Domain = cookie.Domain,
+                Path = string.IsNullOrWhiteSpace(cookie.Path) ? "/" : cookie.Path,
+                Expires = cookie.Expires,
+                Secure = cookie.Secure,
+                HttpOnly = cookie.HttpOnly,
+                SameSite = cookie.SameSite,
+                Priority = cookie.Priority
+            };
+        }
+
+        private static string BuildCookieOriginUrl(HttpCookie cookie)
+        {
+            var domain = (cookie?.Domain ?? string.Empty).Trim().TrimStart('.');
+            if (string.IsNullOrWhiteSpace(domain))
+            {
+                domain = "www.exophase.com";
+            }
+
+            return "https://" + domain;
         }
 
         private static bool ContainsAchievementMarkup(string html)

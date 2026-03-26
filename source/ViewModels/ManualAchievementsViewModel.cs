@@ -351,10 +351,7 @@ namespace PlayniteAchievements.ViewModels
 
         public int UnlockedCount => AllAchievements.Count(a => a.IsUnlocked);
 
-        public double CompletionPercent =>
-            AllAchievements.Count > 0
-                ? (double)UnlockedCount / TotalCount * 100.0
-                : 0;
+        public int CompletionPercent => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedCount, TotalCount);
 
         #endregion
 

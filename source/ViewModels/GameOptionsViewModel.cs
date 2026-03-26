@@ -343,24 +343,12 @@ namespace PlayniteAchievements.ViewModels
                     return "0 / 0 (0%)";
                 }
 
-                var percent = (double)UnlockedAchievements / TotalAchievements * 100.0;
-                return $"{UnlockedAchievements} / {TotalAchievements} ({percent:F0}%)";
+                var percent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
+                return $"{UnlockedAchievements} / {TotalAchievements} ({percent}%)";
             }
         }
 
-        public double CompletionPercentValue
-        {
-            get
-            {
-                if (TotalAchievements <= 0)
-                {
-                    return 0;
-                }
-
-                var percent = (double)UnlockedAchievements / TotalAchievements * 100.0;
-                return Math.Max(0, Math.Min(100, percent));
-            }
-        }
+        public int CompletionPercentValue => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
         public string CurrentCapstoneName
         {

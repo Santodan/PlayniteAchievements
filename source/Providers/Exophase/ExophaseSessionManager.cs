@@ -31,6 +31,11 @@ namespace PlayniteAchievements.Providers.Exophase
         public string ProviderKey => "Exophase";
 
         /// <summary>
+        /// Exposes the cookie snapshot store for use by the API client.
+        /// </summary>
+        internal ExophaseCookieSnapshotStore CookieSnapshotStore => _cookieSnapshotStore;
+
+        /// <summary>
         /// Cached auth state from the last successful live probe.
         /// Provider work must still call ProbeAuthStateAsync before fetching data.
         /// </summary>

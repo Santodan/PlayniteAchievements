@@ -30,10 +30,11 @@ namespace PlayniteAchievements.Providers.Manual
             ILogger logger,
             Func<string> getLanguage)
         {
+            _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _apiClient = new ExophaseApiClient(
                 playniteApi ?? throw new ArgumentNullException(nameof(playniteApi)),
-                logger);
-            _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
+                logger,
+                _sessionManager.CookieSnapshotStore);
             _logger = logger;
             _ = getLanguage ?? throw new ArgumentNullException(nameof(getLanguage));
         }

@@ -66,7 +66,7 @@ namespace PlayniteAchievements.Providers.Exophase
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
             _sessionManager = new ExophaseSessionManager(playniteApi, logger, pluginUserDataPath);
-            _apiClient = new ExophaseApiClient(playniteApi, logger);
+            _apiClient = new ExophaseApiClient(playniteApi, logger, _sessionManager.CookieSnapshotStore);
 
             _providerSettings = ProviderRegistry.Settings<ExophaseSettings>();
         }

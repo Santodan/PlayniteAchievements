@@ -247,11 +247,9 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public bool HasTrophyTypes => TrophyPlatinumCount > 0 || TrophyGoldCount > 0 || TrophySilverCount > 0 || TrophyBronzeCount > 0;
 
-        public double Progression => TotalAchievements > 0
-            ? (double)UnlockedAchievements / TotalAchievements * 100
-            : 0;
+        public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
-        public string ProgressionText => string.Format(ResourceProvider.GetString("LOCPlayAch_Format_Percentage"), Progression);
+        public string ProgressionText => $"{Progression}%";
 
         public TimelineViewModel Timeline { get; private set; }
 

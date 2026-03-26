@@ -1,5 +1,6 @@
 using System;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -133,11 +134,9 @@ namespace PlayniteAchievements.ViewModels
         public string ProviderColorHex { get => _providerColorHex; set => SetValue(ref _providerColorHex, value); }
 
 
-        public double Progression => TotalAchievements > 0
-            ? (double)UnlockedAchievements / TotalAchievements * 100
-            : 0;
+        public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
-        public string ProgressionText => $"{Progression:F0}%";
+        public string ProgressionText => $"{Progression}%";
 
         public string LastPlayedText => LastPlayed.HasValue
             ? LastPlayed.Value.ToLocalTime().ToString("g")

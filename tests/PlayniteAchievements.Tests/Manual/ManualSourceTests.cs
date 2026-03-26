@@ -112,7 +112,7 @@ namespace PlayniteAchievements.Manual.Tests
             });
 
             using var httpClient = new HttpClient(handler);
-            var apiClient = new ExophaseApiClient(new FakePlayniteApi(), logger: null);
+            var apiClient = new ExophaseApiClient(new FakePlayniteApi(), logger: null, cookieSnapshotStore: null);
 
             var achievements = await apiClient.FetchAchievementsViaHttpAsync(
                 "https://www.exophase.com/game/test-game/achievements/",

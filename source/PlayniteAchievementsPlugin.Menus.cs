@@ -211,15 +211,15 @@ namespace PlayniteAchievements
                 }
             };
 
-            yield return new GameMenuItem
-            {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
-                MenuSection = PluginGameMenuSection,
-                Action = (a) =>
-                {
-                    OpenModernParityTestView(game.Id);
-                }
-            };
+            // yield return new GameMenuItem
+            // {
+            //     Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
+            //     MenuSection = PluginGameMenuSection,
+            //     Action = (a) =>
+            //     {
+            //         OpenModernParityTestView(game.Id);
+            //     }
+            // };
 
             if (!refreshInProgress)
             {
