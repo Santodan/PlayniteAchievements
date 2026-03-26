@@ -658,6 +658,7 @@
     <sys:String x:Key="LOCPlayAch_Status_AuthRequired">Steam authentication required. Refresh canceled.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">No platforms are authenticated. Please configure at least one platform in settings before refreshing.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_NotifySubscribers">Failed to notify subscribers.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Steam unlock datetime parsing failed {0} time(s) during this scan. Check the log and failed_steam_datetimes.csv, then submit an issue on GitHub. Your PlayniteAchievements language setting must match your Steam language for correct parsing.</sys:String>
 
     <!-- ================================================================= -->
     <!-- TIME RANGE                                                         -->

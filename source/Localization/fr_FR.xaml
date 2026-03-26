@@ -637,6 +637,7 @@
     <sys:String x:Key="LOCPlayAch_Status_AuthRequired">Authentification Steam requise. Actualisation annulée.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">Aucun fournisseur n'est authentifié. Veuillez configurer au moins un fournisseur dans les paramètres avant d'actualiser.</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_NotifySubscribers">Échec de notification des abonnés.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">L'analyse de la date de déverrouillage Steam a échoué {0} fois pendant cette analyse. Consultez le journal et failed_steam_datetimes.csv, puis soumettez un problème sur GitHub. Le paramètre de langue de PlayniteAchievements doit correspondre à votre langue Steam pour une analyse correcte.</sys:String>
 
     <!-- ================================================================= -->
     <!-- TIME RANGE                                                         -->

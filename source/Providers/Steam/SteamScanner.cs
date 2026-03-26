@@ -182,7 +182,9 @@ namespace PlayniteAchievements.Providers.Steam
                 _logger?.Warn($"[SteamAch] Datetime parse failures detected={parseFailureCount}, persisted_to_csv={persistedCount}. CSV write may have failed for some entries.");
             }
 
-            var message = $"Steam unlock datetime parsing failed {parseFailureCount} time(s) during this scan. Check the log and failed_steam_datetimes.csv, then submit an issue on GitHub.";
+            var message = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Error_SteamDatetimeParse"),
+                parseFailureCount);
             _logger?.Warn($"[SteamAch] {message}");
 
             try
