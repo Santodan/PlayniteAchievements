@@ -591,7 +591,8 @@ namespace PlayniteAchievements.ViewModels
 
                 var raProvider = _refreshService?.Providers
                     ?.FirstOrDefault(p => p.ProviderKey == "RetroAchievements");
-                IsRaCapable = raProvider?.IsCapable(game) == true;
+                IsRaCapable = raProvider?.IsCapable(game) == true ||
+                              RetroAchievementsDataProvider.CanSetOverride(game);
 
                 var xeniaProvider = _refreshService?.Providers
                     ?.FirstOrDefault(p => p.ProviderKey == "Xenia");
