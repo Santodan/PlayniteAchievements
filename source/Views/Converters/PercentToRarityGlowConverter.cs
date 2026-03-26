@@ -79,4 +79,71 @@ namespace PlayniteAchievements.Views.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Compact variant with smaller BlurRadius (8 instead of 20) for tight layouts.
+    /// </summary>
+    public class PercentToCompactRarityGlowConverter : IValueConverter
+    {
+        private static readonly DropShadowEffect UltraRareGlow = new DropShadowEffect
+        {
+            BlurRadius = 8,
+            ShadowDepth = 0,
+            Color = Color.FromRgb(0x4F, 0xC3, 0xF7),
+            Opacity = 1.0
+        };
+
+        private static readonly DropShadowEffect RareGlow = new DropShadowEffect
+        {
+            BlurRadius = 8,
+            ShadowDepth = 0,
+            Color = Color.FromRgb(0xFF, 0xD7, 0x00),
+            Opacity = 1.0
+        };
+
+        private static readonly DropShadowEffect UncommonGlow = new DropShadowEffect
+        {
+            BlurRadius = 8,
+            ShadowDepth = 0,
+            Color = Color.FromRgb(0xC0, 0xC0, 0xC0),
+            Opacity = 1.0
+        };
+
+        static PercentToCompactRarityGlowConverter()
+        {
+            UltraRareGlow.Freeze();
+            RareGlow.Freeze();
+            UncommonGlow.Freeze();
+        }
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!(value is RarityTier tier))
+            {
+                return null;
+            }
+
+            if (tier == RarityTier.UltraRare)
+            {
+                return UltraRareGlow;
+            }
+
+            if (tier == RarityTier.Rare)
+            {
+                return RareGlow;
+            }
+
+            if (tier == RarityTier.Uncommon)
+            {
+                return UncommonGlow;
+            }
+
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

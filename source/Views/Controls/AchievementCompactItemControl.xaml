@@ -16,6 +16,7 @@
             </ResourceDictionary.MergedDictionaries>
             <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
             <converters:BooleanConverter x:Key="InvertedBooleanConverter" Mode="Inverted"/>
+            <converters:PercentToCompactRarityGlowConverter x:Key="PercentToRarityGlow"/>
         </ResourceDictionary>
     </UserControl.Resources>
 
