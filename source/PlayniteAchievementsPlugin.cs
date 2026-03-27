@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows;
@@ -129,6 +131,28 @@ namespace PlayniteAchievements
             NotifySettingsSaved();
         }
 
+        private void LoadLocalization()
+        {
+            try
+            {
+                var pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                var locFile = Path.Combine(pluginDir, "Localization", "LocSource.xaml");
+
+                if (!File.Exists(locFile))
+                {
+                    _logger?.Warn($"Localization source file not found: {locFile}");
+                    return;
+                }
+
+                var dict = new ResourceDictionary { Source = new Uri(locFile, UriKind.Absolute) };
+                Application.Current.Resources.MergedDictionaries.Add(dict);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to load LocSource.xaml");
+            }
+        }
+
         // Public bridge method for external helpers/themes that used to target SuccessStory via reflection.
         // AnikiHelper (PlayniteAchievements-based) will call this when available.
         public Task RequestSingleGameRefreshAsync(Guid playniteGameId)
@@ -152,6 +176,7 @@ namespace PlayniteAchievements
                 Properties = _pluginProperties;
 
                 Instance = this;
+                LoadLocalization();
                 _logger.Info("PlayniteAchievementsPlugin initializing...");
 
                 // Phase 1: Load settings and chart plumbing used by theme controls.
