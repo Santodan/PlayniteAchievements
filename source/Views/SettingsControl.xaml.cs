@@ -399,6 +399,12 @@ namespace PlayniteAchievements.Views
         private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
         private const string SuccessStoryFolderName = "SuccessStory";
 
+        /// <summary>
+        /// Set before opening settings to navigate directly to a provider tab.
+        /// Cleared after use.
+        /// </summary>
+        public static string PendingNavigationProviderKey { get; set; }
+
         public SettingsControl(
             PlayniteAchievementsSettingsViewModel settingsViewModel,
             ILogger logger,
@@ -453,6 +459,9 @@ namespace PlayniteAchievements.Views
 
                 // Load themes on initial load
                 LoadThemes();
+
+                // Navigate to a specific provider tab if requested (e.g., from auth notification click).
+                NavigateToPendingProvider();
             };
         }
 
@@ -1123,6 +1132,24 @@ namespace PlayniteAchievements.Views
                 }
 
                 SettingsTabControl.Items.Insert(insertIndex++, tabItem);
+            }
+        }
+
+        private void NavigateToPendingProvider()
+        {
+            var targetKey = PendingNavigationProviderKey;
+            if (string.IsNullOrWhiteSpace(targetKey))
+                return;
+
+            PendingNavigationProviderKey = null;
+
+            foreach (TabItem tab in SettingsTabControl.Items)
+            {
+                if (string.Equals(tab.Tag as string, targetKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    SettingsTabControl.SelectedItem = tab;
+                    break;
+                }
             }
         }
 
