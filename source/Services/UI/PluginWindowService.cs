@@ -510,6 +510,9 @@ namespace PlayniteAchievements.Services.UI
 
                     var providerUri = new Uri("/PlayniteAchievements;component/Providers/ProviderIcons.xaml", UriKind.Relative);
                     app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = providerUri });
+
+                    var migrationUri = new Uri("/PlayniteAchievements;component/Resources/MigrationStyles.xaml", UriKind.Relative);
+                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = migrationUri });
                 }
 
                 if (app.Dispatcher.CheckAccess())
