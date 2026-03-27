@@ -61,6 +61,15 @@ namespace PlayniteAchievements.Providers.Exophase
             }
         }
 
+        // Critical cookies required for authentication
+        private static readonly string[] CriticalCookieNames = new[]
+        {
+            "ACCESS_TOKEN",
+            "xf_user",
+            "REMEMBERME",
+            "SFSESSID"
+        };
+
         public bool TryLoad(out List<HttpCookie> cookies)
         {
             cookies = new List<HttpCookie>();
@@ -76,6 +85,8 @@ namespace PlayniteAchievements.Providers.Exophase
                 var snapshot = JsonConvert.DeserializeObject<ExophaseCookieSnapshotFile>(json);
                 if (snapshot?.Cookies == null || snapshot.Cookies.Count == 0)
                 {
+                    _logger?.Warn("[ExophaseAuth] Snapshot file exists but contains no cookies - deleting corrupt snapshot");
+                    Delete();
                     return false;
                 }
 
@@ -84,14 +95,64 @@ namespace PlayniteAchievements.Providers.Exophase
                     .Where(cookie => cookie != null)
                     .ToList();
 
+                if (cookies.Count == 0)
+                {
+                    _logger?.Warn("[ExophaseAuth] Snapshot had cookies but all failed to convert - deleting corrupt snapshot");
+                    Delete();
+                    return false;
+                }
+
+                // Validate that critical auth cookies are present
+                var missingCritical = GetMissingCriticalCookies(cookies);
+                if (missingCritical.Count > 0)
+                {
+                    _logger?.Warn($"[ExophaseAuth] Snapshot missing critical cookies: {string.Join(", ", missingCritical)} - may need re-authentication");
+                    // Don't delete - partial snapshot might still work, but log warning
+                }
+                else
+                {
+                    _logger?.Info($"[ExophaseAuth] Snapshot validated: {cookies.Count} cookies, all critical cookies present");
+                }
+
                 return cookies.Count > 0;
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "[ExophaseAuth] Failed to load encrypted Exophase cookie snapshot.");
+                _logger?.Warn(ex, "[ExophaseAuth] Failed to load encrypted Exophase cookie snapshot - deleting corrupt file");
+                Delete(); // Clean up corrupt file
                 cookies = new List<HttpCookie>();
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Checks if the loaded cookies contain all critical authentication cookies.
+        /// </summary>
+        public static bool HasCriticalCookies(IReadOnlyList<HttpCookie> cookies)
+        {
+            if (cookies == null || cookies.Count == 0)
+                return false;
+
+            return GetMissingCriticalCookies(cookies).Count == 0;
+        }
+
+        /// <summary>
+        /// Gets the list of missing critical cookie names from the provided cookies.
+        /// </summary>
+        public static List<string> GetMissingCriticalCookies(IReadOnlyList<HttpCookie> cookies)
+        {
+            if (cookies == null || cookies.Count == 0)
+                return CriticalCookieNames.ToList();
+
+            var presentNames = new HashSet<string>(
+                cookies
+                    .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Name))
+                    .Select(c => c.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            return CriticalCookieNames
+                .Where(critical => !presentNames.Contains(critical))
+                .ToList();
         }
 
         public void Delete()
