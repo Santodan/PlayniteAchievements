@@ -7,6 +7,7 @@ using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -57,7 +58,12 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             var src = game.Source?.Name ?? string.Empty;
-            return src.IndexOf("xenia", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (src.IndexOf("xenia", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            return game.Platforms?.Any(p => p.SpecificationId == "xbox360") == true;
         }
 
         private bool UsesXeniaEmulator(Game game)
