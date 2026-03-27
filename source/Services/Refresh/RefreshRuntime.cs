@@ -29,6 +29,11 @@ namespace PlayniteAchievements.Services
         public List<Guid> LastRefreshedGameIds { get; private set; } = new List<Guid>();
 
         /// <summary>
+        /// Gets the provider keys that failed authentication in the most recent refresh.
+        /// </summary>
+        public List<string> GetLastFailedAuthProviderKeys() => new List<string>(_lastFailedAuthProviderKeys);
+
+        /// <summary>
         /// Raised after each individual game is refreshed and cached.
         /// Argument is the game ID that was refreshed.
         /// </summary>
@@ -54,7 +59,9 @@ namespace PlayniteAchievements.Services
         private readonly RefreshRequestPlanner _refreshRequestPlanner;
         private readonly RefreshProgressReporter _refreshProgressReporter;
         private readonly ProviderRegistry _providerRegistry;
+        private readonly Action<RebuildPayload> _onRefreshCompleted;
         private int _savedGamesInCurrentRun;
+        private volatile List<string> _lastFailedAuthProviderKeys = new List<string>();
 
         // Dependencies that need disposal
         private readonly IReadOnlyList<IDataProvider> _providers;
@@ -133,7 +140,8 @@ namespace PlayniteAchievements.Services
             IEnumerable<IDataProvider> providers,
             DiskImageService diskImageService,
             ProviderRegistry providerRegistry,
-            IEnumerable<string> refreshOrder)
+            IEnumerable<string> refreshOrder,
+            Action<RebuildPayload> onRefreshCompleted = null)
         {
             _api = api;
             _settings = settings;
@@ -153,6 +161,7 @@ namespace PlayniteAchievements.Services
                 _targetSelectionResolver);
             _refreshProgressReporter = new RefreshProgressReporter((report, prioritizePending) => Report(report, prioritizePending));
             _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
+            _onRefreshCompleted = onRefreshCompleted;
 
             _providers = providers.ToList();
         }
@@ -397,6 +406,11 @@ namespace PlayniteAchievements.Services
                 {
                     LastRefreshedGameIds = new List<Guid>();
                 }
+
+                // Store failed provider keys for notification consumers.
+                _lastFailedAuthProviderKeys = payload?.FailedProviderKeys?.Count > 0
+                    ? new List<string>(payload.FailedProviderKeys)
+                    : new List<string>();
             }
             catch (OperationCanceledException)
             {
@@ -444,6 +458,12 @@ namespace PlayniteAchievements.Services
                 if (hasSavedGames)
                 {
                     _cacheService.NotifyCacheInvalidated();
+                }
+
+                // Notify refresh completion subscribers (e.g., auth failure notifications).
+                if (!wasCanceled && payload != null)
+                {
+                    try { _onRefreshCompleted?.Invoke(payload); } catch { }
                 }
 
                 _refreshProgressReporter.Reset();
@@ -553,6 +573,7 @@ namespace PlayniteAchievements.Services
 
             var mergedSummary = new RebuildSummary();
             var authRequired = false;
+            var failedProviderKeys = new List<string>();
 
             foreach (var result in providerResults)
             {
@@ -561,7 +582,15 @@ namespace PlayniteAchievements.Services
                     continue;
                 }
 
-                authRequired |= result.Payload.AuthRequired;
+                if (result.Payload.AuthRequired)
+                {
+                    authRequired = true;
+                    var key = result.Provider?.ProviderKey;
+                    if (!string.IsNullOrWhiteSpace(key))
+                    {
+                        failedProviderKeys.Add(key);
+                    }
+                }
 
                 if (result.Payload.Summary == null)
                 {
@@ -581,7 +610,8 @@ namespace PlayniteAchievements.Services
             return new RebuildPayload
             {
                 Summary = mergedSummary,
-                AuthRequired = authRequired
+                AuthRequired = authRequired,
+                FailedProviderKeys = failedProviderKeys
             };
         }
 
