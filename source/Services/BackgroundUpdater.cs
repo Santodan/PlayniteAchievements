@@ -202,6 +202,17 @@ namespace PlayniteAchievements.Services
         {
             var lastStatus = _refreshService.GetLastRebuildStatus() ?? ResourceProvider.GetString("LOCPlayAch_Rebuild_Completed");
             _notifications?.ShowPeriodicStatus(lastStatus);
+
+            var failedKeys = _refreshService.GetLastFailedAuthProviderKeys();
+            if (failedKeys != null && failedKeys.Count > 0)
+            {
+                _notifications?.ShowProviderAuthFailed(failedKeys);
+            }
+            else
+            {
+                _notifications?.ClearAllProviderAuthNotifications();
+            }
+
             _onUpdateCompleted?.Invoke();
         }
 
