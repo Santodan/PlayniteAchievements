@@ -767,6 +767,8 @@
     <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeReady">READY</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeSetup">SETUP</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeDisabled">DISABLED</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_Checking">Checking...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeChecking">CHECKING</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Language">Achievement Language</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_EnableProvider">Enable</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_LanguageHint">Language for achievement text. Platforms will use this when available.</sys:String>
