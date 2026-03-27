@@ -25,5 +25,11 @@ namespace PlayniteAchievements.Models
     {
         public RebuildSummary Summary { get; set; } = new RebuildSummary();
         public bool AuthRequired { get; set; }
+
+        /// <summary>
+        /// Provider keys that failed authentication during this refresh.
+        /// Populated by the merge loop in RefreshRuntime from per-provider results.
+        /// </summary>
+        public List<string> FailedProviderKeys { get; set; } = new List<string>();
     }
 }
