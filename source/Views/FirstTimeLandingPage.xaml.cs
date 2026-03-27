@@ -887,6 +887,24 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void ThemeMigrationCustomExpander_Expanded(object sender, RoutedEventArgs e)
+        {
+            UpdateThemeMigrationModeButtonState();
+        }
+
+        private void ThemeMigrationCustomExpander_Collapsed(object sender, RoutedEventArgs e)
+        {
+            UpdateThemeMigrationModeButtonState();
+        }
+
+        private void UpdateThemeMigrationModeButtonState()
+        {
+            if (ThemeMigrationPresetButtons != null && ThemeMigrationCustomExpander != null)
+            {
+                ThemeMigrationPresetButtons.IsEnabled = !ThemeMigrationCustomExpander.IsExpanded;
+            }
+        }
+
         public void Dispose()
         {
             SetupComplete = null;

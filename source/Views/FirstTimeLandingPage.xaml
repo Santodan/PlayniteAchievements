@@ -463,7 +463,8 @@
                                   IsEnabled="{Binding HasThemesToMigrate}"/>
 
                         <!-- Migration Buttons -->
-                        <StackPanel Orientation="Horizontal"
+                        <StackPanel x:Name="ThemeMigrationPresetButtons"
+                                    Orientation="Horizontal"
                                     HorizontalAlignment="Center">
                             <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_MigrationLimited}"
                                     Command="{Binding MigrateThemeLimitedCommand}"
@@ -504,7 +505,10 @@
                                 Margin="0,16,0,0"
                                 Padding="0"
                                 IsEnabled="{Binding HasThemesToMigrate}">
-                            <Expander IsExpanded="False"
+                            <Expander x:Name="ThemeMigrationCustomExpander"
+                                      IsExpanded="False"
+                                      Expanded="ThemeMigrationCustomExpander_Expanded"
+                                      Collapsed="ThemeMigrationCustomExpander_Collapsed"
                                       Background="Transparent"
                                       BorderThickness="0">
                                 <Expander.Header>
