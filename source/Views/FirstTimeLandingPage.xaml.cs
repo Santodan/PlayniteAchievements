@@ -282,8 +282,9 @@ namespace PlayniteAchievements.Views
             _providerRegistry.SyncFromSettings(_settings.Persisted);
 
             var providers = _refreshService.Providers;
-            var refreshedStatuses = new List<ProviderStatus>();
 
+            // Clear and populate immediately with "checking" state
+            _providers.Clear();
             foreach (var provider in providers)
             {
                 if (ProviderUiPolicies.ShouldHideFromSetupSurfaces(provider?.ProviderKey))
@@ -291,33 +292,37 @@ namespace PlayniteAchievements.Views
                     continue;
                 }
 
-                var isEnabled = _providerRegistry.IsProviderEnabled(provider.ProviderKey);
-                var isAuthenticated = false;
-
-                if (isEnabled)
-                {
-                    isAuthenticated = await _refreshService
-                        .IsProviderAuthenticatedAsync(provider, CancellationToken.None)
-                        .ConfigureAwait(true);
-                }
-
-                var status = new ProviderStatus
+                _providers.Add(new ProviderStatus
                 {
                     Name = provider.ProviderName,
                     ProviderKey = provider.ProviderKey,
-                    IsEnabled = isEnabled,
-                    IsAuthenticated = isAuthenticated
-                };
-                refreshedStatuses.Add(status);
+                    IsEnabled = _providerRegistry.IsProviderEnabled(provider.ProviderKey),
+                    IsChecking = true
+                });
             }
 
-            _providers.Clear();
-            foreach (var status in refreshedStatuses)
+            // Check auth in-place, updating each provider as results arrive
+            foreach (var provider in providers)
             {
-                _providers.Add(status);
+                if (ProviderUiPolicies.ShouldHideFromSetupSurfaces(provider?.ProviderKey))
+                {
+                    continue;
+                }
+
+                var status = _providers.FirstOrDefault(s => s.ProviderKey == provider.ProviderKey);
+                if (status == null) continue;
+
+                if (status.IsEnabled)
+                {
+                    var isAuthenticated = await _refreshService
+                        .IsProviderAuthenticatedAsync(provider, CancellationToken.None)
+                        .ConfigureAwait(true);
+                    status.IsAuthenticated = isAuthenticated;
+                }
+                status.IsChecking = false;
             }
 
-            _hasAnyProviderAuth = refreshedStatuses.Any(status => status.IsEnabled && status.IsAuthenticated);
+            _hasAnyProviderAuth = _providers.Any(s => s.IsEnabled && s.IsAuthenticated);
 
             // Raise PropertyChanged for all state-dependent properties to refresh UI
             OnPropertyChanged(nameof(GlobalLanguage));
