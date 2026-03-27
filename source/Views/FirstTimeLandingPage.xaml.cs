@@ -234,6 +234,7 @@ namespace PlayniteAchievements.Views
             }
 
             InitializeComponent();
+            InitializeThemeMigrationCustomOptions();
 
             DataContext = this;
 
@@ -530,6 +531,8 @@ namespace PlayniteAchievements.Views
 
         private readonly ObservableCollection<ThemeDiscoveryService.ThemeInfo> _availableThemes;
         private readonly ObservableCollection<ThemeDiscoveryService.ThemeInfo> _revertableThemes;
+        private readonly ObservableCollection<ThemeMigrationElementOption> _themeMigrationCustomOptions
+            = new ObservableCollection<ThemeMigrationElementOption>();
         private string _selectedThemePath;
         private string _selectedRevertThemePath;
         private bool _showNoThemesMessage;
@@ -544,6 +547,11 @@ namespace PlayniteAchievements.Views
         /// Gets the collection of themes that can be reverted.
         /// </summary>
         public ObservableCollection<ThemeDiscoveryService.ThemeInfo> RevertableThemes => _revertableThemes;
+
+        /// <summary>
+        /// Gets the collection of custom migration element options.
+        /// </summary>
+        public ObservableCollection<ThemeMigrationElementOption> ThemeMigrationCustomOptions => _themeMigrationCustomOptions;
 
         /// <summary>
         /// Gets or sets the selected theme path for migration.
@@ -668,6 +676,58 @@ namespace PlayniteAchievements.Views
         });
 
         /// <summary>
+        /// Command to migrate the selected theme with Custom mode (user-selected control modernizations).
+        /// </summary>
+        public ICommand MigrateThemeCustomCommand => new RelayCommand(async () =>
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(SelectedThemePath))
+                {
+                    _logger.Warn("Migrate theme custom command executed but no theme selected.");
+                    return;
+                }
+
+                _logger.Info($"User requested Custom theme migration for: {SelectedThemePath}");
+
+                await ExecuteThemeMigrationAsync(SelectedThemePath, MigrationMode.Custom,
+                    BuildCustomMigrationSelection());
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to execute custom theme migration command.");
+                _api?.Notifications?.Add(new NotificationMessage(
+                    "PlayAch_MigrationError",
+                    $"Theme migration failed: {ex.Message}",
+                    NotificationType.Error));
+            }
+        });
+
+        /// <summary>
+        /// Command to set all custom migration options to Legacy.
+        /// </summary>
+        public ICommand SetAllMigrationLegacyCommand => new RelayCommand(
+            () => SetAllThemeMigrationCustomOptions(false));
+
+        /// <summary>
+        /// Command to set all custom migration options to Modern.
+        /// </summary>
+        public ICommand SetAllMigrationModernCommand => new RelayCommand(
+            () => SetAllThemeMigrationCustomOptions(true));
+
+        /// <summary>
+        /// Command to set a single migration row to Legacy.
+        /// </summary>
+        public ICommand SetMigrationRowLegacyCommand => new RelayCommand<ThemeMigrationElementOption>(
+            option => { if (option != null) option.IsModern = false; });
+
+        /// <summary>
+        /// Command to set a single migration row to Modern.
+        /// </summary>
+        public ICommand SetMigrationRowModernCommand => new RelayCommand<ThemeMigrationElementOption>(
+            option => { if (option != null) option.IsModern = true; });
+
+        /// <summary>
         /// Command to revert the selected theme.
         /// </summary>
         public ICommand RevertThemeCommand => new RelayCommand(async () =>
@@ -761,9 +821,10 @@ namespace PlayniteAchievements.Views
         /// <summary>
         /// Executes the theme migration.
         /// </summary>
-        private async Task ExecuteThemeMigrationAsync(string themePath, MigrationMode mode)
+        private async Task ExecuteThemeMigrationAsync(string themePath, MigrationMode mode,
+            CustomMigrationSelection customSelection = null)
         {
-            var result = await _themeMigration.MigrateThemeAsync(themePath, mode);
+            var result = await _themeMigration.MigrateThemeAsync(themePath, mode, customSelection);
 
             if (result.Success)
             {
@@ -829,6 +890,78 @@ namespace PlayniteAchievements.Views
         public void Dispose()
         {
             SetupComplete = null;
+        }
+
+        private void InitializeThemeMigrationCustomOptions()
+        {
+            _themeMigrationCustomOptions.Clear();
+
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginButton",
+                "LOCPlayAch_ThemeMigration_Custom_Button",
+                "Button"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginChart",
+                "LOCPlayAch_ThemeMigration_Custom_Chart",
+                "Bar Chart"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactList",
+                "LOCPlayAch_ThemeMigration_Custom_CompactList",
+                "Compact List"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactLocked",
+                "LOCPlayAch_ThemeMigration_Custom_CompactLocked",
+                "Compact Locked List"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginCompactUnlocked",
+                "LOCPlayAch_ThemeMigration_Custom_CompactUnlocked",
+                "Compact Unlocked List"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginList",
+                "LOCPlayAch_ThemeMigration_Custom_List",
+                "Achievement Grid"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginProgressBar",
+                "LOCPlayAch_ThemeMigration_Custom_ProgressBar",
+                "Progress Bar"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginUserStats",
+                "LOCPlayAch_ThemeMigration_Custom_UserStats",
+                "Stats Panel"));
+            _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
+                "PluginViewItem",
+                "LOCPlayAch_ThemeMigration_Custom_ViewItem",
+                "View Item"));
+        }
+
+        private ThemeMigrationElementOption CreateThemeMigrationControlOption(
+            string key,
+            string resourceKey,
+            string fallback)
+        {
+            return new ThemeMigrationElementOption(
+                key,
+                ResourceProvider.GetString(resourceKey) ?? fallback,
+                isBindingOption: false,
+                isModern: true);
+        }
+
+        private CustomMigrationSelection BuildCustomMigrationSelection()
+        {
+            var modernControlNames = _themeMigrationCustomOptions
+                .Where(option => option.IsModern)
+                .Select(option => option.Key)
+                .ToList();
+
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
+        }
+
+        private void SetAllThemeMigrationCustomOptions(bool isModern)
+        {
+            foreach (var option in _themeMigrationCustomOptions)
+            {
+                option.IsModern = isModern;
+            }
         }
 
         /// <summary>
