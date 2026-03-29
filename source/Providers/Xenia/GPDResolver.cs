@@ -114,6 +114,11 @@ namespace PlayniteAchievements.Providers.Xenia
                 {
                     case 1: // Achievement Data
 
+                        // Some "Achievement" entries from a real xbox 360 gpd have too little data (Probably not real achievements)
+                        // and can cause a crash when reading the data in
+                        if (entry.size < 28)
+                            break;
+
                         XdbfAchievement achievement = new XdbfAchievement();
                         achievement.magic = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
                         index += 4;
@@ -125,6 +130,20 @@ namespace PlayniteAchievements.Providers.Xenia
                         index += 4;
                         achievement.flags = ReverseEndianness(BitConverter.ToUInt32(entry.data, index));
                         index += 4;
+
+                        // This check is really just for gpd files that come from an actual xbox 360
+                        // Check to see if achievements have been synced to file
+                        if (achievement.flags == 0)
+                            break;
+
+                        // This check is also for achievements from an actual xbox 360 as xenia will always put the date in the file
+                        // Check to see if achievement earned flag has been set
+                        achievement.earned = false;
+                        if ((achievement.flags & 131072) == 131072)
+                        {
+                            achievement.earned = true;
+                        }
+
                         achievement.unlock_time = ReverseEndianness(BitConverter.ToUInt64(entry.data, index));
                         index += 8;
 
