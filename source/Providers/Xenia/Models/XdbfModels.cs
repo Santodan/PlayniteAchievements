@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Providers.Xenia.Models
         public UInt32 id;
         public UInt32 gamerscore;
         public UInt32 flags;
+        public bool earned;
         public UInt64 unlock_time;
         public string title;
         public string description;

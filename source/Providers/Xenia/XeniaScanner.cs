@@ -156,7 +156,7 @@ namespace PlayniteAchievements.Providers.Xenia
                         LockedIconPath = iconPath,
                         Points = (int?)achievement.gamerscore,
                         Rarity = GetRarityFromXboxPoints((int?)achievement.gamerscore),
-                        Unlocked = achievement.unlock_time != 0,
+                        Unlocked = achievement.earned,
                         UnlockTimeUtc = achievement.unlock_time != 0
                             ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
                             : (DateTime?)null,
