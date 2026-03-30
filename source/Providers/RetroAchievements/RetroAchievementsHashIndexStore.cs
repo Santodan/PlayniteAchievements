@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 }
 
                 var disk = await TryLoadFromDiskAsync(consoleId, cancel).ConfigureAwait(false);
-                if (disk != null && !IsStale(disk.UpdatedUtc))
+                if (disk != null && !IsStale(disk.UpdatedUtc) && disk.FormatVersion >= 1)
                 {
                     _logger?.Info($"[RA] Loaded hash index from disk for consoleId={consoleId} with {disk.HashToGameId.Count} hashes (cached at {disk.UpdatedUtc:yyyy-MM-dd HH:mm:ss} UTC).");
                     _memory[consoleId] = new CachedIndex { UpdatedUtc = disk.UpdatedUtc, Index = disk.HashToGameId, Subsets = disk.BaseGameToSubsets };
@@ -271,6 +271,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
             return new RaHashIndexCacheFile
             {
+                FormatVersion = 1,
                 UpdatedUtc = DateTime.UtcNow,
                 HashToGameId = index,
                 BaseGameToSubsets = subsets

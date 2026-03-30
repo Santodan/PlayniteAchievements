@@ -6,6 +6,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
 {
     internal sealed class RaHashIndexCacheFile
     {
+        [JsonProperty("FormatVersion")]
+        public int FormatVersion { get; set; }
+
         [JsonProperty("UpdatedUtc")]
         public DateTime UpdatedUtc { get; set; }
 
