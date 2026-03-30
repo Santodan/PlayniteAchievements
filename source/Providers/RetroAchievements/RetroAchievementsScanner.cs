@@ -421,7 +421,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                 {
                                     var subsetInfo = await _api.GetGameInfoAndUserProgressAsync(subset.Id, cancel).ConfigureAwait(false);
                                     var categoryLabel = ExtractCategoryLabel(subset.Title) ?? "Subset";
-                                    var subsetAchievements = ParseAchievements(subsetInfo, raSettings.RaRarityStats, categoryLabel: categoryLabel, isSubset: true);
+                                    var subsetAchievements = ParseAchievements(subsetInfo, raSettings.RaRarityStats, categoryLabel: categoryLabel);
 
                                     _logger?.Info($"[RA] Parsed {subsetAchievements.Count} achievements for subset '{subset.Title}' (category={categoryLabel}).");
 
@@ -497,7 +497,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return string.Join(",", hashes.Select(h => string.IsNullOrWhiteSpace(h) ? "?" : h));
         }
 
-        private static List<AchievementDetail> ParseAchievements(Models.RaGameInfoUserProgress gameInfo, string rarityStats, string categoryLabel = null, bool isSubset = false)
+        private static List<AchievementDetail> ParseAchievements(Models.RaGameInfoUserProgress gameInfo, string rarityStats, string categoryLabel = null)
         {
             var list = new List<AchievementDetail>();
 
@@ -613,7 +613,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     Points = ach.Points,
                     ScaledPoints = ach.TrueRatio,
                     Category = categoryLabel,
-                    CategoryType = isSubset ? "Subset" : null,
                     IsCapstone = string.Equals(ach.Type, "win_condition", StringComparison.OrdinalIgnoreCase),
                     UnlockTimeUtc = unlockUtc,
                     Hidden = false,
