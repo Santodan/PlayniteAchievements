@@ -2051,6 +2051,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // Play Status filter
+            // Played/Unplayed are OR'd (play-status categories), No Progress is AND'd (constraint)
             if (_selectedPlayStatusFilters.Count > 0)
             {
                 var playedOption = L("LOCPlayAch_Filter_Played", "Played");
@@ -2059,17 +2060,23 @@ namespace PlayniteAchievements.ViewModels
 
                 var includePlayed = _selectedPlayStatusFilters.Contains(playedOption);
                 var includeUnplayed = _selectedPlayStatusFilters.Contains(unplayedOption);
-                var includeNoProgress = _selectedPlayStatusFilters.Contains(noProgressOption);
+                var requireNoProgress = _selectedPlayStatusFilters.Contains(noProgressOption);
 
                 filtered = filtered.Where(g =>
                 {
+                    bool matchesStatus = false;
                     if (includePlayed && (g.LastPlayed.HasValue || g.UnlockedAchievements > 0))
-                        return true;
+                        matchesStatus = true;
                     if (includeUnplayed && !g.LastPlayed.HasValue && g.UnlockedAchievements == 0)
-                        return true;
-                    if (includeNoProgress && g.UnlockedAchievements == 0)
-                        return true;
-                    return false;
+                        matchesStatus = true;
+
+                    if (!matchesStatus)
+                        return false;
+
+                    if (requireNoProgress && g.UnlockedAchievements > 0)
+                        return false;
+
+                    return true;
                 });
             }
 
@@ -2234,17 +2241,23 @@ namespace PlayniteAchievements.ViewModels
 
                 var includePlayed = _selectedPlayStatusFilters.Contains(playedOption);
                 var includeUnplayed = _selectedPlayStatusFilters.Contains(unplayedOption);
-                var includeNoProgress = _selectedPlayStatusFilters.Contains(noProgressOption);
+                var requireNoProgress = _selectedPlayStatusFilters.Contains(noProgressOption);
 
                 filteredGames = filteredGames.Where(g =>
                 {
+                    bool matchesStatus = false;
                     if (includePlayed && (g.LastPlayed.HasValue || g.UnlockedAchievements > 0))
-                        return true;
+                        matchesStatus = true;
                     if (includeUnplayed && !g.LastPlayed.HasValue && g.UnlockedAchievements == 0)
-                        return true;
-                    if (includeNoProgress && g.UnlockedAchievements == 0)
-                        return true;
-                    return false;
+                        matchesStatus = true;
+
+                    if (!matchesStatus)
+                        return false;
+
+                    if (requireNoProgress && g.UnlockedAchievements > 0)
+                        return false;
+
+                    return true;
                 });
             }
 
