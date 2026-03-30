@@ -763,12 +763,6 @@
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarBarCharts}"
                                                   IsChecked="{Binding Persisted.ShowSidebarBarCharts}"
                                                   Margin="0,0,0,8"/>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGamesWithNoUnlocks}"
-                                                  IsChecked="{Binding Persisted.ShowGamesWithNoUnlocks}"
-                                                  Margin="0,0,0,8"/>
-                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowUnplayedGames}"
-                                                  IsChecked="{Binding Persisted.ShowUnplayedGames}"
-                                                  Margin="0,0,0,8"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
                                                   IsChecked="{Binding Persisted.UseCoverImages}"/>
                                     </StackPanel>
