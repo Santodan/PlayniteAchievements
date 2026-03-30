@@ -129,7 +129,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (string.IsNullOrWhiteSpace(providerSettings.RaUsername) || string.IsNullOrWhiteSpace(providerSettings.RaWebApiKey))
             {
                 _logger?.Warn("[RA] Missing RetroAchievements credentials - cannot scan achievements.");
-                return new RebuildPayload { Summary = new RebuildSummary() };
+                return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
             }
 
             if (gamesToRefresh is null || gamesToRefresh.Count == 0)

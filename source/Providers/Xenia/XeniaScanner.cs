@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Providers.Xenia
             if (string.IsNullOrWhiteSpace(_providerSettings.AccountPath))
             {
                 _logger?.Warn("[Xenia] Missing path to account - cannot scan achievements.");
-                return new RebuildPayload { Summary = new RebuildSummary() };
+                return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
             }
 
             if (gamesToRefresh is null || gamesToRefresh.Count == 0)

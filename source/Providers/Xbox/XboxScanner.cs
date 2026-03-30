@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 if (string.IsNullOrWhiteSpace(xuid))
                 {
                     _logger?.Warn("[XboxAch] Could not get XUID from auth data.");
-                    return new RebuildPayload { Summary = new RebuildSummary() };
+                    return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
                 }
 
                 var rateLimiter = new RateLimiter(

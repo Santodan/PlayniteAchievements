@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Providers.Steam
                 if (string.IsNullOrWhiteSpace(apiKey))
                 {
                     _logger?.Warn("[SteamAch] Missing Steam API key - cannot scan achievements.");
-                    return new RebuildPayload { Summary = new RebuildSummary() };
+                    return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
                 }
 
                 _logger?.Info("[SteamAch] Probing Steam login status before scan...");

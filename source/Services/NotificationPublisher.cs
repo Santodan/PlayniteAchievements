@@ -89,9 +89,6 @@ namespace PlayniteAchievements.Services
 
         public void ShowProviderAuthFailed(List<string> providerKeys)
         {
-            if (_settings?.Persisted?.EnableNotifications != true)
-                return;
-
             if (providerKeys == null || providerKeys.Count == 0)
                 return;
 
