@@ -123,11 +123,15 @@ namespace PlayniteAchievements.Providers.Steam
             WebAuthenticated = hasWebAuth;
             FullyConfigured = hasWebAuth && hasApiKey;
 
-            if (hasWebAuth)
+            if (hasWebAuth && hasApiKey)
             {
                 WebAuthStatus = string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"),
                     ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
+            }
+            else if (hasWebAuth)
+            {
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_WebAuthOnly");
             }
             else
             {

@@ -377,6 +377,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Auth_Cancelled">{0} authentication was cancelled.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_CookiesCleared">{0} session cleared.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_AlreadyAuthenticated">{0} configured successfully</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active, but API key is required.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_ProbeFailed">Unable to verify {0} authentication state.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_WindowNotOpened">Could not open the {0} login window. Check Playnite focus and try again.</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_AlreadyAuthenticated">Already authenticated.</sys:String>

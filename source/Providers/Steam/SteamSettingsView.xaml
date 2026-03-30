@@ -112,7 +112,7 @@
                                                     <Setter Property="Text" Value="&#xE783;"/>
                                                     <Setter Property="Foreground" Value="#F72585"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        <DataTrigger Binding="{Binding FullyConfigured, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                      Value="True">
                                                             <Setter Property="Text" Value="&#xE73E;"/>
                                                             <Setter Property="Foreground" Value="#06FFA5"/>
