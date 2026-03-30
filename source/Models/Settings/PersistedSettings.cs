@@ -48,8 +48,6 @@ namespace PlayniteAchievements.Models.Settings
         private SidebarPieSmallSliceMode _sidebarPieSmallSliceMode = SidebarPieSmallSliceMode.Round;
         private bool _sidebarPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showSidebarBarCharts = true;
-        private bool _showGamesWithNoUnlocks = false;
-        private bool _showUnplayedGames = false;
         private bool _showTopMenuBarButton = true;
         private bool _showCompactListRarityBar = true;
         private bool _enableCompactGridMode = false;
@@ -373,24 +371,6 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showSidebarBarCharts;
             set => SetValue(ref _showSidebarBarCharts, value);
-        }
-
-        /// <summary>
-        /// When true, shows games with no unlocked achievements in the sidebar game list.
-        /// </summary>
-        public bool ShowGamesWithNoUnlocks
-        {
-            get => _showGamesWithNoUnlocks;
-            set => SetValue(ref _showGamesWithNoUnlocks, value);
-        }
-
-        /// <summary>
-        /// When true, shows unplayed games in the sidebar game list.
-        /// </summary>
-        public bool ShowUnplayedGames
-        {
-            get => _showUnplayedGames;
-            set => SetValue(ref _showUnplayedGames, value);
         }
 
         /// <summary>
@@ -848,8 +828,6 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarPiePercentages = this.ShowSidebarPiePercentages,
                 SidebarPieSmallSliceMode = this.SidebarPieSmallSliceMode,
                 ShowSidebarBarCharts = this.ShowSidebarBarCharts,
-                ShowGamesWithNoUnlocks = this.ShowGamesWithNoUnlocks,
-                ShowUnplayedGames = this.ShowUnplayedGames,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
                 EnableCompactGridMode = this.EnableCompactGridMode,

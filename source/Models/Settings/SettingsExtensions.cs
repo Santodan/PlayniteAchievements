@@ -71,8 +71,6 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowSidebarPiePercentages = source.ShowSidebarPiePercentages;
             target.SidebarPieSmallSliceMode = source.SidebarPieSmallSliceMode;
             target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
-            target.ShowGamesWithNoUnlocks = source.ShowGamesWithNoUnlocks;
-            target.ShowUnplayedGames = source.ShowUnplayedGames;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.EnableCompactGridMode = source.EnableCompactGridMode;
