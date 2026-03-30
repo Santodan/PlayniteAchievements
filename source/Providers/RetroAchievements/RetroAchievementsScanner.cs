@@ -222,7 +222,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (raSettings.RaGameIdOverrides.TryGetValue(game.Id, out var overriddenId))
             {
                 _logger?.Info($"[RA] Using manual RA ID override: '{game.Name}' -> {overriddenId}");
-                var result = await FetchGameInfoAsync(game, overriddenId, cancel).ConfigureAwait(false);
+                var result = await FetchGameInfoAsync(game, overriddenId, consoleId, cancel).ConfigureAwait(false);
                 if (result != null)
                 {
                     result.IsAppIdOverridden = true;
@@ -237,7 +237,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (TryValidateCache(game, candidates, out var cachedRaGameId))
             {
                 // Still verify with RA API
-                var cachedResult = await FetchGameInfoAsync(game, cachedRaGameId, cancel).ConfigureAwait(false);
+                var cachedResult = await FetchGameInfoAsync(game, cachedRaGameId, consoleId, cancel).ConfigureAwait(false);
                 if (cachedResult != null && cachedResult.HasAchievements)
                 {
                     return cachedResult;
@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                 if (match)
                                 {
                                     StoreHashCacheEntry(game, candidate, gameId);
-                                    return await FetchGameInfoAsync(game, gameId, cancel).ConfigureAwait(false);
+                                    return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -308,7 +308,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                 if (match)
                                 {
                                     StoreHashCacheEntry(game, candidate, gameId);
-                                    return await FetchGameInfoAsync(game, gameId, cancel).ConfigureAwait(false);
+                                    return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -331,7 +331,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                             if (match)
                             {
                                 StoreHashCacheEntry(game, candidate, gameId);
-                                return await FetchGameInfoAsync(game, gameId, cancel).ConfigureAwait(false);
+                                return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
                             }
 
                             continue;
@@ -351,7 +351,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                 if (match)
                                 {
                                     StoreHashCacheEntry(game, candidate, gameId);
-                                    return await FetchGameInfoAsync(game, gameId, cancel).ConfigureAwait(false);
+                                    return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -370,7 +370,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                         if (match)
                         {
                             StoreHashCacheEntry(game, candidate, gameId);
-                            return await FetchGameInfoAsync(game, gameId, cancel).ConfigureAwait(false);
+                            return await FetchGameInfoAsync(game, gameId, consoleId, cancel).ConfigureAwait(false);
                         }
                     }
                 }
@@ -387,7 +387,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (nameMatchId > 0)
                 {
                     _logger?.Info($"[RA] Name-based fallback matched gameId={nameMatchId} for '{game.Name}'");
-                    return await FetchGameInfoAsync(game, nameMatchId, cancel).ConfigureAwait(false);
+                    return await FetchGameInfoAsync(game, nameMatchId, consoleId, cancel).ConfigureAwait(false);
                 }
                 _logger?.Info($"[RA] Name-based fallback found no match for '{game.Name}'");
             }
@@ -395,15 +395,52 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             return BuildNoAchievements(game, appId: 0);
         }
 
-        private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId, CancellationToken cancel)
+        private async Task<GameAchievementData> FetchGameInfoAsync(Game game, int gameId, int consoleId, CancellationToken cancel)
         {
             try
             {
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
-                var achievements = ParseAchievements(gameInfo, raSettings.RaRarityStats);
+                var achievements = ParseAchievements(gameInfo, raSettings.RaRarityStats, categoryLabel: "Base");
 
                 _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
+
+                // Fetch subset achievements if enabled.
+                if (raSettings.EnableRaSubsetScanning)
+                {
+                    try
+                    {
+                        var subsets = await _hashIndexStore.GetSubsetsForGameAsync(gameId, consoleId, cancel).ConfigureAwait(false);
+                        if (subsets != null && subsets.Count > 0)
+                        {
+                            foreach (var subset in subsets)
+                            {
+                                cancel.ThrowIfCancellationRequested();
+
+                                try
+                                {
+                                    var subsetInfo = await _api.GetGameInfoAndUserProgressAsync(subset.Id, cancel).ConfigureAwait(false);
+                                    var categoryLabel = ExtractCategoryLabel(subset.Title) ?? "Subset";
+                                    var subsetAchievements = ParseAchievements(subsetInfo, raSettings.RaRarityStats, categoryLabel: categoryLabel, isSubset: true);
+
+                                    _logger?.Info($"[RA] Parsed {subsetAchievements.Count} achievements for subset '{subset.Title}' (category={categoryLabel}).");
+
+                                    achievements.AddRange(subsetAchievements);
+                                }
+                                catch (OperationCanceledException) { throw; }
+                                catch (Exception ex)
+                                {
+                                    _logger?.Warn(ex, $"[RA] Failed to fetch subset '{subset.Title}' (ID={subset.Id}): {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        _logger?.Warn(ex, $"[RA] Failed to look up subsets for gameId={gameId}: {ex.Message}");
+                    }
+                }
 
                 return new GameAchievementData
                 {
