@@ -1,5 +1,24 @@
 AddonId: PlayniteAchievements
 Packages:
+  - Version: 2.0.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-03-30
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.0.0/PlayniteAchievements_2_0_0.pext
+    Changelog:
+        - "New Platforms: Xenia and Exophase. Thanks @matthew-pye for the work to add Xenia support!"
+        - "Exophase is now supported as a fully fledged provider, if you wish to use it to automatically fetch achievements for some services. For example, Exophase can be set to track your Xbox achievements, so you wouldn't need to log into Xbox within Playnite."
+        - "Full exophase support now also includes EA and Battle.net achievement tracking, which may also be added to the plugin in the future as standalone providers."
+        - "Theme Integration: New modern theme controls for better integration with existing themes and easier use in new themes. The theme migration tool has been updated to support this Full migration mode, as well as a Custom migration mode, if your theme needs more granular updates."
+        - "Github now has a full Wiki with documentation for using the plugin, troubleshooting, and developing themes. Check it out here: https://github.com/justin-delano/PlayniteAchievements/wiki"
+        - "Community localization is now set up via Crowdin, and the plugin is available for translation into more languages! If you'd like to contribute a translation, head over to the Crowdin page here: https://crowdin.com/project/playniteachievements"
+        - "Display settings tab now shows previews for each of the new theme controls, and adds additional new settings for pie chart display and other sidebar options."
+        - "Playnite Tagging support added. From the General settings tab, you can now automatically tag games with achievement data. Completing a game's achievements will now also add the builtin Completion Status."
+        - "RetroAchievements subset support option added, allowing automatic categorization of achievements."
+        - "Massive code refactor and optimization under the hood, improving performance and stability across the board, and setting the stage for future features and platforms."
+        - "Many small bug fixes, including some for Manual Achievement localization, and bulk game exclusions."
+        - "Thank you all for the support, this work would not be possible without feedback and testing from users on Github and Discord! This is a huge update, and I will try to resolve any issues as soon as possible."
+
+
   - Version: 1.6.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-11
