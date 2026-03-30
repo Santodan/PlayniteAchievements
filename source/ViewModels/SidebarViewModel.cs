@@ -132,6 +132,9 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameCategoryFilterOptions = new ObservableCollection<string>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
+            // Pre-seed Played as default so UI never renders the placeholder
+            _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_Played", "Played"));
+
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>(
                 _refreshService.GetRefreshModes().Where(m => m.Type != RefreshModeType.LibrarySelected));
@@ -1214,10 +1217,6 @@ namespace PlayniteAchievements.ViewModels
 
             UpdateProviderFilterOptions(_allGamesOverview);
             UpdateCompletenessFilterOptions();
-            // Default: select "Played" before initializing options so the first render shows "Played"
-            var playedOption = L("LOCPlayAch_Filter_Played", "Played");
-            _selectedPlayStatusFilters.Add(playedOption);
-
             UpdatePlayStatusFilterOptions();
 
             // Initialize filtered lists
