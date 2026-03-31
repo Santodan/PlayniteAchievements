@@ -1,11 +1,13 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Controls;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 
@@ -446,8 +448,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
     /// <summary>
     /// DataContext wrapper that substitutes custom modern and legacy theme bindings for preview.
     /// </summary>
-    internal class ThemePreviewContext
+    internal class ThemePreviewContext : PlayniteAchievements.Common.ObservableObject
     {
+        private static readonly List<AchievementDetail> EmptyAchievementList = new List<AchievementDetail>();
+        private static readonly AchievementRarityStats EmptyRarityStats = new AchievementRarityStats();
+
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ModernThemeBindings _modernThemeOverride;
         private readonly LegacyThemeBindings _legacyThemeOverride;
@@ -460,6 +465,16 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             _settings = settings;
             _modernThemeOverride = modernThemeOverride;
             _legacyThemeOverride = legacyThemeOverride;
+
+            if (_settings != null)
+            {
+                PropertyChangedEventManager.AddHandler(_settings, Settings_PropertyChanged, string.Empty);
+            }
+
+            if (_modernThemeOverride != null)
+            {
+                PropertyChangedEventManager.AddHandler(_modernThemeOverride, ModernThemeOverride_PropertyChanged, string.Empty);
+            }
         }
 
         /// <summary>
@@ -477,8 +492,137 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// </summary>
         public PlayniteAchievementsSettings Settings => _settings;
 
-        // Forward other common settings properties
+        public bool HasAchievements => _modernThemeOverride?.HasAchievements ?? _settings?.HasAchievements ?? false;
+
+        public int AchievementCount => _modernThemeOverride?.AchievementCount ?? _settings?.AchievementCount ?? 0;
+
+        public int UnlockedCount => _modernThemeOverride?.UnlockedCount ?? _settings?.UnlockedCount ?? 0;
+
+        public int LockedCount => _modernThemeOverride?.LockedCount ?? _settings?.LockedCount ?? 0;
+
+        public double ProgressPercentage => _modernThemeOverride?.ProgressPercentage ?? _settings?.ProgressPercentage ?? 0;
+
+        public bool IsCompleted => _modernThemeOverride?.IsCompleted ?? _settings?.IsCompleted ?? false;
+
+        public List<AchievementDetail> Achievements => _modernThemeOverride?.AllAchievements ?? _settings?.Achievements ?? EmptyAchievementList;
+
+        public List<AchievementDetail> AchievementsNewestFirst => _modernThemeOverride?.AchievementsNewestFirst ?? _settings?.AchievementsNewestFirst ?? EmptyAchievementList;
+
+        public List<AchievementDetail> AchievementsOldestFirst => _modernThemeOverride?.AchievementsOldestFirst ?? _settings?.AchievementsOldestFirst ?? EmptyAchievementList;
+
+        public List<AchievementDetail> AchievementsRarityAsc => _modernThemeOverride?.AchievementsRarityAsc ?? _settings?.AchievementsRarityAsc ?? EmptyAchievementList;
+
+        public List<AchievementDetail> AchievementsRarityDesc => _modernThemeOverride?.AchievementsRarityDesc ?? _settings?.AchievementsRarityDesc ?? EmptyAchievementList;
+
+        public AchievementRarityStats Common => _modernThemeOverride?.Common ?? _settings?.Common ?? EmptyRarityStats;
+
+        public AchievementRarityStats Uncommon => _modernThemeOverride?.Uncommon ?? _settings?.Uncommon ?? EmptyRarityStats;
+
+        public AchievementRarityStats Rare => _modernThemeOverride?.Rare ?? _settings?.Rare ?? EmptyRarityStats;
+
+        public AchievementRarityStats UltraRare => _modernThemeOverride?.UltraRare ?? _settings?.UltraRare ?? EmptyRarityStats;
+
+        public AchievementRarityStats RareAndUltraRare => _modernThemeOverride?.RareAndUltraRare ?? _settings?.RareAndUltraRare ?? EmptyRarityStats;
+
+        // Forward other common settings properties.
         public PersistedSettings Persisted => _settings?.Persisted;
+
+        private void Settings_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            var propertyName = e?.PropertyName;
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                OnPropertyChanged(nameof(Persisted));
+                return;
+            }
+
+            if (propertyName == nameof(PlayniteAchievementsSettings.Persisted))
+            {
+                OnPropertyChanged(nameof(Persisted));
+            }
+        }
+
+        private void ModernThemeOverride_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            var propertyName = e?.PropertyName;
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                NotifyForwardedModernProperties();
+                return;
+            }
+
+            switch (propertyName)
+            {
+                case nameof(ModernThemeBindings.HasAchievements):
+                    OnPropertyChanged(nameof(HasAchievements));
+                    break;
+                case nameof(ModernThemeBindings.AchievementCount):
+                    OnPropertyChanged(nameof(AchievementCount));
+                    break;
+                case nameof(ModernThemeBindings.UnlockedCount):
+                    OnPropertyChanged(nameof(UnlockedCount));
+                    break;
+                case nameof(ModernThemeBindings.LockedCount):
+                    OnPropertyChanged(nameof(LockedCount));
+                    break;
+                case nameof(ModernThemeBindings.ProgressPercentage):
+                    OnPropertyChanged(nameof(ProgressPercentage));
+                    break;
+                case nameof(ModernThemeBindings.IsCompleted):
+                    OnPropertyChanged(nameof(IsCompleted));
+                    break;
+                case nameof(ModernThemeBindings.AllAchievements):
+                    OnPropertyChanged(nameof(Achievements));
+                    break;
+                case nameof(ModernThemeBindings.AchievementsNewestFirst):
+                    OnPropertyChanged(nameof(AchievementsNewestFirst));
+                    break;
+                case nameof(ModernThemeBindings.AchievementsOldestFirst):
+                    OnPropertyChanged(nameof(AchievementsOldestFirst));
+                    break;
+                case nameof(ModernThemeBindings.AchievementsRarityAsc):
+                    OnPropertyChanged(nameof(AchievementsRarityAsc));
+                    break;
+                case nameof(ModernThemeBindings.AchievementsRarityDesc):
+                    OnPropertyChanged(nameof(AchievementsRarityDesc));
+                    break;
+                case nameof(ModernThemeBindings.Common):
+                    OnPropertyChanged(nameof(Common));
+                    break;
+                case nameof(ModernThemeBindings.Uncommon):
+                    OnPropertyChanged(nameof(Uncommon));
+                    break;
+                case nameof(ModernThemeBindings.Rare):
+                    OnPropertyChanged(nameof(Rare));
+                    break;
+                case nameof(ModernThemeBindings.UltraRare):
+                    OnPropertyChanged(nameof(UltraRare));
+                    break;
+                case nameof(ModernThemeBindings.RareAndUltraRare):
+                    OnPropertyChanged(nameof(RareAndUltraRare));
+                    break;
+            }
+        }
+
+        private void NotifyForwardedModernProperties()
+        {
+            OnPropertyChanged(nameof(HasAchievements));
+            OnPropertyChanged(nameof(AchievementCount));
+            OnPropertyChanged(nameof(UnlockedCount));
+            OnPropertyChanged(nameof(LockedCount));
+            OnPropertyChanged(nameof(ProgressPercentage));
+            OnPropertyChanged(nameof(IsCompleted));
+            OnPropertyChanged(nameof(Achievements));
+            OnPropertyChanged(nameof(AchievementsNewestFirst));
+            OnPropertyChanged(nameof(AchievementsOldestFirst));
+            OnPropertyChanged(nameof(AchievementsRarityAsc));
+            OnPropertyChanged(nameof(AchievementsRarityDesc));
+            OnPropertyChanged(nameof(Common));
+            OnPropertyChanged(nameof(Uncommon));
+            OnPropertyChanged(nameof(Rare));
+            OnPropertyChanged(nameof(UltraRare));
+            OnPropertyChanged(nameof(RareAndUltraRare));
+        }
     }
 }
 

@@ -79,6 +79,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         // Cache source references to avoid unnecessary cloning when data hasn't changed
         private List<AchievementDisplayItem> _lastAllItems;
         private List<AchievementDetail> _lastAllAchievements;
+        private List<AchievementDetail> _lastSourceAchievements;
 
         private List<AchievementDisplayItem> _displayItems = new List<AchievementDisplayItem>();
         /// <summary>
@@ -166,6 +167,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _lastAllItems = null;
             _lastAllAchievements = null;
+            _lastSourceAchievements = null;
             base.OnThemeDataOverrideChangedInternal();
         }
 
@@ -174,6 +176,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Default returns true (show all achievements).
         /// </summary>
         protected virtual bool FilterAchievement(AchievementDetail achievement) => true;
+
+        /// <summary>
+        /// Gets the ordered achievement source that should drive the compact list.
+        /// Defaults to the provider/source order list.
+        /// </summary>
+        protected virtual List<AchievementDetail> GetOrderedAchievements(ModernThemeBindings theme)
+        {
+            return theme?.AllAchievements ?? new List<AchievementDetail>();
+        }
+
+        /// <summary>
+        /// Gets the modern theme property name that backs <see cref="GetOrderedAchievements"/>.
+        /// </summary>
+        protected virtual string GetOrderedAchievementsPropertyName()
+        {
+            return nameof(ModernThemeBindings.AllAchievements);
+        }
 
         /// <summary>
         /// Loads data from modern theme bindings and applies filtering.
@@ -185,39 +204,53 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             {
                 _lastAllItems = null;
                 _lastAllAchievements = null;
+                _lastSourceAchievements = null;
                 ClearItems();
                 return;
             }
 
             var allItems = theme.AllAchievementDisplayItems ?? new List<AchievementDisplayItem>();
             var allAchievements = theme.AllAchievements ?? new List<AchievementDetail>();
+            var sourceAchievements = GetOrderedAchievements(theme) ?? new List<AchievementDetail>();
 
             // Skip work if source references haven't changed
-            if (ReferenceEquals(allItems, _lastAllItems) && ReferenceEquals(allAchievements, _lastAllAchievements))
+            if (ReferenceEquals(allItems, _lastAllItems) &&
+                ReferenceEquals(allAchievements, _lastAllAchievements) &&
+                ReferenceEquals(sourceAchievements, _lastSourceAchievements))
             {
                 return;
             }
 
             _lastAllItems = allItems;
             _lastAllAchievements = allAchievements;
+            _lastSourceAchievements = sourceAchievements;
             var revealedKeys = GetRevealedKeys(DisplayItems);
+            var displayItemByAchievement = BuildDisplayItemMap(allAchievements, allItems);
 
             // Build filtered display items
             var displayItems = new List<AchievementDisplayItem>();
 
-            for (int i = 0; i < allAchievements.Count && i < allItems.Count; i++)
+            for (int i = 0; i < sourceAchievements.Count; i++)
             {
-                if (FilterAchievement(allAchievements[i]))
+                var achievement = sourceAchievements[i];
+                if (achievement == null || !FilterAchievement(achievement))
                 {
-                    var clonedItem = allItems[i].Clone();
-                    var key = GetRevealKey(clonedItem);
-                    if (revealedKeys?.Contains(key) == true)
-                    {
-                        clonedItem.IsRevealed = true;
-                    }
-
-                    displayItems.Add(clonedItem);
+                    continue;
                 }
+
+                if (!displayItemByAchievement.TryGetValue(achievement, out var sourceItem) || sourceItem == null)
+                {
+                    continue;
+                }
+
+                var clonedItem = sourceItem.Clone();
+                var key = GetRevealKey(clonedItem);
+                if (revealedKeys?.Contains(key) == true)
+                {
+                    clonedItem.IsRevealed = true;
+                }
+
+                displayItems.Add(clonedItem);
             }
 
             // Apply VisibleCount limit
@@ -245,6 +278,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _lastAllItems = null;
             _lastAllAchievements = null;
+            _lastSourceAchievements = null;
             DisplayItems = new List<AchievementDisplayItem>();
             OverflowCount = 0;
             HasOverflow = false;
@@ -284,6 +318,32 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
 
             return $"{item.PlayniteGameId:N}|{item.ApiName}|{item.DisplayName}|{item.GameName}";
+        }
+
+        private static Dictionary<AchievementDetail, AchievementDisplayItem> BuildDisplayItemMap(
+            IList<AchievementDetail> achievements,
+            IList<AchievementDisplayItem> items)
+        {
+            var map = new Dictionary<AchievementDetail, AchievementDisplayItem>();
+            if (achievements == null || items == null)
+            {
+                return map;
+            }
+
+            var count = Math.Min(achievements.Count, items.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var achievement = achievements[i];
+                var item = items[i];
+                if (achievement == null || item == null || map.ContainsKey(achievement))
+                {
+                    continue;
+                }
+
+                map.Add(achievement, item);
+            }
+
+            return map;
         }
 
         /// <summary>
@@ -334,7 +394,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             // Refresh when achievement data changes
             return propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
-                   propertyName == nameof(ModernThemeBindings.AllAchievements);
+                   propertyName == nameof(ModernThemeBindings.AllAchievements) ||
+                   propertyName == GetOrderedAchievementsPropertyName();
         }
 
         /// <summary>

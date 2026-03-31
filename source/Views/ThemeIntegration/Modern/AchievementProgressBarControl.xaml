@@ -51,10 +51,10 @@
 
         <!-- Progress bar with percentage overlay -->
         <Grid VerticalAlignment="Center">
-            <ProgressBar Value="{Binding ModernTheme.ProgressPercentage, Mode=OneWay}"
+            <ProgressBar Value="{Binding ProgressPercentage, Mode=OneWay}"
                          Maximum="100"
                          Style="{StaticResource DesktopProgressBarStyle}"/>
-            <TextBlock Text="{Binding ModernTheme.ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}"
                        Style="{StaticResource DesktopProgressPercentTextStyle}"
                        TextWrapping="NoWrap"
                        IsHitTestVisible="False"
@@ -72,7 +72,7 @@
                    Source="{StaticResource BadgeCompletedGame}"
                    Style="{StaticResource ProgressFooterCompletedIconStyle}"
                    ToolTip="{DynamicResource LOCPlayAch_Completed}"
-                   Visibility="{Binding ModernTheme.IsCompleted, Converter={StaticResource BoolToVis}}"/>
+                   Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
 
             <shared:RarityBadgesControl x:Name="Badges"
                                         Grid.Column="1"

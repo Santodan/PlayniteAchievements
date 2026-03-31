@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows.Controls;
 using PlayniteAchievements.Models.Achievements;
 
@@ -19,6 +20,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Returns true only for unlocked achievements.
         /// </summary>
         protected override bool FilterAchievement(AchievementDetail achievement) => achievement.Unlocked;
+
+        /// <summary>
+        /// Mirrors legacy PluginCompactUnlocked behavior: newest unlocked achievements first.
+        /// </summary>
+        protected override List<AchievementDetail> GetOrderedAchievements(Models.ThemeIntegration.ModernThemeBindings theme)
+        {
+            return theme?.AchievementsNewestFirst ?? base.GetOrderedAchievements(theme);
+        }
+
+        protected override string GetOrderedAchievementsPropertyName()
+        {
+            return nameof(Models.ThemeIntegration.ModernThemeBindings.AchievementsNewestFirst);
+        }
 
         /// <summary>
         /// Refreshes the ItemsControl ItemsSource binding.
