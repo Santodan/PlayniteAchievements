@@ -17,6 +17,7 @@ using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
 using System.Diagnostics;
@@ -799,26 +800,107 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void ClearImageCache_Click(object sender, RoutedEventArgs e)
+        private void ClearAllIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.All);
+
+        private void ClearCompressedIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.CompressedOnly);
+
+        private void ClearFullResolutionIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.FullResolutionOnly);
+
+        private void ClearLockedIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.LockedOnly);
+
+        private void ClearIconCache(IconCacheClearScope scope)
         {
             try
             {
                 _plugin.ImageService?.Clear();
-                _plugin.ImageService?.ClearDiskCache();
+
+                IEnumerable<string> additionalPaths = null;
+                if (scope == IconCacheClearScope.LockedOnly)
+                {
+                    additionalPaths = GetExplicitLockedIconCachePaths();
+                }
+
+                var deletedCount = _plugin.ImageService?.ClearDiskCache(scope, additionalPaths) ?? 0;
+                var fileLabel = ResourceProvider.GetString(GetIconCacheFileLabelResourceKey(scope));
+                var message = deletedCount > 0
+                    ? LF("LOCPlayAch_Settings_IconCache_ClearedCount", "Removed {0} cached {1} file(s). Missing icons will be restored on the next refresh.", deletedCount, fileLabel)
+                    : LF("LOCPlayAch_Settings_IconCache_NoFiles", "No cached {0} files were found.", fileLabel);
+
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_ImageCache_Cleared"),
+                    message,
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
+                var fileLabel = ResourceProvider.GetString(GetIconCacheFileLabelResourceKey(scope));
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_ImageCache_ClearFailed") + ": " + ex.Message,
+                    LF("LOCPlayAch_Settings_IconCache_ClearFailedWithError", "Failed to clear cached {0} files: {1}", fileLabel, ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        private string GetIconCacheFileLabelResourceKey(IconCacheClearScope scope)
+        {
+            switch (scope)
+            {
+                case IconCacheClearScope.CompressedOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_Compressed";
+                case IconCacheClearScope.FullResolutionOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_FullResolution";
+                case IconCacheClearScope.LockedOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_Locked";
+                default:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_All";
+            }
+        }
+
+        private IEnumerable<string> GetExplicitLockedIconCachePaths()
+        {
+            var cache = _plugin.RefreshRuntime?.Cache;
+            var cachedGameIds = cache?.GetCachedGameIds();
+            if (cachedGameIds == null || cachedGameIds.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var lockedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var gameId in cachedGameIds)
+            {
+                var gameData = cache.LoadGameData(gameId);
+                var achievements = gameData?.Achievements;
+                if (achievements == null)
+                {
+                    continue;
+                }
+
+                foreach (var achievement in achievements)
+                {
+                    var lockedPath = achievement?.LockedIconPath;
+                    if (!DiskImageService.IsLocalIconPath(lockedPath))
+                    {
+                        continue;
+                    }
+
+                    var unlockedPath = achievement?.UnlockedIconPath;
+                    if (!string.IsNullOrWhiteSpace(unlockedPath) &&
+                        string.Equals(lockedPath.Trim(), unlockedPath.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    lockedPaths.Add(lockedPath);
+                }
+            }
+
+            return lockedPaths;
         }
 
         private void ResetFirstTimeSetup_Click(object sender, RoutedEventArgs e)

@@ -38,6 +38,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showLockedIcon = true;
         private bool _preserveAchievementIconResolution = false;
         private bool _useSeparateLockedIconsWhenAvailable = false;
+        private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private bool _showRarityGlow = true;
         private bool _useCoverImages = true;
         private bool _includeUnplayedGames = true;
@@ -263,6 +264,31 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _useSeparateLockedIconsWhenAvailable;
             set => SetValue(ref _useSeparateLockedIconsWhenAvailable, value);
+        }
+
+        /// <summary>
+        /// Game IDs that always use separate locked icons when available, regardless of the global default.
+        /// When absent, the game falls back to the global UseSeparateLockedIconsWhenAvailable setting.
+        /// </summary>
+        public HashSet<Guid> SeparateLockedIconEnabledGameIds
+        {
+            get => _separateLockedIconEnabledGameIds;
+            set => SetValue(ref _separateLockedIconEnabledGameIds, value ?? new HashSet<Guid>());
+        }
+
+        /// <summary>
+        /// Resolves whether a game should use separate locked icons after applying the per-game override.
+        /// </summary>
+        public bool ShouldUseSeparateLockedIcons(Guid? playniteGameId)
+        {
+            if (UseSeparateLockedIconsWhenAvailable)
+            {
+                return true;
+            }
+
+            return playniteGameId.HasValue &&
+                   playniteGameId.Value != Guid.Empty &&
+                   SeparateLockedIconEnabledGameIds?.Contains(playniteGameId.Value) == true;
         }
 
         /// <summary>
@@ -911,6 +937,9 @@ namespace PlayniteAchievements.Models.Settings
                     : new HashSet<Guid>(),
                 ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
                     ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
+                    : new HashSet<Guid>(),
+                SeparateLockedIconEnabledGameIds = this.SeparateLockedIconEnabledGameIds != null
+                    ? new HashSet<Guid>(this.SeparateLockedIconEnabledGameIds)
                     : new HashSet<Guid>(),
                 ManualCapstones = this.ManualCapstones != null
                     ? new Dictionary<Guid, string>(this.ManualCapstones)

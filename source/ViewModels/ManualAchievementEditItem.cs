@@ -22,6 +22,7 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public sealed class ManualAchievementEditItem : INotifyPropertyChanged
     {
+        private readonly Guid? _playniteGameId;
         private bool _isUnlocked;
         private bool _isRevealed;
         private DateTime? _unlockTime;
@@ -125,8 +126,8 @@ namespace PlayniteAchievements.ViewModels
         public string DisplayIcon => DisplayIconUrl;
 
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
-        private static bool UseSeparateLockedIconsWhenAvailable =>
-            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.UseSeparateLockedIconsWhenAvailable ?? false;
+        private bool UseSeparateLockedIconsWhenAvailable =>
+            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ShouldUseSeparateLockedIcons(_playniteGameId) ?? false;
 
         /// <summary>
         /// Whether this hidden achievement can be revealed (hidden and not unlocked).
@@ -528,9 +529,10 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedTimeModeText));
         }
 
-        public ManualAchievementEditItem(AchievementDetail source, bool isUnlocked, DateTime? unlockTime)
+        public ManualAchievementEditItem(AchievementDetail source, bool isUnlocked, DateTime? unlockTime, Guid? playniteGameId = null)
         {
             Source = source ?? throw new ArgumentNullException(nameof(source));
+            _playniteGameId = playniteGameId;
             _isUnlocked = isUnlocked;
             _unlockTime = unlockTime;
             InitializeTimePickerFromUnlockTime();

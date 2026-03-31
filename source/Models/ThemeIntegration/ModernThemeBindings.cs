@@ -232,14 +232,15 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 }
 
                 var settings = PlayniteAchievementsPlugin.Instance?.Settings;
-                var showHiddenIcon = settings?.Persisted?.ShowHiddenIcon ?? false;
-                var showHiddenTitle = settings?.Persisted?.ShowHiddenTitle ?? false;
-                var showHiddenDescription = settings?.Persisted?.ShowHiddenDescription ?? false;
-                var showHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true;
-                var showLockedIcon = settings?.Persisted?.ShowLockedIcon ?? true;
-                var useSeparateLockedIcons = settings?.Persisted?.UseSeparateLockedIconsWhenAvailable ?? false;
-                var showRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true;
-                var showRarityBar = settings?.Persisted?.ShowCompactListRarityBar ?? true;
+                var persisted = settings?.Persisted;
+                var showHiddenIcon = persisted?.ShowHiddenIcon ?? false;
+                var showHiddenTitle = persisted?.ShowHiddenTitle ?? false;
+                var showHiddenDescription = persisted?.ShowHiddenDescription ?? false;
+                var showHiddenSuffix = persisted?.ShowHiddenSuffix ?? true;
+                var showLockedIcon = persisted?.ShowLockedIcon ?? true;
+                var useSeparateLockedIcons = persisted?.UseSeparateLockedIconsWhenAvailable ?? false;
+                var showRarityGlow = persisted?.ShowRarityGlow ?? true;
+                var showRarityBar = persisted?.ShowCompactListRarityBar ?? true;
 
                 var items = new List<AchievementDisplayItem>(_allAchievements.Count);
                 foreach (var achievement in _allAchievements)
@@ -256,7 +257,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                         showHiddenDescription,
                         showHiddenSuffix,
                         showLockedIcon,
-                        useSeparateLockedIcons,
+                        ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIcons),
                         showRarityGlow,
                         showRarityBar);
                     items.Add(item);
@@ -285,6 +286,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             }
 
             var items = new List<AchievementDisplayItem>(_allAchievements.Count);
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             foreach (var achievement in _allAchievements)
             {
                 var item = new AchievementDisplayItem();
@@ -299,7 +301,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                     showHiddenDescription,
                     showHiddenSuffix,
                     showLockedIcon,
-                    useSeparateLockedIconsWhenAvailable,
+                    ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIconsWhenAvailable),
                     showRarityGlow,
                     showRarityBar);
                 items.Add(item);
@@ -579,6 +581,19 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             target.ReplaceAll(value ?? new List<T>());
             OnPropertyChanged(propertyName);
+        }
+
+        private static bool ResolveUseSeparateLockedIcons(
+            Models.Settings.PersistedSettings settings,
+            System.Guid? playniteGameId,
+            bool fallbackValue)
+        {
+            if (settings == null || !playniteGameId.HasValue || playniteGameId.Value == System.Guid.Empty)
+            {
+                return fallbackValue;
+            }
+
+            return settings.ShouldUseSeparateLockedIcons(playniteGameId);
         }
     }
 }

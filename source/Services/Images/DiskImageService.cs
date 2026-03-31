@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -14,6 +15,14 @@ using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.Images
 {
+    public enum IconCacheClearScope
+    {
+        All = 0,
+        CompressedOnly = 1,
+        FullResolutionOnly = 2,
+        LockedOnly = 3
+    }
+
     /// <summary>
     /// Persistent disk-based icon cache with URI-based organization.
     /// Downloads icons, converts to PNG, and stores on disk for fast retrieval.
@@ -489,16 +498,29 @@ namespace PlayniteAchievements.Services.Images
         {
             try
             {
-                if (Directory.Exists(IconCacheDirectory))
-                {
-                    Directory.Delete(IconCacheDirectory, recursive: true);
-                    EnsureIconCacheDirectory();
-                    _logger?.Info("Cleared all icon cache");
-                }
+                ClearIconCache(IconCacheClearScope.All);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to clear icon cache");
+            }
+        }
+
+        public int ClearIconCache(IconCacheClearScope scope, IEnumerable<string> additionalPaths = null)
+        {
+            try
+            {
+                if (scope == IconCacheClearScope.All)
+                {
+                    return ClearEntireIconCache();
+                }
+
+                return ClearScopedIconCache(scope, additionalPaths);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to clear icon cache for scope '{scope}'.");
+                return 0;
             }
         }
 
@@ -526,6 +548,173 @@ namespace PlayniteAchievements.Services.Images
         public void RemoveGameIconCache(string gameId)
         {
             ClearGameCache(gameId);
+        }
+
+        private int ClearEntireIconCache()
+        {
+            if (!Directory.Exists(IconCacheDirectory))
+            {
+                EnsureIconCacheDirectory();
+                return 0;
+            }
+
+            var deletedCount = CountCachedPngFiles(IconCacheDirectory);
+            Directory.Delete(IconCacheDirectory, recursive: true);
+            EnsureIconCacheDirectory();
+            try { _iconPathCache.Clear(); } catch { }
+            _logger?.Info($"Cleared all icon cache files. deletedCount={deletedCount}");
+            return deletedCount;
+        }
+
+        private int ClearScopedIconCache(IconCacheClearScope scope, IEnumerable<string> additionalPaths)
+        {
+            if (!Directory.Exists(IconCacheDirectory))
+            {
+                EnsureIconCacheDirectory();
+                return 0;
+            }
+
+            var cacheRoot = Path.GetFullPath(IconCacheDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var filesToDelete = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, "*.png", SearchOption.AllDirectories))
+            {
+                if (ShouldDeleteCacheFile(file, scope))
+                {
+                    filesToDelete.Add(Path.GetFullPath(file));
+                }
+            }
+
+            if (additionalPaths != null)
+            {
+                foreach (var path in additionalPaths)
+                {
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var normalized = Path.GetFullPath(path);
+                        if (IsPathWithinDirectory(normalized, cacheRoot) && File.Exists(normalized))
+                        {
+                            filesToDelete.Add(normalized);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore malformed paths from stale cache data.
+                    }
+                }
+            }
+
+            var deletedCount = 0;
+            foreach (var file in filesToDelete)
+            {
+                try
+                {
+                    if (!File.Exists(file))
+                    {
+                        continue;
+                    }
+
+                    File.Delete(file);
+                    deletedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to delete cached icon '{file}'.");
+                }
+            }
+
+            DeleteEmptyDirectories(cacheRoot);
+            EnsureIconCacheDirectory();
+            _logger?.Info($"Cleared icon cache scope '{scope}'. deletedCount={deletedCount}");
+            return deletedCount;
+        }
+
+        private static int CountCachedPngFiles(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return 0;
+            }
+
+            var count = 0;
+            foreach (var _ in Directory.EnumerateFiles(directory, "*.png", SearchOption.AllDirectories))
+            {
+                count++;
+            }
+
+            return count;
+        }
+
+        private static bool ShouldDeleteCacheFile(string path, IconCacheClearScope scope)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            var fileName = Path.GetFileName(path) ?? string.Empty;
+            var parentDirectory = Path.GetDirectoryName(path);
+            var modeFolder = string.IsNullOrWhiteSpace(parentDirectory)
+                ? string.Empty
+                : new DirectoryInfo(parentDirectory).Name;
+            var isCompressed = string.Equals(modeFolder, "128", StringComparison.OrdinalIgnoreCase) ||
+                               fileName.EndsWith("_128.png", StringComparison.OrdinalIgnoreCase);
+
+            switch (scope)
+            {
+                case IconCacheClearScope.CompressedOnly:
+                    return isCompressed;
+                case IconCacheClearScope.FullResolutionOnly:
+                    return !isCompressed;
+                case IconCacheClearScope.LockedOnly:
+                    return fileName.EndsWith(".locked.png", StringComparison.OrdinalIgnoreCase);
+                default:
+                    return true;
+            }
+        }
+
+        private static bool IsPathWithinDirectory(string candidatePath, string directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(directoryPath))
+            {
+                return false;
+            }
+
+            if (string.Equals(candidatePath, directoryPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var normalizedDirectory = directoryPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                ? directoryPath
+                : directoryPath + Path.DirectorySeparatorChar;
+
+            return candidatePath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void DeleteEmptyDirectories(string rootDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(rootDirectory) || !Directory.Exists(rootDirectory))
+            {
+                return;
+            }
+
+            foreach (var directory in Directory.GetDirectories(rootDirectory, "*", SearchOption.AllDirectories))
+            {
+                DeleteEmptyDirectories(directory);
+            }
+
+            if (Directory.GetDirectories(rootDirectory).Length == 0 &&
+                Directory.GetFiles(rootDirectory).Length == 0)
+            {
+                Directory.Delete(rootDirectory, recursive: false);
+            }
         }
 
         public long GetCacheSizeBytes()

@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var preserveOriginalResolution = _settings.PreserveAchievementIconResolution;
-            var useSeparateLockedIcons = _settings.UseSeparateLockedIconsWhenAvailable;
+            var useSeparateLockedIcons = _settings.ShouldUseSeparateLockedIcons(data?.PlayniteGameId);
             var decodeSize = preserveOriginalResolution ? 0 : OptimizedDecodeSize;
             var gameId = ResolveGameId(data);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(

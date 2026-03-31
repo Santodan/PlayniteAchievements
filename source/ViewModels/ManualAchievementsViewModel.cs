@@ -1253,7 +1253,7 @@ namespace PlayniteAchievements.ViewModels
                         unlockTime = null;
                     }
 
-                    var item = new ManualAchievementEditItem(detail, isUnlocked, unlockTime);
+                    var item = new ManualAchievementEditItem(detail, isUnlocked, unlockTime, _playniteGame.Id);
                     item.PropertyChanged += OnAchievementChanged;
                     AllAchievements.Add(item);
                 }

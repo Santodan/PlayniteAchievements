@@ -58,6 +58,7 @@ namespace PlayniteAchievements.ViewModels
         private string _manualTrackingWarningAcceptedForProvider;
         private bool _showManualTrackingTab = true;
         private bool _showExophaseToggle;
+        private bool _useSeparateLockedIconsOverride;
         private bool _useExophaseForGame;
         private bool _isExophaseManagedByPlatform;
         private string _exophaseAutoSlug;
@@ -179,6 +180,48 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _showExophaseToggle;
             private set => SetValue(ref _showExophaseToggle, value);
+        }
+
+        public bool UseSeparateLockedIconsOverride
+        {
+            get => _useSeparateLockedIconsOverride;
+            set
+            {
+                if (!HasGame)
+                {
+                    return;
+                }
+
+                if (SetValueAndReturn(ref _useSeparateLockedIconsOverride, value))
+                {
+                    _achievementOverridesService?.SetSeparateLockedIconOverride(_gameId, value);
+                    OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
+                }
+            }
+        }
+
+        public string SeparateLockedIconsStatusText
+        {
+            get
+            {
+                if (UseSeparateLockedIconsOverride)
+                {
+                    return L(
+                        "LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusOverride",
+                        "Enabled via override");
+                }
+
+                if (_settings?.Persisted?.ShouldUseSeparateLockedIcons(_gameId) == true)
+                {
+                    return L(
+                        "LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusSettings",
+                        "Enabled via settings");
+                }
+
+                return L(
+                    "LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusDisabled",
+                    "Disabled");
+            }
         }
 
         public bool UseExophaseForGame
@@ -588,6 +631,10 @@ namespace PlayniteAchievements.ViewModels
 
                 IsExcluded = isExcluded;
                 IsExcludedFromSummaries = _settings?.Persisted?.ExcludedFromSummariesGameIds?.Contains(_gameId) ?? false;
+                SetValue(
+                    ref _useSeparateLockedIconsOverride,
+                    _settings?.Persisted?.SeparateLockedIconEnabledGameIds?.Contains(_gameId) == true);
+                OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
 
                 var raProvider = _refreshService?.Providers
                     ?.FirstOrDefault(p => p.ProviderKey == "RetroAchievements");

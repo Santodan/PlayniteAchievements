@@ -62,6 +62,9 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowLockedIcon = source.ShowLockedIcon;
             target.PreserveAchievementIconResolution = source.PreserveAchievementIconResolution;
             target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
+            target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
+                ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
+                : new HashSet<Guid>();
             target.ShowRarityGlow = source.ShowRarityGlow;
             target.UseCoverImages = source.UseCoverImages;
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;

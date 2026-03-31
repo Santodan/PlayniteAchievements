@@ -190,6 +190,32 @@ namespace PlayniteAchievements.Services
             _notifyCacheInvalidated(true);
         }
 
+        public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)
+        {
+            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            var updated = _settings.Persisted.SeparateLockedIconEnabledGameIds != null
+                ? new HashSet<Guid>(_settings.Persisted.SeparateLockedIconEnabledGameIds)
+                : new HashSet<Guid>();
+
+            if (enabled)
+            {
+                updated.Add(gameId);
+            }
+            else
+            {
+                updated.Remove(gameId);
+            }
+
+            _settings.Persisted.SeparateLockedIconEnabledGameIds = updated;
+            _persistSettings(true);
+            _notifyCacheInvalidated(true);
+            _raiseGameDataChanged?.Invoke(new List<Guid> { gameId });
+        }
+
         public void SetExcludedByUser(Guid playniteGameId, bool excluded, bool clearCachedDataWhenExcluding)
         {
             if (playniteGameId == Guid.Empty)

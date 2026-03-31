@@ -577,90 +577,199 @@
                             </StackPanel>
                         </Border> -->
 
-                        <!-- ================== DATA MANAGEMENT ================== -->
+                        <!-- ================== MAINTENANCE ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Cache_Title}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
                                            Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"/>
 
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_Cache_Description}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               VerticalAlignment="Center"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Row="0" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_WipeCache_All}"
-                                            Click="WipeCache_Click"
-                                            Padding="14,6"
-                                            Margin="16,0,0,0"
-                                            MinWidth="90"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ImageCache_Description}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearButton}"
+                                                    Click="WipeCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                    <Button Grid.Row="1" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ImageCache_Clear}"
-                                            Click="ClearImageCache_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Row="2" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
-                                            Click="ResetFirstTimeSetup_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllButton}"
+                                                    Click="ClearAllIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
 
-                                    <Button Grid.Row="3" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
-                                            Click="ExportDatabase_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="4" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearCompressedDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <Button Grid.Row="4" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
-                                            Click="OpenDataFolder_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearCompressedButton}"
+                                                    Click="ClearCompressedIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
 
-                                </Grid>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearFullResolutionButton}"
+                                                    Click="ClearFullResolutionIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedButton}"
+                                                    Click="ClearLockedIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
+                                                    Click="ResetFirstTimeSetup_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
+                                                    Click="ExportDatabase_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
+                                                    Click="OpenDataFolder_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 

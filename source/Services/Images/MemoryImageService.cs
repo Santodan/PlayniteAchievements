@@ -70,6 +70,11 @@ namespace PlayniteAchievements.Services.Images
             _diskService.ClearAllCache();
         }
 
+        public int ClearDiskCache(IconCacheClearScope scope, IEnumerable<string> additionalPaths = null)
+        {
+            return _diskService.ClearIconCache(scope, additionalPaths);
+        }
+
         private const string GrayPrefix = "gray:";
 
         public Task<BitmapSource> GetAsync(string uri, int decodePixel, CancellationToken cancel)

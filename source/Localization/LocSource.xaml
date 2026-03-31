@@ -195,6 +195,12 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">Exclude this game from sidebar and all-games summary data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHeader">Separate Locked Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHint">Force this game to download and use separate locked icons when providers expose them. When unchecked, the game follows the global setting. Changes apply on the next refresh for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsCheckbox">Always use separate locked icons for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusOverride">Enabled via override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusSettings">Enabled via settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusDisabled">Disabled</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Apply">Apply</sys:String>
@@ -531,6 +537,31 @@
     <!-- ================================================================= -->
     <!-- CACHE                                                              -->
     <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Title">Maintenance</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Description">Tools for clearing cached plugin data and opening support or debugging utilities.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Cached Achievement Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Clear cached achievement records without touching icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Remove cached achievement data. Refresh again to rebuild it from providers.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearButton">Clear Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Title">Achievement Icon Cache</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Description">Remove cached icon files. All actions also clear the in-memory image cache, and missing files are restored on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">Remove every cached achievement icon file.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllButton">Clear All Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">Remove only optimized 128px icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedButton">Clear Compressed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription">Remove only original-resolution icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionButton">Clear Full-Res</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedDescription">Remove only separate locked icon files. Locked achievements fall back until the next refresh restores them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedButton">Clear Locked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">Utilities</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Description">Non-cache maintenance and debugging tools.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_All">icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">compressed icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">full-resolution icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">locked icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearedCount">Removed {0} cached {1} file(s). Missing icons will be restored on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_NoFiles">No cached {0} files were found.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFailedWithError">Failed to clear cached {0} files: {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Title">Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Description">Clear the plugin's cached achievement data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_WipeCache_All">Clear Cache</sys:String>

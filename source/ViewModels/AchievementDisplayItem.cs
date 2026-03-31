@@ -613,16 +613,17 @@ namespace PlayniteAchievements.ViewModels
             ShowRarityBar = showRarityBar;
         }
 
-        public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings)
+        public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
         {
             var persisted = settings?.Persisted;
+            var resolvedGameId = playniteGameId ?? PlayniteGameId;
             ApplyAppearanceSettings(
                 persisted?.ShowHiddenIcon ?? false,
                 persisted?.ShowHiddenTitle ?? false,
                 persisted?.ShowHiddenDescription ?? false,
                 persisted?.ShowHiddenSuffix ?? true,
                 persisted?.ShowLockedIcon ?? true,
-                persisted?.UseSeparateLockedIconsWhenAvailable ?? false,
+                persisted?.ShouldUseSeparateLockedIcons(resolvedGameId) ?? false,
                 persisted?.ShowRarityGlow ?? true,
                 persisted?.ShowCompactListRarityBar ?? true);
         }
@@ -786,7 +787,7 @@ namespace PlayniteAchievements.ViewModels
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
             var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData));
             item.IsRevealed = ShouldRestoreRevealedState(gameData, achievement, settings, revealedKeys, gameId);
-            item.ApplyAppearanceSettings(settings);
+            item.ApplyAppearanceSettings(settings, gameId);
             return item;
         }
 
@@ -809,7 +810,7 @@ namespace PlayniteAchievements.ViewModels
                 ResolvePoints(achievement, gameData));
             item.GameIconPath = gameIconPath;
             item.GameCoverPath = gameCoverPath;
-            item.ApplyAppearanceSettings(settings);
+            item.ApplyAppearanceSettings(settings, gameData?.PlayniteGameId);
             return item;
         }
 
@@ -823,6 +824,7 @@ namespace PlayniteAchievements.ViewModels
                 case nameof(PersistedSettings.ShowHiddenSuffix):
                 case nameof(PersistedSettings.ShowLockedIcon):
                 case nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable):
+                case nameof(PersistedSettings.SeparateLockedIconEnabledGameIds):
                 case nameof(PersistedSettings.ShowRarityGlow):
                     return true;
                 default:
