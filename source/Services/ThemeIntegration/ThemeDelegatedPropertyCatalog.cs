@@ -81,7 +81,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.UnlockedCount),
             nameof(PlayniteAchievementsSettings.LockedCount),
             nameof(PlayniteAchievementsSettings.ProgressPercentage),
-            nameof(PlayniteAchievementsSettings.IsCompleted)
+            nameof(PlayniteAchievementsSettings.IsCompleted),
+            nameof(PlayniteAchievementsSettings.Achievements),
+            nameof(PlayniteAchievementsSettings.AchievementsNewestFirst),
+            nameof(PlayniteAchievementsSettings.AchievementsOldestFirst),
+            nameof(PlayniteAchievementsSettings.AchievementsRarityAsc),
+            nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)
         };
 
         public static readonly string[] SingleGameLegacy =

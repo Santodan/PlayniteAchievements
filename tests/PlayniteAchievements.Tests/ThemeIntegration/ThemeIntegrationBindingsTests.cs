@@ -220,6 +220,67 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void PopulateSingleGameDataSync_PublishesModernRootAchievementLists()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            var gameId = Guid.NewGuid();
+            var game = new Game { Id = gameId, Name = "Binding Game" };
+            var first = Achievement("First Unlock", 75.0, unlocked: true);
+            first.UnlockTimeUtc = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 9, 0, 0), DateTimeKind.Utc);
+            var second = Achievement("Second Unlock", 25.0, unlocked: true);
+            second.UnlockTimeUtc = DateTime.SpecifyKind(new DateTime(2026, 3, 2, 9, 0, 0), DateTimeKind.Utc);
+            var third = Achievement("Third Unlock", 2.0, unlocked: true);
+            third.UnlockTimeUtc = DateTime.SpecifyKind(new DateTime(2026, 3, 3, 9, 0, 0), DateTimeKind.Utc);
+
+            var settings = new PlayniteAchievementsSettings();
+            var plugin = new PlayniteAchievementsPlugin
+            {
+                Settings = settings
+            };
+            PlayniteAchievementsPlugin.Instance = plugin;
+
+            var api = new FakePlayniteApi();
+            var refreshRuntime = new RefreshRuntime();
+            var achievementDataService = new AchievementDataService();
+            achievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = game,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { first, second, third }
+            };
+
+            var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
+            var windowService = new FullscreenWindowService(api, settings, _ => { });
+            var logger = new FakeLogger();
+            using var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
+
+            var changedProperties = new HashSet<string>(StringComparer.Ordinal);
+            settings.PropertyChanged += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args?.PropertyName))
+                {
+                    changedProperties.Add(args.PropertyName);
+                }
+            };
+
+            service.PopulateSingleGameDataSync(gameId);
+
+            Assert.AreEqual(3, settings.Achievements.Count);
+            Assert.AreEqual(3, settings.AchievementsNewestFirst.Count);
+            Assert.AreEqual(3, settings.AchievementsOldestFirst.Count);
+            Assert.AreEqual(3, settings.AchievementsRarityAsc.Count);
+            Assert.AreEqual(3, settings.AchievementsRarityDesc.Count);
+
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Achievements)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsNewestFirst)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsOldestFirst)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityAsc)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)));
+        }
+
+        [TestMethod]
         public void ClearSingleGameThemeProperties_ResetsAndPublishesRareAndUltraRare()
         {
             var settings = new PlayniteAchievementsSettings();
@@ -228,6 +289,11 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             settings.ModernTheme.Rare = new AchievementRarityStats { Total = 4, Unlocked = 2, Locked = 2 };
             settings.ModernTheme.UltraRare = new AchievementRarityStats { Total = 1, Unlocked = 1, Locked = 0 };
             settings.ModernTheme.RareAndUltraRare = new AchievementRarityStats { Total = 5, Unlocked = 3, Locked = 2 };
+            settings.ModernTheme.AllAchievements = new List<AchievementDetail> { Achievement("All", 75.0, unlocked: true) };
+            settings.ModernTheme.AchievementsNewestFirst = new List<AchievementDetail> { Achievement("Newest", 2.0, unlocked: true) };
+            settings.ModernTheme.AchievementsOldestFirst = new List<AchievementDetail> { Achievement("Oldest", 25.0, unlocked: true) };
+            settings.ModernTheme.AchievementsRarityAsc = new List<AchievementDetail> { Achievement("Rarest", 2.0, unlocked: true) };
+            settings.ModernTheme.AchievementsRarityDesc = new List<AchievementDetail> { Achievement("Commonest", 75.0, unlocked: true) };
 
             var api = new FakePlayniteApi();
             var refreshRuntime = new RefreshRuntime();
@@ -253,12 +319,22 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             AssertStat(settings.ModernTheme.Rare, total: 0, unlocked: 0, locked: 0);
             AssertStat(settings.ModernTheme.UltraRare, total: 0, unlocked: 0, locked: 0);
             AssertStat(settings.ModernTheme.RareAndUltraRare, total: 0, unlocked: 0, locked: 0);
+            Assert.AreEqual(0, settings.Achievements.Count);
+            Assert.AreEqual(0, settings.AchievementsNewestFirst.Count);
+            Assert.AreEqual(0, settings.AchievementsOldestFirst.Count);
+            Assert.AreEqual(0, settings.AchievementsRarityAsc.Count);
+            Assert.AreEqual(0, settings.AchievementsRarityDesc.Count);
 
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Common)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Uncommon)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Rare)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.UltraRare)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.RareAndUltraRare)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Achievements)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsNewestFirst)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsOldestFirst)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityAsc)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)));
         }
 
         private static AchievementDetail Achievement(string name, double? percent, bool unlocked)
