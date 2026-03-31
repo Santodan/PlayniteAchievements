@@ -1,12 +1,7 @@
 Id: PlayniteAchievements
 Name: Playnite Achievements
-<<<<<<< HEAD
-Author: justin-delano
-Version: 1.6.3
-=======
 Author: Justin Delano
 Version: 2.0.0
->>>>>>> upstream/main
 Module: PlayniteAchievements.dll
 Type: GenericPlugin
 Icon: icon.png

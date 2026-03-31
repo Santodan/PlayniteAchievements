@@ -2,8 +2,8 @@ AddonId: PlayniteAchievements
 Type: Generic
 InstallerManifestUrl: https://raw.githubusercontent.com/justin-delano/PlayniteAchievements/main/InstallerManifest.yaml
 ShortDescription: Modern achievement aggregator with multi-platform support, beautiful visualizations, and seamless theme integration
-Name: Playnite Achievements (justin-delano)
-Author: justin-delano
+Name: Playnite Achievements
+Author: Justin Delano
 SourceUrl: https://github.com/justin-delano/PlayniteAchievements
 IconUrl: https://raw.githubusercontent.com/justin-delano/PlayniteAchievements/main/source/icon.png
 Description: A modern Playnite extension plugin for aggregating achievement data from multiple gaming platforms with Steam and RetroAchievements support. Features achievement progression timelines, rarity breakdowns, SuccessStory and native theme integration, intelligent caching, background updates, and flexible scanning options.

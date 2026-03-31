@@ -1,4 +1,4 @@
-AddonId: PlayniteAchievements-Santodan
+AddonId: PlayniteAchievements
 Packages:
   - Version: 2.0.0
     RequiredApiVersion: 6.14.0
@@ -22,7 +22,7 @@ Packages:
   - Version: 1.6.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-11
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.6.2/PlayniteAchievements_1_6_2.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.2/PlayniteAchievements_1_6_2.pext
     Changelog:
         - "Fixed issues with new cache creation."
         - "Fixed issues with Pie Charts and Sidebar Display settings."
@@ -31,7 +31,7 @@ Packages:
   - Version: 1.6.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-10
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.6.1/PlayniteAchievements_1_6_1.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.1/PlayniteAchievements_1_6_1.pext
     Changelog:
         - "Manual achievement tracking now supports Exophase linking (with experimental SuccessStory legacy import)"
         - "New Collectable, Missable, Difficulty, and Stackable category types"
@@ -45,7 +45,7 @@ Packages:
   - Version: 1.6.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-01
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.6.0/PlayniteAchievements_1_6_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.6.0/PlayniteAchievements_1_6_0.pext
     Changelog:
        - "Game Options Window - New comprehensive options menu for each game"
        - "Manual Achievement Tracking - Track achievements manually by linking to Steam data and entering your progress"
@@ -63,7 +63,7 @@ Packages:
   - Version: 1.5.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-01
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.5.1/PlayniteAchievements_1_5_1.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.5.1/PlayniteAchievements_1_5_1.pext
     Changelog:
       - ShadPS4 settings now accept user/game_data folder path instead of executable path
       - Fixed rare cases of data loss
@@ -76,7 +76,7 @@ Packages:
   - Version: 1.5.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-26
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.5.0/PlayniteAchievements_1_5_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.5.0/PlayniteAchievements_1_5_0.pext
     Changelog:
       - "New Platforms: Xbox Live, RPCS3 (PS3 emulator), and ShadPS4 (PS4 emulator). Please raise any issues on Github if you encounter any problems with these!"
       - "PlayStation Trophy System added in addition to rarity & points"
@@ -96,7 +96,7 @@ Packages:
   - Version: 1.4.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-22
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.4.2/PlayniteAchievements_1_4_2.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.4.2/PlayniteAchievements_1_4_2.pext
     Changelog:
       - PSN Authentication - Clarified instructions and authentication flow
       - Exclude Games - Right-click to exclude games from achievement tracking (and clear data)
@@ -110,7 +110,7 @@ Packages:
   - Version: 1.4.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-19
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.4.1/PlayniteAchievements_1_4_1.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.4.1/PlayniteAchievements_1_4_1.pext
     Changelog:
       - Critical Hotfix - Desktop themes show achievement data again
       - PSN platinums now classify a game as perfect/completed
@@ -118,7 +118,7 @@ Packages:
   - Version: 1.4.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-19
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.4.0/PlayniteAchievements_1_4_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.4.0/PlayniteAchievements_1_4_0.pext
     Changelog:
       - PlayStation Network (PSN) support! Track trophies from your PlayStation library with full authentication flow in settings.
       - New data grid options - resize and hide columns to customize your view, plus a new score column for gamerscore/rarity display.
@@ -132,7 +132,7 @@ Packages:
   - Version: 1.3.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-17
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.3.0/PlayniteAchievements_1_3_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.3.0/PlayniteAchievements_1_3_0.pext
     Changelog:
       - Epic Games support! XP is being tracked, but UI is not quite prepared for displaying it yet.
       - Critical Fix - database syncing fix, where scans could show achievements for single games, but not appear in the sidebar overview, or disappear completely.
@@ -146,7 +146,7 @@ Packages:
   - Version: 1.2.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-16
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.2.0/PlayniteAchievements_1_2_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.2.0/PlayniteAchievements_1_2_0.pext
     Changelog:
       - GOG support! - track achievements from your GOG library!
       - Steam - improved unlock detection using progress bar as fallback
@@ -159,7 +159,7 @@ Packages:
   - Version: 1.1.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-15
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.1.0/PlayniteAchievements_1_1_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.1.0/PlayniteAchievements_1_1_0.pext
     Changelog:
       - New SQLite database backend - achievement data is now stored in a local database for faster loading and better performance
       - Steam - fixed rate limiting errors when scanning large libraries
@@ -173,7 +173,7 @@ Packages:
   - Version: 1.0.5
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-14
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.5/PlayniteAchievements_1_0_5.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.5/PlayniteAchievements_1_0_5.pext
     Changelog:
       - Happy Valentine's Day!
       - Achievement lists - added unlocked/locked/hidden visibility filters and a new status column with lock/check icons
@@ -186,7 +186,7 @@ Packages:
   - Version: 1.0.4
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-12
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.4/PlayniteAchievements_1_0_4.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.4/PlayniteAchievements_1_0_4.pext
     Changelog:
       - Scanning - fixed final progress reporting and consolidated code for better maintenance
       - Theme integration - fixed SuccessStory control heights and added granular hidden achievement controls
@@ -196,7 +196,7 @@ Packages:
   - Version: 1.0.3
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-11
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.3/PlayniteAchievements_1_0_3.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.3/PlayniteAchievements_1_0_3.pext
     Changelog:
       - RetroAchievements improvements - hardened CSO parsing and base-set fallback matching
       - Icon caching fixes - resolved file access conflicts with proper concurrency controls
@@ -208,7 +208,7 @@ Packages:
   - Version: 1.0.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-10
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.2/PlayniteAchievements_1_0_2.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.2/PlayniteAchievements_1_0_2.pext
     Changelog:
       - New "Missing" scan mode - quickly scan games that don't have achievement data yet
       - Improved scan feedback - clear error messages when no provider is configured
@@ -217,7 +217,7 @@ Packages:
   - Version: 1.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-10
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.1/PlayniteAchievements_1_0_1.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.1/PlayniteAchievements_1_0_1.pext
     Changelog:
       - Fullscreen theme - fixed Aniki theme compatibility and added native progress bar for single game refresh
       - Fullscreen theme - added sorted achievement list properties for better theme integration
@@ -230,7 +230,7 @@ Packages:
   - Version: 1.0.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-02-09
-    PackageUrl: https://github.com/Santodan/PlayniteAchievements/releases/download/v1.0.0/PlayniteAchievements_1_0_0.pext
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v1.0.0/PlayniteAchievements_1_0_0.pext
     Changelog:
       - First public release
       - Multi-platform support for Steam and RetroAchievements
