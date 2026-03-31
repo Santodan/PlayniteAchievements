@@ -1,17 +1,34 @@
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Settings;
+using Playnite.SDK;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers
 {
     public interface IDataProvider
     {
+        string ProviderName { get; }
         string ProviderKey { get; }
+        string ProviderIconKey { get; }
+        string ProviderColorHex { get; }
+        bool IsCapable(Game game);
         bool IsAuthenticated { get; }
         ISessionManager AuthSession { get; }
+        Task<RebuildPayload> RefreshAsync(
+            IReadOnlyList<Game> gamesToRefresh,
+            Action<Game> onGameStarting,
+            Func<Game, GameAchievementData, Task> onGameCompleted,
+            CancellationToken cancel);
+        IProviderSettings GetSettings();
+        void ApplySettings(IProviderSettings settings);
+        ProviderSettingsViewBase CreateSettingsView();
     }
 }
 
@@ -55,6 +72,20 @@ namespace PlayniteAchievements.Providers.GOG
 
 namespace PlayniteAchievements.Providers.Exophase
 {
+    public sealed class ExophaseCookieSnapshotStore
+    {
+        public bool TryLoad(out List<HttpCookie> cookies)
+        {
+            cookies = new List<HttpCookie>();
+            return false;
+        }
+
+        public static List<string> GetMissingCriticalCookies(IReadOnlyCollection<HttpCookie> cookies)
+        {
+            return new List<string>();
+        }
+    }
+
     public class ExophaseSessionManager : ISessionManager
     {
         public string ProviderKey => "Exophase";
@@ -68,6 +99,8 @@ namespace PlayniteAchievements.Providers.Exophase
         public int LoadCookiesCallCount { get; private set; }
 
         public Action<CookieContainer> CookieLoader { get; set; }
+
+        public ExophaseCookieSnapshotStore CookieSnapshotStore { get; set; } = new ExophaseCookieSnapshotStore();
 
         public Task<AuthProbeResult> ProbeAuthStateAsync(CancellationToken ct)
         {

@@ -233,11 +233,36 @@ namespace PlayniteAchievements.Services.Tests
                 ProviderKey = providerKey;
             }
 
+            public string ProviderName => ProviderKey;
+
             public string ProviderKey { get; }
+
+            public string ProviderIconKey => ProviderKey;
+
+            public string ProviderColorHex => "#000000";
+
+            public bool IsCapable(Playnite.SDK.Models.Game game) => true;
 
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+
+            public Task<RebuildPayload> RefreshAsync(
+                IReadOnlyList<Playnite.SDK.Models.Game> gamesToRefresh,
+                Action<Playnite.SDK.Models.Game> onGameStarting,
+                Func<Playnite.SDK.Models.Game, PlayniteAchievements.Models.Achievements.GameAchievementData, Task> onGameCompleted,
+                CancellationToken cancel)
+            {
+                return Task.FromResult(new RebuildPayload());
+            }
+
+            public PlayniteAchievements.Providers.Settings.IProviderSettings GetSettings() => null;
+
+            public void ApplySettings(PlayniteAchievements.Providers.Settings.IProviderSettings settings)
+            {
+            }
+
+            public PlayniteAchievements.Providers.Settings.ProviderSettingsViewBase CreateSettingsView() => null;
         }
     }
 }

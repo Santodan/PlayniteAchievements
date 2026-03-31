@@ -42,9 +42,13 @@
     <Compile Include="..\..\source\Services\AchievementOrderHelper.cs" Link="Source\Services\AchievementOrderHelper.cs" />
     <Compile Include="..\..\source\Services\AchievementCategoryTypeHelper.cs" Link="Source\Services\AchievementCategoryTypeHelper.cs" />
     <Compile Include="..\..\source\Services\BackupHelper.cs" Link="Source\Services\BackupHelper.cs" />
+    <Compile Include="..\..\source\Models\RebuildProgressModels.cs" Link="Source\Models\RebuildProgressModels.cs" />
 
     <Compile Include="..\..\source\Providers\Settings\ProviderSettingsBase.cs" Link="Source\Providers\Settings\ProviderSettingsBase.cs" />
     <Compile Include="..\..\source\Providers\Settings\IProviderSettings.cs" Link="Source\Providers\Settings\IProviderSettings.cs" />
+    <Compile Include="..\..\source\Providers\Settings\ProviderSettingsViewBase.cs" Link="Source\Providers\Settings\ProviderSettingsViewBase.cs" />
+    <Compile Include="..\..\source\Providers\ProviderRegistry.cs" Link="Source\Providers\ProviderRegistry.cs" />
+    <Compile Include="..\..\source\Providers\Xenia\XeniaSettings.cs" Link="Source\Providers\Xenia\XeniaSettings.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSettings.cs" Link="Source\Providers\Manual\ManualSettings.cs" />
     <Compile Include="..\..\source\Providers\Manual\IManualSource.cs" Link="Source\Providers\Manual\IManualSource.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSourceAuthentication.cs" Link="Source\Providers\Manual\ManualSourceAuthentication.cs" />
@@ -68,6 +72,7 @@
     <Compile Include="..\..\source\Models\RefreshStatusSnapshot.cs" Link="Source\Models\RefreshStatusSnapshot.cs" />
     <Compile Include="..\..\source\Models\SelectedGameBindingContext.cs" Link="Source\Models\SelectedGameBindingContext.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
+    <Compile Include="..\..\source\Models\Settings\SidebarPieSmallSliceMode.cs" Link="Source\Models\Settings\SidebarPieSmallSliceMode.cs" />
     <Compile Include="..\..\source\Models\Settings\SettingsExtensions.cs" Link="Source\Models\Settings\SettingsExtensions.cs" />
     <Compile Include="..\..\source\Models\Tagging\TaggingSettings.cs" Link="Source\Models\Tagging\TaggingSettings.cs" />
     <Compile Include="..\..\source\Models\Tagging\TagType.cs" Link="Source\Models\Tagging\TagType.cs" />

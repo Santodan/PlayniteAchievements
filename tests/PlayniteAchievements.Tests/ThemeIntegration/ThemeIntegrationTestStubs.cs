@@ -15,6 +15,11 @@ namespace PlayniteAchievements
         public PlayniteAchievementsSettings Settings { get; set; }
 
         public IPlayniteAPI PlayniteApi { get; set; }
+
+        public void SavePluginSettings(PlayniteAchievementsSettings settings)
+        {
+            Settings = settings;
+        }
     }
 }
 

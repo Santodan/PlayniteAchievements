@@ -105,6 +105,9 @@ namespace PlayniteAchievements.Providers
 
         public void BeginEditSession()
         {
+            if (_editSessionActive)
+                return;
+
             _editSessionOriginals.Clear();
             _editSessionCopies.Clear();
             _editSessionActive = true;
@@ -158,7 +161,7 @@ namespace PlayniteAchievements.Providers
                 return null;
 
             if (!_editSessionActive)
-                return GetLiveSettings(providerKey);
+                BeginEditSession();
 
             if (_editSessionCopies.TryGetValue(providerKey, out var existingCopy))
                 return existingCopy;
