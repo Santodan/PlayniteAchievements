@@ -118,10 +118,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
 
             var badges = new (ImageSource Icon, int Count, int Total)[]
             {
-                ((ImageSource)Application.Current.FindResource("BadgePlatinumHexagon"), GetCount(ultraRare), ultraRare.Total),
-                ((ImageSource)Application.Current.FindResource("BadgeGoldPentagon"), GetCount(rare), rare.Total),
-                ((ImageSource)Application.Current.FindResource("BadgeSilverSquare"), GetCount(uncommon), uncommon.Total),
-                ((ImageSource)Application.Current.FindResource("BadgeBronzeTriangle"), GetCount(common), common.Total)
+                ((ImageSource)TryFindResource("BadgePlatinumHexagon"), GetCount(ultraRare), ultraRare.Total),
+                ((ImageSource)TryFindResource("BadgeGoldPentagon"), GetCount(rare), rare.Total),
+                ((ImageSource)TryFindResource("BadgeSilverSquare"), GetCount(uncommon), uncommon.Total),
+                ((ImageSource)TryFindResource("BadgeBronzeTriangle"), GetCount(common), common.Total)
             };
 
             foreach (var (icon, count, total) in badges)
