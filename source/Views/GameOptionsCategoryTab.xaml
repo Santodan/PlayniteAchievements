@@ -311,7 +311,7 @@
                 <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
                                         CellTemplate="{StaticResource AchievementIconTemplate}" />
 
-                <DataGridTemplateColumn Width="3*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                <DataGridTemplateColumn Width="2*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
                                         CellTemplate="{StaticResource CategoryAchievementInfoTemplate}" />
 
                 <DataGridTextColumn Width="160" Header="{DynamicResource LOCPlayAch_Column_Type}" Binding="{Binding CategoryTypeDisplay}">
