@@ -22,16 +22,6 @@ Achievement tracking for Playnite across Steam, RetroAchievements, GOG, Epic, PS
   <img src="Images/sidebar-view1.png" alt="Sidebar overview" width="900">
 </p>
 
-## Recent Updates
-
-| Version | Highlights |
-| --- | --- |
-| 1.6.2 | Cache fixes, pie chart/display fixes, option to hide the top menu button |
-| 1.6.1 | Exophase manual links, new category types, sidebar popout, display-settings cleanup |
-| 1.6.0 | Game Options window, manual tracking, categories, custom order, summary exclusions, multi-select filters |
-
-Docs: [Wiki Home](https://github.com/justin-delano/PlayniteAchievements/wiki) · [Release notes](InstallerManifest.yaml)
-
 ## Why Switch From Legacy
 
 | Area | Legacy | PlayniteAchievements |
