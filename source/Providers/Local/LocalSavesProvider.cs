@@ -55,96 +55,144 @@ namespace PlayniteAchievements.Providers.Local
             var appId = GetAppId(game);
             if (string.IsNullOrEmpty(appId)) return null;
 
-            if (!TryFindAchievementsFile(appId, out var jsonPath)) return null;
+            if (!TryFindLocalFolder(appId, out var localFolderPath)) return null;
+
+            var hasAchievementsFile = TryFindAchievementsFile(appId, out var jsonPath);
+
+            SchemaAndPercentages steamSchema = null;
+            var apiNameMap = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
+            int appIdInt = 0;
+            if (int.TryParse(appId, out appIdInt))
+            {
+                steamSchema = await TryGetSteamSchemaAsync(appIdInt).ConfigureAwait(false);
+                if (steamSchema?.Achievements != null)
+                {
+                    apiNameMap = steamSchema.Achievements
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                        .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = game.Id,
+                ProviderKey = ProviderKey,
+                GameName = game.Name,
+                Achievements = new List<AchievementDetail>()
+            };
+
+            if (appIdInt > 0)
+            {
+                data.AppId = appIdInt;
+            }
 
             try
             {
-                var json = await Task.Run(() => File.ReadAllText(jsonPath));
-                var raw = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
-                if (raw == null || raw.Count == 0) return null;
-
-                SchemaAndPercentages steamSchema = null;
-                var apiNameMap = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
-                int appIdInt = 0;
-                if (int.TryParse(appId, out appIdInt))
+                if (hasAchievementsFile)
                 {
-                    steamSchema = await TryGetSteamSchemaAsync(appIdInt).ConfigureAwait(false);
-                    if (steamSchema?.Achievements != null)
+                    var json = await Task.Run(() => File.ReadAllText(jsonPath));
+                    var raw = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
+                    if (raw != null && raw.Count > 0)
                     {
-                        apiNameMap = steamSchema.Achievements
-                            .Where(a => !string.IsNullOrWhiteSpace(a.Name))
-                            .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+                        foreach (var kv in raw)
+                        {
+                            apiNameMap.TryGetValue(kv.Key, out var schemaAch);
+                            var entry = kv.Value;
+                            var displayName = !string.IsNullOrWhiteSpace(entry.displayName)
+                                ? entry.displayName
+                                : schemaAch?.DisplayName ?? kv.Key;
+
+                            var description = !string.IsNullOrWhiteSpace(entry.description)
+                                ? entry.description
+                                : schemaAch?.Description ?? "Local achievement from " + ProviderName;
+
+                            var unlockedIcon = !string.IsNullOrWhiteSpace(entry.icon)
+                                ? entry.icon
+                                : schemaAch?.Icon ?? "Resources/UnlockedAchIcon.png";
+
+                            var lockedIcon = !string.IsNullOrWhiteSpace(entry.iconGray)
+                                ? entry.iconGray
+                                : schemaAch?.IconGray ?? "Resources/HiddenAchIcon.png";
+
+                            var detail = new AchievementDetail
+                            {
+                                ApiName = kv.Key,
+                                DisplayName = displayName,
+                                Description = description,
+                                UnlockedIconPath = unlockedIcon,
+                                LockedIconPath = lockedIcon,
+                                Unlocked = entry.earned,
+                                Hidden = entry.hidden || (schemaAch?.Hidden == 1),
+                                UnlockTimeUtc = entry.earned && entry.earned_time > 0
+                                    ? DateTimeOffset.FromUnixTimeSeconds(entry.earned_time).UtcDateTime
+                                    : (DateTime?)null
+                            };
+
+                            double? globalPercent = null;
+                            if (entry.percent.HasValue)
+                            {
+                                globalPercent = entry.percent.Value;
+                            }
+                            else if (steamSchema?.GlobalPercentages?.TryGetValue(kv.Key, out var percent) == true)
+                            {
+                                globalPercent = percent;
+                            }
+
+                            if (globalPercent.HasValue)
+                            {
+                                detail.GlobalPercentUnlocked = NormalizePercent(globalPercent.Value);
+                                if (detail.GlobalPercentUnlocked.HasValue)
+                                {
+                                    detail.Rarity = PercentRarityHelper.GetRarityTier(detail.GlobalPercentUnlocked.Value);
+                                }
+                            }
+
+                            data.Achievements.Add(detail);
+                        }
+
+                        Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievement definitions from local save file.");
+                        return data;
                     }
                 }
 
-                var data = new GameAchievementData
+                if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                 {
-                    PlayniteGameId = game.Id,
-                    ProviderKey = ProviderKey,
-                    GameName = game.Name
-                };
+                    foreach (var schemaAch in steamSchema.Achievements)
+                    {
+                        if (string.IsNullOrWhiteSpace(schemaAch.Name))
+                        {
+                            continue;
+                        }
 
-                if (appIdInt > 0)
-                {
-                    data.AppId = appIdInt;
+                        var detail = new AchievementDetail
+                        {
+                            ApiName = schemaAch.Name,
+                            DisplayName = schemaAch.DisplayName ?? schemaAch.Name,
+                            Description = schemaAch.Description ?? "Local achievement from " + ProviderName,
+                            UnlockedIconPath = schemaAch.Icon ?? "Resources/UnlockedAchIcon.png",
+                            LockedIconPath = schemaAch.IconGray ?? "Resources/HiddenAchIcon.png",
+                            Unlocked = false,
+                            Hidden = schemaAch.Hidden == 1
+                        };
+
+                        if (schemaAch.GlobalPercent.HasValue)
+                        {
+                            var normalized = NormalizePercent(schemaAch.GlobalPercent.Value);
+                            detail.GlobalPercentUnlocked = normalized;
+                            if (normalized.HasValue)
+                            {
+                                detail.Rarity = PercentRarityHelper.GetRarityTier(normalized.Value);
+                            }
+                        }
+
+                        data.Achievements.Add(detail);
+                    }
+
+                    Log($"INFO: {game.Name} - Local folder found, loaded {data.Achievements.Count} achievement definitions from Steam schema.");
+                    return data;
                 }
 
-                data.Achievements = new List<AchievementDetail>();
-
-                foreach (var kv in raw)
-                {
-                    apiNameMap.TryGetValue(kv.Key, out var schemaAch);
-                    var entry = kv.Value;
-                    var displayName = !string.IsNullOrWhiteSpace(entry.displayName)
-                        ? entry.displayName
-                        : schemaAch?.DisplayName ?? kv.Key;
-
-                    var description = !string.IsNullOrWhiteSpace(entry.description)
-                        ? entry.description
-                        : schemaAch?.Description ?? "Local achievement from " + ProviderName;
-
-                    var unlockedIcon = !string.IsNullOrWhiteSpace(entry.icon)
-                        ? entry.icon
-                        : schemaAch?.Icon ?? "Resources/UnlockedAchIcon.png";
-
-                    var lockedIcon = !string.IsNullOrWhiteSpace(entry.iconGray)
-                        ? entry.iconGray
-                        : schemaAch?.IconGray ?? "Resources/HiddenAchIcon.png";
-
-                    var detail = new AchievementDetail
-                    {
-                        ApiName = kv.Key,
-                        DisplayName = displayName,
-                        Description = description,
-                        UnlockedIconPath = unlockedIcon,
-                        LockedIconPath = lockedIcon,
-                        Unlocked = entry.earned,
-                        Hidden = entry.hidden || (schemaAch?.Hidden == 1),
-                        UnlockTimeUtc = entry.earned && entry.earned_time > 0
-                            ? DateTimeOffset.FromUnixTimeSeconds(entry.earned_time).UtcDateTime
-                            : (DateTime?)null
-                    };
-
-                    double? globalPercent = null;
-                    if (entry.percent.HasValue)
-                    {
-                        globalPercent = entry.percent.Value;
-                    }
-                    else if (steamSchema?.GlobalPercentages?.TryGetValue(kv.Key, out var percent) == true)
-                    {
-                        globalPercent = percent;
-                    }
-
-                    if (globalPercent.HasValue)
-                    {
-                        detail.GlobalPercentUnlocked = NormalizePercent(globalPercent.Value);
-                        detail.Rarity = PercentRarityHelper.GetRarityTier(detail.GlobalPercentUnlocked.Value);
-                    }
-
-                    data.Achievements.Add(detail);
-                }
-
-                Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievement definitions.");
+                Log($"INFO: {game.Name} - Local folder found, but no achievements.json and no Steam schema available.");
                 return data;
             }
             catch (Exception ex)
@@ -247,6 +295,54 @@ namespace PlayniteAchievements.Providers.Local
                         if (File.Exists(candidate))
                         {
                             jsonPath = candidate;
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"SEARCH ERROR: root={root} msg={ex.Message}");
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryFindLocalFolder(string appId, out string folderPath)
+        {
+            folderPath = null;
+            if (string.IsNullOrWhiteSpace(appId))
+            {
+                return false;
+            }
+
+            foreach (var root in GetLocalRootPaths())
+            {
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (Directory.Exists(root))
+                    {
+                        var candidate = Path.Combine(root, appId);
+                        if (Directory.Exists(candidate))
+                        {
+                            folderPath = candidate;
+                            return true;
+                        }
+
+                        if (string.Equals(Path.GetFileName(root), appId, StringComparison.OrdinalIgnoreCase))
+                        {
+                            folderPath = root;
+                            return true;
+                        }
+
+                        foreach (var matchDir in Directory.EnumerateDirectories(root, appId, SearchOption.AllDirectories))
+                        {
+                            folderPath = matchDir;
                             return true;
                         }
                     }
