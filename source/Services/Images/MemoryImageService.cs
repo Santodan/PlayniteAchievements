@@ -18,6 +18,9 @@ namespace PlayniteAchievements.Services.Images
     public sealed class MemoryImageService : IDisposable
     {
         private static readonly ILogger StaticLogger = PluginLogger.GetLogger(nameof(MemoryImageService));
+        private const int DefaultDecodePixel = 64;
+        private const int MinDecodePixel = 16;
+        private const int MaxDecodePixel = 1024;
 
         private readonly ILogger _logger;
         private readonly DiskImageService _diskService;
@@ -82,8 +85,7 @@ namespace PlayniteAchievements.Services.Images
                 return Task.FromResult<BitmapSource>(null);
             }
 
-            // Clamp decode size to a reasonable range. 0 means "auto", treated as 64.
-            var size = decodePixel <= 0 ? 64 : Math.Max(16, Math.Min(decodePixel, 512));
+            var size = NormalizeDecodePixel(decodePixel);
             var key = $"{size}\u001f{(gray ? 1 : 0)}\u001f{uri}";
 
             if (TryGetCached(key, out var cached))
@@ -238,6 +240,16 @@ namespace PlayniteAchievements.Services.Images
             {
                 return source;
             }
+        }
+
+        private static int NormalizeDecodePixel(int decodePixel)
+        {
+            if (decodePixel <= 0)
+            {
+                return DefaultDecodePixel;
+            }
+
+            return Math.Max(MinDecodePixel, Math.Min(decodePixel, MaxDecodePixel));
         }
 
         private void AddToCache(string key, BitmapSource value)

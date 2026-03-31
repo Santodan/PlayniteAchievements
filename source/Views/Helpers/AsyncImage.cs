@@ -14,6 +14,9 @@ namespace PlayniteAchievements.Views.Helpers
     public static class AsyncImage
     {
         private const string GrayPrefix = "gray:";
+        private const int DefaultDecodePixel = 64;
+        private const double DecodeOverscan = 1.25;
+        private const double DecodeReloadThreshold = 1.2;
 
         public static readonly DependencyProperty UriProperty = DependencyProperty.RegisterAttached(
             "Uri",
@@ -55,6 +58,18 @@ namespace PlayniteAchievements.Views.Helpers
         private static void SetLoadCts(DependencyObject element, CancellationTokenSource value) =>
             element.SetValue(LoadCtsProperty, value);
 
+        private static readonly DependencyProperty LastRequestedDecodePixelProperty = DependencyProperty.RegisterAttached(
+            "LastRequestedDecodePixel",
+            typeof(int),
+            typeof(AsyncImage),
+            new PropertyMetadata(0));
+
+        private static int GetLastRequestedDecodePixel(DependencyObject element) =>
+            (int)element.GetValue(LastRequestedDecodePixelProperty);
+
+        private static void SetLastRequestedDecodePixel(DependencyObject element, int value) =>
+            element.SetValue(LastRequestedDecodePixelProperty, value);
+
         private static void OnUriChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d == null)
@@ -64,21 +79,27 @@ namespace PlayniteAchievements.Views.Helpers
 
             CancelExisting(d);
 
-            // If the new value is already an ImageSource, apply it directly
-            if (e.NewValue is ImageSource imageSource)
-            {
-                ApplySource(d, imageSource);
-                return;
-            }
-
             if (d is FrameworkElement fe)
             {
                 fe.Loaded -= OnLoaded;
                 fe.Unloaded -= OnUnloaded;
+                fe.SizeChanged -= OnSizeChanged;
                 fe.Loaded += OnLoaded;
                 fe.Unloaded += OnUnloaded;
+                fe.SizeChanged += OnSizeChanged;
+            }
 
-                if (fe.IsLoaded)
+            // If the new value is already an ImageSource, apply it directly
+            if (e.NewValue is ImageSource imageSource)
+            {
+                SetLastRequestedDecodePixel(d, 0);
+                ApplySource(d, imageSource);
+                return;
+            }
+
+            if (d is FrameworkElement loadedElement)
+            {
+                if (loadedElement.IsLoaded)
                 {
                     _ = StartLoadAsync(d);
                 }
@@ -96,6 +117,33 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 _ = StartLoadAsync(d);
             }
+        }
+
+        private static void OnSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!(sender is FrameworkElement fe) || !fe.IsLoaded)
+            {
+                return;
+            }
+
+            if (!(GetUri(fe) is string uri) || string.IsNullOrWhiteSpace(uri))
+            {
+                return;
+            }
+
+            var desiredDecode = ResolveDecodePixel(fe);
+            if (desiredDecode <= 0)
+            {
+                return;
+            }
+
+            var lastDecode = GetLastRequestedDecodePixel(fe);
+            if (lastDecode > 0 && desiredDecode <= Math.Ceiling(lastDecode * DecodeReloadThreshold))
+            {
+                return;
+            }
+
+            _ = StartLoadAsync(fe);
         }
 
         private static void OnUnloaded(object sender, RoutedEventArgs e)
@@ -137,6 +185,7 @@ namespace PlayniteAchievements.Views.Helpers
             // If already an ImageSource, apply directly (fallback path from converter)
             if (uri is ImageSource imageSource)
             {
+                SetLastRequestedDecodePixel(d, 0);
                 ApplySource(d, imageSource);
                 return;
             }
@@ -144,6 +193,7 @@ namespace PlayniteAchievements.Views.Helpers
             var uriString = uri as string;
             if (string.IsNullOrWhiteSpace(uriString))
             {
+                SetLastRequestedDecodePixel(d, 0);
                 ApplySource(d, null);
                 return;
             }
@@ -156,6 +206,7 @@ namespace PlayniteAchievements.Views.Helpers
             // Don't clear existing source while loading - keep current image visible
             // until the new one is ready. This prevents flash during visibility toggles.
 
+            CancelExisting(d);
             var cts = new CancellationTokenSource();
             SetLoadCts(d, cts);
 
@@ -167,15 +218,8 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var decode = GetDecodePixel(d);
-                if (decode <= 0 && d is FrameworkElement fe)
-                {
-                    // Try to infer a reasonable decode size from the realized element.
-                    var w = fe.ActualWidth > 0 ? fe.ActualWidth : fe.Width;
-                    var h = fe.ActualHeight > 0 ? fe.ActualHeight : fe.Height;
-                    var max = Math.Max(w, h);
-                    decode = double.IsNaN(max) || max <= 0 ? 64 : (int)Math.Ceiling(max);
-                }
+                var decode = ResolveDecodePixel(d);
+                SetLastRequestedDecodePixel(d, decode);
 
                 BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token).ConfigureAwait(false);
                 if (cts.IsCancellationRequested)
@@ -233,6 +277,69 @@ namespace PlayniteAchievements.Views.Helpers
                 brush.ImageSource = source;
                 return;
             }
+        }
+
+        private static int ResolveDecodePixel(DependencyObject d)
+        {
+            var explicitDecode = GetDecodePixel(d);
+            if (!(d is FrameworkElement fe))
+            {
+                return explicitDecode > 0 ? explicitDecode : DefaultDecodePixel;
+            }
+
+            var inferredDecode = InferDecodePixel(fe);
+            if (explicitDecode > 0 && inferredDecode > 0)
+            {
+                return Math.Max(explicitDecode, inferredDecode);
+            }
+
+            if (explicitDecode > 0)
+            {
+                return explicitDecode;
+            }
+
+            return inferredDecode > 0 ? inferredDecode : DefaultDecodePixel;
+        }
+
+        private static int InferDecodePixel(FrameworkElement fe)
+        {
+            var width = GetRealizedLength(fe.ActualWidth, fe.Width);
+            var height = GetRealizedLength(fe.ActualHeight, fe.Height);
+            var maxLength = Math.Max(width, height);
+            if (maxLength <= 0)
+            {
+                return 0;
+            }
+
+            var dpiScale = 1.0;
+            if (fe is Visual visual)
+            {
+                try
+                {
+                    var dpi = VisualTreeHelper.GetDpi(visual);
+                    dpiScale = Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
+                }
+                catch
+                {
+                }
+            }
+
+            return (int)Math.Ceiling(maxLength * dpiScale * DecodeOverscan);
+        }
+
+        private static double GetRealizedLength(double actual, double fallback)
+        {
+            if (!double.IsNaN(actual) && actual > 0)
+            {
+                return actual;
+            }
+
+            if (!double.IsNaN(fallback) && fallback > 0)
+            {
+                return fallback;
+            }
+
+            return 0;
         }
     }
 }

@@ -5,6 +5,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.RetroAchievements;
+using PlayniteAchievements.Services;
 using Playnite.SDK;
 
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
@@ -421,7 +422,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private string _categoryType;
         public string CategoryType
         {
             get => _categoryType;
@@ -436,14 +436,12 @@ namespace PlayniteAchievements.ViewModels
 
         public string CategoryTypeDisplay => AchievementCategoryTypeHelper.ToDisplayText(CategoryType);
 
-        private string _categoryLabel;
         public string CategoryLabel
         {
             get => _categoryLabel;
             set => SetValue(ref _categoryLabel, value);
         }
 
-        private string _gameIconPath;
         /// <summary>
         /// Path to the game's icon image.
         /// Used by the Game column in sidebar recent achievements.
@@ -454,7 +452,6 @@ namespace PlayniteAchievements.ViewModels
             set => SetValue(ref _gameIconPath, value);
         }
 
-        private string _gameCoverPath;
         /// <summary>
         /// Path to the game's cover image.
         /// Used by the Game column in sidebar recent achievements when UseCoverImages is true.
@@ -788,7 +785,7 @@ namespace PlayniteAchievements.ViewModels
 
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
             var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData));
-            item.IsRevealed = IsRevealed(gameData, achievement, settings, revealedKeys, gameId);
+            item.IsRevealed = ShouldRestoreRevealedState(gameData, achievement, settings, revealedKeys, gameId);
             item.ApplyAppearanceSettings(settings);
             return item;
         }
@@ -1049,7 +1046,7 @@ namespace PlayniteAchievements.ViewModels
             return achievement.Points;
         }
 
-        private static bool IsRevealed(
+        private static bool ShouldRestoreRevealedState(
             GameAchievementData gameData,
             AchievementDetail achievement,
             PlayniteAchievementsSettings settings,
