@@ -1,5 +1,14 @@
 AddonId: PlayniteAchievements
 Packages:
+  - Version: 2.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-03-31
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.0.1/PlayniteAchievements_2_0_1.pext
+    Changelog:
+    - "Fixed issues with saving settings"
+    - "Fixed rare crash"
+
+
   - Version: 2.0.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-30
