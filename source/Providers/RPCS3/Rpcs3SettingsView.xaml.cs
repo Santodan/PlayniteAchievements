@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             _playniteApi = playniteApi;
             InitializeComponent();
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3"));
         }
 
         public override void Initialize(IProviderSettings settings)
@@ -87,7 +90,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (string.IsNullOrWhiteSpace(exePath))
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Settings_Rpcs3_NotConfigured");
+                SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3")));
                 return;
             }
 
