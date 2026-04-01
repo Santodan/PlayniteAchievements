@@ -56,7 +56,8 @@ namespace PlayniteAchievements.Providers.Manual
                     playniteApi,
                     exophaseSessionManager,
                     logger,
-                    () => settings.Persisted.GlobalLanguage)
+                    () => settings.Persisted.GlobalLanguage,
+                    () => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication)
             }.AsReadOnly();
 
             _sourcesByKey = _sources

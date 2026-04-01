@@ -896,6 +896,8 @@
     <sys:String x:Key="LOCPlayAch_Provider_Manual">Manuel</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Activer l'écrasement du suivi manuel</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Autoriser le suivi manuel pour les jeux qui disposent déjà d'une prise en charge officielle des succès.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth">Exiger l'authentification Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description">Lorsque cette option est activée, la liaison manuelle Exophase exige une authentification et un texte de succès localisé est possible. Lorsqu'elle est désactivée, Exophase est utilisé sans authentification et le texte localisé n'est pas garanti.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Import manuel Legacy</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Importez les liens manuels depuis SuccessStory (Legacy). L'import est additif et n'écrase jamais les liens manuels existants ni les données fournisseur en cache.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Dossier Legacy</sys:String>

@@ -57,6 +57,8 @@ namespace PlayniteAchievements.ViewModels
         private ManualAchievementLink _lastSavedLink;
         private List<InheritedUnlockEntry> _pendingInheritedUnlocks;
 
+        private bool RequireExophaseAuthentication => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication;
+
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
         private string _progressMessage = string.Empty;
@@ -478,7 +480,10 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, ct);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    ct);
 
                 var results = await _source.SearchGamesAsync(SearchText.Trim(), _language, ct);
 
@@ -558,7 +563,10 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    CancellationToken.None);
             }
             catch (ManualSourceAuthenticationException ex)
             {
@@ -756,7 +764,10 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, _refreshCts.Token);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    _refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 

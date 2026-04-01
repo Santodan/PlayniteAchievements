@@ -8,6 +8,34 @@ namespace PlayniteAchievements.Providers.Manual
 {
     internal static class ManualSourceAuthentication
     {
+        public static Task EnsureAuthenticatedIfRequiredAsync(
+            IManualSource source,
+            bool requireExophaseAuthentication,
+            CancellationToken ct)
+        {
+            if (!ShouldRequireAuthentication(source, requireExophaseAuthentication))
+            {
+                return Task.CompletedTask;
+            }
+
+            return EnsureAuthenticatedAsync(source, ct);
+        }
+
+        public static bool ShouldRequireAuthentication(IManualSource source, bool requireExophaseAuthentication)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if (string.Equals(source.SourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
+            {
+                return requireExophaseAuthentication;
+            }
+
+            return true;
+        }
+
         public static async Task EnsureAuthenticatedAsync(IManualSource source, CancellationToken ct)
         {
             if (source == null)

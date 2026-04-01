@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Providers.Manual
         private readonly ExophaseApiClient _apiClient;
         private readonly ExophaseSessionManager _sessionManager;
         private readonly ILogger _logger;
+        private readonly Func<bool> _requireExophaseAuthentication;
 
         public string SourceKey => "Exophase";
         public string SourceName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
@@ -28,7 +29,8 @@ namespace PlayniteAchievements.Providers.Manual
             IPlayniteAPI playniteApi,
             ExophaseSessionManager sessionManager,
             ILogger logger,
-            Func<string> getLanguage)
+            Func<string> getLanguage,
+            Func<bool> requireExophaseAuthentication)
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _apiClient = new ExophaseApiClient(
@@ -37,6 +39,7 @@ namespace PlayniteAchievements.Providers.Manual
                 _sessionManager.CookieSnapshotStore);
             _logger = logger;
             _ = getLanguage ?? throw new ArgumentNullException(nameof(getLanguage));
+            _requireExophaseAuthentication = requireExophaseAuthentication ?? throw new ArgumentNullException(nameof(requireExophaseAuthentication));
         }
 
         public async Task<List<ManualGameSearchResult>> SearchGamesAsync(string query, string language, CancellationToken ct)
@@ -48,7 +51,7 @@ namespace PlayniteAchievements.Providers.Manual
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(this, ct).ConfigureAwait(false);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(this, _requireExophaseAuthentication(), ct).ConfigureAwait(false);
 
                 var games = await _apiClient.SearchGamesAsync(query, ct).ConfigureAwait(false);
                 if (games == null || games.Count == 0)
@@ -118,7 +121,7 @@ namespace PlayniteAchievements.Providers.Manual
             // Build the full URL from the slug
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(this, ct).ConfigureAwait(false);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(this, _requireExophaseAuthentication(), ct).ConfigureAwait(false);
 
                 var achievementUrl = ExophaseApiClient.BuildUrlFromSlug(sourceGameId);
                 if (string.IsNullOrWhiteSpace(achievementUrl))

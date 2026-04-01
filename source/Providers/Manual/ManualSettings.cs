@@ -11,6 +11,7 @@ namespace PlayniteAchievements.Providers.Manual
     public class ManualSettings : ProviderSettingsBase
     {
         private bool _manualTrackingOverrideEnabled;
+        private bool _requireExophaseAuthentication = true;
         private Dictionary<Guid, ManualAchievementLink> _achievementLinks = new Dictionary<Guid, ManualAchievementLink>();
 
         /// <inheritdoc />
@@ -23,6 +24,16 @@ namespace PlayniteAchievements.Providers.Manual
         {
             get => _manualTrackingOverrideEnabled;
             set => SetValue(ref _manualTrackingOverrideEnabled, value);
+        }
+
+        /// <summary>
+        /// Gets or sets whether Exophase authentication is required for manual source operations.
+        /// When disabled, Exophase manual schema fetch/search can proceed unauthenticated.
+        /// </summary>
+        public bool RequireExophaseAuthentication
+        {
+            get => _requireExophaseAuthentication;
+            set => SetValue(ref _requireExophaseAuthentication, value);
         }
 
         /// <summary>

@@ -139,7 +139,9 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            await ManualSourceAuthentication.EnsureAuthenticatedAsync(source, cancel).ConfigureAwait(false);
+            await ManualSourceAuthentication
+                .EnsureAuthenticatedIfRequiredAsync(source, _providerSettings.RequireExophaseAuthentication, cancel)
+                .ConfigureAwait(false);
 
             // Fetch achievements directly as AchievementDetail list
             var achievements = await source.GetAchievementsAsync(link.SourceGameId, language, cancel);
