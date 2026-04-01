@@ -97,7 +97,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (!Directory.Exists(raCacheDir))
                 {
                     API.Instance.Dialogs.ShowMessage(
-                        ResourceProvider.GetString("LOCPlayAch_Settings_HashIndex_NoCacheDir"),
+                        ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -123,10 +123,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (deletedCount > 0)
                 {
                     API.Instance.Dialogs.ShowMessage(
-                        string.Format(
-                            ResourceProvider.GetString("LOCPlayAch_Settings_HashIndex_DeletedCount"),
-                            deletedCount,
-                            Environment.NewLine),
+                        ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -134,9 +131,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 else
                 {
                     API.Instance.Dialogs.ShowMessage(
-                        string.Format(
-                            ResourceProvider.GetString("LOCPlayAch_Settings_HashIndex_NoFiles"),
-                            Environment.NewLine),
+                        ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -146,7 +141,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 Logger.Error(ex, "Failed to force hash index rebuild.");
                 API.Instance.Dialogs.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_HashIndex_ClearFailed"), ex.Message),
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

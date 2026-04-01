@@ -797,8 +797,8 @@ namespace PlayniteAchievements.Views
                         var stillPresent = _plugin.RefreshRuntime.Cache.CacheFileExists();
 
                         var result = !stillPresent
-                            ? (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_Wiped"), MessageBoxImage.Information)
-                            : (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_WipeFailed"), MessageBoxImage.Error);
+                            ? (L("LOCPlayAch_Status_Succeeded", "Success!"), MessageBoxImage.Information)
+                            : (LF("LOCPlayAch_Status_Failed", "Error: {0}", "files remain"), MessageBoxImage.Error);
 
                         message = result.Item1;
                         image = result.Item2;
@@ -812,7 +812,7 @@ namespace PlayniteAchievements.Views
             if (operationError != null)
             {
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_Cache_WipeFailedWithError", "Failed to wipe cache: {0}", operationError.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -820,7 +820,7 @@ namespace PlayniteAchievements.Views
             }
 
             _plugin.PlayniteApi.Dialogs.ShowMessage(
-                message ?? ResourceProvider.GetString("LOCPlayAch_Settings_Cache_Wiped"),
+                message ?? L("LOCPlayAch_Status_Succeeded", "Success!"),
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.OK,
                 image);
@@ -904,16 +904,14 @@ namespace PlayniteAchievements.Views
             if (operationError != null)
             {
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_IconCache_ClearFailedWithError", "Failed to clear cached {0} files: {1}", fileLabel, operationError.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 return;
             }
 
-            var message = deletedCount > 0
-                ? LF("LOCPlayAch_Settings_IconCache_ClearedCount", "Removed {0} cached {1} file(s). Missing icons will be restored on the next refresh.", deletedCount, fileLabel)
-                : LF("LOCPlayAch_Settings_IconCache_NoFiles", "No cached {0} files were found.", fileLabel);
+            var message = L("LOCPlayAch_Status_Succeeded", "Success!");
 
             _plugin.PlayniteApi.Dialogs.ShowMessage(
                 message,
@@ -1093,7 +1091,7 @@ namespace PlayniteAchievements.Views
                 if (!reloadedValue)
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ResetFirstTimeSetupDone", "First-time setup has been reset. Close and reopen the sidebar to see the landing page."),
+                        L("LOCPlayAch_Status_Succeeded", "Success!"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -1101,7 +1099,7 @@ namespace PlayniteAchievements.Views
                 else
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ResetFirstTimeSetupVerifyFailed", "Failed to verify reset. The settings may not have been saved correctly."),
+                        LF("LOCPlayAch_Status_Failed", "Error: {0}", "verification failed"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
@@ -1111,7 +1109,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to reset first-time setup.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ResetFirstTimeSetupFailed", "Failed to reset first-time setup: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1128,7 +1126,7 @@ namespace PlayniteAchievements.Views
                 if (cache == null)
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ExportDatabaseFailed", "Database not available."),
+                        LF("LOCPlayAch_Status_Failed", "Error: {0}", "database not available"),
                         ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
@@ -1140,7 +1138,7 @@ namespace PlayniteAchievements.Views
                 _logger.Info($"Database exported to: {exportDir}");
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ExportDatabaseDone", "Database exported to:\n{0}", exportDir),
+                    L("LOCPlayAch_Status_Succeeded", "Success!") + "\n" + exportDir,
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -1149,7 +1147,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to export database.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ExportDatabaseFailed", "Failed to export database: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1178,7 +1176,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger?.Error(ex, "Failed to open extension data folder.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_OpenDataFolderFailed"), ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1195,7 +1193,7 @@ namespace PlayniteAchievements.Views
                 if (!System.IO.Directory.Exists(raCacheDir))
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_HashIndex_NoCacheDir", "No RetroAchievements cache directory found."),
+                        L("LOCPlayAch_Status_Succeeded", "Success!"),
                         L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -1220,28 +1218,17 @@ namespace PlayniteAchievements.Views
                     }
                 }
 
-                if (deletedCount > 0)
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        LF("LOCPlayAch_Settings_HashIndex_DeletedCount", "Deleted {0} hash index cache file(s).{1}{1}The hash index will be rebuilt on the next refresh.", deletedCount, Environment.NewLine),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        LF("LOCPlayAch_Settings_HashIndex_NoFiles", "No hash index cache files found to delete.{0}{0}The cache may have already been cleared, or no refreshes have been performed yet.", Environment.NewLine),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to force hash index rebuild.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_HashIndex_ClearFailed", "Failed to clear hash index cache: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

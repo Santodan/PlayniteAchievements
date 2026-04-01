@@ -813,9 +813,7 @@ namespace PlayniteAchievements.ViewModels
                     dialog.FileName,
                     GameCustomDataStore.PortableFileExtension);
                 var result = store.ExportPortablePa(_gameId, destinationPath);
-                var successMessage = string.Format(
-                    L("LOCPlayAch_GameOptions_Overrides_ExportSuccess", "Exported custom game data to:\n{0}"),
-                    result.DestinationPath);
+                var successMessage = L("LOCPlayAch_Status_Succeeded", "Success!") + "\n" + result.DestinationPath;
                 if (result.HasOmittedLocalIconOverrides)
                 {
                     successMessage += "\n\n" + string.Format(
@@ -835,9 +833,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed exporting custom game data for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_Overrides_ExportFailed", "Failed to export custom game data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -881,9 +877,7 @@ namespace PlayniteAchievements.ViewModels
                     GameCustomDataStore.PortablePackageFileExtension);
                 store.ExportPortablePackage(_gameId, destinationPath);
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_Overrides_ExportSuccess", "Exported custom game data to:\n{0}"),
-                        destinationPath),
+                    L("LOCPlayAch_Status_Succeeded", "Success!") + "\n" + destinationPath,
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -892,9 +886,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed exporting custom game package for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_Overrides_ExportFailed", "Failed to export custom game data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -943,9 +935,7 @@ namespace PlayniteAchievements.ViewModels
                 var transitionEffects = AnalyzeCustomDataTransition(previousData, currentData);
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
-                var successMessage = L(
-                    "LOCPlayAch_GameOptions_Overrides_ImportSuccess",
-                    "Imported custom game data for this game.");
+                var successMessage = L("LOCPlayAch_Status_Succeeded", "Success!");
                 if (importResult.HasIgnoredPackageImages)
                 {
                     successMessage += "\n\n" + string.Format(
@@ -967,9 +957,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed importing custom game data for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_Overrides_ImportFailed", "Failed to import custom game data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1011,11 +999,7 @@ namespace PlayniteAchievements.ViewModels
                 NotifyCustomDataChanged(transitionEffects.RequiresRefresh, transitionEffects.ForceIconRefresh);
 
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L(
-                            "LOCPlayAch_GameOptions_Overrides_ClearCustomDataSuccess",
-                            "Cleared custom data for \"{0}\"."),
-                        GameName),
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -1024,11 +1008,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed clearing custom data for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L(
-                            "LOCPlayAch_GameOptions_Overrides_ClearCustomDataFailed",
-                            "Failed to clear custom data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1248,9 +1228,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_Menu_ClearData_SuccessSingle", "Cleared cached data for \"{0}\"."),
-                        GameName),
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Information);
@@ -1259,9 +1237,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed to clear cached data for gameId={_gameId}");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(
-                        L("LOCPlayAch_Menu_ClearData_Failed", "Failed to clear cached data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);

@@ -495,7 +495,7 @@ namespace PlayniteAchievements
                 }
 
                 PlayniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -504,7 +504,7 @@ namespace PlayniteAchievements
             {
                 _logger?.Error(ex, $"Failed to clear cached data for game '{game.Name}' ({game.Id}).");
                 PlayniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_Failed"), ex.Message),
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -558,7 +558,7 @@ namespace PlayniteAchievements
             }
 
             PlayniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSelected"), clearedCount),
+                ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);

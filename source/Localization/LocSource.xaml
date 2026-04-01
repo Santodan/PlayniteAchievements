@@ -129,9 +129,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for "{0}"?&#10;&#10;This removes cached achievements and icons for this game. If the game has a manual tracking link, that link and its manual unlock times will also be removed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This removes cached achievements and icons for those games. Any manual tracking links and manual unlock times for those games will also be removed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSingle">Cleared cached data for "{0}".</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSelected">Cleared cached data for {0} games.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_Failed">Failed to clear cached data: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Open Game in Library</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInSidebar">Open Game in Sidebar</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RevealAchievement">Reveal Achievement Details</sys:String>
@@ -154,7 +151,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_DialogHint">Enter the RetroAchievements game ID (found in the game's URL on retroachievements.org)</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Please enter a valid positive integer game ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_ClearConfirm">Clear the RetroAchievements game ID override for "{0}"?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RaGameId_Cleared">RetroAchievements game ID override cleared.</sys:String>
 
     <!-- ================================================================= -->
     <!-- GAME OPTIONS WINDOW                                                -->
@@ -216,16 +212,10 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaButton">Export .PA</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPackageButton">Export .PA.ZIP</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportPortableButton">Import .PA / .PA.ZIP</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportSuccess">Exported custom game data to:&#10;{0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportFailed">Failed to export custom game data: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaOmittedLocalIcons">.PA export omitted {0} local image override(s). Use .PA.ZIP to export full image sets.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportSuccess">Imported custom game data for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportIgnoredPackageImages">Ignored {0} image file(s) because their file names did not match this game's achievement API names.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportFailed">Failed to import custom game data: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">Clear all custom data for "{0}"?&#10;&#10;This removes per-game exclusions, manual links, capstones, custom icon links, order/category changes, and provider overrides stored by Playnite Achievements. Cached achievement data is not removed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataSuccess">Cleared custom data for "{0}".</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataFailed">Failed to clear custom data: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Custom Achievement Order</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">Drag and drop rows to define the default order. Multi-select with Shift/Ctrl is supported. Changes are saved immediately.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_NoAchievements">No cached achievements are available for this game.</sys:String>
@@ -238,11 +228,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_UnlockedValue">Unlocked Path / URL</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LockedValue">Locked Path / URL</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">One or more icon values are invalid. Use absolute http:// or https:// URLs, or managed local files copied into plugin data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_SaveSuccess">Saved custom icon overrides. Managed local files remain in plugin data and URL overrides will refresh on the next refresh.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_SaveFailed">Failed to save custom icon overrides: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LoadFailed">Failed to load custom icon overrides: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileMissing">The selected image file no longer exists.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileFailed">Failed to copy the selected image into plugin data: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Header">Categories</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Hint">Set categories for this game's achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Reset">Reset</sys:String>
@@ -282,6 +268,8 @@
     <sys:String x:Key="LOCPlayAch_Button_Cancel">Cancel</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Ok">OK</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_OpenGameInLibrary">Open game in library</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Succeeded">Success!</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Failed">Error: {0}</sys:String>
 
     <!-- Refresh Modes -->
     <!-- Short versions for sidebar dropdown -->
@@ -566,20 +554,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">compressed icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">full-resolution icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">locked icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearedCount">Removed {0} cached {1} file(s). Missing icons will be restored on the next refresh.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_NoFiles">No cached {0} files were found.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFailedWithError">Failed to clear cached {0} files: {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Title">Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Description">Clear the plugin's cached achievement data.</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_Wiped">Cache cleared.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailed">Failed to clear cache (files remain).</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailedWithError">Failed to wipe cache: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Clearing cached achievement data...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Description">Clear the plugin's in-memory achievement icon cache.</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Cleared">Image cache cleared.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ImageCache_ClearFailed">Failed to clear image cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">Scanning cached {0} files...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">Deleting cached {0} files... ({1}/{2})</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">No cached {0} files were found.</sys:String>
@@ -587,20 +567,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">No cached locked icon references were found.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Show the first-time setup landing page again on next sidebar open.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Reset Landing Page</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupDone">First-time setup has been reset. Close and reopen the sidebar to see the landing page.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupVerifyFailed">Failed to verify reset. The settings may not have been saved correctly.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupFailed">Failed to reset first-time setup: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_NoCacheDir">No RetroAchievements cache directory found.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_DeletedCount">Deleted {0} hash index cache file(s).{1}{1}The hash index will be rebuilt on the next refresh.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_NoFiles">No hash index cache files found to delete.{0}{0}The cache may have already been cleared, or no refreshes have been performed yet.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_ClearFailed">Failed to clear hash index cache: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Export database tables to CSV for debugging</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseDone">Database exported to:{0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseFailed">Failed to export database: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">Open extension data folder (contains logs and cache)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">Open Folder</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderFailed">Failed to open data folder: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_UpdatingCache">Updating cache...</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_NoAchievementsCached">No achievements cached. Click 'Refresh All' to refresh your games.</sys:String>
 

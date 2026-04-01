@@ -128,9 +128,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Effacer les données</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Effacer les données pour "{0}" ?&#10;&#10;Cela supprime les succès et icônes en cache pour ce jeu. Si le jeu possède un lien de suivi manuel, ce lien et ses dates de déblocage manuelles seront aussi supprimés.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Effacer les données pour {0} jeux sélectionnés ?&#10;&#10;Cela supprime les succès et icônes en cache pour ces jeux. Tous les liens de suivi manuel et dates de déblocage manuelles pour ces jeux seront aussi supprimés.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSingle">Données en cache effacées pour "{0}".</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_SuccessSelected">Données en cache effacées pour {0} jeux.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_Failed">Échec de la suppression des données en cache : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Ouvrir le jeu dans la bibliothèque</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_OpenGameInSidebar">Ouvrir le jeu dans la barre latérale</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RevealAchievement">Révéler les détails du succès</sys:String>
@@ -153,7 +150,6 @@
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_DialogHint">Entrez l'ID de jeu RetroAchievements (trouvé dans l'URL du jeu sur retroachievements.org)</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Veuillez entrer un ID de jeu entier positif valide.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_ClearConfirm">Effacer le remplacement d'ID RetroAchievements pour "{0}" ?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RaGameId_Cleared">Remplacement d'ID RetroAchievements effacé.</sys:String>
 
     <!-- ================================================================= -->
     <!-- FENÊTRE OPTIONS DU JEU                                             -->
@@ -215,16 +211,10 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaButton">Exporter .PA</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPackageButton">Exporter .PA.ZIP</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportPortableButton">Importer .PA / .PA.ZIP</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportSuccess">Données personnalisées du jeu exportées vers :&#10;{0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportFailed">Échec de l'export des données personnalisées du jeu : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaOmittedLocalIcons">L'export .PA a omis {0} remplacement(s) d'image locale. Utilisez .PA.ZIP pour exporter les ensembles d'images complets.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportSuccess">Données personnalisées du jeu importées pour ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportIgnoredPackageImages">{0} fichier(s) image ont été ignorés car leurs noms ne correspondaient pas aux noms API des succès de ce jeu.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportFailed">Échec de l'import des données personnalisées du jeu : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">Effacer les données personnalisées</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">Effacer toutes les données personnalisées pour "{0}" ?&#10;&#10;Cela supprime les exclusions par jeu, les liens manuels, les couronnements, les liens d'icônes personnalisées, les changements d'ordre/catégorie et les remplacements de fournisseur stockés par Playnite Achievements. Les données de succès en cache ne sont pas supprimées.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataSuccess">Données personnalisées effacées pour "{0}".</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataFailed">Échec de l'effacement des données personnalisées : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Utiliser Exophase pour ce jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Cochez pour forcer Exophase pour ce jeu. Les jeux décochés utilisent Exophase si leur plateforme est dans les Plateformes gérées.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseManagedByPlatform">Géré par Exophase (via paramètre de plateforme)</sys:String>
@@ -243,11 +233,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_UnlockedValue">Chemin / URL déverrouillé</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LockedValue">Chemin / URL verrouillé</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">Une ou plusieurs valeurs d'icône sont invalides. Utilisez des URL absolues http:// ou https://, ou des fichiers locaux gérés copiés dans les données du plugin.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_SaveSuccess">Remplacements d'icônes personnalisées enregistrés. Les fichiers locaux gérés restent dans les données du plugin et les remplacements par URL seront actualisés lors de la prochaine actualisation.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_SaveFailed">Échec de l'enregistrement des remplacements d'icônes personnalisées : {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LoadFailed">Échec du chargement des remplacements d'icônes personnalisées : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileMissing">Le fichier image sélectionné n'existe plus.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileFailed">Impossible de copier l'image sélectionnée dans les données du plugin : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Header">Catégorie</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Hint">Définissez les types et étiquettes de catégorie pour les succès de ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Reset">Réinitialiser</sys:String>
@@ -287,6 +273,8 @@
     <sys:String x:Key="LOCPlayAch_Button_Cancel">Annuler</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Ok">OK</sys:String>
     <sys:String x:Key="LOCPlayAch_Tooltip_OpenGameInLibrary">Ouvrir le jeu dans la bibliothèque</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Succeeded">Succès !</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Failed">Erreur : {0}</sys:String>
 
     <!-- Scan Modes -->
     <!-- Short versions for sidebar dropdown -->
@@ -549,20 +537,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">icône compressée</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">icône en pleine résolution</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">icône verrouillée</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearedCount">{0} fichier(s) de {1} mis en cache ont été supprimé(s). Les icônes manquantes seront restaurées au prochain rafraîchissement.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_NoFiles">Aucun fichier de {0} en cache n'a été trouvé.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFailedWithError">Échec de la suppression des fichiers de {0} en cache : {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Title">Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Description">Supprime les données de cache des succès du plugin.</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_Wiped">Cache supprimé.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailed">Impossible de supprimer le cache (des fichiers restent).</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailedWithError">Échec de la suppression du cache : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Suppression des données de succès en cache...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Description">Vider le cache en mémoire des icônes de succès.</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Cleared">Cache d'images vidé.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ImageCache_ClearFailed">Échec du vidage du cache d'images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">Recherche des fichiers de {0} en cache...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">Suppression des fichiers de {0} en cache... ({1}/{2})</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">Aucun fichier de {0} en cache n'a été trouvé.</sys:String>
@@ -570,20 +550,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">Aucune référence d'icône verrouillée en cache n'a été trouvée.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Afficher à nouveau la page de configuration de premier démarrage à la prochaine ouverture de la barre latérale.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Réinitialiser la page d'accueil</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupDone">La configuration de premier démarrage a été réinitialisée. Fermez et rouvrez la barre latérale pour voir la page d'accueil.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupVerifyFailed">Impossible de vérifier la réinitialisation. Les paramètres n'ont peut-être pas été enregistrés correctement.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupFailed">Échec de la réinitialisation de la configuration initiale : {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_NoCacheDir">Aucun dossier de cache RetroAchievements trouvé.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_DeletedCount">{0} fichier(s) de cache d'index de hachage supprimé(s).{1}{1}L'index de hachage sera reconstruit lors de la prochaine actualisation.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_NoFiles">Aucun fichier de cache d'index de hachage à supprimer.{0}{0}Le cache a peut-être déjà été vidé, ou aucune actualisation n'a encore été effectuée.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndex_ClearFailed">Échec de la suppression du cache d'index de hachage : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Exporter les tables de la base de données en CSV pour le débogage</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Exporter CSV</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseDone">Base de données exportée vers :{0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseFailed">Échec de l'export de la base de données : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">Ouvrir le dossier de données de l'extension (contient les journaux et le cache)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">Ouvrir le dossier</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderFailed">Échec de l'ouverture du dossier de données : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_UpdatingCache">Mise à jour du cache...</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_NoAchievementsCached">Aucun succès en cache. Cliquez sur « Actualiser tout » pour actualiser vos jeux.</sys:String>
 

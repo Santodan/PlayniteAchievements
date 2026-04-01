@@ -222,11 +222,7 @@ namespace PlayniteAchievements.ViewModels
                 row.RevertFailedManagedLocalOverride(variant);
                 _logger?.Error(ex, $"Failed copying custom icon file for gameId={_gameId}, apiName={row.ApiName}, variant={variant}.");
                 SetSaveStatus(
-                    string.Format(
-                        L(
-                            "LOCPlayAch_GameOptions_CustomIcons_LocalFileFailed",
-                            "Failed to copy the selected image into plugin data: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     isError: true);
                 RefreshComputedState();
             }
@@ -301,9 +297,7 @@ namespace PlayniteAchievements.ViewModels
                 ReplaceRows(Array.Empty<AchievementIconOverrideItem>());
                 HasAchievements = false;
                 SetSaveStatus(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_CustomIcons_LoadFailed", "Failed to load custom icon overrides: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     isError: true);
                 RefreshComputedState();
             }
@@ -356,9 +350,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 SetSaveStatus(
-                    L(
-                        "LOCPlayAch_GameOptions_CustomIcons_SaveSuccess",
-                        "Saved custom icon overrides. Managed local files remain in plugin data and icon refresh for this game starts immediately."),
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
                     isError: false);
                 RefreshComputedState();
                 IconOverridesSaved?.Invoke(this, EventArgs.Empty);
@@ -367,9 +359,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed saving custom icon overrides for gameId={_gameId}");
                 SetSaveStatus(
-                    string.Format(
-                        L("LOCPlayAch_GameOptions_CustomIcons_SaveFailed", "Failed to save custom icon overrides: {0}"),
-                        ex.Message),
+                    string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
                     isError: true);
             }
             finally
