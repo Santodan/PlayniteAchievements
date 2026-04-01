@@ -56,6 +56,12 @@ namespace PlayniteAchievements.Providers.Epic
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             InitializeComponent();
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_Epic"));
+            AuthLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_Epic"));
         }
 
         public override void Initialize(IProviderSettings settings)
@@ -72,7 +78,7 @@ namespace PlayniteAchievements.Providers.Epic
 
             if (isAuthenticated)
             {
-                AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_AlreadyAuthenticated");
+                AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated");
                 return;
             }
 

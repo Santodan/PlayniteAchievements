@@ -58,7 +58,7 @@
             <Border Style="{StaticResource SectionBorderStyle}"
                     IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_EpicConnection}"
+                    <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Epic_OwnAuthHelp}"
                                Style="{StaticResource MutedTextStyle}"
@@ -72,7 +72,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Label_EpicAuth}"
+                                   x:Name="AuthLabel"
                                    Foreground="{DynamicResource TextBrush}"
                                    VerticalAlignment="Top"
                                    Margin="0,8,0,0"/>
