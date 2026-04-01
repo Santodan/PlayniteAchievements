@@ -387,8 +387,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Obtenez votre clé API de</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CheckSteamAuth">Vérifier l'authentification Steam</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">S'authentifier via le navigateur</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SteamAuth_OK">Steam authentifié</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Status_NotChecked">Steam : Non vérifié</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Status_CookiesCleared">Cookies de session Steam effacés.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Status_AuthError">Erreur lors de la vérification du statut Steam.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Status_BothNeeded">La clé Steam Web API et l'authentification web sont requises</sys:String>
@@ -397,8 +395,6 @@
     <sys:String x:Key="LOCPlayAch_Label_SteamAuth">Authentification Steam</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamWebAuth">Authentification web Steam</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_RaAuth">Authentification RetroAchievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Ra_NotChecked">RetroAchievements non vérifié</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Ra_Configured">RetroAchievements configuré avec succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Ra_BothNeeded">Nom d'utilisateur et clé API requis</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Ra_UsernameNeeded">Nom d'utilisateur requis</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Ra_ApiKeyNeeded">Clé API requise</sys:String>
@@ -465,28 +461,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Description">La connexion est requise pour le suivi Exophase et les liens manuels. Les noms et descriptions des succès utilisent votre paramètre de langue globale lorsque Exophase propose cette langue.</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_ExophaseAuth">Authentification Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authentifiez-vous auprès d'Exophase pour actualiser les données suivies et utiliser les liens manuels Exophase.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_NotAuthenticated">Non authentifié avec Exophase</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_AlreadyAuthenticated">Authentifié avec Exophase</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Verified">Authentification Exophase vérifiée</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Cancelled">Connexion Exophase annulée</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_TimedOut">Délai de connexion Exophase dépassé</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Failed">Échec de l'authentification Exophase</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_ProbeFailed">Impossible de vérifier l'état d'authentification Exophase</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_Checking">Vérification de l'authentification Exophase...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExophaseAuth_WindowNotOpened">Échec de l'ouverture de la fenêtre de connexion</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider">Activer le fournisseur Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">Lorsqu'il est activé, Exophase peut suivre automatiquement les succès des jeux sur les plateformes gérées.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Plateformes gérées</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Les jeux sur ces plateformes utiliseront Exophase à la place des fournisseurs modernes. Cochez les plateformes que vous voulez confier à Exophase.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Steam">Steam</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_PSN">PlayStation</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Xbox">Xbox</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GOG">GOG</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Epic">Epic Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_BattleNet">Battle.net</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GooglePlay">Google Play</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_EA">EA</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Retro">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Remarque : pour les jeux sur les plateformes non cochées, utilisez les Options du jeu pour les inclure individuellement.</sys:String>
 
     <!-- ShadPS4 Settings -->
@@ -495,7 +473,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4Enabled">Activer le suivi des trophées ShadPS4</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Dossier de données de jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Chemin vers le dossier user/game_data contenant les données de trophées</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_Browse">Parcourir...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_Verified">Dossier de données de jeu ShadPS4 vérifié.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_NotConfigured">Dossier de données de jeu ShadPS4 non configuré.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_FolderNotFound">Dossier de données de jeu ShadPS4 introuvable.</sys:String>
@@ -506,13 +483,12 @@
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3Enabled">Activer le suivi des trophées RPCS3</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Chemin de l'exécutable</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Chemin vers rpcs3.exe</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_Browse">Parcourir...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_Verified">Chemin de l'exécutable RPCS3 vérifié.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_NotConfigured">Chemin de l'exécutable RPCS3 non configuré.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_FolderNotFound">Dossier trophy RPCS3 introuvable.</sys:String>
 
     <!-- RPCS3 Validation -->
-    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_InvalidPath">Le répertoire n'existe pas</sys:String>
+    <sys:String x:Key="LOCPlayAch_InvalidPath">Le répertoire n'existe pas</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">Installation RPCS3 invalide - dev_hdd0\home manquant</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoUser">Aucun profil utilisateur trouvé dans dev_hdd0\home</sys:String>
     <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">Dossier de trophées introuvable</sys:String>
@@ -524,7 +500,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_TabGeneral">Général</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Appearance">Apparence et disposition</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Language">Langue</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GlobalLanguage">Langue des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">Activer ce fournisseur</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">Ce fournisseur est désactivé. Activez-le pour suivre les succès.</sys:String>
     <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Synchronisation et mises à jour</sys:String>
@@ -557,17 +532,17 @@
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Données de succès en cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Supprime les enregistrements de succès en cache sans toucher aux fichiers d'icônes.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Supprime les données de succès en cache. Actualisez à nouveau pour les reconstruire depuis les fournisseurs.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearButton">Supprimer les données</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_Title">Cache des icônes de succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_Description">Supprime les fichiers d'icônes mis en cache. Toutes les actions vident aussi le cache d'images en mémoire, et les fichiers manquants seront restaurés au prochain rafraîchissement.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">Supprime tous les fichiers d'icônes de succès mis en cache.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllButton">Tout supprimer</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">Supprime uniquement les fichiers d'icônes optimisés en 128 px.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedButton">Suppr. compressé</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription">Supprime uniquement les fichiers d'icônes en résolution d'origine.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionButton">Suppr. pleine rés.</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedDescription">Supprime uniquement les fichiers d'icônes verrouillées séparés. Les succès verrouillés utiliseront un repli jusqu'au prochain rafraîchissement.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedButton">Suppr. verrouillé</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">Utilitaires</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Utilities_Description">Outils de maintenance et de débogage hors cache.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_All">icône</sys:String>
@@ -579,13 +554,13 @@
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFailedWithError">Échec de la suppression des fichiers de {0} en cache : {1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Title">Cache</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Description">Supprime les données de cache des succès du plugin.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_WipeCache_All">Supprimer le cache</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_Cache_Wiped">Cache supprimé.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailed">Impossible de supprimer le cache (des fichiers restent).</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_WipeFailedWithError">Échec de la suppression du cache : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Suppression des données de succès en cache...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Description">Vider le cache en mémoire des icônes de succès.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Clear">Vider le cache d'images</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_ImageCache_Cleared">Cache d'images vidé.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ImageCache_ClearFailed">Échec du vidage du cache d'images</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">Recherche des fichiers de {0} en cache...</sys:String>
@@ -831,8 +806,7 @@
     <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeChecking">VÉRIFICATION</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_Language">Langue des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Landing_EnableProvider">Activer</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_LanguageHint">Langue pour le texte des succès. Les plateformes utiliseront cette langue si disponible.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_GlobalLanguageHint">Langue pour le texte des succès. Les plateformes utiliseront cette langue si disponible, avec repli sur l'anglais si non prise en charge.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LanguageHint">Langue pour le texte des succès. Les plateformes utiliseront cette langue si disponible, avec repli sur l'anglais si non prise en charge.</sys:String>
 
     <!-- ================================================================= -->
     <!-- SETTINGS - THEME INTEGRATION                                      -->
@@ -936,7 +910,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Importez les liens manuels depuis SuccessStory (Legacy). L'import est additif et n'écrase jamais les liens manuels existants ni les données fournisseur en cache.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Dossier Legacy</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">Par défaut : Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Browse">Parcourir</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Importer les liens manuels Legacy</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusIdle">Prêt pour l'import des liens manuels Legacy.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusRunning">Import des liens manuels Legacy...</sys:String>

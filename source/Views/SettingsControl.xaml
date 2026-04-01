@@ -237,11 +237,11 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GlobalLanguage}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
                                                    Foreground="{DynamicResource TextBrush}"
                                                    FontWeight="SemiBold"
                                                    Margin="0,0,0,2"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GlobalLanguageHint}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
                                                    Style="{StaticResource MutedTextStyle}"/>
                                     </StackPanel>
 
@@ -608,7 +608,7 @@
                                                        VerticalAlignment="Center"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearButton}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     Click="WipeCache_Click"
                                                     Padding="14,6"
                                                     Margin="16,0,0,0"
@@ -638,7 +638,7 @@
                                                        VerticalAlignment="Center"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllButton}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     Click="ClearAllIconCache_Click"
                                                     Padding="14,6"
                                                     Margin="16,0,0,0"
@@ -657,7 +657,7 @@
                                                        VerticalAlignment="Center"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearCompressedButton}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     Click="ClearCompressedIconCache_Click"
                                                     Padding="14,6"
                                                     Margin="16,0,0,0"
@@ -676,7 +676,7 @@
                                                        VerticalAlignment="Center"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearFullResolutionButton}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     Click="ClearFullResolutionIconCache_Click"
                                                     Padding="14,6"
                                                     Margin="16,0,0,0"
@@ -695,7 +695,7 @@
                                                        VerticalAlignment="Center"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedButton}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
                                                     Click="ClearLockedIconCache_Click"
                                                     Padding="14,6"
                                                     Margin="16,0,0,0"
