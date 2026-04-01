@@ -142,8 +142,12 @@
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>if exist "$(MSBuildProjectDirectory)\Localization\*.xaml" xcopy "$(MSBuildProjectDirectory)\Localization\*.xaml" "$(MSBuildProjectDirectory)\$(OutputPath)Localization" /Y /I /E
-if exist "E:\Programs\Playnite\Toolbox.exe" "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
-if not exist "E:\Programs\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playnite\Toolbox.exe" "$(LocalAppData)\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"</PostBuildEvent>
+if exist "$(LocalAppData)\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playnite\Playnite.dll" (
+    "$(LocalAppData)\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
+    if errorlevel 1 if exist "E:\Programs\Playnite\Toolbox.exe" if exist "E:\Programs\Playnite\Playnite.dll" "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
+) else if exist "E:\Programs\Playnite\Toolbox.exe" if exist "E:\Programs\Playnite\Playnite.dll" (
+    "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
+)</PostBuildEvent>
   </PropertyGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
