@@ -382,9 +382,6 @@
     <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">Alternative Login</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. Login to Epic in your default browser when it opens\n2. After logging in, find the "authorizationCode" value on the page\n3. Copy and paste that value in the next dialog</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">Paste the authorizationCode value here:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Psn_OwnAuthHelp">1. Sign in at PlayStation.com (check "Trust this browser")</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Psn_OwnAuthHelp2">2. Go to the Sony SSO cookie page and copy the npsso value</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Psn_OwnAuthHelp3">3. Paste the value below and press Enter</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">Sign in at PlayStation.com</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1Note">(check "Trust this browser")</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step2">Open Sony SSO cookie page</sys:String>
