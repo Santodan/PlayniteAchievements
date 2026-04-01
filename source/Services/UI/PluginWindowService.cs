@@ -494,25 +494,11 @@ namespace PlayniteAchievements.Services.UI
 
                 void LoadResources()
                 {
-                    if (app.Resources.Contains("BadgeShadow"))
-                    {
-                        return;
-                    }
-
-                    var badgesUri = new Uri("/PlayniteAchievements;component/Resources/RarityBadges.xaml", UriKind.Relative);
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = badgesUri });
-
-                    var trophyUri = new Uri("/PlayniteAchievements;component/Resources/TrophyBadges.xaml", UriKind.Relative);
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = trophyUri });
-
-                    var templatesUri = new Uri("/PlayniteAchievements;component/Resources/AchievementTemplates.xaml", UriKind.Relative);
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = templatesUri });
-
-                    var providerUri = new Uri("/PlayniteAchievements;component/Providers/ProviderIcons.xaml", UriKind.Relative);
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = providerUri });
-
-                    var migrationUri = new Uri("/PlayniteAchievements;component/Resources/MigrationStyles.xaml", UriKind.Relative);
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = migrationUri });
+                    EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/RarityBadges.xaml");
+                    EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/TrophyBadges.xaml");
+                    EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/AchievementTemplates.xaml");
+                    EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Providers/ProviderIcons.xaml");
+                    EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/MigrationStyles.xaml");
                 }
 
                 if (app.Dispatcher.CheckAccess())
@@ -521,13 +507,37 @@ namespace PlayniteAchievements.Services.UI
                 }
                 else
                 {
-                    app.Dispatcher.BeginInvoke((Action)LoadResources, DispatcherPriority.Background);
+                    app.Dispatcher.Invoke(LoadResources, DispatcherPriority.Normal);
                 }
             }
             catch (Exception ex)
             {
                 _logger.Debug(ex, "Failed to load achievement resources at application level.");
             }
+        }
+
+        private static void EnsureMergedDictionaryLoaded(ResourceDictionary resources, string relativeUri)
+        {
+            if (resources == null || string.IsNullOrWhiteSpace(relativeUri))
+            {
+                return;
+            }
+
+            var targetUri = new Uri(relativeUri, UriKind.Relative);
+            foreach (var dictionary in resources.MergedDictionaries)
+            {
+                if (dictionary?.Source == null)
+                {
+                    continue;
+                }
+
+                if (Uri.Compare(dictionary.Source, targetUri, UriComponents.SerializationInfoString, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    return;
+                }
+            }
+
+            resources.MergedDictionaries.Add(new ResourceDictionary { Source = targetUri });
         }
     }
 }

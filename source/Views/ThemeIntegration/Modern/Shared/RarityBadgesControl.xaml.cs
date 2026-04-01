@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
@@ -40,6 +41,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
     /// </summary>
     public partial class RarityBadgesControl : UserControl
     {
+        private static readonly Uri BadgeResourcesUri =
+            new Uri("pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml", UriKind.Absolute);
+        private static readonly object BadgeResourcesLock = new object();
+
+        private static ResourceDictionary _fallbackBadgeResources;
+
         public ObservableCollection<BadgeItem> BadgeItems { get; } = new ObservableCollection<BadgeItem>();
 
         public static readonly DependencyProperty ShowZeroCountsProperty =
@@ -114,14 +121,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
             Models.Achievements.AchievementRarityStats uncommon,
             Models.Achievements.AchievementRarityStats common)
         {
+            ultraRare = ultraRare ?? new AchievementRarityStats();
+            rare = rare ?? new AchievementRarityStats();
+            uncommon = uncommon ?? new AchievementRarityStats();
+            common = common ?? new AchievementRarityStats();
+
             BadgeItems.Clear();
 
             var badges = new (ImageSource Icon, int Count, int Total)[]
             {
-                ((ImageSource)TryFindResource("BadgePlatinumHexagon"), GetCount(ultraRare), ultraRare.Total),
-                ((ImageSource)TryFindResource("BadgeGoldPentagon"), GetCount(rare), rare.Total),
-                ((ImageSource)TryFindResource("BadgeSilverSquare"), GetCount(uncommon), uncommon.Total),
-                ((ImageSource)TryFindResource("BadgeBronzeTriangle"), GetCount(common), common.Total)
+                (GetBadgeIcon("BadgePlatinumHexagon"), GetCount(ultraRare), ultraRare.Total),
+                (GetBadgeIcon("BadgeGoldPentagon"), GetCount(rare), rare.Total),
+                (GetBadgeIcon("BadgeSilverSquare"), GetCount(uncommon), uncommon.Total),
+                (GetBadgeIcon("BadgeBronzeTriangle"), GetCount(common), common.Total)
             };
 
             foreach (var (icon, count, total) in badges)
@@ -146,6 +158,77 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
                 BadgesDisplayMode.Total => stats.Total,
                 _ => stats.Unlocked
             };
+        }
+
+        private ImageSource GetBadgeIcon(string resourceKey)
+        {
+            return TryGetImageSource(Resources, resourceKey) ??
+                   TryGetImageSource(Application.Current?.Resources, resourceKey) ??
+                   TryGetImageSource(GetFallbackBadgeResources(), resourceKey);
+        }
+
+        private static ImageSource TryGetImageSource(ResourceDictionary resources, string resourceKey)
+        {
+            try
+            {
+                return TryGetResource(resources, resourceKey) as ImageSource;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static object TryGetResource(ResourceDictionary resources, object resourceKey)
+        {
+            if (resources == null || resourceKey == null)
+            {
+                return null;
+            }
+
+            if (resources.Contains(resourceKey))
+            {
+                return resources[resourceKey];
+            }
+
+            for (int i = resources.MergedDictionaries.Count - 1; i >= 0; i--)
+            {
+                var value = TryGetResource(resources.MergedDictionaries[i], resourceKey);
+                if (value != null)
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private static ResourceDictionary GetFallbackBadgeResources()
+        {
+            if (_fallbackBadgeResources != null)
+            {
+                return _fallbackBadgeResources;
+            }
+
+            lock (BadgeResourcesLock)
+            {
+                if (_fallbackBadgeResources == null)
+                {
+                    try
+                    {
+                        _fallbackBadgeResources = new ResourceDictionary
+                        {
+                            Source = BadgeResourcesUri
+                        };
+                    }
+                    catch
+                    {
+                        _fallbackBadgeResources = new ResourceDictionary();
+                    }
+                }
+            }
+
+            return _fallbackBadgeResources;
         }
     }
 
