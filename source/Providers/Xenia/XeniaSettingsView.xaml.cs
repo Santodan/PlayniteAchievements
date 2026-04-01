@@ -108,7 +108,7 @@ namespace PlayniteAchievements.Providers.Xenia
             else
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_XeniaValidation_InvalidPath");
+                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
             }
         }
 

@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             else
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Settings_ShadPS4_FolderNotFound");
+                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
             }
         }
 

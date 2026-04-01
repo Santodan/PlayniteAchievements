@@ -415,12 +415,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Dossier de données de jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Chemin vers le dossier user/game_data contenant les données de trophées</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} non configuré.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_FolderNotFound">Dossier de données de jeu ShadPS4 introuvable.</sys:String>
 
     <!-- RPCS3 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Chemin de l'exécutable</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Chemin vers rpcs3.exe</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_FolderNotFound">Dossier trophy RPCS3 introuvable.</sys:String>
 
     <!-- RPCS3 Validation -->
     <sys:String x:Key="LOCPlayAch_InvalidPath">Le répertoire n'existe pas</sys:String>

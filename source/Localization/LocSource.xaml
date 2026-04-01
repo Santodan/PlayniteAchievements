@@ -418,12 +418,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Game Data Folder</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Path to the user/game_data folder containing trophy data</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} not configured.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4_FolderNotFound">ShadPS4 game data folder not found.</sys:String>
 
     <!-- RPCS3 Settings -->
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Executable Path</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Path to rpcs3.exe</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3_FolderNotFound">RPCS3 trophy folder not found.</sys:String>
 
     <!-- RPCS3 Validation -->
     <sys:String x:Key="LOCPlayAch_InvalidPath">Directory does not exist</sys:String>
