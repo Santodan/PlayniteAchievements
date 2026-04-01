@@ -76,10 +76,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             var authenticated = hasUsername && hasApiKey;
 
             IsAuthenticated = authenticated;
-            var providerName = ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements");
             AuthStatus = authenticated
-                ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"), providerName)
-                : string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotAuthenticated"), providerName);
+                ? ResourceProvider.GetString("LOCPlayAch_Auth_AlreadyAuthenticated")
+                : ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
         }
 
         public Task RefreshAuthStatusAsync()

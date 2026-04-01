@@ -95,7 +95,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (string.IsNullOrWhiteSpace(installFolder) || !System.IO.Directory.Exists(installFolder))
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_InvalidPath");
+                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
                 return;
             }
 

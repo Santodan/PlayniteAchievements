@@ -127,7 +127,7 @@
                                                      KeyDown="XeniaAccountPath_KeyDown"
                                                      LostFocus="XeniaAccountPath_LostFocus"/>
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_Xenia_Browse}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                                     Click="Xenia_Browse_Click"
                                                     Padding="10,4"/>
                                         </Grid>

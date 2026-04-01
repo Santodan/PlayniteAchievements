@@ -47,11 +47,10 @@ namespace PlayniteAchievements.Providers.Xbox
         {
             var isAuthenticated = result?.IsSuccess ?? false;
             IsAuthenticated = isAuthenticated;
-            var providerName = ResourceProvider.GetString("LOCPlayAch_Provider_Xbox");
 
             if (isAuthenticated)
             {
-                AuthStatus = string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"), providerName);
+                AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_AlreadyAuthenticated");
                 return;
             }
 
@@ -60,7 +59,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 : null;
 
             AuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result?.MessageKey, StringComparison.Ordinal)
-                ? string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotAuthenticated"), providerName)
+                ? ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated")
                 : localized;
         }
 

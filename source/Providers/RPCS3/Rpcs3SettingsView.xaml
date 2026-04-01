@@ -127,7 +127,7 @@
                                                      LostFocus="Rpcs3ExecutablePath_LostFocus"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_Rpcs3_Browse}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                                     Click="Rpcs3_Browse_Click"
                                                     Padding="10,4"/>
                                         </Grid>

@@ -128,7 +128,7 @@
                                                      LostFocus="ShadPS4GameDataPath_LostFocus"/>
 
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_ShadPS4_Browse}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                                     Click="ShadPS4_Browse_Click"
                                                     Padding="10,4"/>
                                         </Grid>

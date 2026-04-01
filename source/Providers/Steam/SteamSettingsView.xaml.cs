@@ -70,7 +70,8 @@ namespace PlayniteAchievements.Providers.Steam
                 nameof(WebAuthStatus),
                 typeof(string),
                 typeof(SteamSettingsView),
-                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Status_NotChecked")));
+                new PropertyMetadata(
+                    ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked")));
 
         public string WebAuthStatus
         {
@@ -134,9 +135,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             if (hasWebAuth && hasApiKey)
             {
-                WebAuthStatus = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"),
-                    ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_AlreadyAuthenticated");
             }
             else if (hasWebAuth)
             {
@@ -146,9 +145,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 var localized = ResourceProvider.GetString(result.MessageKey);
                 WebAuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result.MessageKey, StringComparison.Ordinal)
-                    ? string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotAuthenticated"),
-                        ResourceProvider.GetString("LOCPlayAch_Provider_Steam"))
+                    ? ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated")
                     : localized;
             }
         }
@@ -230,9 +227,7 @@ namespace PlayniteAchievements.Providers.Steam
 
             if (WebAuthenticated && hasApiKey)
             {
-                WebAuthStatus = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"),
-                    ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_AlreadyAuthenticated");
             }
             else if (WebAuthenticated)
             {
@@ -240,9 +235,7 @@ namespace PlayniteAchievements.Providers.Steam
             }
             else
             {
-                WebAuthStatus = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotAuthenticated"),
-                    ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
             }
         }
 

@@ -83,7 +83,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (string.IsNullOrWhiteSpace(path))
             {
-                result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_InvalidPath");
+                result.ErrorMessage = ResourceProvider.GetString("LOCPlayAch_InvalidPath");
                 if (string.IsNullOrWhiteSpace(result.ErrorMessage))
                     result.ErrorMessage = "Path is required.";
                 return result;
@@ -92,7 +92,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (!Directory.Exists(path))
             {
                 result.ErrorMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_InvalidPath") ?? "Directory does not exist: {0}",
+                    ResourceProvider.GetString("LOCPlayAch_InvalidPath") ?? "Directory does not exist: {0}",
                     path);
                 return result;
             }

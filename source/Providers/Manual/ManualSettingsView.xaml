@@ -87,7 +87,7 @@
                                  Margin="0,0,8,0"/>
 
                         <Button Grid.Column="1"
-                                Content="{DynamicResource LOCPlayAch_Settings_Manual_Legacy_Browse}"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                 Click="ManualLegacyBrowse_Click"
                                 Padding="10,4"/>
                     </Grid>
