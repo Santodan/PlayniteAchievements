@@ -782,22 +782,15 @@
     <!-- ================================================================= -->
     <!-- POPUP SUCCÈS COURONNEMENT                                         -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Capstone_WindowTitle">Succès couronnement - {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Header">Succès couronnement</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choisissez un succès à marquer comme couronnement de ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Couronnement actuel : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current_None">Aucun</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonSet">Définir le couronnement</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonClear">Effacer le couronnement</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonDone">Terminé</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_SearchPlaceholder">Rechercher des succès...</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_NoCachedData">Aucun succès en cache n'est disponible pour "{0}". Actualisez d'abord ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_InvalidGame">Sélection de jeu invalide.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_NotCached">Aucune donnée de succès en cache n'est disponible pour ce jeu.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_MarkerNotFound">Le succès sélectionné n'est plus disponible dans les données en cache.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_SelectRequired">Sélectionnez un succès avant de définir un couronnement.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_SaveFailed">Impossible d'enregistrer le couronnement.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_OpenFailed">Impossible d'ouvrir la vue du couronnement : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">Aucun succès verrouillé</sys:String>
     <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">Aucun succès débloqué</sys:String>
     <sys:String x:Key="LOCPlayAch_ChartCut">Couper</sys:String>

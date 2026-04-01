@@ -792,22 +792,15 @@
     <!-- ================================================================= -->
     <!-- CAPSTONE ACHIEVEMENT POPUP                                         -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Capstone_WindowTitle">Capstone Achievement - {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Header">Capstone Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose one achievement to mark as this game's Capstone. Unlocking a Capstone achievement will mark the game as Completed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current_None">None</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonSet">Set Capstone</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonClear">Clear Capstone</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_ButtonDone">Done</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_SearchPlaceholder">Search achievements...</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_NoCachedData">No cached achievements are available for "{0}". Refresh this game first.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_InvalidGame">Invalid game selection.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_NotCached">No cached achievement data is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_MarkerNotFound">The selected achievement is no longer available in cached data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_SelectRequired">Select an achievement before setting a capstone.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Error_SaveFailed">Failed to save capstone.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_OpenFailed">Failed to open capstone view: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">No locked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">No unlocked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_ChartCut">Cut</sys:String>
