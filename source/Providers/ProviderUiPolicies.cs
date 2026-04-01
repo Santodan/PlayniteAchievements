@@ -9,6 +9,7 @@ namespace PlayniteAchievements.Providers
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "BattleNet",
+                "GooglePlay",
                 "EA"
             };
 

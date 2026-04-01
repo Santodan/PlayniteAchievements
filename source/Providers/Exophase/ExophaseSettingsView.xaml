@@ -170,6 +170,12 @@
                                       Tag="origin"
                                       Margin="0,0,12,10"
                                       FontSize="{DynamicResource FontSize}"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_GooglePlay}"
+                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Click="ExophasePlatform_CheckChanged"
+                                      Tag="android"
+                                      Margin="0,0,12,10"
+                                      FontSize="{DynamicResource FontSize}"/>
                             <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_Retro}"
                                       Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"

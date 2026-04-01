@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
         private static readonly string[] KnownExophasePlatformTokens =
         {
-            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro"
+            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro", "android"
         };
         private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
         private ExophaseSettings _providerSettings;
@@ -855,6 +855,7 @@ namespace PlayniteAchievements.Providers.Exophase
             if (name.Contains("epic")) return "epic";
             if (name.Contains("battle.net") || name.Contains("battlenet") || ContainsDelimitedToken(name, "blizzard")) return "blizzard";
             if (name.Contains("origin") || name.Contains("electronic arts") || name.Contains("ea app") || ContainsDelimitedToken(name, "ea")) return "origin";
+            if (name.Contains("google play") || name.Contains("googleplay") || name.Contains("android") || ContainsDelimitedToken(name, "android")) return "android";
 
             return null;
         }
@@ -915,6 +916,9 @@ namespace PlayniteAchievements.Providers.Exophase
             // RetroAchievements
             if (name.Contains("retro") || name.Contains("retroachievements")) return "retro";
 
+            // Android / Google Play
+            if (name.Contains("android") || name.Contains("google play") || name.Contains("googleplay")) return "android";
+
             return null;
         }
 
@@ -935,6 +939,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "xbox": return "Xbox";
                 case "psn": return "PSN";
                 case "retro": return "RetroAchievements";
+                case "android": return "GooglePlay";
                 default:
                     return char.ToUpper(slug[0]) + slug.Substring(1);
             }

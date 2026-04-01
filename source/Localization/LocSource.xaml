@@ -106,6 +106,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_GOG">GOG</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_BattleNet">Battle.net</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_EA">EA</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
@@ -480,6 +481,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GOG">GOG</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Epic">Epic Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_BattleNet">Battle.net</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_GooglePlay">Google Play</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_EA">EA</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Platform_Retro">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
