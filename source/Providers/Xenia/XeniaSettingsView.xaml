@@ -37,7 +37,7 @@
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XeniaConnection}"
+                    <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Xenia_Description}"
                                Style="{StaticResource MutedTextStyle}"
