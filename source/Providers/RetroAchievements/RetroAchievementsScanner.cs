@@ -219,7 +219,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
 
             // Check for manual override first (survives cache clears)
-            if (raSettings.RaGameIdOverrides.TryGetValue(game.Id, out var overriddenId))
+            if (RetroAchievementsDataProvider.TryGetGameIdOverride(game.Id, out var overriddenId))
             {
                 _logger?.Info($"[RA] Using manual RA ID override: '{game.Name}' -> {overriddenId}");
                 var result = await FetchGameInfoAsync(game, overriddenId, consoleId, cancel).ConfigureAwait(false);

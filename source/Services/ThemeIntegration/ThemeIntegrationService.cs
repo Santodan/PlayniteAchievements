@@ -649,7 +649,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             allData ??= new List<GameAchievementData>();
 
-            var excludedIds = _settings?.Persisted?.ExcludedFromSummariesGameIds;
+            var excludedIds = GameCustomDataLookup.GetExcludedSummaryGameIds(_settings?.Persisted);
             if (excludedIds == null || excludedIds.Count == 0)
             {
                 return allData;

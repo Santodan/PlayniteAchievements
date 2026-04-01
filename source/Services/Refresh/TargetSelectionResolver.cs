@@ -81,7 +81,7 @@ namespace PlayniteAchievements.Services
             HashSet<Guid> excludedGameIds = null;
             if (options.SkipNoAchievementsGames && !options.BypassExclusions)
             {
-                excludedGameIds = _settings.Persisted.ExcludedGameIds;
+                excludedGameIds = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
             }
 
             IEnumerable<Game> candidates;

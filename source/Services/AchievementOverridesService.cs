@@ -1,7 +1,5 @@
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
-using PlayniteAchievements.Providers.Manual;
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
@@ -11,25 +9,22 @@ namespace PlayniteAchievements.Services
 {
     public sealed class AchievementOverridesService
     {
-        private readonly PlayniteAchievementsSettings _settings;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ICacheManager _cacheService;
         private readonly ILogger _logger;
-        private readonly Action<bool> _persistSettings;
         private readonly Action<bool> _notifyCacheInvalidated;
         private readonly Action<List<Guid>> _raiseGameDataChanged;
 
         public AchievementOverridesService(
-            PlayniteAchievementsSettings settings,
+            GameCustomDataStore gameCustomDataStore,
             ICacheManager cacheService,
             ILogger logger,
-            Action<bool> persistSettings,
             Action<bool> notifyCacheInvalidated,
             Action<List<Guid>> raiseGameDataChanged)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _gameCustomDataStore = gameCustomDataStore ?? throw new ArgumentNullException(nameof(gameCustomDataStore));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _logger = logger;
-            _persistSettings = persistSettings ?? throw new ArgumentNullException(nameof(persistSettings));
             _notifyCacheInvalidated = notifyCacheInvalidated ?? throw new ArgumentNullException(nameof(notifyCacheInvalidated));
             _raiseGameDataChanged = raiseGameDataChanged;
         }
@@ -46,16 +41,11 @@ namespace PlayniteAchievements.Services
 
             try
             {
-                if (string.IsNullOrWhiteSpace(capstoneApiName))
+                _gameCustomDataStore.Update(playniteGameId, customData =>
                 {
-                    _settings.Persisted.ManualCapstones.Remove(playniteGameId);
-                }
-                else
-                {
-                    _settings.Persisted.ManualCapstones[playniteGameId] = capstoneApiName.Trim();
-                }
+                    customData.ManualCapstoneApiName = capstoneApiName;
+                });
 
-                _persistSettings(true);
                 _notifyCacheInvalidated(true);
                 _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
 
@@ -74,146 +64,79 @@ namespace PlayniteAchievements.Services
 
         public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)
         {
-            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            if (gameId == Guid.Empty)
             {
                 return;
             }
 
-            var normalizedOrder = AchievementOrderHelper.NormalizeApiNames(orderedApiNames);
-            var updated = _settings.Persisted.AchievementOrderOverrides != null
-                ? _settings.Persisted.AchievementOrderOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null ? new List<string>(kvp.Value) : new List<string>())
-                : new Dictionary<Guid, List<string>>();
-
-            if (normalizedOrder.Count == 0)
+            _gameCustomDataStore.Update(gameId, customData =>
             {
-                updated.Remove(gameId);
-            }
-            else
-            {
-                updated[gameId] = normalizedOrder;
-            }
-
-            _settings.Persisted.AchievementOrderOverrides = updated;
-            _persistSettings(true);
+                customData.AchievementOrder = orderedApiNames != null
+                    ? new List<string>(orderedApiNames)
+                    : null;
+            });
             _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
         {
-            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            if (gameId == Guid.Empty)
             {
                 return;
             }
 
-            var normalizedCategories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (categoryOverrides != null)
+            _gameCustomDataStore.Update(gameId, customData =>
             {
-                foreach (var pair in categoryOverrides)
-                {
-                    var apiName = (pair.Key ?? string.Empty).Trim();
-                    var category = (pair.Value ?? string.Empty).Trim();
-                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(category))
-                    {
-                        continue;
-                    }
-
-                    normalizedCategories[apiName] = category;
-                }
-            }
-
-            var updated = _settings.Persisted.AchievementCategoryOverrides != null
-                ? _settings.Persisted.AchievementCategoryOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
-
-            if (normalizedCategories.Count == 0)
-            {
-                updated.Remove(gameId);
-            }
-            else
-            {
-                updated[gameId] = normalizedCategories;
-            }
-
-            _settings.Persisted.AchievementCategoryOverrides = updated;
-            _persistSettings(true);
+                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+            });
             _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementCategoryTypeOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryTypeOverrides)
         {
-            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            if (gameId == Guid.Empty)
             {
                 return;
             }
 
-            var normalizedCategoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (categoryTypeOverrides != null)
+            _gameCustomDataStore.Update(gameId, customData =>
             {
-                foreach (var pair in categoryTypeOverrides)
-                {
-                    var apiName = (pair.Key ?? string.Empty).Trim();
-                    var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
-                    if (string.IsNullOrWhiteSpace(apiName) || string.IsNullOrWhiteSpace(categoryType))
-                    {
-                        continue;
-                    }
+                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+            });
+            _notifyCacheInvalidated(true);
+        }
 
-                    normalizedCategoryTypes[apiName] = categoryType;
-                }
+        public void SetAchievementIconOverrides(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> unlockedIconOverrides,
+            IReadOnlyDictionary<string, string> lockedIconOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
             }
 
-            var updated = _settings.Persisted.AchievementCategoryTypeOverrides != null
-                ? _settings.Persisted.AchievementCategoryTypeOverrides.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value != null
-                        ? new Dictionary<string, string>(kvp.Value, StringComparer.OrdinalIgnoreCase)
-                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
-                : new Dictionary<Guid, Dictionary<string, string>>();
-
-            if (normalizedCategoryTypes.Count == 0)
+            _gameCustomDataStore.Update(gameId, customData =>
             {
-                updated.Remove(gameId);
-            }
-            else
-            {
-                updated[gameId] = normalizedCategoryTypes;
-            }
+                customData.AchievementUnlockedIconOverrides = CopyStringOverrides(unlockedIconOverrides);
+                customData.AchievementLockedIconOverrides = CopyStringOverrides(lockedIconOverrides);
+            });
 
-            _settings.Persisted.AchievementCategoryTypeOverrides = updated;
-            _persistSettings(true);
             _notifyCacheInvalidated(true);
         }
 
         public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)
         {
-            if (gameId == Guid.Empty || _settings?.Persisted == null)
+            if (gameId == Guid.Empty)
             {
                 return;
             }
 
-            var updated = _settings.Persisted.SeparateLockedIconEnabledGameIds != null
-                ? new HashSet<Guid>(_settings.Persisted.SeparateLockedIconEnabledGameIds)
-                : new HashSet<Guid>();
-
-            if (enabled)
+            _gameCustomDataStore.Update(gameId, customData =>
             {
-                updated.Add(gameId);
-            }
-            else
-            {
-                updated.Remove(gameId);
-            }
-
-            _settings.Persisted.SeparateLockedIconEnabledGameIds = updated;
-            _persistSettings(true);
+                customData.UseSeparateLockedIconsOverride = enabled ? true : (bool?)null;
+            });
             _notifyCacheInvalidated(true);
-            _raiseGameDataChanged?.Invoke(new List<Guid> { gameId });
         }
 
         public void SetExcludedByUser(Guid playniteGameId, bool excluded, bool clearCachedDataWhenExcluding)
@@ -223,20 +146,12 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            if (excluded)
+            SetRefreshExclusion(playniteGameId, excluded);
+            if (excluded && clearCachedDataWhenExcluding)
             {
-                _settings.Persisted.ExcludedGameIds.Add(playniteGameId);
-                if (clearCachedDataWhenExcluding)
-                {
-                    ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
-                }
-            }
-            else
-            {
-                _settings.Persisted.ExcludedGameIds.Remove(playniteGameId);
+                ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
             }
 
-            _persistSettings(true);
             _notifyCacheInvalidated(true);
             _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
@@ -248,17 +163,12 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
+            SetRefreshExclusion(playniteGameId, hidden);
             if (hidden)
             {
-                _settings.Persisted.ExcludedGameIds.Add(playniteGameId);
                 ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
             }
-            else
-            {
-                _settings.Persisted.ExcludedGameIds.Remove(playniteGameId);
-            }
 
-            _persistSettings(true);
             _notifyCacheInvalidated(true);
             _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
@@ -270,16 +180,11 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            if (excluded)
+            _gameCustomDataStore.Update(playniteGameId, customData =>
             {
-                _settings.Persisted.ExcludedFromSummariesGameIds.Add(playniteGameId);
-            }
-            else
-            {
-                _settings.Persisted.ExcludedFromSummariesGameIds.Remove(playniteGameId);
-            }
+                customData.ExcludedFromSummaries = excluded ? true : (bool?)null;
+            });
 
-            _persistSettings(true);
             _notifyCacheInvalidated(true);
             _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
@@ -291,7 +196,7 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            var removedManualLink = RemoveManualTrackingLink(playniteGameId, gameName);
+            RemoveManualTrackingLink(playniteGameId, gameName);
             if (clearIconCache)
             {
                 _cacheService.RemoveGameCache(playniteGameId);
@@ -300,23 +205,20 @@ namespace PlayniteAchievements.Services
             {
                 _cacheService.RemoveGameData(playniteGameId);
             }
-
-            if (removedManualLink && persistAfter)
-            {
-                _persistSettings(true);
-            }
         }
 
         private bool RemoveManualTrackingLink(Guid playniteGameId, string gameName)
         {
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-            if (manualSettings?.AchievementLinks == null ||
-                !manualSettings.AchievementLinks.Remove(playniteGameId))
+            if (!_gameCustomDataStore.TryLoad(playniteGameId, out var customData) ||
+                customData.ManualLink == null)
             {
                 return false;
             }
 
-            ProviderRegistry.Write(manualSettings);
+            _gameCustomDataStore.Update(playniteGameId, data =>
+            {
+                data.ManualLink = null;
+            });
 
             if (string.IsNullOrWhiteSpace(gameName))
             {
@@ -328,6 +230,30 @@ namespace PlayniteAchievements.Services
             }
 
             return true;
+        }
+
+        private void SetRefreshExclusion(Guid playniteGameId, bool excluded)
+        {
+            _gameCustomDataStore.Update(playniteGameId, customData =>
+            {
+                customData.ExcludedFromRefreshes = excluded ? true : (bool?)null;
+            });
+        }
+
+        private static Dictionary<string, string> CopyStringOverrides(IReadOnlyDictionary<string, string> values)
+        {
+            if (values == null)
+            {
+                return null;
+            }
+
+            var copy = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in values)
+            {
+                copy[pair.Key] = pair.Value;
+            }
+
+            return copy;
         }
     }
 }

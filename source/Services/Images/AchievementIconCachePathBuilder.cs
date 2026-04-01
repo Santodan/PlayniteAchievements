@@ -7,7 +7,7 @@ using System.Text;
 
 namespace PlayniteAchievements.Services.Images
 {
-    internal enum AchievementIconVariant
+    public enum AchievementIconVariant
     {
         Unlocked = 0,
         Locked = 1
@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Services.Images
     {
         private const string FallbackStem = "achievement";
         private const int MaxStemLength = 96;
+        private const string CustomFolderName = "custom";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CON",
@@ -46,6 +47,11 @@ namespace PlayniteAchievements.Services.Images
         public static string GetModeFolder(bool preserveOriginalResolution)
         {
             return preserveOriginalResolution ? "original" : "128";
+        }
+
+        public static string GetCustomFolder()
+        {
+            return CustomFolderName;
         }
 
         public static IReadOnlyDictionary<string, string> BuildFileStems(IEnumerable<string> apiNames)
@@ -106,6 +112,28 @@ namespace PlayniteAchievements.Services.Images
                 "icon_cache",
                 gameId.Trim(),
                 GetModeFolder(preserveOriginalResolution),
+                fileName);
+        }
+
+        public static string BuildCustomRelativePath(
+            string gameId,
+            string fileStem,
+            AchievementIconVariant variant)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                gameId = Guid.Empty.ToString("D");
+            }
+
+            var stem = string.IsNullOrWhiteSpace(fileStem) ? FallbackStem : fileStem.Trim();
+            var fileName = variant == AchievementIconVariant.Locked
+                ? stem + ".locked.png"
+                : stem + ".png";
+
+            return Path.Combine(
+                "icon_cache",
+                gameId.Trim(),
+                CustomFolderName,
                 fileName);
         }
 

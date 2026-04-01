@@ -15,7 +15,7 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Guid _gameId;
         private readonly AchievementOverridesService _achievementOverridesService;
-        private readonly AchievementDataService _achievementDataService;
+        private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -27,14 +27,14 @@ namespace PlayniteAchievements.ViewModels
         public CapstoneViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
-            AchievementDataService achievementDataService,
+            GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
         {
             _gameId = gameId;
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
-            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _gameDataSnapshotProvider = gameDataSnapshotProvider ?? throw new ArgumentNullException(nameof(gameDataSnapshotProvider));
             _playniteApi = playniteApi;
             _logger = logger;
             _settings = settings;
@@ -205,7 +205,7 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
 
-                var gameData = _achievementDataService.GetGameAchievementData(_gameId);
+                var gameData = _gameDataSnapshotProvider.GetHydratedGameData();
                 var achievements = gameData?.Achievements ?? new List<AchievementDetail>();
                 // Find the current capstone by checking IsCapstone on achievements
                 var currentCapstone = achievements.FirstOrDefault(a => a?.IsCapstone == true);

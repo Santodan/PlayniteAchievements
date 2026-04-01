@@ -22,6 +22,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsPlugin _plugin;
         private PlayniteAchievementsSettings settings;
 
+        public GameCustomDataStore GameCustomDataStore { get; }
+
         /// <summary>
         /// The settings object containing all plugin configuration.
         /// </summary>
@@ -38,6 +40,7 @@ namespace PlayniteAchievements.ViewModels
         public PlayniteAchievementsSettingsViewModel(PlayniteAchievementsPlugin plugin)
         {
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
+            GameCustomDataStore = new GameCustomDataStore(_plugin.GetPluginUserDataPath(), _logger);
 
             // Load saved settings with migration support
             var savedSettings = LoadSettingsWithMigration();
@@ -77,11 +80,12 @@ namespace PlayniteAchievements.ViewModels
                 // Read raw JSON and run migration
                 var rawJson = File.ReadAllText(settingsFilePath);
                 var migratedJson = ProviderSettingsMigration.MigrateFromJson(rawJson);
+                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(migratedJson);
 
                 // If migration changed the JSON, save the migrated version
-                if (migratedJson != rawJson)
+                if (fullyMigratedJson != rawJson)
                 {
-                    _logger.Info("Provider settings migrated from flat properties to ProviderSettings dictionary.");
+                    _logger.Info("Settings migration updated config.json.");
 
                     try
                     {
@@ -90,7 +94,7 @@ namespace PlayniteAchievements.ViewModels
                             "config-migration",
                             settingsFilePath);
                         _logger.Info($"Config migration backup created: {backupPath}");
-                        File.WriteAllText(settingsFilePath, migratedJson);
+                        File.WriteAllText(settingsFilePath, fullyMigratedJson);
                     }
                     catch (Exception ex)
                     {
@@ -101,7 +105,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 // Deserialize the (potentially migrated) JSON
-                return Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(migratedJson);
+                return Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(fullyMigratedJson);
             }
             catch (Exception ex)
             {
@@ -141,6 +145,7 @@ namespace PlayniteAchievements.ViewModels
 
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+            GameCustomDataStore?.SyncRuntimeCaches();
         }
 
         public void EndEdit()
@@ -153,6 +158,7 @@ namespace PlayniteAchievements.ViewModels
 
             // Sync provider registry from the updated settings
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
+            GameCustomDataStore?.SyncRuntimeCaches();
 
             // Notify listeners that settings have been saved (e.g., to refresh provider status in landing page)
             PlayniteAchievementsPlugin.NotifySettingsSaved();

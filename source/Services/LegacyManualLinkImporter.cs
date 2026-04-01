@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services
         private readonly Func<PersistedSettings> _getPersistedSettings;
         private readonly Func<Guid, bool> _gameExists;
         private readonly Func<Guid, bool> _hasCachedProviderData;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ILogger _logger;
         private readonly IReadOnlyDictionary<string, string> _sourceResolver;
 
@@ -60,13 +61,15 @@ namespace PlayniteAchievements.Services
             Func<Guid, bool> gameExists,
             Func<Guid, bool> hasCachedProviderData,
             ILogger logger = null,
-            IReadOnlyDictionary<string, string> sourceResolver = null)
+            IReadOnlyDictionary<string, string> sourceResolver = null,
+            GameCustomDataStore gameCustomDataStore = null)
             : this(
                   () => persistedSettings,
                   gameExists,
                   hasCachedProviderData,
                   logger,
-                  sourceResolver)
+                  sourceResolver,
+                  gameCustomDataStore)
         {
         }
 
@@ -75,11 +78,13 @@ namespace PlayniteAchievements.Services
             Func<Guid, bool> gameExists,
             Func<Guid, bool> hasCachedProviderData,
             ILogger logger = null,
-            IReadOnlyDictionary<string, string> sourceResolver = null)
+            IReadOnlyDictionary<string, string> sourceResolver = null,
+            GameCustomDataStore gameCustomDataStore = null)
         {
             _getPersistedSettings = getPersistedSettings ?? throw new ArgumentNullException(nameof(getPersistedSettings));
             _gameExists = gameExists ?? throw new ArgumentNullException(nameof(gameExists));
             _hasCachedProviderData = hasCachedProviderData ?? throw new ArgumentNullException(nameof(hasCachedProviderData));
+            _gameCustomDataStore = gameCustomDataStore;
             _logger = logger;
             _sourceResolver = sourceResolver ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -182,7 +187,7 @@ namespace PlayniteAchievements.Services
 
                     var nowUtc = DateTime.UtcNow;
                     BuildUnlockData(payload.Items, out var unlockTimes, out var unlockStates);
-                    manualLinks[gameId] = new ManualAchievementLink
+                    var link = new ManualAchievementLink
                     {
                         SourceKey = sourceKey,
                         SourceGameId = sourceGameId,
@@ -191,6 +196,17 @@ namespace PlayniteAchievements.Services
                         CreatedUtc = nowUtc,
                         LastModifiedUtc = nowUtc
                     };
+                    if (_gameCustomDataStore != null)
+                    {
+                        _gameCustomDataStore.Update(gameId, customData =>
+                        {
+                            customData.ManualLink = link;
+                        });
+                    }
+                    else
+                    {
+                        manualLinks[gameId] = link;
+                    }
 
                     result.Imported++;
                     result.ImportedGameIds.Add(gameId);

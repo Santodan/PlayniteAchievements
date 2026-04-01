@@ -59,6 +59,8 @@ namespace PlayniteAchievements.ViewModels
 
         private bool RequireExophaseAuthentication => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication;
 
+        private GameCustomDataStore GameCustomDataStore => PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
         private string _progressMessage = string.Empty;
@@ -416,8 +418,7 @@ namespace PlayniteAchievements.ViewModels
 
             if (startAtEditingStage)
             {
-                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-                if (!manualSettings.AchievementLinks.TryGetValue(playniteGame.Id, out _existingLink) || _existingLink == null)
+                if (!ManualAchievementsProvider.TryGetManualLink(playniteGame.Id, out _existingLink) || _existingLink == null)
                 {
                     throw new ArgumentException("Cannot start at editing stage: no existing link found for game.");
                 }
@@ -592,10 +593,7 @@ namespace PlayniteAchievements.ViewModels
             };
             SeedLinkUnlocksFromInheritedSnapshot(link, _pendingInheritedUnlocks);
 
-            ManualAchievementLink existingLink = null;
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-            var hadExistingLink = manualSettings?.AchievementLinks != null &&
-                                  manualSettings.AchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
+            var hadExistingLink = ManualAchievementsProvider.TryGetManualLink(_playniteGame.Id, out var existingLink);
             var rollbackLink = existingLink?.Clone();
             var rollbackCacheData = _cacheManager?.LoadGameData(_playniteGame.Id.ToString());
             var rollbackPending = true;
@@ -1170,22 +1168,34 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-                if (manualSettings?.AchievementLinks == null)
+                if (GameCustomDataStore != null)
                 {
-                    return;
-                }
-
-                if (hadExistingLink && previousLink != null)
-                {
-                    manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
+                    GameCustomDataStore.Update(_playniteGame.Id, customData =>
+                    {
+                        customData.ManualLink = hadExistingLink && previousLink != null
+                            ? previousLink.Clone()
+                            : null;
+                    });
                 }
                 else
                 {
-                    manualSettings.AchievementLinks.Remove(_playniteGame.Id);
-                }
+                    var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+                    if (manualSettings?.AchievementLinks == null)
+                    {
+                        return;
+                    }
 
-                ProviderRegistry.Write(manualSettings);
+                    if (hadExistingLink && previousLink != null)
+                    {
+                        manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
+                    }
+                    else
+                    {
+                        manualSettings.AchievementLinks.Remove(_playniteGame.Id);
+                    }
+
+                    ProviderRegistry.Write(manualSettings);
+                }
 
                 if (persist)
                 {
@@ -1469,7 +1479,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void SaveLink(ManualAchievementLink link)
         {
-            SetLinkInMemory(CompactLinkForPersistence(link));
+            SetLinkInMemory(GameCustomDataStore != null ? link : CompactLinkForPersistence(link));
             _saveSettings(_settings);
         }
 
@@ -1477,6 +1487,15 @@ namespace PlayniteAchievements.ViewModels
         {
             if (link == null)
             {
+                return;
+            }
+
+            if (GameCustomDataStore != null)
+            {
+                GameCustomDataStore.Update(_playniteGame.Id, customData =>
+                {
+                    customData.ManualLink = link.Clone();
+                });
                 return;
             }
 

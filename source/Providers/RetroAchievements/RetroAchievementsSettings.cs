@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
@@ -129,6 +130,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         /// Key is Playnite Game ID, value is RetroAchievements game ID.
         /// Used when automatic hash-based or name-based matching fails.
         /// </summary>
+        [JsonIgnore]
         public Dictionary<Guid, int> RaGameIdOverrides
         {
             get => _raGameIdOverrides;

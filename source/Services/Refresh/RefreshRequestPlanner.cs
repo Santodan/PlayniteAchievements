@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Services
             public RefreshModeType Mode { get; set; }
             public Guid? SingleGameId { get; set; }
             public CacheRefreshOptions Options { get; set; }
+            public bool ForceIconRefresh { get; set; }
             public IReadOnlyList<IDataProvider> ProviderScope { get; set; }
             public bool? RunProvidersInParallelOverride { get; set; }
             public string ErrorLogMessage { get; set; }
@@ -56,7 +57,8 @@ namespace PlayniteAchievements.Services
                     ids,
                     "Library selected games refresh failed.",
                     "No games selected in Playnite library for refresh.",
-                    bypassExclusions: true);
+                    bypassExclusions: true,
+                    forceIconRefresh: request.ForceIconRefresh);
             }
 
             var mode = ResolveMode(request);
@@ -67,6 +69,7 @@ namespace PlayniteAchievements.Services
                     {
                         Mode = mode,
                         ShouldExecute = true,
+                        ForceIconRefresh = request.ForceIconRefresh,
                         ErrorLogMessage = "Recent refresh failed.",
                         Options = BuildRecentOptions()
                     };
@@ -76,6 +79,7 @@ namespace PlayniteAchievements.Services
                     {
                         Mode = mode,
                         ShouldExecute = true,
+                        ForceIconRefresh = request.ForceIconRefresh,
                         ErrorLogMessage = "Full achievement refresh failed.",
                         Options = BuildFullOptions()
                     };
@@ -85,14 +89,16 @@ namespace PlayniteAchievements.Services
                         mode,
                         GetInstalledGameIds(),
                         "Installed games refresh failed.",
-                        "No installed games found for refresh.");
+                        "No installed games found for refresh.",
+                        forceIconRefresh: request.ForceIconRefresh);
 
                 case RefreshModeType.Favorites:
                     return ResolveGameIdList(
                         mode,
                         GetFavoriteGameIds(),
                         "Favorites refresh failed.",
-                        "No favorite games found for refresh.");
+                        "No favorite games found for refresh.",
+                        forceIconRefresh: request.ForceIconRefresh);
 
                 case RefreshModeType.Single:
                     if (!request.SingleGameId.HasValue)
@@ -101,6 +107,7 @@ namespace PlayniteAchievements.Services
                         return new ResolvedRequest
                         {
                             Mode = mode,
+                            ForceIconRefresh = request.ForceIconRefresh,
                             ShouldExecute = false
                         };
                     }
@@ -110,6 +117,7 @@ namespace PlayniteAchievements.Services
                         Mode = mode,
                         SingleGameId = request.SingleGameId.Value,
                         ShouldExecute = true,
+                        ForceIconRefresh = request.ForceIconRefresh,
                         ErrorLogMessage = "Single game refresh failed.",
                         Options = BuildSingleGameOptions(request.SingleGameId.Value)
                     };
@@ -120,16 +128,18 @@ namespace PlayniteAchievements.Services
                         GetLibrarySelectedGameIds(),
                         "Library selected games refresh failed.",
                         "No games selected in Playnite library for refresh.",
-                        bypassExclusions: true);
+                        bypassExclusions: true,
+                        forceIconRefresh: request.ForceIconRefresh);
 
                 case RefreshModeType.Missing:
                     return ResolveGameIdList(
                         mode,
                         GetMissingGameIds(authenticatedProviders),
-                        "Missing games refresh failed.");
+                        "Missing games refresh failed.",
+                        forceIconRefresh: request.ForceIconRefresh);
 
                 case RefreshModeType.Custom:
-                    return ResolveCustom(request.CustomOptions, authenticatedProviders);
+                    return ResolveCustom(request.CustomOptions, authenticatedProviders, request.ForceIconRefresh);
 
                 default:
                     _logger?.Warn(string.Format(
@@ -139,6 +149,7 @@ namespace PlayniteAchievements.Services
                     {
                         Mode = RefreshModeType.Recent,
                         ShouldExecute = true,
+                        ForceIconRefresh = request.ForceIconRefresh,
                         ErrorLogMessage = "Recent refresh failed.",
                         Options = BuildRecentOptions()
                     };
@@ -167,7 +178,10 @@ namespace PlayniteAchievements.Services
             return RefreshModeType.Recent;
         }
 
-        private ResolvedRequest ResolveCustom(CustomRefreshOptions options, IReadOnlyList<IDataProvider> authenticatedProviders)
+        private ResolvedRequest ResolveCustom(
+            CustomRefreshOptions options,
+            IReadOnlyList<IDataProvider> authenticatedProviders,
+            bool forceIconRefresh)
         {
             var resolvedOptions = options?.Clone() ?? new CustomRefreshOptions();
             var providers = ResolveCustomProviders(resolvedOptions, authenticatedProviders);
@@ -178,6 +192,7 @@ namespace PlayniteAchievements.Services
                 return new ResolvedRequest
                 {
                     Mode = RefreshModeType.Custom,
+                    ForceIconRefresh = forceIconRefresh,
                     ShouldExecute = false,
                     UserMessage = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_NoMatchingProviders")
                 };
@@ -225,7 +240,7 @@ namespace PlayniteAchievements.Services
 
             if (resolvedOptions.RespectUserExclusions)
             {
-                var excludedByUser = _settings?.Persisted?.ExcludedGameIds;
+                var excludedByUser = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
                 if (excludedByUser != null && excludedByUser.Count > 0)
                 {
                     mergedIds = mergedIds
@@ -259,6 +274,7 @@ namespace PlayniteAchievements.Services
                 return new ResolvedRequest
                 {
                     Mode = RefreshModeType.Custom,
+                    ForceIconRefresh = forceIconRefresh,
                     ShouldExecute = false,
                     UserMessage = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_NoMatchingGames")
                 };
@@ -268,6 +284,7 @@ namespace PlayniteAchievements.Services
             {
                 Mode = RefreshModeType.Custom,
                 ShouldExecute = true,
+                ForceIconRefresh = forceIconRefresh,
                 ErrorLogMessage = "Custom refresh failed.",
                 ProviderScope = providers,
                 RunProvidersInParallelOverride = runProvidersInParallel,
@@ -386,13 +403,15 @@ namespace PlayniteAchievements.Services
             List<Guid> gameIds,
             string errorLogMessage,
             string emptySelectionLogMessage = null,
-            bool bypassExclusions = false)
+            bool bypassExclusions = false,
+            bool forceIconRefresh = false)
         {
             if (gameIds == null || gameIds.Count == 0)
             {
                 return new ResolvedRequest
                 {
                     Mode = mode,
+                    ForceIconRefresh = forceIconRefresh,
                     ShouldExecute = false,
                     EmptySelectionLogMessage = emptySelectionLogMessage
                 };
@@ -402,6 +421,7 @@ namespace PlayniteAchievements.Services
             {
                 Mode = mode,
                 ShouldExecute = true,
+                ForceIconRefresh = forceIconRefresh,
                 ErrorLogMessage = errorLogMessage,
                 Options = new CacheRefreshOptions
                 {

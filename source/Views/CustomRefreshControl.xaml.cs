@@ -896,7 +896,7 @@ namespace PlayniteAchievements.Views
 
             if (RespectUserExclusions)
             {
-                var excludedByUser = _settings?.Persisted?.ExcludedGameIds;
+                var excludedByUser = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
                 if (excludedByUser != null && excludedByUser.Count > 0)
                 {
                     orderedIds = orderedIds

@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Check explicit game inclusion first
-            if (_providerSettings.IncludedGames.Contains(game.Id))
+            if (GameCustomDataLookup.IsExophaseIncluded(game.Id, _providerSettings))
             {
                 _logger.Debug($"Exophase IsCapable for '{game.Name}': true (explicitly included)");
                 return true;
@@ -395,28 +395,47 @@ namespace PlayniteAchievements.Providers.Exophase
 
             showToggle = true;
             isManagedByPlatform = settings.ManagedProviders.Contains(gamePlatformSlug);
-            useForGame = settings.IncludedGames.Contains(gameId);
+            useForGame = GameCustomDataLookup.IsExophaseIncluded(gameId, settings);
             autoSlug = GeneratePreviewSlug(game);
-            hasSlugOverride = settings.SlugOverrides.TryGetValue(gameId, out slugOverrideValue);
+            hasSlugOverride = GameCustomDataLookup.TryGetExophaseSlugOverride(gameId, out slugOverrideValue, settings);
         }
 
         internal static bool SetIncludedGame(Guid gameId, string gameName, bool include, Action persistSettingsForUi, ILogger logger)
         {
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null)
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                var previous = customDataStore.TryLoad(gameId, out var customData) &&
+                    customData?.ForceUseExophase == true;
+                if (previous == include)
+                {
+                    return true;
+                }
+
+                customDataStore.Update(gameId, data =>
+                {
+                    data.ForceUseExophase = include ? true : (bool?)null;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null)
+                {
+                    return false;
+                }
+
+                var changed = include
+                    ? settings.IncludedGames.Add(gameId)
+                    : settings.IncludedGames.Remove(gameId);
+                if (!changed)
+                {
+                    return true;
+                }
+
+                ProviderRegistry.Write(settings);
             }
 
-            var changed = include
-                ? settings.IncludedGames.Add(gameId)
-                : settings.IncludedGames.Remove(gameId);
-            if (!changed)
-            {
-                return true;
-            }
-
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
 
             if (include)
@@ -438,15 +457,28 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
             }
 
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null)
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                customDataStore.Update(gameId, customData =>
+                {
+                    customData.ExophaseSlugOverride = slug;
+                    customData.ForceUseExophase = true;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null)
+                {
+                    return false;
+                }
+
+                settings.SlugOverrides[gameId] = slug;
+                settings.IncludedGames.Add(gameId);
+                ProviderRegistry.Write(settings);
             }
 
-            settings.SlugOverrides[gameId] = slug;
-            settings.IncludedGames.Add(gameId);
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
 
             logger?.Info($"Set Exophase slug override for '{gameName}' to '{slug}'");
@@ -455,13 +487,31 @@ namespace PlayniteAchievements.Providers.Exophase
 
         internal static bool TryClearSlugOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null || !settings.SlugOverrides.Remove(gameId))
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                if (!customDataStore.TryLoad(gameId, out var customData) ||
+                    string.IsNullOrWhiteSpace(customData.ExophaseSlugOverride))
+                {
+                    return false;
+                }
+
+                customDataStore.Update(gameId, data =>
+                {
+                    data.ExophaseSlugOverride = null;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null || !settings.SlugOverrides.Remove(gameId))
+                {
+                    return false;
+                }
+
+                ProviderRegistry.Write(settings);
             }
 
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Cleared Exophase slug override for '{gameName}'");
             return true;
@@ -626,7 +676,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Check for manual override first.
-            if (_providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+            if (GameCustomDataLookup.TryGetExophaseSlugOverride(game.Id, out var overrideSlug, _providerSettings) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 _logger?.Debug($"[Exophase] Using override slug for '{game.Name}': {overrideSlug}");
@@ -912,7 +962,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private string ResolveProviderPlatformKey(Game game, string resolvedSlug)
         {
             if (game != null &&
-                _providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+                GameCustomDataLookup.TryGetExophaseSlugOverride(game.Id, out var overrideSlug, _providerSettings) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 var overrideToken = ExtractPlatformTokenFromSlug(overrideSlug);

@@ -60,7 +60,7 @@ namespace PlayniteAchievements.Providers.Manual
                 return false;
             }
 
-            return _providerSettings.AchievementLinks.ContainsKey(game.Id);
+            return TryGetManualLink(game.Id, out _);
         }
 
         /// <summary>
@@ -78,9 +78,8 @@ namespace PlayniteAchievements.Providers.Manual
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
-            var links = _providerSettings.AchievementLinks;
             var linkedGames = gamesToRefresh
-                .Where(game => game != null && game.Id != Guid.Empty && links.ContainsKey(game.Id))
+                .Where(game => game != null && game.Id != Guid.Empty && TryGetManualLink(game.Id, out _))
                 .ToList();
 
             if (linkedGames.Count == 0)
@@ -95,7 +94,7 @@ namespace PlayniteAchievements.Providers.Manual
                 onGameStarting,
                 async (game, token) =>
                 {
-                    if (!links.TryGetValue(game.Id, out var link) || link == null)
+                    if (!TryGetManualLink(game.Id, out var link) || link == null)
                     {
                         return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                     }
@@ -228,11 +227,10 @@ namespace PlayniteAchievements.Providers.Manual
 
         internal static bool TryGetManualLink(Guid gameId, out ManualAchievementLink link)
         {
-            link = null;
-            var settings = ProviderRegistry.Settings<ManualSettings>();
-            return settings?.AchievementLinks != null &&
-                   settings.AchievementLinks.TryGetValue(gameId, out link) &&
-                   link != null;
+            return GameCustomDataLookup.TryGetManualLink(
+                gameId,
+                out link,
+                fallbackSettings: ProviderRegistry.Settings<ManualSettings>());
         }
 
         internal static string GetGameOptionsLinkSummary(ManualAchievementLink link)

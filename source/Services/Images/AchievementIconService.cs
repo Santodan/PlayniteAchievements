@@ -1,6 +1,7 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.ProgressReporting;
 using Playnite.SDK;
 using System;
@@ -28,12 +29,18 @@ namespace PlayniteAchievements.Services.Images
         }
 
         private readonly DiskImageService _diskImageService;
+        private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly PersistedSettings _settings;
         private readonly ILogger _logger;
 
-        public AchievementIconService(DiskImageService diskImageService, PersistedSettings settings, ILogger logger)
+        public AchievementIconService(
+            DiskImageService diskImageService,
+            ManagedCustomIconService managedCustomIconService,
+            PersistedSettings settings,
+            ILogger logger)
         {
             _diskImageService = diskImageService ?? throw new ArgumentNullException(nameof(diskImageService));
+            _managedCustomIconService = managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
         }
@@ -46,13 +53,41 @@ namespace PlayniteAchievements.Services.Images
             GameAchievementData data,
             CancellationToken cancel = default)
         {
-            return PopulateAchievementIconCacheAsync(data, cancel);
+            return DownloadAchievementIconsAsync(data, null, null, cancel);
+        }
+
+        public Task DownloadAchievementIconsAsync(
+            GameAchievementData data,
+            IReadOnlyDictionary<string, string> unlockedOverrides,
+            IReadOnlyDictionary<string, string> lockedOverrides,
+            CancellationToken cancel = default)
+        {
+            return PopulateAchievementIconCacheAsync(data, unlockedOverrides, lockedOverrides, cancel);
         }
 
         public async Task PopulateAchievementIconCacheAsync(
             GameAchievementData data,
             CancellationToken cancel,
-            Action<int, int> onIconProgress = null)
+            Action<int, int> onIconProgress = null,
+            bool forceRefreshExistingTargets = false)
+        {
+            await PopulateAchievementIconCacheAsync(
+                    data,
+                    null,
+                    null,
+                    cancel,
+                    onIconProgress,
+                    forceRefreshExistingTargets)
+                .ConfigureAwait(false);
+        }
+
+        public async Task PopulateAchievementIconCacheAsync(
+            GameAchievementData data,
+            IReadOnlyDictionary<string, string> unlockedOverrides,
+            IReadOnlyDictionary<string, string> lockedOverrides,
+            CancellationToken cancel,
+            Action<int, int> onIconProgress = null,
+            bool forceRefreshExistingTargets = false)
         {
             if (data?.Achievements == null || data.Achievements.Count == 0)
             {
@@ -60,18 +95,30 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var preserveOriginalResolution = _settings.PreserveAchievementIconResolution;
-            var useSeparateLockedIcons = _settings.ShouldUseSeparateLockedIcons(data?.PlayniteGameId);
+            var useSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(data?.PlayniteGameId, _settings);
             var decodeSize = preserveOriginalResolution ? 0 : OptimizedDecodeSize;
             var gameId = ResolveGameId(data);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
                 data.Achievements.Select(achievement => achievement?.ApiName));
 
+            // Normalize the effective icon sources once here so request building only downloads
+            // the paths that can actually be used for display and persistence.
+            await PrepareSourcePathsAsync(
+                    data.Achievements,
+                    fileStems,
+                    gameId,
+                    useSeparateLockedIcons,
+                    unlockedOverrides,
+                    lockedOverrides,
+                    forceRefreshExistingTargets,
+                    cancel)
+                .ConfigureAwait(false);
+
             var iconRequests = BuildRequests(
                 data.Achievements,
                 fileStems,
                 gameId,
-                preserveOriginalResolution,
-                useSeparateLockedIcons);
+                preserveOriginalResolution);
 
             var resolvedPaths = new Dictionary<AchievementIconRequest, string>();
             if (iconRequests.Count > 0)
@@ -88,6 +135,7 @@ namespace PlayniteAchievements.Services.Images
                         decodeSize,
                         !preserveOriginalResolution,
                         gameId,
+                        forceRefreshExistingTargets,
                         cancel).ConfigureAwait(false);
 
                     lock (resolvedPaths)
@@ -108,15 +156,106 @@ namespace PlayniteAchievements.Services.Images
                 await Task.WhenAll(resolutionTasks).ConfigureAwait(false);
             }
 
-            ApplyResolvedPaths(data.Achievements, iconRequests, resolvedPaths, useSeparateLockedIcons);
+            ApplyResolvedPaths(
+                data.Achievements,
+                iconRequests,
+                resolvedPaths,
+                useSeparateLockedIcons,
+                gameId);
+        }
+
+        private async Task PrepareSourcePathsAsync(
+            IReadOnlyList<AchievementDetail> achievements,
+            IReadOnlyDictionary<string, string> fileStems,
+            string gameId,
+            bool useSeparateLockedIcons,
+            IReadOnlyDictionary<string, string> unlockedOverrides,
+            IReadOnlyDictionary<string, string> lockedOverrides,
+            bool overwriteExistingTargets,
+            CancellationToken cancel)
+        {
+            if (achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            var hasOverrides = AchievementIconOverrideHelper.HasOverrides(unlockedOverrides, lockedOverrides);
+
+            for (var i = 0; i < achievements.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                var achievement = achievements[i];
+                var apiName = NormalizeText(achievement?.ApiName);
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                var resolvedUnlockedOverride = default(string);
+                var resolvedLockedOverride = default(string);
+
+                if (hasOverrides &&
+                    !string.IsNullOrWhiteSpace(apiName) &&
+                    fileStems.TryGetValue(apiName, out var fileStem) &&
+                    !string.IsNullOrWhiteSpace(fileStem))
+                {
+                    var unlockedSource = AchievementIconOverrideHelper.GetOverrideValue(unlockedOverrides, apiName);
+                    if (!string.IsNullOrWhiteSpace(unlockedSource))
+                    {
+                        resolvedUnlockedOverride = await _managedCustomIconService
+                            .MaterializeCustomIconAsync(
+                                unlockedSource,
+                                gameId,
+                                fileStem,
+                                AchievementIconVariant.Unlocked,
+                                cancel,
+                                overwriteExistingTarget: overwriteExistingTargets)
+                            .ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(resolvedUnlockedOverride))
+                        {
+                            achievement.UnlockedIconPath = resolvedUnlockedOverride;
+                        }
+                    }
+
+                    var lockedSource = AchievementIconOverrideHelper.GetOverrideValue(lockedOverrides, apiName);
+                    if (!string.IsNullOrWhiteSpace(lockedSource))
+                    {
+                        resolvedLockedOverride = await _managedCustomIconService
+                            .MaterializeCustomIconAsync(
+                                lockedSource,
+                                gameId,
+                                fileStem,
+                                AchievementIconVariant.Locked,
+                                cancel,
+                                overwriteExistingTarget: overwriteExistingTargets)
+                            .ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(resolvedLockedOverride))
+                        {
+                            achievement.LockedIconPath = resolvedLockedOverride;
+                        }
+                    }
+                }
+
+                var unlockedCandidate = ResolveUnlockedSourcePath(achievement);
+                achievement.UnlockedIconPath = unlockedCandidate;
+                var lockedCandidate = !string.IsNullOrWhiteSpace(resolvedLockedOverride)
+                    ? resolvedLockedOverride
+                    : achievement.LockedIconPath;
+                achievement.LockedIconPath = AchievementIconOverrideHelper.ResolveEffectiveLockedPath(
+                    unlockedCandidate,
+                    lockedCandidate,
+                    useSeparateLockedIcons,
+                    !string.IsNullOrWhiteSpace(resolvedUnlockedOverride),
+                    !string.IsNullOrWhiteSpace(resolvedLockedOverride));
+            }
         }
 
         private List<AchievementIconRequest> BuildRequests(
             IReadOnlyList<AchievementDetail> achievements,
             IReadOnlyDictionary<string, string> fileStems,
             string gameId,
-            bool preserveOriginalResolution,
-            bool useSeparateLockedIcons)
+            bool preserveOriginalResolution)
         {
             var requests = new List<AchievementIconRequest>();
             if (achievements == null || achievements.Count == 0)
@@ -150,7 +289,7 @@ namespace PlayniteAchievements.Services.Images
                 AddRequest(
                     requests,
                     achievement,
-                    ResolveDistinctLockedSourcePath(achievement, useSeparateLockedIcons),
+                    ResolveDistinctLockedSourcePath(achievement),
                     gameId,
                     preserveOriginalResolution,
                     fileStem,
@@ -165,6 +304,7 @@ namespace PlayniteAchievements.Services.Images
             int decodeSize,
             bool allowLegacy128Migration,
             string gameId,
+            bool forceRefreshExistingTargets,
             CancellationToken cancel)
         {
             var resolved = new Dictionary<AchievementIconRequest, string>();
@@ -173,12 +313,15 @@ namespace PlayniteAchievements.Services.Images
                 return resolved;
             }
 
-            var primaryPath = GetFirstExistingTargetPath(requests);
+            var primaryPath = forceRefreshExistingTargets
+                ? null
+                : GetFirstExistingTargetPath(requests);
 
             if (string.IsNullOrWhiteSpace(primaryPath))
             {
                 var primaryRequest = requests[0];
-                if (allowLegacy128Migration &&
+                if (!forceRefreshExistingTargets &&
+                    allowLegacy128Migration &&
                     _diskImageService.TryMigrateLegacyAchievementIcon(
                         primaryRequest.SourcePath,
                         primaryRequest.TargetPath,
@@ -193,6 +336,7 @@ namespace PlayniteAchievements.Services.Images
                         primaryRequest.SourcePath,
                         primaryRequest.TargetPath,
                         decodeSize,
+                        forceRefreshExistingTargets,
                         cancel).ConfigureAwait(false);
                 }
             }
@@ -208,10 +352,10 @@ namespace PlayniteAchievements.Services.Images
                 var finalPath = request.TargetPath;
 
                 if (!string.Equals(primaryPath, finalPath, StringComparison.OrdinalIgnoreCase) &&
-                    !File.Exists(finalPath))
+                    (!File.Exists(finalPath) || forceRefreshExistingTargets))
                 {
                     finalPath = await _diskImageService
-                        .CopyCachedIconAsync(primaryPath, finalPath, cancel)
+                        .CopyCachedIconAsync(primaryPath, finalPath, cancel, overwriteExistingTarget: forceRefreshExistingTargets)
                         .ConfigureAwait(false);
                 }
 
@@ -230,6 +374,7 @@ namespace PlayniteAchievements.Services.Images
             string sourcePath,
             string targetPath,
             int decodeSize,
+            bool forceRefreshExistingTargets,
             CancellationToken cancel)
         {
             if (!IsSupportedSourcePath(sourcePath) || string.IsNullOrWhiteSpace(targetPath))
@@ -242,12 +387,22 @@ namespace PlayniteAchievements.Services.Images
                 if (IsHttpIconPath(sourcePath))
                 {
                     return await _diskImageService
-                        .GetOrDownloadIconToPathAsync(sourcePath, targetPath, decodeSize, cancel)
+                        .GetOrDownloadIconToPathAsync(
+                            sourcePath,
+                            targetPath,
+                            decodeSize,
+                            cancel,
+                            overwriteExistingTarget: forceRefreshExistingTargets)
                         .ConfigureAwait(false);
                 }
 
                 return await _diskImageService
-                    .GetOrCopyLocalIconToPathAsync(sourcePath, targetPath, decodeSize, cancel)
+                    .GetOrCopyLocalIconToPathAsync(
+                        sourcePath,
+                        targetPath,
+                        decodeSize,
+                        cancel,
+                        overwriteExistingTarget: forceRefreshExistingTargets)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancel.IsCancellationRequested)
@@ -267,7 +422,8 @@ namespace PlayniteAchievements.Services.Images
             IReadOnlyList<AchievementDetail> achievements,
             IReadOnlyList<AchievementIconRequest> requests,
             IReadOnlyDictionary<AchievementIconRequest, string> resolvedPaths,
-            bool useSeparateLockedIcons)
+            bool useSeparateLockedIcons,
+            string gameId)
         {
             var requestsByAchievement = requests
                 .GroupBy(request => request.Achievement)
@@ -290,18 +446,28 @@ namespace PlayniteAchievements.Services.Images
                     AchievementIconVariant.Unlocked,
                     resolvedPaths);
 
-                if (!string.IsNullOrWhiteSpace(unlockedResolved))
-                {
-                    achievement.UnlockedIconPath = unlockedResolved;
-                }
+                var finalUnlockedPath = !string.IsNullOrWhiteSpace(unlockedResolved)
+                    ? unlockedResolved
+                    : achievement.UnlockedIconPath;
+                achievement.UnlockedIconPath = finalUnlockedPath;
 
-                achievement.LockedIconPath = ResolveLockedPath(
-                    achievement.UnlockedIconPath,
-                    GetResolvedPathForVariant(
+                var finalLockedCandidate = GetResolvedPathForVariant(
                         achievementRequests,
                         AchievementIconVariant.Locked,
-                        resolvedPaths),
-                    useSeparateLockedIcons);
+                        resolvedPaths) ?? achievement.LockedIconPath;
+                var hasExplicitUnlockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
+                    finalUnlockedPath,
+                    gameId);
+                var hasExplicitLockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
+                        finalLockedCandidate,
+                        gameId) &&
+                    HasDistinctLockedSource(finalUnlockedPath, finalLockedCandidate);
+                achievement.LockedIconPath = AchievementIconOverrideHelper.ResolveEffectiveLockedPath(
+                    finalUnlockedPath,
+                    finalLockedCandidate,
+                    useSeparateLockedIcons,
+                    hasExplicitUnlockedIcon,
+                    hasExplicitLockedIcon);
             }
         }
 
@@ -318,6 +484,11 @@ namespace PlayniteAchievements.Services.Images
                 achievement == null ||
                 string.IsNullOrWhiteSpace(sourcePath) ||
                 string.IsNullOrWhiteSpace(fileStem))
+            {
+                return;
+            }
+
+            if (_managedCustomIconService.IsManagedCustomIconPath(sourcePath, gameId))
             {
                 return;
             }
@@ -424,11 +595,9 @@ namespace PlayniteAchievements.Services.Images
         }
 
         private static string ResolveDistinctLockedSourcePath(
-            AchievementDetail achievement,
-            bool useSeparateLockedIcons)
+            AchievementDetail achievement)
         {
-            if (!useSeparateLockedIcons ||
-                achievement == null ||
+            if (achievement == null ||
                 !HasDistinctLockedSource(achievement.UnlockedIconPath, achievement.LockedIconPath) ||
                 !IsSupportedSourcePath(achievement.LockedIconPath))
             {
@@ -436,21 +605,6 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return achievement.LockedIconPath;
-        }
-
-        private static string ResolveLockedPath(
-            string unlockedIconPath,
-            string lockedIconPath,
-            bool useSeparateLockedIcons)
-        {
-            if (!useSeparateLockedIcons)
-            {
-                return unlockedIconPath;
-            }
-
-            return !string.IsNullOrWhiteSpace(lockedIconPath)
-                ? lockedIconPath
-                : unlockedIconPath;
         }
 
         private static bool HasDistinctLockedSource(string unlockedIconPath, string lockedIconPath)
@@ -474,6 +628,12 @@ namespace PlayniteAchievements.Services.Images
         private static bool IsSupportedSourcePath(string iconPath)
         {
             return IsHttpIconPath(iconPath) || DiskImageService.IsLocalIconPath(iconPath);
+        }
+
+        private static string NormalizeText(string value)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
         private static bool IsHttpIconPath(string iconPath)

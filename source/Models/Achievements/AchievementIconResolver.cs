@@ -10,6 +10,7 @@ namespace PlayniteAchievements.Models.Achievements
     {
         private const string DefaultIconPackUri = "pack://application:,,,/PlayniteAchievements;component/Resources/HiddenAchIcon.png";
         private const string GrayPrefix = "gray:";
+        private const string CacheBustPrefix = "cachebust|";
 
         /// <summary>
         /// Get the default hidden icon pack URI.
@@ -19,39 +20,41 @@ namespace PlayniteAchievements.Models.Achievements
         public static string GetUnlockedDisplayIcon(string unlockedIconPath) =>
             string.IsNullOrWhiteSpace(unlockedIconPath)
                 ? DefaultIconPackUri
-                : unlockedIconPath;
+                : BuildDisplayIcon(unlockedIconPath, gray: false);
 
         public static string GetLockedDisplayIcon(string unlockedIconPath, string lockedIconPath)
         {
             if (HasExplicitLockedIcon(lockedIconPath, unlockedIconPath))
             {
-                return lockedIconPath;
+                return BuildDisplayIcon(lockedIconPath, gray: false);
             }
 
-            var candidate = ApplyGrayPrefix(unlockedIconPath);
+            var candidate = BuildDisplayIcon(unlockedIconPath, gray: true);
             return string.IsNullOrWhiteSpace(candidate) ? DefaultIconPackUri : candidate;
         }
 
         public static bool HasExplicitLockedIcon(string lockedIconPath, string unlockedIconPath)
         {
-            if (string.IsNullOrWhiteSpace(lockedIconPath))
+            var normalizedLockedIconPath = NormalizeDisplaySource(lockedIconPath);
+            if (string.IsNullOrWhiteSpace(normalizedLockedIconPath))
             {
                 return false;
             }
 
-            if (!IsUsableDisplayPath(lockedIconPath))
+            if (!IsUsableDisplayPath(normalizedLockedIconPath))
             {
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(unlockedIconPath))
+            var normalizedUnlockedIconPath = NormalizeDisplaySource(unlockedIconPath);
+            if (string.IsNullOrWhiteSpace(normalizedUnlockedIconPath))
             {
                 return true;
             }
 
             return !string.Equals(
-                NormalizeIcon(lockedIconPath),
-                NormalizeIcon(unlockedIconPath),
+                NormalizeIcon(normalizedLockedIconPath),
+                NormalizeIcon(normalizedUnlockedIconPath),
                 StringComparison.OrdinalIgnoreCase);
         }
 
@@ -60,14 +63,15 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static string ApplyGrayPrefix(string icon)
         {
-            if (string.IsNullOrWhiteSpace(icon))
+            var normalized = NormalizeDisplaySource(icon);
+            if (string.IsNullOrWhiteSpace(normalized))
             {
-                return icon;
+                return normalized;
             }
 
-            return icon.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase)
-                ? icon
-                : GrayPrefix + icon;
+            return normalized.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase)
+                ? normalized
+                : GrayPrefix + normalized;
         }
 
         private static string NormalizeIcon(string value) => value?.Trim();
@@ -90,6 +94,81 @@ namespace PlayniteAchievements.Models.Achievements
             }
 
             return File.Exists(value);
+        }
+
+        private static string BuildDisplayIcon(string iconPath, bool gray)
+        {
+            var normalized = NormalizeDisplaySource(iconPath);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+
+            var candidate = gray ? ApplyGrayPrefix(normalized) : normalized;
+            var cacheBustToken = TryGetCacheBustToken(candidate);
+            return string.IsNullOrWhiteSpace(cacheBustToken)
+                ? candidate
+                : string.Concat(CacheBustPrefix, cacheBustToken, "|", candidate);
+        }
+
+        private static string TryGetCacheBustToken(string value)
+        {
+            var normalized = NormalizeDisplaySource(value);
+            if (string.IsNullOrWhiteSpace(normalized) || !Path.IsPathRooted(normalized) || !File.Exists(normalized))
+            {
+                return null;
+            }
+
+            try
+            {
+                var fileInfo = new FileInfo(normalized);
+                return string.Concat(fileInfo.LastWriteTimeUtc.Ticks.ToString(), ":", fileInfo.Length.ToString());
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string NormalizeDisplaySource(string value)
+        {
+            var normalized = NormalizeIcon(value);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+
+            while (true)
+            {
+                var changed = false;
+
+                if (normalized.StartsWith(CacheBustPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var firstSeparator = normalized.IndexOf('|');
+                    if (firstSeparator >= 0)
+                    {
+                        var secondSeparator = normalized.IndexOf('|', firstSeparator + 1);
+                        if (secondSeparator >= 0 && secondSeparator + 1 < normalized.Length)
+                        {
+                            normalized = normalized.Substring(secondSeparator + 1);
+                            changed = true;
+                        }
+                    }
+                }
+
+                if (normalized.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized = normalized.Substring(GrayPrefix.Length);
+                    changed = true;
+                }
+
+                if (!changed)
+                {
+                    break;
+                }
+            }
+
+            return NormalizeIcon(normalized);
         }
     }
 }

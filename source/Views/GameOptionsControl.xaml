@@ -114,6 +114,10 @@
                                  Style="{StaticResource NavTabRadioStyle}"
                                  Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomIcons}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
@@ -218,6 +222,20 @@
                         </Style>
                     </Grid.Style>
                     <ContentControl x:Name="CategoryHost" />
+                </Grid>
+
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedTab}" Value="CustomIcons">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <ContentControl x:Name="AchievementIconsHost" />
                 </Grid>
             </Grid>
         </Border>

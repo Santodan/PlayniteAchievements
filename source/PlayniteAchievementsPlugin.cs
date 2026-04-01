@@ -67,8 +67,10 @@ namespace PlayniteAchievements
         private readonly ICacheManager _cacheManager;
         private readonly MemoryImageService _imageService;
         private readonly DiskImageService _diskImageService;
+        private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly NotificationPublisher _notifications;
         private readonly ProviderRegistry _providerRegistry;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ManualSourceRegistry _manualSourceRegistry;
         private readonly SubscriptionCollection _eventSubscriptions = new SubscriptionCollection();
 
@@ -94,11 +96,14 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings => _settingsViewModel.Settings;
         public ProviderRegistry ProviderRegistry => _providerRegistry;
+        public GameCustomDataStore GameCustomDataStore => _gameCustomDataStore;
         public IReadOnlyList<IDataProvider> Providers => _refreshService?.Providers;
         public RefreshRuntime RefreshRuntime => _refreshService;
         public AchievementOverridesService AchievementOverridesService => _achievementOverridesService;
         public AchievementDataService AchievementDataService => _achievementDataService;
         public MemoryImageService ImageService => _imageService;
+        public DiskImageService DiskImageService => _diskImageService;
+        public ManagedCustomIconService ManagedCustomIconService => _managedCustomIconService;
         public ThemeIntegrationService ThemeIntegrationService => _themeIntegrationService;
         public ThemeIntegrationService ThemeUpdateService => _themeIntegrationService;
         public TagSyncService TagSyncService => _tagSyncService;
@@ -221,6 +226,8 @@ namespace PlayniteAchievements
                 // Create provider registry
                 _providerRegistry = new ProviderRegistry(settings, ProviderDisplayOrder, _logger, _manualSourceRegistry);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
+                _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
+                _gameCustomDataStore.AttachRuntimeSettings(settings);
 
                 List<IDataProvider> providers;
                 using (PerfScope.StartStartup(_logger, "PluginCtor.ProviderCreation", thresholdMs: 50))
@@ -232,18 +239,24 @@ namespace PlayniteAchievements
                 using (PerfScope.StartStartup(_logger, "PluginCtor.RefreshServiceCreation", thresholdMs: 50))
                 {
                     _diskImageService = new DiskImageService(_logger, pluginUserDataPath);
+                    _managedCustomIconService = new ManagedCustomIconService(_diskImageService, _logger);
                     _imageService = new MemoryImageService(_logger, _diskImageService);
+                    _gameCustomDataStore.AttachManagedCustomIconService(_managedCustomIconService);
 
-                    _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _providerRegistry, ProviderRefreshOrder, onRefreshCompleted: payload => HandleRefreshAuthNotifications(payload));
+                    _refreshService = new RefreshRuntime(api, settings, _logger, this, providers, _diskImageService, _managedCustomIconService, _providerRegistry, ProviderRefreshOrder, onRefreshCompleted: payload => HandleRefreshAuthNotifications(payload));
                     _cacheManager = _refreshService.Cache;
+                    _cacheManager.CacheInvalidated += (_, __) =>
+                    {
+                        try { _imageService?.Clear(); } catch { }
+                    };
                     _achievementOverridesService = new AchievementOverridesService(
-                        settings,
+                        _gameCustomDataStore,
                         _cacheManager,
                         _logger,
-                        notifySettingsSaved => PersistSettingsForUi(),
                         force => _cacheManager.NotifyCacheInvalidated(),
                         gameIds => OnAchievementGameDataChanged(gameIds));
                     _achievementDataService = new AchievementDataService(_cacheManager, PlayniteApi, _settingsViewModel.Settings, _logger);
+                    _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
                     _notifications = new NotificationPublisher(api, settings, _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,

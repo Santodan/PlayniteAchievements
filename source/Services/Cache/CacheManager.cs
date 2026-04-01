@@ -11,7 +11,14 @@ using System.Windows;
 
 namespace PlayniteAchievements.Services
 {
-    public sealed class CacheManager : ICacheManager, IDisposable
+    internal interface ICacheReadOptimizations
+    {
+        List<GameAchievementData> LoadAllGameDataFast();
+
+        CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0);
+    }
+
+    public sealed class CacheManager : ICacheManager, ICacheReadOptimizations, IDisposable
     {
         private const int MaxInMemoryGames = 256;
 
@@ -55,6 +62,16 @@ namespace PlayniteAchievements.Services
             _diskImageService = diskImageService ?? throw new ArgumentNullException(nameof(diskImageService));
 
             InitializeCacheStartup();
+        }
+
+        List<GameAchievementData> ICacheReadOptimizations.LoadAllGameDataFast()
+        {
+            return LoadAllGameDataFast();
+        }
+
+        CachedSummaryData ICacheReadOptimizations.LoadCachedSummaryDataFast(int recentAchievementDetailLimit)
+        {
+            return LoadCachedSummaryDataFast(recentAchievementDetailLimit);
         }
 
         private void InitializeCacheStartup()
@@ -502,6 +519,36 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        internal CachedSummaryData LoadCachedSummaryDataFast(int recentAchievementDetailLimit = 0)
+        {
+            using (PerfScope.Start(_logger, "Cache.LoadCachedSummaryDataFast", thresholdMs: 25))
+            {
+                var scopeChanged = false;
+
+                try
+                {
+                    lock (_sync)
+                    {
+                        EnsureReady_Locked("LoadCachedSummaryDataFast");
+                        scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
+                        return _store.LoadCachedSummaryData(recentAchievementDetailLimit) ?? new CachedSummaryData();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Error(ex, "Failed loading cached summary data from cache.");
+                    return null;
+                }
+                finally
+                {
+                    if (scopeChanged)
+                    {
+                        RaiseCacheDeltaUpdatedEvent(string.Empty, CacheDeltaOperationType.FullReset);
+                    }
+                }
+            }
+        }
+
         public GameAchievementData LoadGameData(string key)
         {
             using (PerfScope.Start(_logger, "Cache.LoadGameData", thresholdMs: 25, context: key))
@@ -788,6 +835,127 @@ namespace PlayniteAchievements.Services
 
             return copy;
         }
+    }
+
+    internal sealed class CachedSummaryData
+    {
+        public List<CachedGameSummaryData> Games { get; set; } = new List<CachedGameSummaryData>();
+
+        public List<CachedRecentUnlockData> RecentUnlocks { get; set; } = new List<CachedRecentUnlockData>();
+
+        public Dictionary<DateTime, int> GlobalUnlockCountsByDate { get; set; } =
+            new Dictionary<DateTime, int>();
+
+        public Dictionary<Guid, Dictionary<DateTime, int>> UnlockCountsByDateByGame { get; set; } =
+            new Dictionary<Guid, Dictionary<DateTime, int>>();
+
+        public bool HasMoreRecentUnlocks { get; set; }
+    }
+
+    internal sealed class CachedGameSummaryData
+    {
+        public string CacheKey { get; set; }
+
+        public Guid? PlayniteGameId { get; set; }
+
+        public string ProviderKey { get; set; }
+
+        public string ProviderPlatformKey { get; set; }
+
+        public int AppId { get; set; }
+
+        public string GameName { get; set; }
+
+        public bool HasAchievements { get; set; }
+
+        public DateTime LastUpdatedUtc { get; set; }
+
+        public int TotalAchievements { get; set; }
+
+        public int UnlockedAchievements { get; set; }
+
+        public int CommonCount { get; set; }
+
+        public int UncommonCount { get; set; }
+
+        public int RareCount { get; set; }
+
+        public int UltraRareCount { get; set; }
+
+        public int TotalCommonPossible { get; set; }
+
+        public int TotalUncommonPossible { get; set; }
+
+        public int TotalRarePossible { get; set; }
+
+        public int TotalUltraRarePossible { get; set; }
+
+        public int TrophyPlatinumCount { get; set; }
+
+        public int TrophyGoldCount { get; set; }
+
+        public int TrophySilverCount { get; set; }
+
+        public int TrophyBronzeCount { get; set; }
+
+        public int TrophyPlatinumTotal { get; set; }
+
+        public int TrophyGoldTotal { get; set; }
+
+        public int TrophySilverTotal { get; set; }
+
+        public int TrophyBronzeTotal { get; set; }
+
+        public bool IsCompleted { get; set; }
+    }
+
+    internal sealed class CachedRecentUnlockData
+    {
+        public string CacheKey { get; set; }
+
+        public Guid? PlayniteGameId { get; set; }
+
+        public string ProviderKey { get; set; }
+
+        public string ProviderPlatformKey { get; set; }
+
+        public int AppId { get; set; }
+
+        public string GameName { get; set; }
+
+        public string ApiName { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public string Description { get; set; }
+
+        public string UnlockedIconPath { get; set; }
+
+        public string LockedIconPath { get; set; }
+
+        public int? Points { get; set; }
+
+        public int? ScaledPoints { get; set; }
+
+        public string Category { get; set; }
+
+        public string CategoryType { get; set; }
+
+        public string TrophyType { get; set; }
+
+        public bool Hidden { get; set; }
+
+        public bool IsCapstone { get; set; }
+
+        public double? GlobalPercentUnlocked { get; set; }
+
+        public RarityTier Rarity { get; set; }
+
+        public DateTime? UnlockTimeUtc { get; set; }
+
+        public int? ProgressNum { get; set; }
+
+        public int? ProgressDenom { get; set; }
     }
 
     public class GameCacheUpdatedEventArgs : EventArgs

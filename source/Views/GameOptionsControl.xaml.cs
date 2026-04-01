@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
@@ -23,16 +24,24 @@ namespace PlayniteAchievements.Views
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ManualSourceRegistry _manualSourceRegistry;
         private readonly GameOptionsViewModel _viewModel;
+        private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
 
         private GameOptionsCapstonesTab _capstoneControl;
         private GameOptionsManualTrackingTab _manualControl;
         private GameOptionsAchievementOrderTab _achievementOrderControl;
         private GameOptionsCategoryTab _categoryControl;
+        private GameOptionsAchievementIconsTab _achievementIconsControl;
         private ManualAchievementsViewModel _manualViewModel;
         private GameOptionsAchievementOrderViewModel _achievementOrderViewModel;
         private GameOptionsCategoryViewModel _categoryViewModel;
+        private GameOptionsAchievementIconsViewModel _achievementIconsViewModel;
         private bool _manualStartAtEditing;
+        private bool _manualRefreshPending;
         private bool _capstoneRefreshPending;
+        private bool _achievementOrderRefreshPending;
+        private bool _categoryRefreshPending;
+        private bool _achievementIconsRefreshPending;
+        private bool _ensureTabContentQueued;
 
         internal GameOptionsControl(
             Guid gameId,
@@ -56,6 +65,7 @@ namespace PlayniteAchievements.Views
             _logger = logger;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _manualSourceRegistry = manualSourceRegistry ?? throw new ArgumentNullException(nameof(manualSourceRegistry));
+            _gameDataSnapshotProvider = new GameOptionsDataSnapshotProvider(gameId, _achievementDataService);
 
             _viewModel = new GameOptionsViewModel(
                 gameId,
@@ -64,6 +74,7 @@ namespace PlayniteAchievements.Views
                 _refreshService,
                 _persistSettingsForUi,
                 _achievementOverridesService,
+                _gameDataSnapshotProvider,
                 _playniteApi,
                 _settings,
                 _logger);
@@ -93,7 +104,7 @@ namespace PlayniteAchievements.Views
 
         private void GameOptionsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
-            EnsureSelectedTabContent();
+            QueueEnsureSelectedTabContent();
         }
 
         public void Cleanup()
@@ -114,6 +125,7 @@ namespace PlayniteAchievements.Views
             CleanupManual();
             CleanupAchievementOrder();
             CleanupCategory();
+            CleanupAchievementIcons();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -125,7 +137,7 @@ namespace PlayniteAchievements.Views
 
             if (e.PropertyName == nameof(GameOptionsViewModel.SelectedTab))
             {
-                EnsureSelectedTabContent();
+                QueueEnsureSelectedTabContent();
             }
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == GameOptionsTab.ManualTracking)
@@ -140,11 +152,30 @@ namespace PlayniteAchievements.Views
                     EnsureManualControl(forceRecreate: true);
                 }
             }
+            else if (e.PropertyName == nameof(GameOptionsViewModel.CustomDataRevision))
+            {
+                HandleCustomDataRevisionChanged();
+            }
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasCapstoneData) &&
                      _viewModel.SelectedTab == GameOptionsTab.Capstones)
             {
                 EnsureCapstoneControl(forceRecreate: true);
             }
+        }
+
+        private void QueueEnsureSelectedTabContent()
+        {
+            if (_ensureTabContentQueued)
+            {
+                return;
+            }
+
+            _ensureTabContentQueued = true;
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _ensureTabContentQueued = false;
+                EnsureSelectedTabContent();
+            }), DispatcherPriority.Background);
         }
 
         private void EnsureSelectedTabContent()
@@ -156,25 +187,69 @@ namespace PlayniteAchievements.Views
 
             if (_viewModel.SelectedTab == GameOptionsTab.Capstones)
             {
-                if (_capstoneControl != null && _capstoneRefreshPending)
+                var hadCapstoneControl = _capstoneControl != null;
+                EnsureCapstoneControl(forceRecreate: false);
+                if (_capstoneRefreshPending && _capstoneControl != null)
                 {
-                    _capstoneControl.RefreshData();
+                    if (hadCapstoneControl)
+                    {
+                        _capstoneControl.RefreshData();
+                    }
+
                     _capstoneRefreshPending = false;
                 }
-
-                EnsureCapstoneControl(forceRecreate: false);
             }
             else if (_viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
-                EnsureManualControl(forceRecreate: false);
+                var hadManualControl = _manualControl != null;
+                var forceRecreate = hadManualControl && _manualRefreshPending && !IsManualViewModelRefreshing();
+                EnsureManualControl(forceRecreate);
+                if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
+                {
+                    _manualRefreshPending = false;
+                }
             }
             else if (_viewModel.SelectedTab == GameOptionsTab.AchievementOrder)
             {
+                var hadAchievementOrderControl = _achievementOrderControl != null;
                 EnsureAchievementOrderControl(forceRecreate: false);
+                if (_achievementOrderRefreshPending)
+                {
+                    if (hadAchievementOrderControl)
+                    {
+                        _achievementOrderControl?.RefreshData();
+                    }
+
+                    _achievementOrderRefreshPending = false;
+                }
             }
             else if (_viewModel.SelectedTab == GameOptionsTab.Category)
             {
+                var hadCategoryControl = _categoryControl != null;
                 EnsureCategoryControl(forceRecreate: false);
+                if (_categoryRefreshPending)
+                {
+                    if (hadCategoryControl)
+                    {
+                        _categoryViewModel?.ReloadData();
+                    }
+
+                    _categoryRefreshPending = false;
+                }
+            }
+            else if (_viewModel.SelectedTab == GameOptionsTab.CustomIcons)
+            {
+                var hadAchievementIconsControl = _achievementIconsControl != null;
+                EnsureAchievementIconsControl(forceRecreate: false);
+                if (_achievementIconsRefreshPending)
+                {
+                    if (hadAchievementIconsControl)
+                    {
+                        _achievementIconsControl?.RefreshData();
+                    }
+
+                    _achievementIconsRefreshPending = false;
+                }
             }
         }
 
@@ -191,7 +266,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            if (_capstoneControl != null && !forceRecreate && !_capstoneRefreshPending)
+            if (_capstoneControl != null && !forceRecreate)
             {
                 return;
             }
@@ -201,7 +276,7 @@ namespace PlayniteAchievements.Views
             _capstoneControl = new GameOptionsCapstonesTab(
                 _viewModel.GameId,
                 _achievementOverridesService,
-                _achievementDataService,
+                _gameDataSnapshotProvider,
                 _playniteApi,
                 _logger,
                 _settings);
@@ -234,7 +309,13 @@ namespace PlayniteAchievements.Views
 
         private void EnsureManualControl(bool forceRecreate)
         {
-            var startAtEditing = _viewModel.HasManualTrackingLink;
+            var game = _playniteApi?.Database?.Games?.Get(_viewModel.GameId);
+            if (game == null)
+            {
+                return;
+            }
+
+            var startAtEditing = ManualAchievementsProvider.TryGetManualLink(game.Id, out var existingLink);
             if (_manualControl != null && !forceRecreate && _manualStartAtEditing == startAtEditing)
             {
                 return;
@@ -242,24 +323,14 @@ namespace PlayniteAchievements.Views
 
             CleanupManual();
 
-            var game = _playniteApi?.Database?.Games?.Get(_viewModel.GameId);
-            if (game == null)
-            {
-                return;
-            }
-
             _manualStartAtEditing = startAtEditing;
 
             // Get all available sources
             var availableSources = _manualSourceRegistry.GetAllSources();
 
-            // Load manual settings to check for existing link
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-
             // Determine the initial source based on existing link or default to Steam
             IManualSource initialSource;
             if (startAtEditing &&
-                manualSettings.AchievementLinks.TryGetValue(game.Id, out var existingLink) &&
                 existingLink != null)
             {
                 // Use the source from the existing link
@@ -306,7 +377,7 @@ namespace PlayniteAchievements.Views
             _achievementOrderViewModel = new GameOptionsAchievementOrderViewModel(
                 _viewModel.GameId,
                 _achievementOverridesService,
-                _achievementDataService,
+                _gameDataSnapshotProvider,
                 _settings,
                 _logger);
             _achievementOrderControl = new GameOptionsAchievementOrderTab(_achievementOrderViewModel);
@@ -325,11 +396,32 @@ namespace PlayniteAchievements.Views
             _categoryViewModel = new GameOptionsCategoryViewModel(
                 _viewModel.GameId,
                 _achievementOverridesService,
-                _achievementDataService,
+                _gameDataSnapshotProvider,
                 _settings,
                 _logger);
             _categoryControl = new GameOptionsCategoryTab(_categoryViewModel);
             CategoryHost.Content = _categoryControl;
+        }
+
+        private void EnsureAchievementIconsControl(bool forceRecreate)
+        {
+            if (_achievementIconsControl != null && !forceRecreate)
+            {
+                return;
+            }
+
+            CleanupAchievementIcons();
+
+            _achievementIconsViewModel = new GameOptionsAchievementIconsViewModel(
+                _viewModel.GameId,
+                _achievementOverridesService,
+                _gameDataSnapshotProvider,
+                PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
+                _settings,
+                _logger);
+            _achievementIconsControl = new GameOptionsAchievementIconsTab(_achievementIconsViewModel);
+            _achievementIconsControl.IconOverridesSaved += AchievementIconsControl_IconOverridesSaved;
+            AchievementIconsHost.Content = _achievementIconsControl;
         }
 
         private void ManualViewModel_ManualLinkSaved(object sender, EventArgs e)
@@ -339,7 +431,15 @@ namespace PlayniteAchievements.Views
 
         private void CapstoneControl_CapstoneChanged(object sender, EventArgs e)
         {
-            HandleStateChanged(refreshCapstone: false);
+            _gameDataSnapshotProvider?.Invalidate();
+            _viewModel?.Reload();
+        }
+
+        private void AchievementIconsControl_IconOverridesSaved(object sender, EventArgs e)
+        {
+            _gameDataSnapshotProvider?.Invalidate();
+            _achievementIconsControl?.RefreshData();
+            _viewModel?.NotifyIconOverridesChanged();
         }
 
         private void RefreshService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
@@ -377,35 +477,31 @@ namespace PlayniteAchievements.Views
 
         private void HandleStateChanged(bool refreshCapstone)
         {
+            _gameDataSnapshotProvider?.Invalidate();
             _viewModel.Reload();
-            if (_achievementOrderControl != null)
-            {
-                _achievementOrderControl.RefreshData();
-            }
-            else
-            {
-                _achievementOrderViewModel?.ReloadData();
-            }
 
-            _categoryViewModel?.ReloadData();
+            _manualRefreshPending = true;
+            _achievementOrderRefreshPending = true;
+            _categoryRefreshPending = true;
+            _achievementIconsRefreshPending = true;
 
             if (refreshCapstone)
             {
                 _capstoneRefreshPending = true;
             }
 
-            if (_viewModel.SelectedTab == GameOptionsTab.Capstones && _capstoneRefreshPending)
-            {
-                if (_capstoneControl != null)
-                {
-                    _capstoneControl.RefreshData();
-                    _capstoneRefreshPending = false;
-                }
-                else
-                {
-                    EnsureCapstoneControl(forceRecreate: false);
-                }
-            }
+            EnsureSelectedTabContent();
+        }
+
+        private void HandleCustomDataRevisionChanged()
+        {
+            _gameDataSnapshotProvider?.Invalidate();
+            _manualRefreshPending = true;
+            _capstoneRefreshPending = true;
+            _achievementOrderRefreshPending = true;
+            _categoryRefreshPending = true;
+            _achievementIconsRefreshPending = true;
+            EnsureSelectedTabContent();
         }
 
         private void CleanupManual()
@@ -455,6 +551,30 @@ namespace PlayniteAchievements.Views
             if (CategoryHost != null)
             {
                 CategoryHost.Content = null;
+            }
+        }
+
+        private void CleanupAchievementIcons()
+        {
+            if (_achievementIconsControl != null)
+            {
+                try
+                {
+                    _achievementIconsControl.IconOverridesSaved -= AchievementIconsControl_IconOverridesSaved;
+                    _achievementIconsControl.Cleanup();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to cleanup achievement icon tab control.");
+                }
+            }
+
+            _achievementIconsControl = null;
+            _achievementIconsViewModel = null;
+
+            if (AchievementIconsHost != null)
+            {
+                AchievementIconsHost.Content = null;
             }
         }
 

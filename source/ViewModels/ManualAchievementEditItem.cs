@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -127,7 +128,9 @@ namespace PlayniteAchievements.ViewModels
 
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
         private bool UseSeparateLockedIconsWhenAvailable =>
-            PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.ShouldUseSeparateLockedIcons(_playniteGameId) ?? false;
+            GameCustomDataLookup.ShouldUseSeparateLockedIcons(
+                _playniteGameId,
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
 
         /// <summary>
         /// Whether this hidden achievement can be revealed (hidden and not unlocked).

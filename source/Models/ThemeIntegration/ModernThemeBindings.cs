@@ -593,7 +593,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 return fallbackValue;
             }
 
-            return settings.ShouldUseSeparateLockedIcons(playniteGameId);
+            return Services.GameCustomDataLookup.ShouldUseSeparateLockedIcons(playniteGameId, settings);
         }
     }
 }

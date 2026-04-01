@@ -17,7 +17,7 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Guid _gameId;
         private readonly AchievementOverridesService _achievementOverridesService;
-        private readonly AchievementDataService _achievementDataService;
+        private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
 
@@ -52,13 +52,13 @@ namespace PlayniteAchievements.ViewModels
         public GameOptionsCategoryViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
-            AchievementDataService achievementDataService,
+            GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
             _gameId = gameId;
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
-            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _gameDataSnapshotProvider = gameDataSnapshotProvider ?? throw new ArgumentNullException(nameof(gameDataSnapshotProvider));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
 
@@ -451,8 +451,8 @@ namespace PlayniteAchievements.ViewModels
                     .GroupBy(row => row.ApiName.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
-                var hydratedGameData = _achievementDataService.GetGameAchievementData(_gameId);
-                var rawGameData = _achievementDataService.GetRawGameAchievementData(_gameId);
+                var hydratedGameData = _gameDataSnapshotProvider.GetHydratedGameData();
+                var rawGameData = _gameDataSnapshotProvider.GetRawGameData();
                 var rawAchievements = rawGameData?.Achievements?
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
@@ -978,15 +978,9 @@ namespace PlayniteAchievements.ViewModels
 
         private Dictionary<string, string> GetCurrentCategoryOverrideMap()
         {
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (_settings?.Persisted?.AchievementCategoryOverrides == null ||
-                !_settings.Persisted.AchievementCategoryOverrides.TryGetValue(_gameId, out var raw) ||
-                raw == null)
-            {
-                return map;
-            }
-
-            foreach (var pair in raw)
+            var map = GameCustomDataLookup.GetAchievementCategoryOverrides(_gameId, _settings?.Persisted);
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in map)
             {
                 var apiName = (pair.Key ?? string.Empty).Trim();
                 var category = NormalizeCategory(pair.Value);
@@ -995,23 +989,17 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                map[apiName] = category;
+                normalized[apiName] = category;
             }
 
-            return map;
+            return normalized;
         }
 
         private Dictionary<string, string> GetCurrentCategoryTypeOverrideMap()
         {
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (_settings?.Persisted?.AchievementCategoryTypeOverrides == null ||
-                !_settings.Persisted.AchievementCategoryTypeOverrides.TryGetValue(_gameId, out var raw) ||
-                raw == null)
-            {
-                return map;
-            }
-
-            foreach (var pair in raw)
+            var map = GameCustomDataLookup.GetAchievementCategoryTypeOverrides(_gameId, _settings?.Persisted);
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in map)
             {
                 var apiName = (pair.Key ?? string.Empty).Trim();
                 var categoryType = AchievementCategoryTypeHelper.Normalize(pair.Value);
@@ -1020,10 +1008,10 @@ namespace PlayniteAchievements.ViewModels
                     continue;
                 }
 
-                map[apiName] = categoryType;
+                normalized[apiName] = categoryType;
             }
 
-            return map;
+            return normalized;
         }
 
         private static string NormalizeCategory(string value)

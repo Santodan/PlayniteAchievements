@@ -17,6 +17,25 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public class AchievementDisplayItem : ObservableObject
     {
+        public sealed class AppearanceSettingsSnapshot
+        {
+            public bool ShowHiddenIcon { get; set; }
+
+            public bool ShowHiddenTitle { get; set; }
+
+            public bool ShowHiddenDescription { get; set; }
+
+            public bool ShowHiddenSuffix { get; set; }
+
+            public bool ShowLockedIcon { get; set; }
+
+            public bool UseSeparateLockedIconsWhenAvailable { get; set; }
+
+            public bool ShowRarityGlow { get; set; }
+
+            public bool ShowRarityBar { get; set; }
+        }
+
         private AchievementDetail _source;
         private string _gameName;
         private string _sortingName;
@@ -615,17 +634,45 @@ namespace PlayniteAchievements.ViewModels
 
         public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
         {
-            var persisted = settings?.Persisted;
-            var resolvedGameId = playniteGameId ?? PlayniteGameId;
+            ApplyAppearanceSettings(CreateAppearanceSettingsSnapshot(
+                settings,
+                playniteGameId,
+                null));
+        }
+
+        public void ApplyAppearanceSettings(AppearanceSettingsSnapshot snapshot)
+        {
+            var resolved = snapshot ?? new AppearanceSettingsSnapshot();
             ApplyAppearanceSettings(
-                persisted?.ShowHiddenIcon ?? false,
-                persisted?.ShowHiddenTitle ?? false,
-                persisted?.ShowHiddenDescription ?? false,
-                persisted?.ShowHiddenSuffix ?? true,
-                persisted?.ShowLockedIcon ?? true,
-                persisted?.ShouldUseSeparateLockedIcons(resolvedGameId) ?? false,
-                persisted?.ShowRarityGlow ?? true,
-                persisted?.ShowCompactListRarityBar ?? true);
+                resolved.ShowHiddenIcon,
+                resolved.ShowHiddenTitle,
+                resolved.ShowHiddenDescription,
+                resolved.ShowHiddenSuffix,
+                resolved.ShowLockedIcon,
+                resolved.UseSeparateLockedIconsWhenAvailable,
+                resolved.ShowRarityGlow,
+                resolved.ShowRarityBar);
+        }
+
+        public static AppearanceSettingsSnapshot CreateAppearanceSettingsSnapshot(
+            PlayniteAchievementsSettings settings,
+            Guid? playniteGameId,
+            bool? resolvedUseSeparateLockedIcons)
+        {
+            var persisted = settings?.Persisted;
+            var resolvedGameId = playniteGameId;
+            return new AppearanceSettingsSnapshot
+            {
+                ShowHiddenIcon = persisted?.ShowHiddenIcon ?? false,
+                ShowHiddenTitle = persisted?.ShowHiddenTitle ?? false,
+                ShowHiddenDescription = persisted?.ShowHiddenDescription ?? false,
+                ShowHiddenSuffix = persisted?.ShowHiddenSuffix ?? true,
+                ShowLockedIcon = persisted?.ShowLockedIcon ?? true,
+                UseSeparateLockedIconsWhenAvailable = resolvedUseSeparateLockedIcons ??
+                    GameCustomDataLookup.ShouldUseSeparateLockedIcons(resolvedGameId, persisted),
+                ShowRarityGlow = persisted?.ShowRarityGlow ?? true,
+                ShowRarityBar = persisted?.ShowCompactListRarityBar ?? true
+            };
         }
 
         public string UnlockTimeText =>
@@ -667,7 +714,6 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool UsesExplicitLockedIcon =>
-            UseSeparateLockedIconsWhenAvailable &&
             AchievementIconResolver.HasExplicitLockedIcon(LockedIconPath, UnlockedIconPath);
 
         /// <summary>
@@ -777,7 +823,8 @@ namespace PlayniteAchievements.ViewModels
             AchievementDetail achievement,
             PlayniteAchievementsSettings settings,
             ISet<string> revealedKeys = null,
-            Guid? playniteGameIdOverride = null)
+            Guid? playniteGameIdOverride = null,
+            AppearanceSettingsSnapshot appearanceSettings = null)
         {
             if (achievement == null)
             {
@@ -786,8 +833,12 @@ namespace PlayniteAchievements.ViewModels
 
             var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
             var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData));
+            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
+                settings,
+                gameId,
+                gameData?.UseSeparateLockedIconsWhenAvailable);
             item.IsRevealed = ShouldRestoreRevealedState(gameData, achievement, settings, revealedKeys, gameId);
-            item.ApplyAppearanceSettings(settings, gameId);
+            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
             return item;
         }
 
@@ -796,7 +847,8 @@ namespace PlayniteAchievements.ViewModels
             AchievementDetail achievement,
             PlayniteAchievementsSettings settings,
             string gameIconPath,
-            string gameCoverPath)
+            string gameCoverPath,
+            AppearanceSettingsSnapshot appearanceSettings = null)
         {
             if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
             {
@@ -810,7 +862,11 @@ namespace PlayniteAchievements.ViewModels
                 ResolvePoints(achievement, gameData));
             item.GameIconPath = gameIconPath;
             item.GameCoverPath = gameCoverPath;
-            item.ApplyAppearanceSettings(settings, gameData?.PlayniteGameId);
+            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
+                settings,
+                gameData?.PlayniteGameId,
+                gameData?.UseSeparateLockedIconsWhenAvailable);
+            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
             return item;
         }
 
@@ -1012,7 +1068,7 @@ namespace PlayniteAchievements.ViewModels
         {
             return AchievementIconResolver.GetLockedDisplayIcon(
                 UnlockedIconPath,
-                UseSeparateLockedIconsWhenAvailable ? LockedIconPath : null);
+                LockedIconPath);
         }
 
         private static AchievementDisplayItem CreateBaseItem(

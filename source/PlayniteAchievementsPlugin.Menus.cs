@@ -566,12 +566,18 @@ namespace PlayniteAchievements
 
         public bool IsGameExcluded(Guid gameId)
         {
-            return _settingsViewModel.Settings.Persisted.ExcludedGameIds.Contains(gameId);
+            return GameCustomDataLookup.IsExcludedFromRefreshes(
+                gameId,
+                _settingsViewModel?.Settings?.Persisted,
+                _gameCustomDataStore);
         }
 
         public bool IsGameExcludedFromSummaries(Guid gameId)
         {
-            return _settingsViewModel.Settings.Persisted.ExcludedFromSummariesGameIds.Contains(gameId);
+            return GameCustomDataLookup.IsExcludedFromSummaries(
+                gameId,
+                _settingsViewModel?.Settings?.Persisted,
+                _gameCustomDataStore);
         }
 
         public void ToggleGameExclusion(Guid gameId)

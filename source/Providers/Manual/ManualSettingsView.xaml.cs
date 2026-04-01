@@ -163,7 +163,8 @@ namespace PlayniteAchievements.Providers.Manual
                 () => _pluginSettings?.Persisted,
                 gameId => _playniteApi?.Database?.Games?.Get(gameId) != null,
                 gameId => false,
-                _logger);
+                _logger,
+                gameCustomDataStore: PlayniteAchievementsPlugin.Instance?.GameCustomDataStore);
 
             var result = importer.Import(folderPath) ?? new LegacyManualImportResult();
             return result;

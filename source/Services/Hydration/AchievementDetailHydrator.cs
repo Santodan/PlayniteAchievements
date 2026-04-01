@@ -21,32 +21,29 @@ namespace PlayniteAchievements.Services.Hydration
         /// Hydrates multiple AchievementDetail instances and applies manual capstone
         /// override from settings.
         /// </summary>
-        public void HydrateAllWithCapstoneOverride(
+        internal void HydrateAllWithCapstoneOverride(
             IEnumerable<AchievementDetail> details,
             Guid playniteGameId,
-            string providerKey)
+            string providerKey,
+            ResolvedGameCustomData customData = null)
         {
             if (details == null)
             {
                 return;
             }
 
-            // Resolve manual capstone override from settings.
-            var hasManualCapstone = _settings.ManualCapstones
-                .TryGetValue(playniteGameId, out var manualCapstone);
+            customData ??= GameCustomDataLookup.ResolveGameCustomData(playniteGameId, _settings);
 
-            // Resolve manual category overrides from settings.
-            Dictionary<string, string> categoryOverrides = null;
-            var hasCategoryOverrides = _settings.AchievementCategoryOverrides != null &&
-                                       _settings.AchievementCategoryOverrides.TryGetValue(playniteGameId, out categoryOverrides) &&
-                                       categoryOverrides != null &&
-                                       categoryOverrides.Count > 0;
+            var manualCapstone = customData.ManualCapstoneApiName;
+            var hasManualCapstone = !string.IsNullOrWhiteSpace(manualCapstone);
 
-            Dictionary<string, string> categoryTypeOverrides = null;
-            var hasCategoryTypeOverrides = _settings.AchievementCategoryTypeOverrides != null &&
-                                           _settings.AchievementCategoryTypeOverrides.TryGetValue(playniteGameId, out categoryTypeOverrides) &&
-                                           categoryTypeOverrides != null &&
-                                           categoryTypeOverrides.Count > 0;
+            var categoryOverrides = customData.AchievementCategoryOverrides ??
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var hasCategoryOverrides = categoryOverrides.Count > 0;
+
+            var categoryTypeOverrides = customData.AchievementCategoryTypeOverrides ??
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var hasCategoryTypeOverrides = categoryTypeOverrides.Count > 0;
 
             foreach (var detail in details)
             {

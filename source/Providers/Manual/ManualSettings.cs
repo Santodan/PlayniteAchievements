@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Settings;
 
@@ -40,6 +41,7 @@ namespace PlayniteAchievements.Providers.Manual
         /// Manual achievement links. Key = Playnite Game ID, Value = ManualAchievementLink.
         /// Links any Playnite game to achievements from a source (e.g., Steam).
         /// </summary>
+        [JsonIgnore]
         public Dictionary<Guid, ManualAchievementLink> AchievementLinks
         {
             get => _achievementLinks;

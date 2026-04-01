@@ -3,6 +3,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -79,7 +80,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
 
             // If override exists, no ROM needed
-            if (providerSettings.RaGameIdOverrides.ContainsKey(game.Id))
+            if (TryGetGameIdOverride(game.Id, out _))
             {
                 return true;
             }
@@ -144,10 +145,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         internal static bool TryGetGameIdOverride(Guid gameId, out int gameIdOverride)
         {
-            gameIdOverride = 0;
-            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
-            return settings?.RaGameIdOverrides != null &&
-                   settings.RaGameIdOverrides.TryGetValue(gameId, out gameIdOverride);
+            return GameCustomDataLookup.TryGetRetroAchievementsGameIdOverride(
+                gameId,
+                out gameIdOverride,
+                fallbackSettings: ProviderRegistry.Settings<RetroAchievementsSettings>());
         }
 
         /// <summary>
@@ -168,9 +169,21 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return false;
             }
 
-            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
-            settings.RaGameIdOverrides[gameId] = newId;
-            ProviderRegistry.Write(settings);
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
+            {
+                customDataStore.Update(gameId, customData =>
+                {
+                    customData.RetroAchievementsGameIdOverride = newId;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
+                settings.RaGameIdOverrides[gameId] = newId;
+                ProviderRegistry.Write(settings);
+            }
+
             persistSettingsForUi?.Invoke();
 
             logger?.Info($"Set RA game ID override for '{gameName}' to {newId}");
@@ -179,13 +192,31 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         internal static bool TryClearGameIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
-            var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
-            if (!settings.RaGameIdOverrides.Remove(gameId))
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                if (!customDataStore.TryLoad(gameId, out var customData) ||
+                    !customData.RetroAchievementsGameIdOverride.HasValue)
+                {
+                    return false;
+                }
+
+                customDataStore.Update(gameId, data =>
+                {
+                    data.RetroAchievementsGameIdOverride = null;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<RetroAchievementsSettings>();
+                if (!settings.RaGameIdOverrides.Remove(gameId))
+                {
+                    return false;
+                }
+
+                ProviderRegistry.Write(settings);
             }
 
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Cleared RA game ID override for '{gameName}'");
             return true;

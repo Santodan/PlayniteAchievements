@@ -69,6 +69,23 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    <TextBlock Text="{Binding ApiName}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.58"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}" />
+                                        <Setter Property="Opacity" Value="0.9" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </StackPanel>
             </DataTemplate>
         </ResourceDictionary>
@@ -104,7 +121,7 @@
                                TextWrapping="Wrap"
                                Margin="0,6,0,0" />
                 </StackPanel>
-                <Button Grid.Column="4"
+                <Button Grid.Column="1"
                     Content="{DynamicResource LOCPlayAch_Button_Reset}"
                         Click="ResetCategoryButton_Click"
                         Margin="12,0,0,0"
@@ -274,6 +291,7 @@
                   CanUserReorderColumns="False"
                   CanUserSortColumns="False"
                   EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                   VirtualizingStackPanel.ScrollUnit="Pixel"
                   ScrollViewer.CanContentScroll="True"
@@ -346,17 +364,6 @@
                                     <Setter Property="Opacity" Value="1" />
                                 </DataTrigger>
                             </Style.Triggers>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_ApiName}" Binding="{Binding ApiName}">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                            <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
-                            <Setter Property="Opacity" Value="0.65" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>

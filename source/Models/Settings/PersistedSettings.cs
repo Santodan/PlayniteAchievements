@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Playnite.SDK;
+using Playnite.SDK.Data;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Tagging;
@@ -271,6 +273,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Game IDs that always use separate locked icons when available, regardless of the global default.
         /// When absent, the game falls back to the global UseSeparateLockedIconsWhenAvailable setting.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public HashSet<Guid> SeparateLockedIconEnabledGameIds
         {
             get => _separateLockedIconEnabledGameIds;
@@ -755,6 +759,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Game IDs that the user has explicitly excluded from achievement tracking.
         /// These exclusions persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public HashSet<Guid> ExcludedGameIds
         {
             get => _excludedGameIds;
@@ -765,6 +771,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Game IDs that are excluded from all summary surfaces.
         /// These exclusions persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public HashSet<Guid> ExcludedFromSummariesGameIds
         {
             get => _excludedFromSummariesGameIds;
@@ -775,6 +783,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Manual capstone selections. Key = Playnite Game ID, Value = Achievement ApiName.
         /// These selections persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public Dictionary<Guid, string> ManualCapstones
         {
             get => _manualCapstones;
@@ -786,6 +796,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Key = Playnite Game ID, Value = full ordered list of achievement ApiName values.
         /// These overrides persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public Dictionary<Guid, List<string>> AchievementOrderOverrides
         {
             get => _achievementOrderOverrides;
@@ -797,6 +809,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Key = Playnite Game ID, Value = map of Achievement ApiName -> Category.
         /// These overrides persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryOverrides
         {
             get => _achievementCategoryOverrides;
@@ -809,6 +823,8 @@ namespace PlayniteAchievements.Models.Settings
         /// Allowed values: Base, DLC, Singleplayer, Multiplayer.
         /// These overrides persist across cache clears.
         /// </summary>
+        [JsonIgnore]
+        [DontSerialize]
         public Dictionary<Guid, Dictionary<string, string>> AchievementCategoryTypeOverrides
         {
             get => _achievementCategoryTypeOverrides;

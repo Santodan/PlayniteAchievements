@@ -18,6 +18,60 @@
             </ResourceDictionary.MergedDictionaries>
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
+
+            <DataTemplate x:Key="OrderAchievementInfoTemplate">
+                <StackPanel VerticalAlignment="Center"
+                            Background="Transparent"
+                            Margin="12,10">
+                    <TextBlock FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
+                                <Setter Property="Opacity" Value="0.7" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                        <Setter Property="Opacity" Value="1" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <Run Text="{Binding DisplayNameResolved, Mode=OneWay}" />
+                        <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                             FontStyle="Italic"
+                             FontSize="{DynamicResource FontSizeSmall}"
+                             Foreground="{DynamicResource TextBrushDarker}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding DescriptionResolved}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="44"
+                               Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding ApiName}"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Opacity="0.58"
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -87,6 +141,7 @@
                   CanUserReorderColumns="False"
                   CanUserSortColumns="False"
                   EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                   VirtualizingStackPanel.ScrollUnit="Pixel"
                   ScrollViewer.CanContentScroll="True"
@@ -149,20 +204,8 @@
                 <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
                                         CellTemplate="{StaticResource AchievementIconTemplate}" />
 
-                <DataGridTemplateColumn Width="2*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
-                                        CellTemplate="{StaticResource AchievementInfoTemplate}" />
-
-                <DataGridTextColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_ApiName}" Binding="{Binding ApiName}">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-                            <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
-                            <Setter Property="Opacity" Value="0.65" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
+                                        CellTemplate="{StaticResource OrderAchievementInfoTemplate}" />
             </DataGrid.Columns>
         </DataGrid>
 
