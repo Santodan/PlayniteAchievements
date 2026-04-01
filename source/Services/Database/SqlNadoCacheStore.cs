@@ -1510,6 +1510,10 @@ namespace PlayniteAchievements.Services.Database
             {
                 externalId = ProviderRegistry.Settings<RetroAchievementsSettings>().RaUsername;
             }
+            else if (string.Equals(providerKey, "Local", StringComparison.OrdinalIgnoreCase))
+            {
+                externalId = "local";
+            }
 
             if (string.IsNullOrWhiteSpace(externalId))
             {
@@ -1554,6 +1558,7 @@ namespace PlayniteAchievements.Services.Database
                 case "shadps4": return "ShadPS4";
                 case "manual": return "Manual";
                 case "manuel": return "Manual";
+                case "local": return "Local";
                 case "unmapped": return "Unmapped";
                 default: return normalized;
             }

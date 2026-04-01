@@ -141,7 +141,9 @@
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
   </ItemGroup>
   <PropertyGroup>
-    <PostBuildEvent>xcopy "$(ProjectDir)Localization\*.xaml" "$(TargetDir)\Localization" /Y /I /E</PostBuildEvent>
+    <PostBuildEvent>if exist "$(MSBuildProjectDirectory)\Localization\*.xaml" xcopy "$(MSBuildProjectDirectory)\Localization\*.xaml" "$(MSBuildProjectDirectory)\$(OutputPath)Localization" /Y /I /E
+if exist "E:\Programs\Playnite\Toolbox.exe" "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
+if not exist "E:\Programs\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playnite\Toolbox.exe" "$(LocalAppData)\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"</PostBuildEvent>
   </PropertyGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
