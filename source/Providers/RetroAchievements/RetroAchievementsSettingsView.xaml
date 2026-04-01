@@ -54,7 +54,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Label_RaAuth}"
+                                   x:Name="AuthLabel"
                                    Foreground="{DynamicResource TextBrush}"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Top"
