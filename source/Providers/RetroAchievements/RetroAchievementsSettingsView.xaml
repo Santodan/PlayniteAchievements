@@ -117,20 +117,20 @@
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_Username}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername}"
                                                    Margin="0,0,0,8"/>
                                         <TextBox Text="{Binding Settings.RaUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_Username_Help}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"/>
 
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_WebApiKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey}"
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RaWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_WebApiKey_Help}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"/>

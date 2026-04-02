@@ -125,10 +125,10 @@ namespace PlayniteAchievements.Views
                     }
                     if (!IsEnabled)
                     {
-                        return ResourceProvider.GetString("LOCPlayAch_Landing_Status_BadgeDisabled");
+                        return ResourceProvider.GetString("LOCPlayAch_Common_Status_Disabled");
                     }
                     return IsAuthenticated
-                        ? ResourceProvider.GetString("LOCPlayAch_Landing_Status_BadgeReady")
+                        ? ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")
                         : ResourceProvider.GetString("LOCPlayAch_Landing_Status_BadgeSetup");
                 }
             }
@@ -672,7 +672,7 @@ namespace PlayniteAchievements.Views
                 _logger.Error(ex, "Failed to execute theme migration command.");
                 _api?.Notifications?.Add(new NotificationMessage(
                     "PlayAch_MigrationError",
-                    $"Theme migration failed: {ex.Message}",
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     NotificationType.Error));
             }
         });
@@ -699,7 +699,7 @@ namespace PlayniteAchievements.Views
                 _logger.Error(ex, "Failed to execute full theme migration command.");
                 _api?.Notifications?.Add(new NotificationMessage(
                     "PlayAch_MigrationError",
-                    $"Theme migration failed: {ex.Message}",
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     NotificationType.Error));
             }
         });
@@ -727,7 +727,7 @@ namespace PlayniteAchievements.Views
                 _logger.Error(ex, "Failed to execute custom theme migration command.");
                 _api?.Notifications?.Add(new NotificationMessage(
                     "PlayAch_MigrationError",
-                    $"Theme migration failed: {ex.Message}",
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     NotificationType.Error));
             }
         });
@@ -778,7 +778,7 @@ namespace PlayniteAchievements.Views
                 _logger.Error(ex, "Failed to execute theme revert command.");
                 _api?.Notifications?.Add(new NotificationMessage(
                     "PlayAch_RevertError",
-                    $"Theme revert failed: {ex.Message}",
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     NotificationType.Error));
             }
         });
@@ -945,39 +945,39 @@ namespace PlayniteAchievements.Views
 
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginButton",
-                "LOCPlayAch_ThemeMigration_Custom_Button",
+                "LOCPlayAch_Settings_ButtonPreview",
                 "Button"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginChart",
-                "LOCPlayAch_ThemeMigration_Custom_Chart",
+                "LOCPlayAch_Settings_BarChartPreview",
                 "Bar Chart"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
-                "LOCPlayAch_ThemeMigration_Custom_CompactList",
+                "LOCPlayAch_Settings_CompactListPreview",
                 "Compact List"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactLocked",
+                "LOCPlayAch_Settings_CompactLockedListPreview",
                 "Compact Locked List"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactUnlocked",
+                "LOCPlayAch_Settings_CompactUnlockedListPreview",
                 "Compact Unlocked List"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
-                "LOCPlayAch_ThemeMigration_Custom_List",
-                "Achievement Grid"));
+                "LOCPlayAch_Settings_AchievementDataGridPreview",
+                "Achievement DataGrid"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginProgressBar",
-                "LOCPlayAch_ThemeMigration_Custom_ProgressBar",
+                "LOCPlayAch_Settings_ProgressBarPreview",
                 "Progress Bar"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginUserStats",
-                "LOCPlayAch_ThemeMigration_Custom_UserStats",
-                "Stats Panel"));
+                "LOCPlayAch_Settings_StatsPreview",
+                "Stats"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginViewItem",
-                "LOCPlayAch_ThemeMigration_Custom_ViewItem",
+                "LOCPlayAch_Settings_ViewItemPreview",
                 "View Item"));
         }
 
@@ -1092,6 +1092,7 @@ namespace PlayniteAchievements.Views
         HasData
     }
 }
+
 
 
 

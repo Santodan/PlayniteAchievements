@@ -529,7 +529,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, "Manual achievement search failed");
                 SearchStatusMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_Error"),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
                     ex.Message);
             }
             finally
@@ -1464,7 +1464,7 @@ namespace PlayniteAchievements.ViewModels
                 _logger?.Info($"Saved manual achievement link for '{_playniteGame.Name}' (source={link.SourceKey}, gameId={link.SourceGameId})");
 
                 _lastSavedLink = link.Clone();
-                SaveStatusMessage = ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Edit_SaveSuccess");
+                SaveStatusMessage = ResourceProvider.GetString("LOCPlayAch_Status_Succeeded");
                 ManualLinkSaved?.Invoke(this, EventArgs.Empty);
                 CurrentStage = WizardStage.Editing;
             }
@@ -1472,7 +1472,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed to save manual achievements for '{_playniteGame.Name}'");
                 ErrorMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Edit_SaveFailed"),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
                     ex.Message);
             }
         }

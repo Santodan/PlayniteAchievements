@@ -243,7 +243,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 var selected = AchievementCategoryTypeHelper.ParseValues(GetSelectedCategoryTypeValue());
                 return selected.Count == 0
-                    ? L("LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder", "Type")
+                    ? L("LOCPlayAch_Common_Label_Type", "Type")
                     : string.Join(", ", selected);
             }
         }
@@ -371,7 +371,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
-                    ? L("LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder", "Type")
+                    ? L("LOCPlayAch_Common_Label_Type", "Type")
                     : string.Join(", ", selected);
             }
         }
@@ -389,7 +389,7 @@ namespace PlayniteAchievements.ViewModels
                 if (_selectedCategoryLabelFilters.Count == 0)
                 {
                     return L(
-                        "LOCPlayAch_GameOptions_Category_Filter_LabelSelectorPlaceholder",
+                        "LOCPlayAch_Common_Label_Category",
                         "Category");
                 }
 

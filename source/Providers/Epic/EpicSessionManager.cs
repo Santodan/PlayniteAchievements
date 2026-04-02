@@ -424,8 +424,8 @@ namespace PlayniteAchievements.Providers.Epic
                     UseShellExecute = true
                 });
 
-                var prompt = ResourceProvider.GetString("LOCPlayAch_Settings_EpicAuth_BrowserPrompt");
-                var title = ResourceProvider.GetString("LOCPlayAch_Settings_EpicConnection");
+                var prompt = ResourceProvider.GetString("LOCPlayAch_Settings_Epic_AltAuthCodePrompt");
+                var title = GetEpicConnectionTitle();
 
                 if (string.IsNullOrWhiteSpace(prompt))
                 {
@@ -467,7 +467,7 @@ namespace PlayniteAchievements.Providers.Epic
                 ct.ThrowIfCancellationRequested();
 
                 // Show instructions dialog first
-                var instructionsTitle = ResourceProvider.GetString("LOCPlayAch_Settings_EpicConnection");
+                var instructionsTitle = GetEpicConnectionTitle();
                 var instructionsMessage = ResourceProvider.GetString("LOCPlayAch_Settings_Epic_AltAuthInstructions");
                 if (string.IsNullOrWhiteSpace(instructionsMessage))
                 {
@@ -537,6 +537,31 @@ namespace PlayniteAchievements.Providers.Epic
                 _logger?.Error(ex, "[EpicAuth] Alternative login failed with exception.");
                 return AuthProbeResult.Failed(windowOpened);
             }
+        }
+
+        private static string GetEpicConnectionTitle()
+        {
+            var titleFormat = ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection");
+            var providerName = ResourceProvider.GetString("LOCPlayAch_Provider_Epic");
+
+            if (!string.IsNullOrWhiteSpace(titleFormat) && !string.IsNullOrWhiteSpace(providerName))
+            {
+                try
+                {
+                    return string.Format(titleFormat, providerName);
+                }
+                catch (FormatException)
+                {
+                    // Fall back to provider name when localized title format is invalid.
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(providerName))
+            {
+                return providerName;
+            }
+
+            return "Epic Games";
         }
 
         private async void CloseWhenLoggedIn(object sender, WebViewLoadingChangedEventArgs e)

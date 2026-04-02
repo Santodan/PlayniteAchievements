@@ -119,7 +119,7 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
-                               Text="{DynamicResource LOCPlayAch_ManualAchievements_Source_Label}"
+                               Text="{DynamicResource LOCPlayAch_GameOptions_Manual_Source}"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"
                                Foreground="{DynamicResource TextBrush}"/>
@@ -144,7 +144,7 @@
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                  Style="{StaticResource ClearableSearchTextBoxStyle}"
                                  KeyDown="SearchTextBox_KeyDown"/>
-                        <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Search_Placeholder}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Filter_Games}"
                                    VerticalAlignment="Center"
                                    HorizontalAlignment="Left"
                                    Margin="12,0,0,0"
@@ -243,7 +243,7 @@
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
 
-                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Column_Platform}"
+                            <DataGridTextColumn Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                                 Binding="{Binding Platforms}"
                                                 Width="120"
                                                 Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -360,7 +360,7 @@
                         <Grid>
                             <TextBox Text="{Binding EditSearchFilter, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                      Style="{StaticResource ClearableSearchTextBoxStyle}"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_ManualAchievements_Edit_SearchPlaceholder}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterAchievementsPlaceholder}"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Left"
                                        Margin="12,0,0,0"
@@ -389,11 +389,11 @@
 
                     <!-- Action buttons -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,0,0,0">
-                        <Button Content="{DynamicResource LOCPlayAch_ManualAchievements_Edit_UnlockAll}"
+                        <Button Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                                 Command="{Binding UnlockAllCommand}"
                                 Padding="8,4"
                                 Margin="0,0,8,0"/>
-                        <Button Content="{DynamicResource LOCPlayAch_ManualAchievements_Edit_LockAll}"
+                        <Button Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                                 Command="{Binding LockAllCommand}"
                                 Padding="8,4"/>
                     </StackPanel>
@@ -439,7 +439,7 @@
 
                         <DataGrid.Columns>
                             <!-- Unlocked / locked -->
-                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Unlocked}"
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                                     Width="80"
                                                     SortMemberPath="IsUnlocked"
                                                     HeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
@@ -688,3 +688,4 @@
         </Grid>
     </Grid>
 </UserControl>
+

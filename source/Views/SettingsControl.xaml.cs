@@ -1,4 +1,4 @@
-﻿// SettingsControl.xaml.cs
+// SettingsControl.xaml.cs
 using System;
 using System.IO;
 using System.Linq;
@@ -369,7 +369,7 @@ namespace PlayniteAchievements.Views
                 nameof(LegacyManualImportStatus),
                 typeof(string),
                 typeof(SettingsControl),
-                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusIdle")));
+                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")));
 
         public string LegacyManualImportStatus
         {
@@ -623,7 +623,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to execute theme migration.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_ThemeMigration_Failed", "Theme migration failed: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_ThemeMigration_Title", "Theme Migration"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -670,7 +670,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to execute theme revert.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_ThemeMigration_RevertFailed", "Revert failed: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_ThemeMigration_Revert", "Revert Theme"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -683,39 +683,39 @@ namespace PlayniteAchievements.Views
 
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginButton",
-                "LOCPlayAch_ThemeMigration_Custom_Button",
+                "LOCPlayAch_Settings_ButtonPreview",
                 "Button"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginChart",
-                "LOCPlayAch_ThemeMigration_Custom_Chart",
+                "LOCPlayAch_Settings_BarChartPreview",
                 "Bar Chart"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
-                "LOCPlayAch_ThemeMigration_Custom_CompactList",
+                "LOCPlayAch_Settings_CompactListPreview",
                 "Compact List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactLocked",
+                "LOCPlayAch_Settings_CompactLockedListPreview",
                 "Compact Locked List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactUnlocked",
+                "LOCPlayAch_Settings_CompactUnlockedListPreview",
                 "Compact Unlocked List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
-                "LOCPlayAch_ThemeMigration_Custom_List",
-                "Achievement Grid"));
+                "LOCPlayAch_Settings_AchievementDataGridPreview",
+                "Achievement DataGrid"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginProgressBar",
-                "LOCPlayAch_ThemeMigration_Custom_ProgressBar",
+                "LOCPlayAch_Settings_ProgressBarPreview",
                 "Progress Bar"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginUserStats",
-                "LOCPlayAch_ThemeMigration_Custom_UserStats",
-                "Stats Panel"));
+                "LOCPlayAch_Settings_StatsPreview",
+                "Stats"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginViewItem",
-                "LOCPlayAch_ThemeMigration_Custom_ViewItem",
+                "LOCPlayAch_Settings_ViewItemPreview",
                 "View Item"));
         }
 
@@ -1249,7 +1249,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to apply and sync tags.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Tagging_SyncFailed", "Failed to apply and sync tags: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1284,7 +1284,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to remove tags.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Tagging_RemoveFailed", "Failed to remove tags: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1474,5 +1474,6 @@ namespace PlayniteAchievements.Views
         public event PropertyChangedEventHandler PropertyChanged;
     }
 }
+
 
 

@@ -277,7 +277,7 @@ namespace PlayniteAchievements.Providers.Manual
             achievementOverridesService.ClearGameData(gameId, gameName);
 
             playniteApi?.Dialogs?.ShowMessage(
-                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Success", "Manual achievement link removed for \"{0}\"."), gameName),
+                L("LOCPlayAch_Status_Succeeded", "Success!"),
                 L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);

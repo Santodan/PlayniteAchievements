@@ -95,10 +95,10 @@
                                     CellTemplate="{StaticResource AchievementGameColumnTemplate}"/>
 
             <!-- Unlock Date / Progress -->
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_UnlockDate}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
+            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Unlocked}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
                                     CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
 
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Label_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CategoryTypeDisplay}"
@@ -112,7 +112,7 @@
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Label_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CategoryLabel}"
@@ -139,3 +139,5 @@
         </DataGrid.Columns>
     </DataGrid>
 </UserControl>
+
+

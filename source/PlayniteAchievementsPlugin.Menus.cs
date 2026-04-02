@@ -149,8 +149,8 @@ namespace PlayniteAchievements
                 yield return new GameMenuItem
                 {
                     Description = allExcludedFromSummaries
-                        ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInSummaries")
-                        : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromSummaries"),
+                        ? ResourceProvider.GetString("LOCPlayAch_Common_Action_IncludeInSummaries")
+                        : ResourceProvider.GetString("LOCPlayAch_Common_Action_ExcludeFromSummaries"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -270,8 +270,8 @@ namespace PlayniteAchievements
             yield return new GameMenuItem
             {
                 Description = excludedFromSummaries
-                    ? ResourceProvider.GetString("LOCPlayAch_Menu_IncludeInSummaries")
-                    : ResourceProvider.GetString("LOCPlayAch_Menu_ExcludeFromSummaries"),
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_Action_IncludeInSummaries")
+                    : ResourceProvider.GetString("LOCPlayAch_Common_Action_ExcludeFromSummaries"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
                 {

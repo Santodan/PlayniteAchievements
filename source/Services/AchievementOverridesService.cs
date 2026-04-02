@@ -36,7 +36,7 @@ namespace PlayniteAchievements.Services
                 return CacheWriteResult.CreateFailure(
                     string.Empty,
                     "invalid_game_id",
-                    ResourceProvider.GetString("LOCPlayAch_Capstone_Error_InvalidGame"));
+                    ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed") ?? "Refresh failed");
             }
 
             try

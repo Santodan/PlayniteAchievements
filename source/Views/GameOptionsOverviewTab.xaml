@@ -139,7 +139,7 @@
                                    Margin="0,4,0,0" />
 
                         <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                   Text="{DynamicResource LOCPlayAch_GameOptions_Overview_ManualTracking}"
+                                   Text="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                    Margin="0,12,0,0" />
                         <TextBlock Text="{Binding ManualTrackingSummary}"
                                    Style="{StaticResource FieldValueStyle}"
@@ -191,3 +191,4 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+

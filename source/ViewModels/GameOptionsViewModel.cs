@@ -237,7 +237,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 return L(
-                    "LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusDisabled",
+                    "LOCPlayAch_Common_Status_Disabled",
                     "Disabled");
             }
         }
@@ -457,8 +457,8 @@ namespace PlayniteAchievements.ViewModels
             : L("LOCPlayAch_GameOptions_Status_IncludedFromSummaries", "Included in Summaries");
 
         public string SummaryExclusionActionText => IsExcludedFromSummaries
-            ? L("LOCPlayAch_GameOptions_Action_IncludeInSummaries", "Include in Summaries")
-            : L("LOCPlayAch_GameOptions_Action_ExcludeFromSummaries", "Exclude from Summaries");
+            ? L("LOCPlayAch_Common_Action_IncludeInSummaries", "Include in Summaries")
+            : L("LOCPlayAch_Common_Action_ExcludeFromSummaries", "Exclude from Summaries");
 
         public bool IsRaCapable
         {
@@ -515,11 +515,11 @@ namespace PlayniteAchievements.ViewModels
 
                 if (!HasRaOverride)
                 {
-                    return L("LOCPlayAch_GameOptions_Status_RaOverrideNone", "No override set");
+                    return L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set");
                 }
 
                 return string.Format(
-                    L("LOCPlayAch_GameOptions_Status_RaOverrideValue", "Override set: {0}"),
+                    L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"),
                     RaOverrideValue);
             }
         }
@@ -544,8 +544,8 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public string ManualTrackingStatusText => HasManualTrackingLink
-            ? L("LOCPlayAch_GameOptions_Status_ManualLinked", "Linked")
-            : L("LOCPlayAch_GameOptions_Status_ManualUnlinked", "Not linked");
+            ? L("LOCPlayAch_Common_Status_Linked", "Linked")
+            : L("LOCPlayAch_Common_Status_NotLinked", "Not linked");
 
         public bool HasCapstoneData
         {
@@ -660,12 +660,12 @@ namespace PlayniteAchievements.ViewModels
                     ? capstone.DisplayName.Trim()
                     : !string.IsNullOrWhiteSpace(capstone?.ApiName)
                         ? capstone.ApiName.Trim()
-                        : L("LOCPlayAch_Capstone_Current_None", "None");
+                        : L("LOCPlayAch_CustomRefresh_None", "None");
 
                 HasCapstoneData = (gameData?.HasAchievements ?? false) && list.Count > 0;
-                CapstoneEmptyMessage = string.Format(
-                    L("LOCPlayAch_Capstone_NoCachedData", "No cached achievements are available for \"{0}\". Refresh this game first."),
-                    GameName);
+                CapstoneEmptyMessage = L(
+                    "LOCPlayAch_Common_NoCachedAchievementsForGame",
+                    "No cached achievements are available for this game.");
 
                 var currentCustomData = TryLoadStoredCustomData(_plugin?.GameCustomDataStore);
                 IsExcluded = isExcluded;
@@ -1573,6 +1573,7 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+
 
 
 

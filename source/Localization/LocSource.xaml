@@ -3,369 +3,411 @@
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ================================================================= -->
-    <!-- COMMON STRINGS (Shared across multiple contexts)                 -->
-    <!-- ================================================================= -->
-
-    <!-- Common Labels -->
-    <sys:String x:Key="LOCPlayAch_Achievements">Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
-
-    <!-- Label with Colon (for labels that need trailing punctuation) -->
-    <sys:String x:Key="LOCPlayAch_Label_Rarity">Rarity:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_Trophies">Trophies:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Platinum">Platinum</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Gold">Gold</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Silver">Silver</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Bronze">Bronze</sys:String>
-
-    <!-- Common Statuses -->
-    <sys:String x:Key="LOCPlayAch_Status_Refreshing">Refreshing...</sys:String>
-
-    <!-- Common Compound Phrases -->
-    <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
-
-    <!-- Common Actions/Labels -->
-    <sys:String x:Key="LOCPlayAch_Common_Edit">Edit</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_SelectAll">Select All</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Deselect All</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ResetSelected">Reset Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply To Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_AddType">Add Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_SetLabelEllipsis">Set Label...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_RenameLabelEllipsis">Rename Label...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">Clear Overrides</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_RevertChanges">Revert Changes</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ExistingLabel">Existing Label</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_NewLabel">New Label</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Enabled">Enabled</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- PLUGIN                                                             -->
+    <!-- 01 Plugin Titles -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Title_PluginName">Playnite Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Title_Refresh">Playnite Achievements Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements Settings</sys:String>
 
     <!-- ================================================================= -->
-    <!-- PROVIDERS                                                          -->
+    <!-- 02 Core and Common Text -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">Display</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Display_GeneralSection">General</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Show Top Menu Bar Button</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableCompactGridMode">Enable Compact Grid Mode</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Display_AchievementsSection">Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Show Rarity Glow on Unlocked Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Display_SidebarSection">Sidebar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Achievements">Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">Exclude from Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">Include in Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_AddType">Add Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply To Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Check">Check</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">Clear Overrides</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Continue">Continue</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Deselect All</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Edit">Edit</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Enabled">Enabled</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ExistingLabel">Existing Label</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_FilterAchievementsPlaceholder">Filter achievements...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_General">General</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Hide">Hide</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Category">Category</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Platform">Platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Type">Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Locked">Locked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NewLabel">New Label</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">No cached achievements are available for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">This game has no achievements tracked yet. Click the Refresh button to check for achievement data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsMessageAlt">This game may not support achievements, or achievements may not be available for this platform.</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsTitle">No Achievements Found</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NotAuthenticated">Not authenticated</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_RenameLabelEllipsis">Rename Label...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ResetSelected">Reset Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_RevertChanges">Revert Changes</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SelectAll">Select All</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SetLabelEllipsis">Set Label...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_Disabled">Disabled</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_Linked">Linked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_NoOverrideSet">No override set</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_NotLinked">Not linked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">Override set: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Rarity">Rarity:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Trophies">Trophies:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Text_UnknownGame">Unknown Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Bronze">Bronze</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Gold">Gold</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Platinum">Platinum</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Silver">Silver</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarGamesPieChart">Show Completed Games Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarProviderPieChart">Show Platform Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Show Rarity Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarPiePercentages">Show Pie Percentages</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Small Slice Handling</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">Exact</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact_Description">Shows exact slice sizes. Radial icons are hidden for slices under 5% to reduce overlaps.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide">Hide</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide_Description">Hides slices under 5% from the sidebar pie.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round">Round</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round_Description">Rounds slices under 5% up to 5%.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Note">The center percentage always uses exact counts, so it may differ from the visible pie when slices are hidden or rounded.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarBarCharts">Show Sidebar Bar Charts</sys:String>
+    <!-- ================================================================= -->
+    <!-- 03 Columns -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Column_Achievement">Achievement</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Game">Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Last Played</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Name">Name</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Points">Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Total">Total</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Trophy">Trophy</sys:String>
 
-    <!-- Theme Controls Preview Settings -->
+    <!-- ================================================================= -->
+    <!-- 04 Buttons -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Button_Apply">Apply</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Browse">Browse</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Cancel">Cancel</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Clear">Clear</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Configure">Configure</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Login">Login</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Next">Next</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Ok">OK</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Refresh">Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Reset">Reset</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Save">Save</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Search">Search</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_CompactListPreview">Compact List</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Show Rarity Bar</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionBorder">Show Completion Border</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridPreview">Achievement DataGrid</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">Max Height</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PixelsUnit">pixels (empty = unlimited)</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">Compact Unlocked List</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">Compact Locked List</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_ProgressBarPreview">Progress Bar</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_StatsPreview">Stats</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_ButtonPreview">Button</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_ViewItemPreview">View Item</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_PieChartPreview">Pie Chart</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_BarChartPreview">Bar Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_Steam">Steam</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_GOG">GOG</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
+    <!-- ================================================================= -->
+    <!-- 05 Provider Names -->
+    <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Provider_BattleNet">Battle.net</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_EA">EA</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
-    <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_GOG">GOG</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Steam">Steam</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Xenia">Xenia</sys:String>
 
     <!-- ================================================================= -->
-    <!-- CONTEXT MENU                                                       -->
+    <!-- 06 Menus -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_TestModernControls">Test Modern Theme Controls</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">View</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for "{0}"?&#10;&#10;This removes cached achievements and icons for this game. If the game has a manual tracking link, that link and its manual unlock times will also be removed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">Clear data for {0} selected games?&#10;&#10;This removes cached achievements and icons for those games. Any manual tracking links and manual unlock times for those games will also be removed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Open Game in Library</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInSidebar">Open Game in Sidebar</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeGame">Exclude this Game and Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">Include this Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromSummaries">Exclude from Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">Clear data for "{0}"?&#10;&#10;This removes cached achievements and icons for this game. If the game has a manual tracking link, that link and its manual unlock times will also be removed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear data?&#10;&#10;This will remove these games from the achievements view, delete their cached data, and remove any manual tracking links for those games.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude "{0}" and clear data?&#10;&#10;This will remove the game from the achievements view, delete its cached data, and remove any manual tracking link for the game.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">Exclude from Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">Exclude from Refreshes and Clear Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_IncludeInSummaries">Include in Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExcludeGame">Exclude this Game and Clear Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Please enter an Exophase game ID.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">Include this Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">Include in Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">Include in Refreshes and Refresh Selected Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">Exclude "{0}" and clear data?&#10;&#10;This will remove the game from the achievements view, delete its cached data, and remove any manual tracking link for the game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">Exclude {0} selected games and clear data?&#10;&#10;This will remove these games from the achievements view, delete their cached data, and remove any manual tracking links for those games.</sys:String>
-
+    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">Open Game in Library</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInSidebar">Open Game in Sidebar</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Please enter a valid positive integer game ID.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_TestModernControls">Test Modern Theme Controls</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">Unlink Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for "{0}"?&#10;&#10;This will remove the manual achievement link, delete all manually set unlock times, and clear cached data for this game immediately.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">View Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">View</sys:String>
+
     <!-- ================================================================= -->
-    <!-- GAME OPTIONS WINDOW                                                -->
+    <!-- 07 Game Options -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">Overview</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Overrides</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">Capstones</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_AchievementOrder">Order</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Category">Categories</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomIcons">Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Excluded</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">Included</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromRefreshes">Included in Bulk Refreshes</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromSummaries">Included in Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Action_ExcludeFromSummaries">Exclude from Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Action_IncludeInSummaries">Include in Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualLinked">Linked</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualUnlinked">Not linked</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideNone">No override set</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideValue">Override set: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Manual Source</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">Unlink Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning">Manual tracking can replace cached achievement data from {0}. Continue?</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite Game ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">Last Updated (Local)</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Capstone">Current Capstone</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Completion</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ManualTracking">Manual Tracking</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">Game Exclusion</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">Exclude this game from sidebar and all-games summary data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHeader">Separate Locked Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHint">Force this game to download and use separate locked icons when providers expose them. When unchecked, the game follows the global setting. Changes apply on the next refresh for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsCheckbox">Always use separate locked icons for this game</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusOverride">Enabled via override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusSettings">Enabled via settings</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusDisabled">Disabled</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Apply">Apply</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Browse">Browse</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHeader">Custom Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHint">Export this game's custom data as link-only `.PA` files or full `.PA.ZIP` image packages, import `.PA` or `.PA.ZIP` files for this game, or clear this game's stored custom data. Bulk-refresh and summary exclusions are never exported and are never changed by import.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaButton">Export .PA</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPackageButton">Export .PA.ZIP</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportPortableButton">Import .PA / .PA.ZIP</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaOmittedLocalIcons">.PA export omitted {0} local image override(s). Use .PA.ZIP to export full image sets.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportIgnoredPackageImages">Ignored {0} image file(s) because their file names did not match this game's achievement API names.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">Clear all custom data for "{0}"?&#10;&#10;This removes per-game exclusions, manual links, capstones, custom icon links, order/category changes, and provider overrides stored by Playnite Achievements. Cached achievement data is not removed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Custom Achievement Order</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">Drag and drop rows to define the default order. Multi-select with Shift/Ctrl is supported. Changes are saved immediately.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Order_NoAchievements">No cached achievements are available for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Reset">Reset Order</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Header">Custom Achievement Icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Hint">Set optional unlocked and locked image overrides for this game's achievements. Drag in browser links, drag in local image files, or browse for a file. Local images are copied immediately into plugin-managed storage and display as relative `icon_cache` paths. Click a row to reveal hidden details. Use Revert Changes to discard staged edits or Clear Overrides to blank every current override before saving.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_NoAchievements">No cached achievements are available for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_UnlockedPreview">Unlocked</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LockedPreview">Locked</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">One or more icon values are invalid. Use absolute http:// or https:// URLs, or managed local files copied into plugin data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileMissing">The selected image file no longer exists.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Header">Categories</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Hint">Set categories for this game's achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Reset">Reset</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_SearchPlaceholder">Filter achievements...</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Type">Filter by Category Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Label">Filter by Category Label</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_LabelSelectorPlaceholder">Category</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_NoAchievements">No cached achievements are available for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Category">Category</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_BulkHint">Expand to bulk edit selected achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorLabel">Category Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder">Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Default">Default</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Base">Base</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_DLC">DLC</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Singleplayer">Singleplayer</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Multiplayer">Multiplayer</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Collectable">Collectable</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Missable">Missable</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Difficulty">Difficulty</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">Stackable</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelHint">Enter a category label for the selected achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelTitle">Set Category Label</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Label">Filter by Category Label</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Type">Filter by Category Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Hint">Set categories for this game's achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_InputPlaceholder">Category label for selected achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Title">Rename Category Label</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Hint">Select the existing label and provide the new label text.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_NoLabels">No category labels are available to rename.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelTitle">Set Category Label</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelHint">Enter a category label for the selected achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Title">Rename Category Label</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Base">Base</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Collectable">Collectable</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Default">Default</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Difficulty">Difficulty</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_DLC">DLC</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Missable">Missable</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Multiplayer">Multiplayer</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Singleplayer">Singleplayer</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">Stackable</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorLabel">Category Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Header">Custom Achievement Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Hint">Set optional unlocked and locked image overrides for this game's achievements. Drag in browser links, drag in local image files, or browse for a file. Local images are copied immediately into plugin-managed storage and display as relative `icon_cache` paths. Click a row to reveal hidden details. Use Revert Changes to discard staged edits or Clear Overrides to blank every current override before saving.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileMissing">The selected image file no longer exists.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">One or more icon values are invalid. Use absolute http:// or https:// URLs, or managed local files copied into plugin data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Check to force Exophase for this game. Unchecked games use Exophase if their platform is in Managed Platforms.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Override the auto-detected Exophase game ID to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Exophase Game ID Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning">Manual tracking can replace cached achievement data from {0}. Continue?</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Manual Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">Unlink Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Custom Achievement Order</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">Drag and drop rows to define the default order. Multi-select with Shift/Ctrl is supported. Changes are saved immediately.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">Clear Custom Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">Clear all custom data for "{0}"?&#10;&#10;This removes per-game exclusions, manual links, capstones, custom icon links, order/category changes, and provider overrides stored by Playnite Achievements. Cached achievement data is not removed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHeader">Custom Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHint">Export this game's custom data as link-only `.PA` files or full `.PA.ZIP` image packages, import `.PA` or `.PA.ZIP` files for this game, or clear this game's stored custom data. Bulk-refresh and summary exclusions are never exported and are never changed by import.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">Game Exclusion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaButton">Export .PA</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPackageButton">Export .PA.ZIP</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaOmittedLocalIcons">.PA export omitted {0} local image override(s). Use .PA.ZIP to export full image sets.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportIgnoredPackageImages">Ignored {0} image file(s) because their file names did not match this game's achievement API names.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportPortableButton">Import .PA / .PA.ZIP</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusOverride">Enabled via override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusSettings">Enabled via settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsCheckbox">Always use separate locked icons for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHeader">Separate Locked Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHint">Force this game to download and use separate locked icons when providers expose them. When unchecked, the game follows the global setting. Changes apply on the next refresh for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">Exclude this game from sidebar and all-games summary data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose one achievement to mark as this game's Capstone. Unlocking a Capstone achievement will mark the game as Completed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Capstone">Current Capstone</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Completion</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite Game ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">Last Updated (Local)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Excluded</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">Included</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromRefreshes">Included in Bulk Refreshes</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromSummaries">Included in Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_AchievementOrder">Order</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">Capstones</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Category">Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomIcons">Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Manual Tracking</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Overrides</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
 
     <!-- ================================================================= -->
-    <!-- BUTTONS                                                            -->
+    <!-- 08 Manual Tracking and Linking -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Button_Clear">Clear</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Login">Login</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Refresh">Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Search">Search</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Configure">Configure</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Cancel">Cancel</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Ok">OK</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_Header">Check off achievements you've unlocked and set unlock times. Changes are saved when you click OK.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_UnlockTime">Unlock Time</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">Unable to verify Exophase authentication for manual linking. Retry, or re-authenticate with Exophase in plugin settings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthRequired">Exophase login is required for manual linking. Authenticate with Exophase in plugin settings, then try again.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">Steam API key is required to fetch achievement data. Configure it in plugin settings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">Found {0} game(s)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Import manual links from SuccessStory (Legacy). Import is add-only and never overwrites existing manual links or cached provider data.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Legacy Manual Import</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Import Legacy Manual Links</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">Default: Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Legacy folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryHeader">Legacy import complete.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryImported">Imported: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">Parse failures: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">Scanned: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipped">Skipped: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow manual tracking for games which already have official achievement support.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Manual Tracking Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth">Require Exophase Authentication</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description">When enabled, Exophase manual linking requires authentication and localized achievement text is possible. When disabled, Exophase is used without authentication and localized text is not guaranteed.</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Status_Succeeded">Success!</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_Failed">Error: {0}</sys:String>
-
-    <!-- Refresh Modes -->
-    <!-- Short versions for sidebar dropdown -->
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">Recent</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Full">Full</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Installed">Installed</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">Favorites</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">Single</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">Missing</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Custom">Custom</sys:String>
-    <!-- Long versions for menus -->
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">Recent Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Full">Full Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Installed">Refresh Installed</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Favorites">Refresh Favorites</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Single">Refresh Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Selected">Refresh Selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">Refresh Missing</sys:String>
-    <sys:String x:Key="LOCPlayAch_RefreshMode_Custom">Custom Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_MenuItem">Custom Refresh...</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_WindowTitle">Custom Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Header">Build a one-time custom refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProvidersHeader">Platforms</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ScopeHeader">Game Scope</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_TargetingHeader">Include / Exclude Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_IncludeHeader">Include game IDs</sys:String>
+    <!-- ================================================================= -->
+    <!-- 09 Refresh and Execution -->
+    <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ExcludeHeader">Exclude game IDs</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ExecutionHeader">Execution</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseRecentLimit">Override recent limit</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseIncludeUnplayed">Override include unplayed</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_RespectExclusions">Respect user exclusions</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_ForceIncludeBypass">Explicit includes bypass user exclusions</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseParallelOverride">Override parallel platform execution</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_SummaryFormat">Platforms: {0} | Estimated targets: {1}</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_None">None</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Header">Build a one-time custom refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_IncludeHeader">Include game IDs</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_InvalidRecentLimit">Recent limit override must be a positive number.</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">No enabled and authenticated platforms match this custom refresh request.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_MenuItem">Custom Refresh...</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingGames">No games match this custom refresh request.</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProviderStatus_Ready">Ready</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProviderStatus_Disabled">Disabled</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProviderStatus_NoAuth">Not authenticated</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_All">All games</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Installed">Installed</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Favorites">Favorites</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Recent">Recent</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_LibrarySelected">Library selected</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Missing">Missing</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Explicit">Explicit only</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">Presets</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">Load</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Save">Save</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">Save As</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">No enabled and authenticated platforms match this custom refresh request.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_None">None</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Delete">Delete</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption">&#160;</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogTitle">Save Custom Refresh Preset</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogHint">Enter a preset name (1-64 characters).</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameInvalid">Preset name must be between 1 and {0} characters.</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm">Overwrite preset "{0}"?</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_DeleteConfirm">Delete preset "{0}"?</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_MaxReached">You can save up to {0} presets.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">Load</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary">Preset loaded with adjustments: removed {0} unavailable platforms(s) and {1} missing game reference(s).</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_MaxReached">You can save up to {0} presets.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogHint">Enter a preset name (1-64 characters).</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogTitle">Save Custom Refresh Preset</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameInvalid">Preset name must be between 1 and {0} characters.</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption">&#160;</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm">Overwrite preset "{0}"?</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">Save As</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">Presets</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProvidersHeader">Platforms</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProviderStatus_Ready">Ready</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_RespectExclusions">Respect user exclusions</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_All">All games</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Explicit">Explicit only</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_LibrarySelected">Library selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ScopeHeader">Game Scope</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_SummaryFormat">Platforms: {0} | Estimated targets: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_TargetingHeader">Include / Exclude Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseIncludeUnplayed">Override include unplayed</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseParallelOverride">Override parallel platform execution</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseRecentLimit">Override recent limit</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress_ButtonOpenGame">Open Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress_RefreshRunningNote">You can still check progress in the sidebar.</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Custom">Custom Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Favorites">Refresh Favorites</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Full">Full Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Installed">Refresh Installed</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">Refresh Missing</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">Recent Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Selected">Refresh Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Single">Refresh Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Custom">Custom</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">Favorites</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Full">Full</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Installed">Installed</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">Missing</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">Recent</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">Single</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_AuthRequired">Steam authentication required. Refresh canceled.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Canceled">Refresh canceled.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Failed">Error: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_FilteredCounts">{0} of {1} ({2} unlocked) from {3} games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_LoadingAchievements">Loading achievements...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_NoAchievementsCached">No achievements cached. Click 'Refresh All' to refresh your games.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshComplete">Refresh complete!</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix">Some platforms require authentication.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} refresh complete: {1} games refreshed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Refreshing">Refreshing...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Starting">Starting...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Succeeded">Success!</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_TotalCounts">{0} achievements ({1} unlocked) from {2} games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_UpdatingCache">Updating cache...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithCounts">Refreshing achievements for {0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithIcons">Refreshing achievements for {0} ({1}) - Downloading icons {2}/{3}</sys:String>
 
     <!-- ================================================================= -->
-    <!-- COLUMNS (using common strings)                                    -->
+    <!-- 10 Settings -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Column_Achievement">Achievement</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Name">Name</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">Max Height</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridPreview">Achievement DataGrid</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Description">Control how achievement icons are stored on disk. Changes apply on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Title">Achievement Icon Cache</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ApplyAndSync">Apply &amp; Sync</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoExcludeHiddenGames">Auto-exclude hidden games and clear cached data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AutoExcludeHiddenGames_Description">When enabled, hiding a game in Playnite excludes it from tracking and clears cached achievement data. Unhiding includes it again and can override manual exclusions.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BarChartPreview">Bar Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ButtonPreview">Button</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Clearing cached achievement data...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Remove cached achievement data. Refresh again to rebuild it from providers.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Clear cached achievement records without touching icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Cached Achievement Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactListPreview">Compact List</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">Compact Locked List</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">Compact Unlocked List</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements Settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_SidebarSection">Sidebar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableArchiveScanning">Enable archive scanning (.zip/.7z/.rar/.rvz/.cso/.ciso)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableCompactGridMode">Enable Compact Grid Mode</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">Enable disc hashing (for disc-based consoles)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">Enable Plugin Notifications</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh_Help">If disabled, platforms refresh sequentially in deterministic order.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">Enable Background Periodic Updates</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableTagging">Enable Tag Sync</sys:String>
+    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Include unplayed games</sys:String>
+    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">If unchecked, games with 0 playtime will be skipped during refreshes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_InvalidPath">Directory does not exist</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Column_Unlocked">Unlocked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Platform">Platform</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Type">Type</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_UnlockDate">Unlocked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Rarity">Rarity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Trophy">Trophy</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Game">Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_LastPlayed">Last Played</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Total">Total</sys:String>
-    <sys:String x:Key="LOCPlayAch_Column_Points">Points</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Right Click to Show/Hide</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- SECTIONS                                                           -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Section_Timeline">Achievements Over Time</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- STEAM AUTHENTICATION                                              -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_SteamApiKey">Steam Web API Key</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Get your API key from</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CheckSteamAuth">Check</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_SteamUserId">Steam User ID</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_SteamUserId_Help">Your 64-bit Steam ID. This is automatically detected when you authenticate.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active, but API key is required.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authenticated</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotAuthenticated">Not authenticated</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Not checked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_Checking">Checking authentication...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_ProviderAuth">{0} Authentication</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} Connection</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">Alternative Login</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. Login to Epic in your default browser when it opens\n2. After logging in, find the "authorizationCode" value on the page\n3. Copy and paste that value in the next dialog</sys:String>
+    <!-- Provider: Epic -->
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">Paste the authorizationCode value here:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. Login to Epic in your default browser when it opens\n2. After logging in, find the "authorizationCode" value on the page\n3. Copy and paste that value in the next dialog</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">Alternative Login</sys:String>
+
+    <!-- Provider: Exophase -->
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authenticate with Exophase to refresh tracked data and use Exophase manual links.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of modern providers. Check platforms you want Exophase to manage.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Export database tables to CSV for debugging</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">Force hash index rebuild</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HashIndexMaxAgeDays">Hash index max age (days)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Hidden Achievement Visibility</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Control which elements of hidden achievements are obscured before you reveal them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HoursBetweenUpdates">Hours Between Updates:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">Remove every cached achievement icon file.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">Remove only optimized 128px icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription">Remove only original-resolution icon files.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedDescription">Remove only separate locked icon files. Locked achievements fall back until the next refresh restores them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Description">Remove cached icon files. All actions also clear the in-memory image cache, and missing files are restored on the next refresh.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_All">icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">compressed icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">full-resolution icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">locked icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">Deleting cached {0} files... ({1}/{2})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">No cached {0} files were found.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">No cached locked icon references were found.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">Scanning cached {0} files...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanningLockedReferences">Scanning cached locked icon references... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Language">Language</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LanguageHint">Language for achievement text. Platforms will use this language when available, falling back to English if not supported.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements">Locked Achievement Visibility</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements_Description">Control how locked achievement icons are displayed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Description">Tools for clearing cached plugin data and opening support or debugging utilities.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Title">Maintenance</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotifyOnRebuild">Show Toast for Refresh Completion/Failure</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotifyPeriodicUpdates">Show Toast for Periodic Updates</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">Open extension data folder (contains logs and cache)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">Open Folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieChartPreview">Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PixelsUnit">pixels (empty = unlimited)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution">Preserve full-resolution achievement icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution_Help">Saves cached icons at their original resolution instead of the optimized 128px cache mode. This uses more disk space.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProgressBarPreview">Progress Bar</sys:String>
+
+    <!-- Provider: Shared -->
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderAuth">{0} Authentication</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} not configured.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} Connection</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">This platform is disabled. Enable it to track achievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">Enable this platform</sys:String>
+
+    <!-- Provider: PlayStation -->
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">Login (Legacy)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">Sign in at PlayStation.com</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1Note">(check "Trust this browser")</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step2">Open Sony SSO cookie page</sys:String>
@@ -373,523 +415,251 @@
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step3">Paste the value below and press Enter</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PsnNpsso">NPSSO Cookie</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PsnNpssoHint">Copy only the xxx part from {"npsso":"xxx"}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">Login (Legacy)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Psn_Check">Check</sys:String>
-    <sys:String x:Key="LOCPlayAch_Text_UnknownGame">Unknown Game</sys:String>
+
+    <!-- Provider: RetroAchievements -->
+    <sys:String x:Key="LOCPlayAch_Settings_RaUsername">Username</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaUsername_Help">Your RetroAchievements username.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey">Web API Key</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey_Help">Find your key in your RetroAchievements control panel:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">Points Display</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio weights points by achievement rarity, giving harder achievements more value.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">Standard Points</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (Scaled)</sys:String>
+    <sys:String x:Key="LOCPlayAch_RaEnableSubsetScanning">Fetch RetroAchievements subsets</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats">Rarity stats</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Casual">Casual (Softcore)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Combined">Overall (Casual + Hardcore)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Description">Controls how rarity percentages are calculated. Changing this requires a refresh to update cached values.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Hardcore">Hardcore</sys:String>
+
+    <!-- Provider: Steam -->
+    <sys:String x:Key="LOCPlayAch_Settings_SteamUserId">Steam User ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamUserId_Help">Your 64-bit Steam ID. This is automatically detected when you authenticate.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active, but API key is required.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamApiKey">Steam Web API Key</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Get your API key from</sys:String>
+
+    <!-- Provider: RPCS3 -->
+    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Executable Path</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Path to rpcs3.exe</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">Trophy folder not found</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">Not a valid RPCS3 installation - missing dev_hdd0\home</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoUser">No user profile found in dev_hdd0\home</sys:String>
+
+    <!-- Provider: ShadPS4 -->
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Game Data Folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Path to the user/game_data folder containing trophy data</sys:String>
+
+    <!-- Provider: Xbox -->
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">Download Smaller Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">Enable if Xbox icon downloads are slow. Requests 128px icons instead of full resolution.</sys:String>
 
-    <!-- Exophase Settings -->
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">Authenticate with Exophase to refresh tracked data and use Exophase manual links.</sys:String>
-    <!-- Exophase Provider Settings -->
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">When enabled, Exophase can automatically track achievements for games on managed platforms.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of modern providers. Check platforms you want Exophase to manage.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
-
-    <!-- Game Options - Exophase -->
-    <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Check to force Exophase for this game. Unchecked games use Exophase if their platform is in Managed Platforms.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Exophase Game ID Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Override the auto-detected Exophase game ID to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Please enter an Exophase game ID.</sys:String>
-
-    <!-- ShadPS4 Settings -->
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">Game Data Folder</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">Path to the user/game_data folder containing trophy data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} not configured.</sys:String>
-
-    <!-- RPCS3 Settings -->
-    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">Executable Path</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">Path to rpcs3.exe</sys:String>
-
-    <!-- RPCS3 Validation -->
-    <sys:String x:Key="LOCPlayAch_InvalidPath">Directory does not exist</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">Not a valid RPCS3 installation - missing dev_hdd0\home</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoUser">No user profile found in dev_hdd0\home</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">Trophy folder not found</sys:String>
-
-    <!-- Xenia Settings -->
+    <!-- Provider: Xenia -->
     <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPath">Account Path</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">&lt;Xenia Path&gt;\content\&lt;Account ID&gt;\FFFE07D1\00010000\&lt;Account ID&gt;\</sys:String>
-
-    <!-- RPCS3 Validation -->
     <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">Not a valid Xenia account path - No Account file</sys:String>
-    
-    <!-- ================================================================= -->
-    <!-- SETTINGS SECTIONS                                                  -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_TabGeneral">General</sys:String>
 
-    <sys:String x:Key="LOCPlayAch_Settings_Language">Language</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">Enable this platform</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">This platform is disabled. Enable it to track achievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Sync &amp; Updates</sys:String>
-    <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_Username">Username</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_Username_Help">Your RetroAchievements username.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_WebApiKey">Web API Key</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_WebApiKey_Help">Find your key in your RetroAchievements control panel:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats">Rarity stats</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Casual">Casual (Softcore)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Hardcore">Hardcore</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Combined">Overall (Casual + Hardcore)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Description">Controls how rarity percentages are calculated. Changing this requires a refresh to update cached values.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">Points Display</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">Standard Points</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (Scaled)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio weights points by achievement rarity, giving harder achievements more value.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">Scanning &amp; Hashing</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableArchiveScanning">Enable archive scanning (.zip/.7z/.rar/.rvz/.cso/.ciso)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">Enable disc hashing (for disc-based consoles)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HashIndexMaxAgeDays">Hash index max age (days)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">Force hash index rebuild</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RebuildNow">Rebuild Now</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- CACHE                                                              -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Title">Maintenance</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Description">Tools for clearing cached plugin data and opening support or debugging utilities.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">Cached Achievement Data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">Clear cached achievement records without touching icon files.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">Remove cached achievement data. Refresh again to rebuild it from providers.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Title">Achievement Icon Cache</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Description">Remove cached icon files. All actions also clear the in-memory image cache, and missing files are restored on the next refresh.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">Remove every cached achievement icon file.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">Remove only optimized 128px icon files.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription">Remove only original-resolution icon files.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedDescription">Remove only separate locked icon files. Locked achievements fall back until the next refresh restores them.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">Utilities</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Description">Non-cache maintenance and debugging tools.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_All">icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">compressed icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">full-resolution icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">locked icon</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">Clearing cached achievement data...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">Scanning cached {0} files...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">Deleting cached {0} files... ({1}/{2})</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">No cached {0} files were found.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanningLockedReferences">Scanning cached locked icon references... ({0}/{1})</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">No cached locked icon references were found.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Show the first-time setup landing page again on next sidebar open.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Reset Landing Page</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Export database tables to CSV for debugging</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">Open extension data folder (contains logs and cache)</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">Open Folder</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_UpdatingCache">Updating cache...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_NoAchievementsCached">No achievements cached. Click 'Refresh All' to refresh your games.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- BACKGROUND UPDATES                                                 -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">Enable Background Periodic Updates</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HoursBetweenUpdates">Hours Between Updates:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoExcludeHiddenGames">Auto-exclude hidden games and clear cached data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AutoExcludeHiddenGames_Description">When enabled, hiding a game in Playnite excludes it from tracking and clears cached achievement data. Unhiding includes it again and can override manual exclusions.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">Enable Plugin Notifications</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotifyPeriodicUpdates">Show Toast for Periodic Updates</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_NotifyOnRebuild">Show Toast for Refresh Completion/Failure</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_Periodic_InitialCheckFailed">Periodic update initial check failed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_Periodic_UpdateFailed">Periodic update failed.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- RECENT REFRESH                                                      -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Title">Recent Refresh</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">Refresh only your most recently played games with achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">Recent games to refresh</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- APPEARANCE                                                         -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Settings_UnlockedAchievements">Unlocked Achievement Visibility</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">Hidden Achievement Visibility</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">Control which elements of hidden achievements are obscured before you reveal them.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">Remove All Tags</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Show the first-time setup landing page again on next sidebar open.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Reset Landing Page</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Reveal hidden description</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">Reveal hidden icon</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">Reveal hidden title</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">Reveal hidden description</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Show (Hidden Achievement) suffix</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements">Locked Achievement Visibility</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements_Description">Control how locked achievement icons are displayed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">Reveal locked icon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache">Achievement Icon Cache</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Description">Control how achievement icons are stored on disk. Changes apply on the next refresh.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution">Preserve full-resolution achievement icons</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution_Help">Saves cached icons at their original resolution instead of the optimized 128px cache mode. This uses more disk space.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">Scanning &amp; Hashing</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">Set Completion Status for Completed Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Show Rarity Bar</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionBorder">Show Completion Border</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Show (Hidden Achievement) suffix</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Show Rarity Glow on Unlocked Icons</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarBarCharts">Show Sidebar Bar Charts</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarGamesPieChart">Show Completed Games Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarPiePercentages">Show Pie Percentages</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarProviderPieChart">Show Platform Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Show Rarity Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Show Top Menu Bar Button</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Small Slice Handling</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">Exact</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact_Description">Shows exact slice sizes. Radial icons are hidden for slices under 5% to reduce overlaps.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide_Description">Hides slices under 5% from the sidebar pie.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Note">The center percentage always uses exact counts, so it may differ from the visible pie when slices are hidden or rounded.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round">Round</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round_Description">Rounds slices under 5% up to 5%.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_StatsPreview">Stats</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">Display</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">Automatically tag games based on their achievement status. Tags can be used to filter and organize your library.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">Tagging</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">Tag Configuration</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockedAchievements">Unlocked Achievement Visibility</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">Use separate locked icons when available</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">Downloads and stores provider-supplied locked icons only when they differ from the unlocked icon. Otherwise the unlocked icon is grayscaled.</sys:String>
-    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Include unplayed games</sys:String>
-    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">If unchecked, games with 0 playtime will be skipped during refreshes.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh_Help">If disabled, platforms refresh sequentially in deterministic order.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Description">Non-cache maintenance and debugging tools.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">Utilities</sys:String>
     <sys:String x:Key="LOCPlayAch_UseCoverImages">Use cover images instead of icons in games list</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ViewItemPreview">View Item</sys:String>
 
     <!-- ================================================================= -->
-    <!-- OVERVIEW TAB                                                       -->
+    <!-- 11 Authentication -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Filter_Games">Search Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authenticated</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_Checking">Checking authentication...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Not checked</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 12 Sidebar and Filters -->
+    <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Filter_Achievements">Search Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_NoProgress">No Progress</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Unplayed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Unlocked">Unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Complete">Complete</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_CompletenessSelectorPlaceholder">Completeness</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Games">Search Games</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">Hidden</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_NoProgress">No Progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Played">Played</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_PlayStatusSelectorPlaceholder">Play Status</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Unplayed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_GamesOverview">Games Overview</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_GamesPieChart">Completed Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_Incomplete">Incomplete</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_ProviderDistribution">Achievements by Platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_RarityPieChart">Achievements by Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_TrophyPieChart">Achievements by Trophy</sys:String>
 
     <!-- ================================================================= -->
-    <!-- ACHIEVEMENTS TAB                                                   -->
+    <!-- 13 Theme Migration -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">All Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">All Modern</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedMessage">{0} has been automatically updated for PlayniteAchievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Please restart Playnite to apply the changes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedTitle">Theme Auto-Migrated</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">Custom</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Description">Migrate a theme from SuccessStory to PlayniteAchievements.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrateLabel">Migrate Theme</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">Custom Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Full Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">Limited Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeLegacy">Legacy</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeModern">Modern</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoRevertableThemes">No themes found with backups that can be reverted.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoThemesMessage">No themes found that need migrating. Themes with SuccessStory references will appear here.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_RestartRequired">Please restart Playnite to apply the theme changes.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Revert">Revert Theme</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">Revert</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Title">Theme Migration</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 14 First-Time Landing -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Landing_BeginRefresh">Begin Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_EnableProvider">Enable</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataFound">Found your existing achievement data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataMessage">We found your existing achievement data. Continue to the achievements view to start tracking.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataTitle">Welcome Back</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Language">Achievement Language</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NeedsRefreshMessage">Your credentials are configured. Begin your first refresh to track achievements across your library.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NoAuthMessage">To track your achievements, sign in to one of your platforms.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NoAuthTitle">Configure Your Accounts</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_OpenSettings">Open Plugin Settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_ProviderStatus">PLATFORM STATUS</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeChecking">CHECKING</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeSetup">SETUP</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_Checking">Checking...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_ConfigureInSettings">Configure in settings</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_ReadyToRefresh">Ready to Refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Title">Welcome to Playnite Achievements!</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 15 Tagging -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Tag_Completed">[PA] Completed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_Excluded">[PA] Excluded</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_ExcludedFromSummaries">[PA] Excluded from Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_HasAchievements">[PA] Has Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_InProgress">[PA] In Progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_NoAchievements">[PA] No Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">Has Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_InProgress">In Progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">No Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Syncing tags...</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 16 Rarity Sections and Time -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Rarity_Common">Common</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_Rare">Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra Rare</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Uncommon</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Notifications">Notifications</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Stats">Achievement Stats</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">Sync &amp; Updates</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Timeline">Achievements Over Time</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_14D">14D</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_1M">1M</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_1Y">1Y</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_3M">3M</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_7D">7D</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_All">All</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 17 Errors and Notifications -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">No platforms are authenticated. Please configure at least one platform in settings before refreshing.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_NotifySubscribers">Failed to notify subscribers.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_Periodic_InitialCheckFailed">Periodic update initial check failed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_Periodic_UpdateFailed">Periodic update failed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_RebuildFailed">Refresh failed</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">Refresh failed: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Steam unlock datetime parsing failed {0} time(s) during this scan. Check the log and failed_steam_datetimes.csv, then submit an issue on GitHub. Your PlayniteAchievements language setting must match your Steam language for correct parsing.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} authentication has expired or is invalid. Click to open settings.</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 18 Miscellaneous -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Achievements_ClickToReveal">Click to reveal</sys:String>
     <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle">Hidden Achievement</sys:String>
     <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle_WithParens">&#32;(Hidden Achievement)</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- RARITY                                                             -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Rarity_Common">Common</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">Uncommon</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rarity_Rare">Rare</sys:String>
-    <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">Ultra Rare</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_RaEnableSubsetScanning">Fetch RetroAchievements subsets</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- STATUSES AND PROGRESS                                              -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Status_Starting">Starting...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_LoadingAchievements">Loading achievements...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_Canceled">Refresh canceled.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} refresh complete: {1} games refreshed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_RefreshComplete">Refresh complete!</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix">Some platforms require authentication.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_FilteredCounts">{0} of {1} ({2} unlocked) from {3} games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_TotalCounts">{0} achievements ({1} unlocked) from {2} games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithCounts">Refreshing achievements for {0} ({1})</sys:String>
-    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithIcons">Refreshing achievements for {0} ({1}) - Downloading icons {2}/{3}</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- ERRORS                                                             -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Error_RebuildFailed">Refresh failed</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">Refresh failed: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_AuthRequired">Steam authentication required. Refresh canceled.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">No platforms are authenticated. Please configure at least one platform in settings before refreshing.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_NotifySubscribers">Failed to notify subscribers.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Steam unlock datetime parsing failed {0} time(s) during this scan. Check the log and failed_steam_datetimes.csv, then submit an issue on GitHub. Your PlayniteAchievements language setting must match your Steam language for correct parsing.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- TIME RANGE                                                         -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_TimeRange_7D">7D</sys:String>
-    <sys:String x:Key="LOCPlayAch_TimeRange_14D">14D</sys:String>
-    <sys:String x:Key="LOCPlayAch_TimeRange_1M">1M</sys:String>
-    <sys:String x:Key="LOCPlayAch_TimeRange_3M">3M</sys:String>
-    <sys:String x:Key="LOCPlayAch_TimeRange_1Y">1Y</sys:String>
-    <sys:String x:Key="LOCPlayAch_TimeRange_All">All</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- PAGINATION                                                         -->
-    <!-- ================================================================= -->
-
-    <!-- ================================================================= -->
-    <!-- SIDEBAR CONTROL                                                    -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Sidebar_GamesOverview">Games Overview</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_ProviderDistribution">Achievements by Platform</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_ProviderSelectorPlaceholder">Platform</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_CompletenessSelectorPlaceholder">Completeness</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_PlayStatusSelectorPlaceholder">Play Status</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Played">Played</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Complete">Complete</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_GamesPieChart">Completed Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_RarityPieChart">Achievements by Rarity</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_TrophyPieChart">Achievements by Trophy</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_Locked">Locked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Sidebar_Incomplete">Incomplete</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- FORMATTING                                                         -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- WINDOW TITLES                                                     -->
-    <!-- ================================================================= -->
-
-    <!-- ================================================================= -->
-    <!-- SUCCESS STORY INTEGRATION (CTRL-F Safe                                    -->
-    <!-- ================================================================= -->
-    <!-- Core Achievement Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsAchievements">Achievements</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsProgress">Progress</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsEarned">Earned</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsRetroAchievements">RetroAchievements</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsManualAchievements">Your Achievements</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsAchievementsCount">Achievements count</sys:String>
-
-    <!-- Hidden Achievement Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsHiddenAchievement">Hidden achievement</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsHiddenTrophy">Hidden Trophy</sys:String>
-
-    <!-- Rarity Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsRarety">Rarity</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsCommon">Common</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsNoCommon">Uncommon</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsRare">Rare</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsUltraRare">Ultra-rare</sys:String>
-
-    <!-- Date and Time Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsDateUnlocked">Date unlocked</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsFirstUnlock">First unlock</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsLastUnlock">Last unlock</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">Time to unlock everything</sys:String>
-
-    <!-- Statistics Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsAchStats">Achievements statistics</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsUserStats">User statistics</sys:String>
-
-    <!-- Progression Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsGlobalProgression">Global achievements progression</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementslvGamesProgression">Progression</sys:String>
-
-    <!-- Game Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsBaseGame">Base game</sys:String>
-
-    <!-- Chart/Graph Labels -->
-    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALL">All achievements unlocked by month</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALLDay">All achievements unlocked by day</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitle">Achievements unlocked by month</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleSources">Achievements unlocked by source</sys:String>
-    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleDay">Achievements unlocked by day</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- FIRST-TIME LANDING PAGE                                           -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Landing_Title">Welcome to Playnite Achievements!</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_NoAuthTitle">Configure Your Accounts</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_NoAuthMessage">To track your achievements, sign in to one of your platforms.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_OpenSettings">Open Plugin Settings</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_NeedsRefreshTitle">Ready to Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_NeedsRefreshMessage">Your credentials are configured. Begin your first refresh to track achievements across your library.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_BeginRefresh">Begin Refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_HasDataTitle">Welcome Back</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_HasDataMessage">We found your existing achievement data. Continue to the achievements view to start tracking.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_HasDataFound">Found your existing achievement data</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Continue">Continue</sys:String>
-
-    <!-- Provider Status Cards -->
-    <sys:String x:Key="LOCPlayAch_Landing_ProviderStatus">PLATFORM STATUS</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_ReadyToRefresh">Ready to refresh</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_ConfigureInSettings">Configure in settings</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeReady">READY</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeSetup">SETUP</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeDisabled">DISABLED</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_Checking">Checking...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeChecking">CHECKING</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_Language">Achievement Language</sys:String>
-    <sys:String x:Key="LOCPlayAch_Landing_EnableProvider">Enable</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_LanguageHint">Language for achievement text. Platforms will use this language when available, falling back to English if not supported.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- SETTINGS - THEME INTEGRATION                                      -->
-    <!-- ================================================================= -->
-
-    <!-- ================================================================= -->
-    <!-- Refresh PROGRESS WINDOW                                               -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Progress_RefreshRunningNote">You can still check progress in the sidebar.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress_ButtonHide">Hide</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress_ButtonContinue">Continue</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress_ButtonOpenGame">Open Game</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- THEME MIGRATION                                                   -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Title">Theme Migration</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Description">Migrate a theme from SuccessStory to PlayniteAchievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Migration">Migrate</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrateLabel">Migrate Theme</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrateFullDescription">Update themes that use SuccessStory to work with PlayniteAchievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_BackupNote">A backup will be created before any modifications are made.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Failed">Theme migration failed: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_RestartRequired">Please restart Playnite to apply the theme changes.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoThemesMessage">No themes found that need migrating. Themes with SuccessStory references will appear here.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Revert">Revert Theme</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">Revert</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoRevertableThemes">No themes found with backups that can be reverted.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertDescription">Restore a previously migrated theme from its backup. The backup folder will be preserved after reverting.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertFailed">Revert failed: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedTitle">Theme Auto-Migrated</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedMessage">{0} has been automatically updated for PlayniteAchievements.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Please restart Playnite to apply the changes.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} authentication has expired or is invalid. Click to open settings.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">Limited Migration</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Full Migration</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">Custom Migration</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_LimitedTooltip">Text replacements only. Preserves existing control structures and bindings.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_FullTooltip">Complete modernization. Replaces Legacy controls with Modern controls and LegacyData bindings with Theme bindings.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">Custom</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_CustomDescription">Select which theme elements stay Legacy and which are modernized during migration.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">All Legacy</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">All Modern</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeLegacy">Legacy</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeModern">Modern</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Button">Button</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_Chart">Bar Chart</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactList">Compact List</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactLocked">Compact Locked List</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_CompactUnlocked">Compact Unlocked List</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_List">Achievement Grid</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ProgressBar">Progress Bar</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_UserStats">Stats Panel</sys:String>
-    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom_ViewItem">View Item</sys:String>
-    <!-- ================================================================= -->
-    <!-- SINGLE GAME VIEW                                                   -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Section_Stats">Achievement Stats</sys:String>
-    <sys:String x:Key="LOCPlayAch_NoAchievementsTitle">No Achievements Found</sys:String>
-    <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">This game has no achievements tracked yet. Click the Refresh button to check for achievement data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_NoAchievementsMessageAlt">This game may not support achievements, or achievements may not be available for this platform.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- CAPSTONE ACHIEVEMENT POPUP                                         -->
-    <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">Choose one achievement to mark as this game's Capstone. Unlocking a Capstone achievement will mark the game as Completed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Current_None">None</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_SearchPlaceholder">Search achievements...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_NoCachedData">No cached achievements are available for "{0}". Refresh this game first.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_InvalidGame">Invalid game selection.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_NotCached">No cached achievement data is available for this game.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_MarkerNotFound">The selected achievement is no longer available in cached data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Capstone_Error_SaveFailed">Failed to save capstone.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ChartCut">Cut</sys:String>
+    <sys:String x:Key="LOCPlayAch_GroupByUnlocked">Group by unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">No locked achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">No unlocked achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_ChartCut">Cut</sys:String>
-    <sys:String x:Key="LOCPlayAch_ChartAll">All</sys:String>
-    <sys:String x:Key="LOCPlayAch_GroupByUnlocked">Group by unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">Right Click to Show/Hide</sys:String>
 
     <!-- ================================================================= -->
-    <!-- MANUAL ACHIEVEMENTS                                                -->
+    <!-- 99 Legacy SuccessStory Compatibility -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">Enable Manual Tracking Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">Allow manual tracking for games which already have official achievement support.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth">Require Exophase Authentication</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description">When enabled, Exophase manual linking requires authentication and localized achievement text is possible. When disabled, Exophase is used without authentication and localized text is not guaranteed.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">Legacy Manual Import</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">Import manual links from SuccessStory (Legacy). Import is add-only and never overwrites existing manual links or cached provider data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">Legacy folder</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">Default: Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">Import Legacy Manual Links</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusIdle">Ready to import Legacy manual links.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusRunning">Importing Legacy manual links...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_StatusPathUpdated">Import folder updated.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathInvalid">Legacy folder not found: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportFailed">Legacy import failed: {0}</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryHeader">Legacy import complete.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">Scanned: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryImported">Imported: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">Parse failures: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipNotManual">Skipped (not manual): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipIgnored">Skipped (ignored): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipInvalidFile">Skipped (invalid file name): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipMissingGame">Skipped (game not found): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipManualExists">Skipped (manual link exists): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipCachedData">Skipped (cached provider data exists): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnsupportedSource">Skipped (unsupported source): {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnresolvedId">Skipped (source game id unresolved): {0}</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_UnsupportedSourcesHeader">Unsupported source breakdown:</sys:String>
-
-    <!-- Game context menu -->
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">Unlink Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">Unlink achievements for "{0}"?&#10;&#10;This will remove the manual achievement link, delete all manually set unlock times, and clear cached data for this game immediately.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Success">Achievements unlinked for "{0}".</sys:String>
-
-    <!-- Search dialog -->
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">Search for a game to link achievements from. The selected game's achievements will be linked to this Playnite game.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Source_Label">Source:</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Placeholder">Enter game name to search...</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">No games found. Try a different search term.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">Found {0} game(s)</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Error">Search failed: {0}</sys:String>
-    <!-- Edit dialog -->
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_Header">Check off achievements you've unlocked and set unlock times. Changes are saved when you click OK.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SearchPlaceholder">Filter achievements...</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_UnlockAll">Unlock All</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_LockAll">Lock All</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_UnlockTime">Unlock Time</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SaveSuccess">Manual achievements saved.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_SaveFailed">Failed to save manual achievements: {0}</sys:String>
-
-    <!-- Schema fetch errors -->
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">The selected game has no achievements.</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired">Steam API key is required to fetch achievement data. Configure it in plugin settings.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthRequired">Exophase login is required for manual linking. Authenticate with Exophase in plugin settings, then try again.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">Unable to verify Exophase authentication for manual linking. Retry, or re-authenticate with Exophase in plugin settings.</sys:String>
-
-    <!-- ================================================================= -->
-    <!-- MANUAL ACHIEVEMENTS WIZARD                                        -->
-    <!-- ================================================================= -->
-
-    <!-- Wizard Buttons -->
-    <sys:String x:Key="LOCPlayAch_Button_Next">Next</sys:String>
-    <sys:String x:Key="LOCPlayAch_Button_Save">Save</sys:String>
-    <!-- ================================================================= -->
-    <!-- TAGGING                                                            -->
-    <!-- ================================================================= -->
-
-    <!-- Tagging Settings -->
-    <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">Tagging</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_EnableTagging">Enable Tag Sync</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">Automatically tag games based on their achievement status. Tags can be used to filter and organize your library.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">Tag Configuration</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">Set Completion Status for Completed Games</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ApplyAndSync">Apply &amp; Sync</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">Remove All Tags</sys:String>
-
-    <!-- Tag Labels -->
-    <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">Has Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_InProgress">In Progress</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Completed">Completed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">No Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_Excluded">Excluded</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_ExcludedFromSummaries">Excluded from Summaries</sys:String>
-
-    <!-- Default Tag Names -->
-    <sys:String x:Key="LOCPlayAch_Tag_HasAchievements">[PA] Has Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tag_InProgress">[PA] In Progress</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tag_Completed">[PA] Completed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tag_NoAchievements">[PA] No Achievements</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tag_Excluded">[PA] Excluded</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tag_ExcludedFromSummaries">[PA] Excluded from Summaries</sys:String>
-
-    <!-- Tagging Progress Messages -->
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Syncing tags...</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Tagging_SyncFailed">Failed to apply and sync tags: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>
-
-    <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
-    <sys:String x:Key="LOCPlayAch_Tagging_RemoveFailed">Failed to remove tags: {0}</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsAchievements">Achievements</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsAchievementsCount">Achievements count</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsAchStats">Achievements statistics</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsBaseGame">Base game</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsCommon">Common</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsDateUnlocked">Date unlocked</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsEarned">Earned</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsFirstUnlock">First unlock</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGlobalProgression">Global achievements progression</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitle">Achievements unlocked by month</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALL">All achievements unlocked by month</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALLDay">All achievements unlocked by day</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleDay">Achievements unlocked by day</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleSources">Achievements unlocked by source</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsHiddenAchievement">Hidden achievement</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsHiddenTrophy">Hidden Trophy</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsLastUnlock">Last unlock</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementslvGamesProgression">Progression</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsManualAchievements">Your Achievements</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsNoCommon">Uncommon</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsProgress">Progress</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRare">Rare</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRarety">Rarity</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">Time to unlock everything</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsUltraRare">Ultra-rare</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsUserStats">User statistics</sys:String>
 
 </ResourceDictionary>
-

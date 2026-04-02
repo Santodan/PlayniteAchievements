@@ -727,11 +727,11 @@
                                                  ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                                 </Button.ContextMenu>
                             </Button>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Unlocked}"
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                   IsChecked="{Binding ShowSelectedGameUnlocked}"
                                   VerticalAlignment="Center"
                                   Margin="0,0,8,0"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Sidebar_Locked}"
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Common_Locked}"
                                   IsChecked="{Binding ShowSelectedGameLocked}"
                                   VerticalAlignment="Center"
                                   Margin="0,0,8,0"/>
@@ -866,7 +866,7 @@
 
                             <!-- Platform -->
                             <DataGridTemplateColumn Width="40" MinWidth="40" MaxWidth="40"
-                                                    Header="{DynamicResource LOCPlayAch_Filter_ProviderSelectorPlaceholder}"
+                                                    Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                                     CanUserResize="False"
                                                     CanUserSort="False"
                                                     helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlatform">
@@ -1525,3 +1525,5 @@
         </Grid>
     </Grid>
 </UserControl>
+
+

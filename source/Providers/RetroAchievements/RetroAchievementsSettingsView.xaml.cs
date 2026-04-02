@@ -44,7 +44,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             InitializeComponent();
             AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_RetroAchievements"));
         }
 
@@ -81,7 +81,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             IsAuthenticated = authenticated;
             AuthStatus = authenticated
                 ? ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated")
-                : ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
+                : ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated");
         }
 
         public Task RefreshAuthStatusAsync()
@@ -151,3 +151,4 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
     }
 }
+

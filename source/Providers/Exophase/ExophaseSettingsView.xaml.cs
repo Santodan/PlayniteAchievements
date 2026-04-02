@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"));
             AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Exophase"));
         }
 
@@ -74,7 +74,7 @@ namespace PlayniteAchievements.Providers.Exophase
             Logger.Debug($"[ExophaseSettings] MessageKey localization: key='{result?.MessageKey}', localized='{localized ?? "null"}'");
 
             var finalStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result?.MessageKey, StringComparison.Ordinal)
-                ? ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated")
+                ? ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated")
                 : localized;
 
             Logger.Info($"[ExophaseSettings] Setting not-authenticated status: '{finalStatus}'");
@@ -174,7 +174,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
             if (string.IsNullOrWhiteSpace(localized) || string.Equals(localized, key, StringComparison.Ordinal))
             {
-                localized = ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
+                localized = ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated");
             }
 
             SetAuthStatus(localized);
@@ -225,3 +225,4 @@ namespace PlayniteAchievements.Providers.Exophase
         }
     }
 }
+

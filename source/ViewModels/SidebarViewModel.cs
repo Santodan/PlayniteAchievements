@@ -244,7 +244,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedGameTypeFilterText => GetSelectedFilterText(
             _selectedGameTypeFilters,
             SelectedGameTypeFilterOptions,
-            L("LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder", "Type"));
+            L("LOCPlayAch_Common_Label_Type", "Type"));
 
         public bool IsSelectedGameTypeFilterSelected(string value)
         {
@@ -272,7 +272,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedGameCategoryFilterText => GetSelectedFilterText(
             _selectedGameCategoryFilters,
             SelectedGameCategoryFilterOptions,
-            L("LOCPlayAch_GameOptions_Category_Filter_LabelSelectorPlaceholder", "Category"));
+            L("LOCPlayAch_Common_Label_Category", "Category"));
 
         public bool IsSelectedGameCategoryFilterSelected(string value)
         {
@@ -404,7 +404,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             // Check if "Locked" was clicked
-            if (string.Equals(sliceLabel, L("LOCPlayAch_Sidebar_Locked", "Locked"), StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(sliceLabel, L("LOCPlayAch_Common_Locked", "Locked"), StringComparison.OrdinalIgnoreCase))
             {
                 ClearProviderFilters();
                 return;
@@ -2243,7 +2243,7 @@ namespace PlayniteAchievements.ViewModels
 
             var completedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Complete");
             var incompleteLabel = ResourceProvider.GetString("LOCPlayAch_Sidebar_Incomplete");
-            var lockedLabel = ResourceProvider.GetString("LOCPlayAch_Sidebar_Locked");
+            var lockedLabel = ResourceProvider.GetString("LOCPlayAch_Common_Locked");
             var commonLabel = ResourceProvider.GetString("LOCPlayAch_Rarity_Common");
             var uncommonLabel = ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon");
             var rareLabel = ResourceProvider.GetString("LOCPlayAch_Rarity_Rare");
@@ -2393,7 +2393,7 @@ namespace PlayniteAchievements.ViewModels
             trophyGoldLabel ??= L("LOCPlayAch_Trophy_Gold", "Gold");
             trophySilverLabel ??= L("LOCPlayAch_Trophy_Silver", "Silver");
             trophyBronzeLabel ??= L("LOCPlayAch_Trophy_Bronze", "Bronze");
-            lockedLabel ??= L("LOCPlayAch_Sidebar_Locked", "Locked");
+            lockedLabel ??= L("LOCPlayAch_Common_Locked", "Locked");
 
             var selectedGame = ResolveSelectedGameForChartContext(snapshot);
             var useSelectedRarity = selectedGame?.HasRarityPieChartData == true;
@@ -2662,7 +2662,7 @@ namespace PlayniteAchievements.ViewModels
         {
             if (_selectedProviderFilters == null || _selectedProviderFilters.Count == 0)
             {
-                return L("LOCPlayAch_Filter_ProviderSelectorPlaceholder", "Platform");
+                return L("LOCPlayAch_Common_Label_Platform", "Platform");
             }
 
             var orderedDisplayNames = new List<string>();
@@ -3190,6 +3190,7 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+
 
 
 

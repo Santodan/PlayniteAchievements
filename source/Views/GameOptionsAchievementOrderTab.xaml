@@ -104,7 +104,7 @@
                                Margin="0,6,0,0" />
                 </StackPanel>
                 <Button Grid.Column="1"
-                        Content="{DynamicResource LOCPlayAch_GameOptions_Order_Reset}"
+                    Content="{DynamicResource LOCPlayAch_Button_Reset}"
                         Click="ResetOrderButton_Click"
                         Margin="12,0,0,0"
                         VerticalAlignment="Top"
@@ -113,7 +113,7 @@
         </Border>
 
         <TextBlock Grid.Row="2"
-                   Text="{DynamicResource LOCPlayAch_GameOptions_Order_NoAchievements}"
+                   Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
                    Foreground="{DynamicResource TextBrush}"
                    Opacity="0.8"
                    TextWrapping="Wrap"

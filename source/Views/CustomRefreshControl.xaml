@@ -66,7 +66,7 @@
                                 Margin="0,0,6,0" />
 
                         <Button Grid.Column="2"
-                                Content="{DynamicResource LOCPlayAch_CustomRefresh_Presets_Save}"
+                                Content="{DynamicResource LOCPlayAch_Button_Save}"
                                 Click="SavePresetButton_Click"
                                 IsEnabled="{Binding CanSavePreset}"
                                 Padding="12,6"
@@ -291,3 +291,4 @@
         </StackPanel>
     </Grid>
 </UserControl>
+

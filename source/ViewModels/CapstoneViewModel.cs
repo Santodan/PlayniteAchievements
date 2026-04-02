@@ -307,37 +307,43 @@ namespace PlayniteAchievements.ViewModels
 
         private string ResolveErrorMessage(CacheWriteResult result)
         {
-            var defaultMessage = ResourceProvider.GetString("LOCPlayAch_Capstone_Error_SaveFailed");
-            if (result == null)
-            {
-                return defaultMessage;
-            }
-
-            switch ((result.ErrorCode ?? string.Empty).Trim().ToLowerInvariant())
-            {
-                case "invalid_game_id":
-                    return ResourceProvider.GetString("LOCPlayAch_Capstone_Error_InvalidGame") ?? defaultMessage;
-                case "game_not_cached":
-                    return ResourceProvider.GetString("LOCPlayAch_Capstone_Error_NotCached") ?? defaultMessage;
-                case "marker_not_found":
-                    return ResourceProvider.GetString("LOCPlayAch_Capstone_Error_MarkerNotFound") ?? defaultMessage;
-                default:
-                    if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-                    {
-                        return result.ErrorMessage;
-                    }
-
-                    return defaultMessage;
-            }
+            return BuildGenericErrorMessage(result?.ErrorMessage);
         }
 
         private void ShowError(string message)
         {
             _playniteApi?.Dialogs?.ShowMessage(
-                message ?? ResourceProvider.GetString("LOCPlayAch_Capstone_Error_SaveFailed"),
+                message ?? BuildGenericErrorMessage(),
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
+        }
+
+        private static string BuildGenericErrorMessage(string detail = null)
+        {
+            var format = ResourceProvider.GetString("LOCPlayAch_Status_Failed");
+            if (string.IsNullOrWhiteSpace(format))
+            {
+                format = "Error: {0}";
+            }
+
+            if (string.IsNullOrWhiteSpace(detail))
+            {
+                detail = ResourceProvider.GetString("LOCPlayAch_Error_RebuildFailed");
+                if (string.IsNullOrWhiteSpace(detail))
+                {
+                    detail = "Operation failed.";
+                }
+            }
+
+            try
+            {
+                return string.Format(format, detail);
+            }
+            catch (FormatException)
+            {
+                return string.Concat(format, " ", detail).Trim();
+            }
         }
 
         private static string NormalizeText(string value)
@@ -347,7 +353,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void SetCurrentMarkerText(string markerDisplayName)
         {
-            var fallback = ResourceProvider.GetString("LOCPlayAch_Capstone_Current_None") ?? "None";
+            var fallback = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_None") ?? "None";
             var markerText = string.IsNullOrWhiteSpace(markerDisplayName) ? fallback : markerDisplayName.Trim();
             var format = ResourceProvider.GetString("LOCPlayAch_Capstone_Current");
             if (string.IsNullOrWhiteSpace(format))
@@ -371,6 +377,7 @@ namespace PlayniteAchievements.ViewModels
         public bool IsCapstone { get; set; }
     }
 }
+
 
 
 

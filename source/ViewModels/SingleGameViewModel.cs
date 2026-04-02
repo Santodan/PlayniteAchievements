@@ -361,7 +361,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCPlayAch_GameOptions_Category_TypeSelectorPlaceholder", "Type"));
+            L("LOCPlayAch_Common_Label_Type", "Type"));
 
         public bool IsCategoryTypeFilterSelected(string value)
         {
@@ -384,7 +384,7 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryLabelFilterText => GetSelectedFilterText(
             _selectedCategoryLabelFilters,
             CategoryLabelFilterOptions,
-            L("LOCPlayAch_GameOptions_Category_Filter_LabelSelectorPlaceholder", "Category"));
+            L("LOCPlayAch_Common_Label_Category", "Category"));
 
         public bool IsCategoryLabelFilterSelected(string value)
         {

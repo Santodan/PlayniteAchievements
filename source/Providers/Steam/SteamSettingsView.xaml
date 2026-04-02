@@ -129,7 +129,7 @@
                                     </Grid>
 
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="{DynamicResource LOCPlayAch_Settings_CheckSteamAuth}"
+                                        <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Click="SteamAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="0,0,8,0"/>
@@ -178,7 +178,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Label_SteamUserId}"
+                                   Text="{DynamicResource LOCPlayAch_Settings_SteamUserId}"
                                    Foreground="{DynamicResource TextBrush}"
                                    VerticalAlignment="Top"
                                    Margin="0,8,0,0"/>
@@ -187,7 +187,7 @@
                             <TextBox Text="{Binding Settings.SteamUserId, Mode=OneWay}"
                                      IsReadOnly="True"
                                      Padding="4"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Label_SteamUserId_Help}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamUserId_Help}"
                                        Style="{StaticResource MutedTextStyle}"
                                        Margin="0,8,0,0"
                                        TextWrapping="Wrap"/>
@@ -198,3 +198,4 @@
         </StackPanel>
     </ScrollViewer>
 </settings:ProviderSettingsViewBase>
+

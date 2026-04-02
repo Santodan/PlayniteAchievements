@@ -462,7 +462,7 @@ namespace PlayniteAchievements.Views
 
             var control = new CustomRefreshControl(api, refreshRuntime, persistSettingsForUi, settings, logger);
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                ResourceProvider.GetString("LOCPlayAch_CustomRefresh_WindowTitle"),
+                ResourceProvider.GetString("LOCPlayAch_RefreshMode_Custom"),
                 control,
                 new WindowOptions
                 {
@@ -492,11 +492,11 @@ namespace PlayniteAchievements.Views
         {
             ScopeOptions.Clear();
             ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.All, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_All", "All games") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Installed, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Installed", "Installed") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Favorites, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Favorites", "Favorites") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Recent, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Recent", "Recent") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Installed, DisplayName = L("LOCPlayAch_RefreshModeShort_Installed", "Installed") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Favorites, DisplayName = L("LOCPlayAch_RefreshModeShort_Favorites", "Favorites") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Recent, DisplayName = L("LOCPlayAch_RefreshModeShort_Recent", "Recent") });
             ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.LibrarySelected, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_LibrarySelected", "Library selected") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Missing, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Missing", "Missing") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Missing, DisplayName = L("LOCPlayAch_RefreshModeShort_Missing", "Missing") });
             ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Explicit, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Explicit", "Explicit only") });
         }
 
@@ -506,8 +506,8 @@ namespace PlayniteAchievements.Views
             _providersByKey.Clear();
 
             var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready", "Ready");
-            var disabledText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Disabled", "Disabled");
-            var noAuthText = L("LOCPlayAch_CustomRefresh_ProviderStatus_NoAuth", "Not authenticated");
+            var disabledText = L("LOCPlayAch_Common_Status_Disabled", "Disabled");
+            var noAuthText = L("LOCPlayAch_Common_NotAuthenticated", "Not authenticated");
 
             foreach (var provider in _refreshService.Providers)
             {
@@ -1276,4 +1276,5 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
 

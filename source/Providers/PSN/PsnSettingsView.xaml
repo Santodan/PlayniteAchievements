@@ -108,7 +108,7 @@
                                 </Grid>
 
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Psn_Check}"
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Click="PsnAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="0,0,8,0"/>
@@ -154,3 +154,5 @@
         </StackPanel>
     </ScrollViewer>
 </settings:ProviderSettingsViewBase>
+
+

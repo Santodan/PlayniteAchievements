@@ -210,7 +210,7 @@
     <Grid Margin="24,20,24,24">
         <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
             <!-- ================== TAB: GENERAL SETTINGS ================== -->
-            <TabItem x:Name="GeneralTab" Header="{DynamicResource LOCPlayAch_Settings_TabGeneral}">
+            <TabItem x:Name="GeneralTab" Header="{DynamicResource LOCPlayAch_Common_General}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">
@@ -331,7 +331,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecentRefresh_Title}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_RefreshMode_Recent}"
                                                    Foreground="{DynamicResource TextBrush}"
                                                    FontWeight="SemiBold"
                                                    Margin="0,0,0,2"/>
@@ -482,7 +482,7 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_Completed}"
+                                                   Text="{DynamicResource LOCPlayAch_Completed}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,6"/>
                                         <TextBox Grid.Row="2" Grid.Column="2"
@@ -510,7 +510,7 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBlock Grid.Row="4" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_Excluded}"
+                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_Excluded}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,6"/>
                                         <TextBox Grid.Row="4" Grid.Column="2"
@@ -524,7 +524,7 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,0"/>
                                         <TextBlock Grid.Row="5" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_ExcludedFromSummaries}"
+                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_ExcludedFromSummaries}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,0"/>
                                         <TextBox Grid.Row="5" Grid.Column="2"
@@ -619,7 +619,7 @@
 
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Title}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,0,0,4"/>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
@@ -797,7 +797,7 @@
                             <StackPanel>
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GeneralSection}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,0,0,10"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCompactGridMode}"
@@ -845,7 +845,7 @@
                                         </StackPanel>
 
                                         <StackPanel Margin="0,0,0,8">
-                                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide}"
+                                            <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
                                                          GroupName="SidebarPieSmallSliceMode"
                                                          Style="{StaticResource SidebarPieModeRadioButtonStyle}"
                                                          IsChecked="{Binding Persisted.SidebarPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
@@ -886,7 +886,7 @@
                         <!-- ================== ACHIEVEMENTS SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_AchievementsSection}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Achievements}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
@@ -937,7 +937,7 @@
 
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,0,0,4"/>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Description}"
@@ -1340,12 +1340,10 @@
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <TextBlock Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16">
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"/>
-                                    <LineBreak/>
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_BackupNote}"/>
-                                </TextBlock>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"
+                                           TextWrapping="Wrap"/>
 
                                 <!-- Theme Dropdown -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
@@ -1371,7 +1369,7 @@
                                             ToolTipService.ShowOnDisabled="True">
                                         <Button.ToolTip>
                                             <ToolTip>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_LimitedTooltip}"
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                            TextWrapping="Wrap"
                                                            MaxWidth="250"/>
                                             </ToolTip>
@@ -1385,7 +1383,7 @@
                                             ToolTipService.ShowOnDisabled="True">
                                         <Button.ToolTip>
                                             <ToolTip>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_FullTooltip}"
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                            TextWrapping="Wrap"
                                                            MaxWidth="250"/>
                                             </ToolTip>
@@ -1414,7 +1412,7 @@
                                         </Expander.Header>
 
                                         <StackPanel Margin="12,0,12,12">
-                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_CustomDescription}"
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                        Style="{StaticResource MutedTextStyle}"
                                                        HorizontalAlignment="Left"
                                                        Margin="0,0,0,12"
@@ -1505,11 +1503,6 @@
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <TextBlock Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16">
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_RevertDescription}"/>
-                                </TextBlock>
-
                                 <!-- Revertable Theme Dropdown and Revert Button -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>
@@ -1548,6 +1541,8 @@
         </TabControl>
     </Grid>
 </UserControl>
+
+
 
 
 

@@ -38,7 +38,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Xbox"));
             AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Xbox"));
         }
 
@@ -65,7 +65,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 : null;
 
             AuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result?.MessageKey, StringComparison.Ordinal)
-                ? ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated")
+                ? ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated")
                 : localized;
         }
 
@@ -137,3 +137,4 @@ namespace PlayniteAchievements.Providers.Xbox
         }
     }
 }
+

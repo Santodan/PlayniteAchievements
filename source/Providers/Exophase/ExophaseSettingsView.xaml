@@ -51,13 +51,10 @@
                                TextWrapping="Wrap"/>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Style="{StaticResource MutedTextStyle}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_Help}"
+                               Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"
-                               TextWrapping="Wrap">
-                        <Run Text="{DynamicResource LOCPlayAch_Settings_ExophaseAuth_Description}"/>
-                        <Run Text=" "/>
-                        <Run Text="{DynamicResource LOCPlayAch_Settings_Exophase_Help}"/>
-                    </TextBlock>
+                               TextWrapping="Wrap"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

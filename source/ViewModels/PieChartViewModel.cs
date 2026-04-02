@@ -686,7 +686,7 @@ namespace PlayniteAchievements.ViewModels
                 return $"{piePercent}% {totalLabel}";
             }
 
-            var unlockedLabel = ResourceProvider.GetString("LOCPlayAch_Column_Unlocked") ?? "Unlocked";
+            var unlockedLabel = ResourceProvider.GetString("LOCPlayAch_Common_Unlocked") ?? "Unlocked";
             var categoryPercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(dataPoint.UnlockedCount, dataPoint.TotalCount);
             return $"{categoryPercent}% {unlockedLabel} ({piePercent}% {totalLabel})";
         }
@@ -836,3 +836,4 @@ namespace PlayniteAchievements.ViewModels
         }
     }
 }
+

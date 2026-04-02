@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Providers.Steam
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             InitializeComponent();
             AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_Steam"));
         }
 
@@ -148,7 +148,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 var localized = ResourceProvider.GetString(result.MessageKey);
                 WebAuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result.MessageKey, StringComparison.Ordinal)
-                    ? ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated")
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated")
                     : localized;
             }
         }
@@ -238,7 +238,7 @@ namespace PlayniteAchievements.Providers.Steam
             }
             else
             {
-                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated");
             }
         }
 
@@ -283,3 +283,4 @@ namespace PlayniteAchievements.Providers.Steam
         }
     }
 }
+

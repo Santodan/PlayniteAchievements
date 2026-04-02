@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Providers.PSN
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_PSN"));
             AuthLabel.Text = string.Format(
-                ResourceProvider.GetString("LOCPlayAch_Label_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
                 ResourceProvider.GetString("LOCPlayAch_Provider_PSN"));
         }
 
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.Providers.PSN
                 return;
             }
 
-            SetAuthStatusByKey("LOCPlayAch_Auth_NotAuthenticated");
+            SetAuthStatusByKey("LOCPlayAch_Common_NotAuthenticated");
         }
 
         public async Task RefreshAuthStatusAsync()
@@ -130,7 +130,7 @@ namespace PlayniteAchievements.Providers.PSN
             catch (Exception ex)
             {
                 Logger.Error(ex, "PSN login failed");
-                SetAuthStatusByKey("LOCPlayAch_Auth_NotAuthenticated");
+                SetAuthStatusByKey("LOCPlayAch_Common_NotAuthenticated");
             }
             finally
             {
@@ -169,7 +169,7 @@ namespace PlayniteAchievements.Providers.PSN
             {
                 Logger.Error(ex, "PSN auth check failed");
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Auth_NotAuthenticated");
+                SetAuthStatusByKey("LOCPlayAch_Common_NotAuthenticated");
             }
             finally
             {
@@ -205,7 +205,7 @@ namespace PlayniteAchievements.Providers.PSN
             var localized = ResourceProvider.GetString(key);
             if (string.IsNullOrWhiteSpace(localized) || string.Equals(localized, key, StringComparison.Ordinal))
             {
-                localized = ResourceProvider.GetString("LOCPlayAch_Auth_NotAuthenticated");
+                localized = ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated");
             }
 
             if (Dispatcher.CheckAccess())
@@ -249,3 +249,4 @@ namespace PlayniteAchievements.Providers.PSN
         }
     }
 }
+

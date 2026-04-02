@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Providers.Manual
                 nameof(LegacyImportStatus),
                 typeof(string),
                 typeof(ManualSettingsView),
-                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusIdle")));
+                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")));
 
         public string LegacyImportStatus
         {
@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Providers.Manual
             _manualSettings = settings as ManualSettings;
             base.Initialize(settings);
             EnsureLegacyImportPathDefault();
-            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusIdle"));
+            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready"));
         }
 
         private void EnsureLegacyImportPathDefault()
@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Providers.Manual
             }
 
             LegacyImportPath = selectedPath;
-            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusPathUpdated"));
+            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"));
         }
 
         private async void ManualLegacyImport_Click(object sender, RoutedEventArgs e)
@@ -118,9 +118,10 @@ namespace PlayniteAchievements.Providers.Manual
 
             if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
             {
-                var invalidPathMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_PathInvalid"),
-                    importPath ?? string.Empty);
+                var invalidPathBase = L("LOCPlayAch_InvalidPath", "Directory does not exist");
+                var invalidPathMessage = string.IsNullOrWhiteSpace(importPath)
+                    ? invalidPathBase
+                    : string.Format("{0}: {1}", invalidPathBase, importPath);
 
                 _playniteApi?.Dialogs?.ShowMessage(
                     invalidPathMessage,
@@ -133,7 +134,7 @@ namespace PlayniteAchievements.Providers.Manual
             }
 
             SetLegacyImportBusy(true);
-            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusRunning"));
+            SetLegacyImportStatus(ResourceProvider.GetString("LOCPlayAch_Status_Refreshing"));
 
             LegacyManualImportResult importResult;
             try
@@ -145,7 +146,7 @@ namespace PlayniteAchievements.Providers.Manual
                 _logger?.Error(ex, "Legacy manual import failed.");
 
                 var failureMessage = string.Format(
-                    L("LOCPlayAch_Settings_Manual_Legacy_ImportFailed", "Legacy import failed: {0}"),
+                    L("LOCPlayAch_Status_Failed", "Error: {0}"),
                     ex.Message);
 
                 SetLegacyImportStatus(failureMessage);
@@ -172,29 +173,26 @@ namespace PlayniteAchievements.Providers.Manual
 
         private string BuildLegacyManualImportSummary(LegacyManualImportResult result)
         {
+            var skippedTotal = result.SkippedNotManual +
+                result.SkippedIgnored +
+                result.SkippedInvalidFileName +
+                result.SkippedGameMissing +
+                result.SkippedManualLinkExists +
+                result.SkippedCachedProviderData +
+                result.SkippedUnsupportedSource +
+                result.SkippedUnresolvedSourceGameId;
+
             var lines = new List<string>
             {
                 ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummaryHeader"),
                 string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummaryScanned"), result.Scanned),
                 string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummaryImported"), result.Imported),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed"), result.ParseFailures),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipNotManual"), result.SkippedNotManual),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipIgnored"), result.SkippedIgnored),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipInvalidFile"), result.SkippedInvalidFileName),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipMissingGame"), result.SkippedGameMissing),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipManualExists"), result.SkippedManualLinkExists),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipCachedData"), result.SkippedCachedProviderData),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnsupportedSource"), result.SkippedUnsupportedSource),
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipUnresolvedId"), result.SkippedUnresolvedSourceGameId)
+                string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummarySkipped"), skippedTotal)
             };
 
-            if (result.UnsupportedSources.Count > 0)
+            if (result.ParseFailures > 0)
             {
-                lines.Add(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_UnsupportedSourcesHeader"));
-                foreach (var pair in result.UnsupportedSources.OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase))
-                {
-                    lines.Add($"- {pair.Key}: {pair.Value}");
-                }
+                lines.Add(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed"), result.ParseFailures));
             }
 
             return string.Join(Environment.NewLine, lines.Where(l => !string.IsNullOrWhiteSpace(l)));

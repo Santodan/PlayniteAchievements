@@ -39,10 +39,6 @@
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Rpcs3_Description}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,12"
-                               TextWrapping="Wrap"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
