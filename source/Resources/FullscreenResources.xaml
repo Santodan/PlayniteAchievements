@@ -72,4 +72,81 @@
         </Style.Triggers>
     </Style>
 
+    <!-- ContextMenu background for fullscreen. -->
+    <Style TargetType="ContextMenu">
+        <Setter Property="Background" Value="{DynamicResource ControlBackgroundDarkBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SelectionLightBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="2" />
+    </Style>
+
+    <!-- Popup background for fullscreen (ContextMenu uses Popup internally). -->
+    <Style TargetType="Popup">
+        <Setter Property="PopupAnimation" Value="Fade" />
+    </Style>
+
+    <!-- CheckBox style for fullscreen with adequate sizing.
+         Default WPF CheckBox is tiny at fullscreen font sizes (22px). -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Padding" Value="6,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <BulletDecorator Background="Transparent"
+                                     VerticalAlignment="{TemplateBinding VerticalAlignment}">
+                        <BulletDecorator.Bullet>
+                            <Border x:Name="CheckBoxBorder"
+                                    Width="22" Height="22"
+                                    Background="{DynamicResource ControlBackgroundDarkBrush}"
+                                    BorderBrush="{DynamicResource SelectionLightBrush}"
+                                    BorderThickness="1.5"
+                                    CornerRadius="2">
+                                <Path x:Name="CheckMark"
+                                      Data="M 4,8 L 8,12 L 16,4"
+                                      Stroke="{DynamicResource TextBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Visibility="Collapsed"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                            </Border>
+                        </BulletDecorator.Bullet>
+                        <ContentPresenter Margin="8,0,0,0"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True" />
+                    </BulletDecorator>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="CheckBoxBorder" Property="BorderBrush"
+                                    Value="{DynamicResource HighlightGlyphBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Style>
+    </Style>
+
+    <!-- ListBoxItem selection override for fullscreen visibility. -->
+    <Style TargetType="ListBoxItem">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="4,2" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="#20EC6200" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="#15EC6200" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>
