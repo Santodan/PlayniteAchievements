@@ -1,0 +1,54 @@
+<UserControl x:Class="PlayniteAchievements.Views.Helpers.FullscreenOverlayContainer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="{DynamicResource OverlayBrush}">
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{DynamicResource OverlayMenuBackgroundBrush}"
+                CornerRadius="3"
+                x:Name="ContentPanel">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Padding" Value="0" />
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Title bar -->
+                <DockPanel Grid.Row="0"
+                           Margin="20,16,20,8"
+                           LastChildFill="True">
+                    <Button x:Name="CloseButton"
+                            DockPanel.Dock="Right"
+                            Width="60"
+                            Height="60"
+                            FontSize="30"
+                            FontWeight="Bold"
+                            Content="X"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Cursor="Hand" />
+                    <TextBlock x:Name="TitleText"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextBrush}"
+                               VerticalAlignment="Center"
+                               TextWrapping="NoWrap"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <!-- Content area -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              KeyboardNavigation.DirectionalNavigation="Contained">
+                    <ContentPresenter x:Name="ContentHost" Margin="0" />
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
