@@ -135,7 +135,7 @@
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
-        </Style>
+        </Setter>
     </Style>
 
     <!-- ListBoxItem selection override for fullscreen visibility. -->
