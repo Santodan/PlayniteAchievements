@@ -79,6 +79,12 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.CompactListSortMode = source.CompactListSortMode;
+            target.CompactListSortDescending = source.CompactListSortDescending;
+            target.CompactUnlockedListSortMode = source.CompactUnlockedListSortMode;
+            target.CompactUnlockedListSortDescending = source.CompactUnlockedListSortDescending;
+            target.CompactLockedListSortMode = source.CompactLockedListSortMode;
+            target.CompactLockedListSortDescending = source.CompactLockedListSortDescending;
             target.AchievementDataGridMaxHeight = source.AchievementDataGridMaxHeight;
             target.EnableParallelProviderRefresh = source.EnableParallelProviderRefresh;
             target.ScanDelayMs = source.ScanDelayMs;
