@@ -47,7 +47,13 @@ namespace PlayniteAchievements.Views.Helpers
             HostedContent = content;
         }
 
-        public void UpdatePanelSize()
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            ApplyFixedSize();
+            FocusInitialElement();
+        }
+
+        private void ApplyFixedSize()
         {
             var parent = Window.GetWindow(this);
             double availWidth = parent?.ActualWidth > 0 ? parent.ActualWidth : SystemParameters.PrimaryScreenWidth;
@@ -55,35 +61,34 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (SizeMode == FullscreenSizeMode.Dialog)
             {
-                ContentPanel.MaxWidth = Math.Min(640, availWidth * 0.9);
-                ContentPanel.MaxHeight = Math.Min(400, availHeight * 0.9);
+                ContentPanel.Width = Math.Min(640, availWidth * 0.85);
+                ContentPanel.Height = Math.Min(400, availHeight * 0.85);
             }
             else
             {
-                ContentPanel.MaxWidth = availWidth * 0.92;
-                ContentPanel.MaxHeight = availHeight * 0.92;
+                ContentPanel.Width = availWidth * 0.92;
+                ContentPanel.Height = availHeight * 0.92;
             }
         }
 
-        private void OnLoaded(object sender, RoutedEventArgs e)
+        private void FocusInitialElement()
         {
-            UpdatePanelSize();
-
-            if (HostedContent != null)
+            if (HostedContent == null)
             {
-                var focusTarget = FindFirstFocusable(HostedContent);
-                if (focusTarget != null)
-                {
-                    FocusManager.SetFocusedElement(this, focusTarget);
-                    Keyboard.Focus(focusTarget);
-                }
+                return;
+            }
+
+            var focusTarget = FindFirstFocusable(HostedContent);
+            if (focusTarget != null)
+            {
+                FocusManager.SetFocusedElement(this, focusTarget);
+                Keyboard.Focus(focusTarget);
             }
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            var window = Window.GetWindow(this);
-            window?.Close();
+            Window.GetWindow(this)?.Close();
         }
 
         private static void OnTitleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

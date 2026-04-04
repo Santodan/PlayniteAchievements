@@ -7,11 +7,6 @@
                 Background="{DynamicResource OverlayMenuBackgroundBrush}"
                 CornerRadius="3"
                 x:Name="ContentPanel">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Padding" Value="0" />
-                </Style>
-            </Border.Style>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -41,13 +36,11 @@
                                TextTrimming="CharacterEllipsis" />
                 </DockPanel>
 
-                <!-- Content area -->
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              KeyboardNavigation.DirectionalNavigation="Contained">
-                    <ContentPresenter x:Name="ContentHost" Margin="0" />
-                </ScrollViewer>
+                <!-- Content area: no outer ScrollViewer.
+                     Inner controls (DataGrid, tab content) handle their own scrolling. -->
+                <ContentPresenter x:Name="ContentHost"
+                                  Grid.Row="1"
+                                  Margin="12,0,12,12" />
             </Grid>
         </Border>
     </Grid>
