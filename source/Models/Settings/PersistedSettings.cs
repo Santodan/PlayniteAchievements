@@ -92,6 +92,12 @@ namespace PlayniteAchievements.Models.Settings
             new Dictionary<Guid, Dictionary<string, string>>();
         private Dictionary<string, ThemeMigrationCacheEntry> _themeMigrationVersionCache =
             new Dictionary<string, ThemeMigrationCacheEntry>(StringComparer.OrdinalIgnoreCase);
+        private CompactListSortMode _compactListSortMode = CompactListSortMode.None;
+        private bool _compactListSortDescending = false;
+        private CompactListSortMode _compactUnlockedListSortMode = CompactListSortMode.None;
+        private bool _compactUnlockedListSortDescending = false;
+        private CompactListSortMode _compactLockedListSortMode = CompactListSortMode.None;
+        private bool _compactLockedListSortDescending = false;
         private TaggingSettings _taggingSettings;
         private Dictionary<string, JObject> _providerSettings = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
 
@@ -564,6 +570,63 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Sort mode for the compact list (all achievements) control.
+        /// None preserves provider order.
+        /// </summary>
+        public CompactListSortMode CompactListSortMode
+        {
+            get => _compactListSortMode;
+            set => SetValue(ref _compactListSortMode, value);
+        }
+
+        /// <summary>
+        /// When true, reverses the sort direction for the compact list (all achievements) control.
+        /// </summary>
+        public bool CompactListSortDescending
+        {
+            get => _compactListSortDescending;
+            set => SetValue(ref _compactListSortDescending, value);
+        }
+
+        /// <summary>
+        /// Sort mode for the compact unlocked list control.
+        /// None preserves newest-first ordering.
+        /// </summary>
+        public CompactListSortMode CompactUnlockedListSortMode
+        {
+            get => _compactUnlockedListSortMode;
+            set => SetValue(ref _compactUnlockedListSortMode, value);
+        }
+
+        /// <summary>
+        /// When true, reverses the sort direction for the compact unlocked list control.
+        /// </summary>
+        public bool CompactUnlockedListSortDescending
+        {
+            get => _compactUnlockedListSortDescending;
+            set => SetValue(ref _compactUnlockedListSortDescending, value);
+        }
+
+        /// <summary>
+        /// Sort mode for the compact locked list control.
+        /// None preserves provider order.
+        /// </summary>
+        public CompactListSortMode CompactLockedListSortMode
+        {
+            get => _compactLockedListSortMode;
+            set => SetValue(ref _compactLockedListSortMode, value);
+        }
+
+        /// <summary>
+        /// When true, reverses the sort direction for the compact locked list control.
+        /// </summary>
+        public bool CompactLockedListSortDescending
+        {
+            get => _compactLockedListSortDescending;
+            set => SetValue(ref _compactLockedListSortDescending, value);
+        }
+
+        /// <summary>
         /// Maximum height for AchievementDataGrid controls (null = unlimited).
         /// </summary>
         public double? AchievementDataGridMaxHeight
@@ -1019,6 +1082,12 @@ namespace PlayniteAchievements.Models.Settings
                 EnableAchievementPieChartControl = this.EnableAchievementPieChartControl,
                 EnableAchievementBarChartControl = this.EnableAchievementBarChartControl,
                 EnableCompactGridMode = this.EnableCompactGridMode,
+                CompactListSortMode = this.CompactListSortMode,
+                CompactListSortDescending = this.CompactListSortDescending,
+                CompactUnlockedListSortMode = this.CompactUnlockedListSortMode,
+                CompactUnlockedListSortDescending = this.CompactUnlockedListSortDescending,
+                CompactLockedListSortMode = this.CompactLockedListSortMode,
+                CompactLockedListSortDescending = this.CompactLockedListSortDescending,
                 AchievementDataGridMaxHeight = this.AchievementDataGridMaxHeight,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
