@@ -152,6 +152,35 @@
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">Please enter a valid positive integer game ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_ClearConfirm">Clear the RetroAchievements game ID override for "{0}"?</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RaGameId_Cleared">RetroAchievements game ID override cleared.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Download">Download expected achievements.json</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Progress">Generating expected achievements.json...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_OverwriteConfirm">Replace the existing achievements.json for "{0}"?&#10;&#10;This resets all local earned states in that file to locked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_InvalidGame">No game was selected.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoAppId">No Steam App ID could be resolved for this game. Set a forced Steam App ID first if needed.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoFolder">No local save folder was found for Steam App ID {0}. Create or configure the local save path first.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoSchema">Steam did not return an achievement schema for App ID {0}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Success">Created expected achievements.json for "{0}" at:&#10;{1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Failed">Failed to generate achievements.json: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_ProviderUnavailable">The Local achievements provider is not available.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_UnknownError">The expected achievements.json could not be generated.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_Set">Set forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_Change">Change forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_Clear">Clear forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogTitle">Set forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHint">Enter the Steam App ID to use for Local achievements detection.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintDetected">Enter the Steam App ID to use for Local achievements detection.&#10;Auto-detected App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintOverride">Enter the Steam App ID to use for Local achievements detection.&#10;Current forced App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_InvalidId">Please enter a valid positive Steam App ID.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_SetFailed">The forced Steam App ID could not be saved.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_ClearConfirm">Clear the forced Steam App ID for "{0}"?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_ClearFailed">No forced Steam App ID was set for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_Set">Set local save folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_Change">Change local save folder</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_Clear">Clear local save folder override</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_SetFailed">The local save folder override could not be saved.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearConfirm">Clear the local save folder override for "{0}"?</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearFailed">No local save folder override was set for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Open Game Options to choose a different folder if needed. Candidates found: {3}.</sys:String>
 
     <!-- ================================================================= -->
     <!-- GAME OPTIONS WINDOW                                                -->
@@ -177,6 +206,12 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_ManualUnlinked">Not linked</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideNone">No override set</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_RaOverrideValue">Override set: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideNone">No forced Steam App ID set</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideValue">Forced Steam App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderNone">No local folder detected</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAuto">Auto-detected folder: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAmbiguous">Multiple local folders found. Using: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderOverrideValue">Forced folder: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Manual Source</sys:String>
@@ -191,6 +226,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Completion</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Excluded">Excluded</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LocalSteamAppIdOverride">Local forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LocalFolderOverride">Local save folder</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ManualTracking">Manual Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">Game Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">Exclude this game from tracking or include it again.</sys:String>
@@ -198,7 +235,14 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">Exclude this game from sidebar and all-games summary data.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHeader">Local forced Steam App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHint">Enter the Steam App ID the Local provider should use for this game. This is useful when a game has multiple Steam App IDs.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHeader">Local save folder override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHint">If multiple emulator folders exist for the same Steam App ID, choose the folder that contains the correct save data for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_Invalid">Please enter a valid local folder path.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_NotFound">The selected local folder does not exist.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Apply">Apply</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Browse">Browse</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaNotCapable">Xenia override is not available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">Custom Achievement Order</sys:String>
