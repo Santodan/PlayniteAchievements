@@ -72,6 +72,72 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        public string GetPreferredProviderOverride(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return null;
+            }
+
+            if (_settings?.Persisted?.PreferredProviderOverrides == null ||
+                !_settings.Persisted.PreferredProviderOverrides.TryGetValue(playniteGameId, out var providerKey))
+            {
+                return null;
+            }
+
+            providerKey = providerKey?.Trim();
+            return string.IsNullOrWhiteSpace(providerKey) ? null : providerKey;
+        }
+
+        public bool HasPreferredProviderOverride(Guid playniteGameId)
+        {
+            return !string.IsNullOrWhiteSpace(GetPreferredProviderOverride(playniteGameId));
+        }
+
+        public CacheWriteResult SetPreferredProviderOverride(Guid playniteGameId, string providerKey)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return CacheWriteResult.CreateFailure(
+                    string.Empty,
+                    "invalid_game_id",
+                    ResourceProvider.GetString("LOCPlayAch_Capstone_Error_InvalidGame"));
+            }
+
+            try
+            {
+                providerKey = providerKey?.Trim();
+                if (string.IsNullOrWhiteSpace(providerKey))
+                {
+                    _settings.Persisted.PreferredProviderOverrides.Remove(playniteGameId);
+                }
+                else
+                {
+                    _settings.Persisted.PreferredProviderOverrides[playniteGameId] = providerKey;
+                }
+
+                _persistSettings(true);
+                _notifyCacheInvalidated(true);
+                _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
+
+                return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed setting preferred provider for gameId={playniteGameId}.");
+                return CacheWriteResult.CreateFailure(
+                    playniteGameId.ToString(),
+                    "settings_save_failed",
+                    ex.Message,
+                    ex);
+            }
+        }
+
+        public CacheWriteResult ClearPreferredProviderOverride(Guid playniteGameId)
+        {
+            return SetPreferredProviderOverride(playniteGameId, null);
+        }
+
         public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)
         {
             if (gameId == Guid.Empty || _settings?.Persisted == null)

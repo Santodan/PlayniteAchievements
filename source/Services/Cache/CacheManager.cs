@@ -432,9 +432,27 @@ namespace PlayniteAchievements.Services
 
         internal List<GameAchievementData> LoadAllGameDataFast()
         {
+            return LoadAllGameDataFast(null);
+        }
+
+        internal List<GameAchievementData> LoadAllGameDataFast(IReadOnlyDictionary<string, string> preferredProviderOverrides)
+        {
             using (PerfScope.Start(_logger, "Cache.LoadAllGameDataFast", thresholdMs: 25))
             {
                 var scopeChanged = false;
+                var preferredOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (preferredProviderOverrides != null)
+                {
+                    foreach (var pair in preferredProviderOverrides)
+                    {
+                        if (string.IsNullOrWhiteSpace(pair.Key) || string.IsNullOrWhiteSpace(pair.Value))
+                        {
+                            continue;
+                        }
+
+                        preferredOverrides[pair.Key] = pair.Value;
+                    }
+                }
 
                 try
                 {
@@ -468,7 +486,31 @@ namespace PlayniteAchievements.Services
 
                             NormalizeLoadedData(cacheKey, dbData);
 
+                            if (preferredOverrides.TryGetValue(cacheKey, out var preferredProviderKey) &&
+                                !string.IsNullOrWhiteSpace(preferredProviderKey) &&
+                                !string.Equals(dbData.ProviderKey, preferredProviderKey, StringComparison.OrdinalIgnoreCase))
+                            {
+                                dbData = _store.LoadCurrentUserGameData(cacheKey, preferredProviderKey);
+                                if (dbData == null)
+                                {
+                                    RemoveMemoryGameData_Locked(cacheKey);
+                                    continue;
+                                }
+
+                                NormalizeLoadedData(cacheKey, dbData);
+                            }
+
                             if (TryGetMemoryGameData_Locked(cacheKey, out var memoryData) && memoryData != null)
+                            {
+                                if (preferredOverrides.TryGetValue(cacheKey, out var preferredMemoryProviderKey) &&
+                                    !string.IsNullOrWhiteSpace(preferredMemoryProviderKey) &&
+                                    !string.Equals(memoryData.ProviderKey, preferredMemoryProviderKey, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    memoryData = null;
+                                }
+                            }
+
+                            if (memoryData != null)
                             {
                                 var memoryUpdated = DateTimeUtilities.AsUtcKind(memoryData.LastUpdatedUtc);
                                 var dbUpdated = DateTimeUtilities.AsUtcKind(dbData.LastUpdatedUtc);
@@ -504,10 +546,18 @@ namespace PlayniteAchievements.Services
 
         public GameAchievementData LoadGameData(string key)
         {
+            return LoadGameData(key, null);
+        }
+
+        public GameAchievementData LoadGameData(string key, string preferredProviderKey)
+        {
             using (PerfScope.Start(_logger, "Cache.LoadGameData", thresholdMs: 25, context: key))
             {
                 var scopeChanged = false;
                 var normalizedKey = UserKey(key);
+                preferredProviderKey = string.IsNullOrWhiteSpace(preferredProviderKey)
+                    ? null
+                    : preferredProviderKey.Trim();
 
                 try
                 {
@@ -521,16 +571,29 @@ namespace PlayniteAchievements.Services
                         EnsureReady_Locked("LoadGameData");
                         scopeChanged = RefreshScopeToken_Locked(clearMemoryOnChange: true);
 
-                        var dbData = _store.LoadCurrentUserGameData(normalizedKey);
+                        var dbData = _store.LoadCurrentUserGameData(normalizedKey, preferredProviderKey);
                         if (dbData == null)
                         {
-                            RemoveMemoryGameData_Locked(normalizedKey);
+                            if (preferredProviderKey == null)
+                            {
+                                RemoveMemoryGameData_Locked(normalizedKey);
+                            }
+
                             return null;
                         }
 
                         NormalizeLoadedData(normalizedKey, dbData);
 
                         if (TryGetMemoryGameData_Locked(normalizedKey, out var memoryData) && memoryData != null)
+                        {
+                            if (preferredProviderKey != null &&
+                                !string.Equals(memoryData.ProviderKey, preferredProviderKey, StringComparison.OrdinalIgnoreCase))
+                            {
+                                memoryData = null;
+                            }
+                        }
+
+                        if (memoryData != null)
                         {
                             var memoryUpdated = DateTimeUtilities.AsUtcKind(memoryData.LastUpdatedUtc);
                             var dbUpdated = DateTimeUtilities.AsUtcKind(dbData.LastUpdatedUtc);

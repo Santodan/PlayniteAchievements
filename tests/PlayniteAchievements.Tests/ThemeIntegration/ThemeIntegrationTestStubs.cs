@@ -143,8 +143,20 @@ namespace PlayniteAchievements.Models.Achievements
 
         public List<AchievementDetail> Achievements { get; set; } = new List<AchievementDetail>();
 
+        public int? AggregateAchievementCount { get; set; }
+
+        public int? AggregateUnlockedCount { get; set; }
+
+        public int AchievementCount => Achievements?.Count > 0
+            ? Achievements.Count
+            : Math.Max(0, AggregateAchievementCount ?? 0);
+
+        public int UnlockedCount => Achievements?.Count > 0
+            ? Achievements.Count(a => a.Unlocked)
+            : Math.Min(Math.Max(0, AggregateUnlockedCount ?? 0), AchievementCount);
+
         public bool IsCompleted =>
-            (Achievements?.Count > 0 && Achievements.All(a => a?.Unlocked == true)) ||
+            (AchievementCount > 0 && UnlockedCount >= AchievementCount) ||
             (Achievements?.Any(a => a?.IsCapstone == true && a.Unlocked) == true);
     }
 }

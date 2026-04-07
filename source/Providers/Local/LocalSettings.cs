@@ -8,10 +8,17 @@ namespace PlayniteAchievements.Providers.Local
     {
         private Dictionary<Guid, int> _steamAppIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
+        private string _steamUserdataPath = string.Empty;
 
         public override string ProviderKey => "Local";
 
         public string ExtraLocalPaths { get; set; } = string.Empty;
+
+        public string SteamUserdataPath
+        {
+            get => _steamUserdataPath;
+            set => SetValue(ref _steamUserdataPath, value ?? string.Empty);
+        }
 
         public Dictionary<Guid, int> SteamAppIdOverrides
         {

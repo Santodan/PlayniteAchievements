@@ -20,15 +20,20 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var achievements = data.Achievements ?? new List<AchievementDetail>();
             if (achievements.Count == 0)
             {
+                var totalCount = data.AchievementCount;
+                var unlockedCount = data.UnlockedCount;
+                var lockedCount = Math.Max(0, totalCount - unlockedCount);
+                var progressPercent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(unlockedCount, totalCount);
+
                 return new SelectedGameRuntimeState(
                     gameId,
                     data.LastUpdatedUtc,
-                    false,
-                    0,
-                    0,
-                    0,
-                    0,
-                    false,
+                    totalCount > 0,
+                    totalCount,
+                    unlockedCount,
+                    lockedCount,
+                    progressPercent,
+                    data.IsCompleted,
                     new List<AchievementDetail>(),
                     new List<AchievementDetail>(),
                     new List<AchievementDetail>(),

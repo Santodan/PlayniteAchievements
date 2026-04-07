@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Steam.Models;
 
@@ -67,18 +68,26 @@ namespace PlayniteAchievements.Providers.Local
             var appId = GetAppId(game, out var isAppIdOverridden);
             if (string.IsNullOrEmpty(appId)) return null;
 
-            if (!TryResolveLocalFolder(game, appId, out var localFolderPath, out _, out _, out _)) return null;
+            var hasResolvedLocalFolder = TryResolveLocalFolder(game, appId, out var localFolderPath, out _, out _, out _);
 
-            var jsonPath = Path.Combine(localFolderPath, "achievements.json");
-            if (!File.Exists(jsonPath))
+            string jsonPath = null;
+            if (hasResolvedLocalFolder && !string.IsNullOrWhiteSpace(localFolderPath))
             {
-                jsonPath = null;
+                jsonPath = Path.Combine(localFolderPath, "achievements.json");
+                if (!File.Exists(jsonPath))
+                {
+                    jsonPath = null;
+                }
             }
 
-            var iniPath = Path.Combine(localFolderPath, "achievements.ini");
-            if (!File.Exists(iniPath))
+            string iniPath = null;
+            if (hasResolvedLocalFolder && !string.IsNullOrWhiteSpace(localFolderPath))
             {
-                iniPath = null;
+                iniPath = Path.Combine(localFolderPath, "achievements.ini");
+                if (!File.Exists(iniPath))
+                {
+                    iniPath = null;
+                }
             }
 
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || !string.IsNullOrWhiteSpace(iniPath);
@@ -95,6 +104,32 @@ namespace PlayniteAchievements.Providers.Local
                         .Where(a => !string.IsNullOrWhiteSpace(a.Name))
                         .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
                 }
+            }
+
+            SteamLocalProgressSummary steamLocalProgress = null;
+            if (appIdInt > 0)
+            {
+                steamLocalProgress = TryGetSteamLocalProgressSummary(appIdInt);
+            }
+
+            Dictionary<string, LocalEntry> steamAppCacheEntries = null;
+            if (appIdInt > 0)
+            {
+                steamAppCacheEntries = TryGetSteamAppCacheEntries(appIdInt);
+            }
+
+            Dictionary<string, LocalEntry> steamLibraryCacheEntries = null;
+            if (appIdInt > 0)
+            {
+                steamLibraryCacheEntries = TryGetSteamLibraryCacheEntries(appIdInt);
+            }
+
+            if (!hasResolvedLocalFolder &&
+                steamLocalProgress == null &&
+                (steamAppCacheEntries == null || steamAppCacheEntries.Count == 0) &&
+                (steamLibraryCacheEntries == null || steamLibraryCacheEntries.Count == 0))
+            {
+                return null;
             }
 
             var data = new GameAchievementData
@@ -144,6 +179,45 @@ namespace PlayniteAchievements.Providers.Local
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from local save data.");
                         return data;
                     }
+                }
+
+                if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
+                {
+                    var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var kv in steamAppCacheEntries)
+                    {
+                        apiNameMap.TryGetValue(kv.Key, out var schemaAch);
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema));
+                        added.Add(kv.Key);
+                    }
+
+                    Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam appcache stats.");
+                    return data;
+                }
+
+                if (steamLibraryCacheEntries != null && steamLibraryCacheEntries.Count > 0)
+                {
+                    var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var kv in steamLibraryCacheEntries)
+                    {
+                        apiNameMap.TryGetValue(kv.Key, out var schemaAch);
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema));
+                        added.Add(kv.Key);
+                    }
+
+                    Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam local library cache.");
+                    return data;
+                }
+
+                if (steamLocalProgress != null && steamLocalProgress.TotalCount > 0)
+                {
+                    data.AggregateAchievementCount = steamLocalProgress.TotalCount;
+                    data.AggregateUnlockedCount = steamLocalProgress.UnlockedCount;
+                    data.HasAchievements = true;
+                    Log($"INFO: {game.Name} - Loaded Steam local aggregate progress {data.UnlockedCount}/{data.AchievementCount} from {steamLocalProgress.SourcePath}.");
+                    return data;
                 }
 
                 if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
@@ -370,6 +444,528 @@ namespace PlayniteAchievements.Providers.Local
                 if (match.Success) return match.Groups[1].Value;
             }
             return null;
+        }
+
+        private Dictionary<string, LocalEntry> TryGetSteamAppCacheEntries(int appId)
+        {
+            if (appId <= 0)
+            {
+                return null;
+            }
+
+            var schema = TryGetSteamAppCacheSchema(appId);
+            if (schema == null || schema.Count == 0)
+            {
+                return null;
+            }
+
+            var unlockTimes = TryGetSteamAppCacheUnlockTimes(appId);
+            var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var schemaEntry in schema)
+            {
+                unlockTimes.TryGetValue(schemaEntry.Index, out var timestamp);
+                entries[schemaEntry.ApiName] = new LocalEntry
+                {
+                    earned = timestamp > 0,
+                    earned_time = timestamp,
+                    displayName = string.IsNullOrWhiteSpace(schemaEntry.DisplayName) ? schemaEntry.ApiName : schemaEntry.DisplayName,
+                    description = schemaEntry.Description ?? string.Empty,
+                    icon = BuildSteamAchievementIconUrl(appId, schemaEntry.IconHash),
+                    iconGray = BuildSteamAchievementIconUrl(appId, schemaEntry.IconGrayHash),
+                    hidden = schemaEntry.Hidden
+                };
+            }
+
+            return entries.Count > 0 ? entries : null;
+        }
+
+        private List<SteamAppCacheSchemaEntry> TryGetSteamAppCacheSchema(int appId)
+        {
+            foreach (var schemaPath in GetSteamAppCacheSchemaFilePaths(appId))
+            {
+                try
+                {
+                    if (!File.Exists(schemaPath))
+                    {
+                        continue;
+                    }
+
+                    var bytes = File.ReadAllBytes(schemaPath);
+                    var tokens = ExtractNullDelimitedTokens(bytes);
+                    if (tokens.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var bitsIndex = tokens.FindIndex(token => string.Equals(token, "bits", StringComparison.OrdinalIgnoreCase));
+                    if (bitsIndex < 0)
+                    {
+                        continue;
+                    }
+
+                    var entries = new List<SteamAppCacheSchemaEntry>();
+                    var index = bitsIndex + 1;
+
+                    while (index < tokens.Count)
+                    {
+                        if (!int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var entryIndex) ||
+                            index + 1 >= tokens.Count ||
+                            !string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            index++;
+                            continue;
+                        }
+
+                        var entry = new SteamAppCacheSchemaEntry { Index = entryIndex };
+                        index += 2;
+                        if (index >= tokens.Count)
+                        {
+                            break;
+                        }
+
+                        entry.ApiName = tokens[index];
+                        index++;
+
+                        while (index < tokens.Count)
+                        {
+                            if (int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var nextIndex) &&
+                                index + 1 < tokens.Count &&
+                                string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase))
+                            {
+                                break;
+                            }
+
+                            var token = tokens[index];
+                            if (string.Equals(token, "display", StringComparison.OrdinalIgnoreCase))
+                            {
+                                entry.DisplayName = ParseLocalizedTokenValue(tokens, ref index);
+                                continue;
+                            }
+
+                            if (string.Equals(token, "desc", StringComparison.OrdinalIgnoreCase))
+                            {
+                                entry.Description = ParseLocalizedTokenValue(tokens, ref index);
+                                continue;
+                            }
+
+                            if (string.Equals(token, "hidden", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                            {
+                                entry.Hidden = string.Equals(tokens[index + 1], "1", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(tokens[index + 1], "true", StringComparison.OrdinalIgnoreCase);
+                                index += 2;
+                                continue;
+                            }
+
+                            if (string.Equals(token, "icon", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                            {
+                                entry.IconHash = tokens[index + 1];
+                                index += 2;
+                                continue;
+                            }
+
+                            if (string.Equals(token, "icon_gray", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                            {
+                                entry.IconGrayHash = tokens[index + 1];
+                                index += 2;
+                                continue;
+                            }
+
+                            index++;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(entry.ApiName))
+                        {
+                            entries.Add(entry);
+                        }
+                    }
+
+                    if (entries.Count > 0)
+                    {
+                        return entries;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM APPCACHE SCHEMA ERROR: path={schemaPath} msg={ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        private Dictionary<int, long> TryGetSteamAppCacheUnlockTimes(int appId)
+        {
+            var result = new Dictionary<int, long>();
+            var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId))
+            {
+                try
+                {
+                    if (!File.Exists(userStatsPath))
+                    {
+                        continue;
+                    }
+
+                    var bytes = File.ReadAllBytes(userStatsPath);
+                    var marker = System.Text.Encoding.ASCII.GetBytes("AchievementTimes");
+
+                    for (var position = 0; position <= bytes.Length - marker.Length; position++)
+                    {
+                        if (!ByteSequenceEquals(bytes, position, marker))
+                        {
+                            continue;
+                        }
+
+                        var cursor = position + marker.Length;
+                        while (cursor < bytes.Length && bytes[cursor] != 0)
+                        {
+                            cursor++;
+                        }
+
+                        if (cursor < bytes.Length)
+                        {
+                            cursor++;
+                        }
+
+                        while (cursor < bytes.Length)
+                        {
+                            while (cursor < bytes.Length && (bytes[cursor] < (byte)'0' || bytes[cursor] > (byte)'9'))
+                            {
+                                cursor++;
+                            }
+
+                            if (cursor >= bytes.Length)
+                            {
+                                break;
+                            }
+
+                            var start = cursor;
+                            while (cursor < bytes.Length && bytes[cursor] >= (byte)'0' && bytes[cursor] <= (byte)'9')
+                            {
+                                cursor++;
+                            }
+
+                            if (cursor >= bytes.Length || bytes[cursor] != 0)
+                            {
+                                continue;
+                            }
+
+                            var key = System.Text.Encoding.ASCII.GetString(bytes, start, cursor - start);
+                            cursor++;
+
+                            if (cursor + 4 > bytes.Length)
+                            {
+                                break;
+                            }
+
+                            var timestamp = BitConverter.ToUInt32(bytes, cursor);
+                            if (int.TryParse(key, NumberStyles.Integer, CultureInfo.InvariantCulture, out var entryIndex) &&
+                                timestamp >= 946684800 &&
+                                timestamp <= nowUnix + 86400)
+                            {
+                                result[entryIndex] = timestamp;
+                                cursor += 4;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM APPCACHE USERSTATS ERROR: path={userStatsPath} msg={ex.Message}");
+                }
+            }
+
+            return result;
+        }
+
+        private static List<string> ExtractNullDelimitedTokens(byte[] bytes)
+        {
+            var tokens = new List<string>();
+            if (bytes == null || bytes.Length == 0)
+            {
+                return tokens;
+            }
+
+            var buffer = new List<byte>();
+            for (var i = 0; i < bytes.Length; i++)
+            {
+                if (bytes[i] == 0)
+                {
+                    AddSanitizedToken(tokens, buffer);
+                    buffer.Clear();
+                    continue;
+                }
+
+                buffer.Add(bytes[i]);
+            }
+
+            AddSanitizedToken(tokens, buffer);
+            return tokens;
+        }
+
+        private static void AddSanitizedToken(List<string> tokens, List<byte> buffer)
+        {
+            if (tokens == null || buffer == null || buffer.Count == 0)
+            {
+                return;
+            }
+
+            var raw = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+            var sanitized = new string(raw.Where(character => !char.IsControl(character)).ToArray()).Trim();
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                tokens.Add(sanitized);
+            }
+        }
+
+        private static string ParseLocalizedTokenValue(IReadOnlyList<string> tokens, ref int index)
+        {
+            string fallback = null;
+            index++;
+
+            if (index < tokens.Count && string.Equals(tokens[index], "name", StringComparison.OrdinalIgnoreCase))
+            {
+                index++;
+            }
+
+            while (index < tokens.Count)
+            {
+                if (string.Equals(tokens[index], "token", StringComparison.OrdinalIgnoreCase))
+                {
+                    index += Math.Min(2, tokens.Count - index);
+                    continue;
+                }
+
+                if (IsSchemaFieldToken(tokens[index]) ||
+                    (int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var nextIndex) &&
+                     index + 1 < tokens.Count &&
+                     string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase)))
+                {
+                    break;
+                }
+
+                var language = tokens[index];
+                if (index + 1 >= tokens.Count)
+                {
+                    index++;
+                    continue;
+                }
+
+                var value = tokens[index + 1];
+                if (string.Equals(language, "english", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
+                {
+                    index += 2;
+                    return value;
+                }
+
+                if (string.IsNullOrWhiteSpace(fallback) && !string.IsNullOrWhiteSpace(value))
+                {
+                    fallback = value;
+                }
+
+                index += 2;
+            }
+
+            return fallback;
+        }
+
+        private static bool IsSchemaFieldToken(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return false;
+            }
+
+            switch (token)
+            {
+                case "display":
+                case "desc":
+                case "hidden":
+                case "icon":
+                case "icon_gray":
+                case "progress":
+                case "value":
+                case "type":
+                case "min_val":
+                case "max_val":
+                case "operation":
+                case "operand1":
+                case "bits":
+                case "stats":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool ByteSequenceEquals(byte[] source, int offset, byte[] sequence)
+        {
+            if (source == null || sequence == null || offset < 0 || offset + sequence.Length > source.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < sequence.Length; i++)
+            {
+                if (source[offset + i] != sequence[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string BuildSteamAchievementIconUrl(int appId, string iconHash)
+        {
+            if (appId <= 0 || string.IsNullOrWhiteSpace(iconHash))
+            {
+                return null;
+            }
+
+            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{iconHash}";
+        }
+
+        private IEnumerable<string> GetSteamAppCacheSchemaFilePaths(int appId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fileName = $"UserGameStatsSchema_{appId}.bin";
+
+            foreach (var statsRoot in GetSteamAppCacheStatsRoots())
+            {
+                var path = Path.Combine(statsRoot, fileName);
+                if (File.Exists(path))
+                {
+                    candidates.Add(path);
+                }
+            }
+
+            return candidates;
+        }
+
+        private IEnumerable<string> GetSteamAppCacheUserStatsFilePaths(int appId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var suffix = "_" + appId.ToString(CultureInfo.InvariantCulture) + ".bin";
+            var preferredAccountIds = GetPreferredSteamAccountIds();
+
+            foreach (var statsRoot in GetSteamAppCacheStatsRoots())
+            {
+                if (!Directory.Exists(statsRoot))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    foreach (var accountId in preferredAccountIds)
+                    {
+                        var exactPath = Path.Combine(
+                            statsRoot,
+                            $"UserGameStats_{accountId}_{appId.ToString(CultureInfo.InvariantCulture)}.bin");
+
+                        if (File.Exists(exactPath))
+                        {
+                            candidates.Add(exactPath);
+                        }
+                    }
+
+                    foreach (var path in Directory.EnumerateFiles(statsRoot, "UserGameStats_*" + suffix, SearchOption.TopDirectoryOnly))
+                    {
+                        candidates.Add(path);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM APPCACHE USERSTATS SEARCH ERROR: root={statsRoot} msg={ex.Message}");
+                }
+            }
+
+            return candidates;
+        }
+
+        private IEnumerable<string> GetPreferredSteamAccountIds()
+        {
+            var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+            var configuredSteamUserId = steamSettings?.SteamUserId?.Trim();
+            foreach (var candidate in ExpandSteamAccountIdCandidates(configuredSteamUserId))
+            {
+                ids.Add(candidate);
+            }
+
+            foreach (var userdataRoot in GetSteamUserdataRoots())
+            {
+                if (string.IsNullOrWhiteSpace(userdataRoot) || !Directory.Exists(userdataRoot))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    foreach (var userDir in Directory.EnumerateDirectories(userdataRoot))
+                    {
+                        var name = Path.GetFileName(userDir)?.Trim();
+                        if (!string.IsNullOrWhiteSpace(name) && Regex.IsMatch(name, @"^\d+$"))
+                        {
+                            ids.Add(name);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM ACCOUNT ID SEARCH ERROR: root={userdataRoot} msg={ex.Message}");
+                }
+            }
+
+            return ids;
+        }
+
+        private static IEnumerable<string> ExpandSteamAccountIdCandidates(string steamUserId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(steamUserId))
+            {
+                return candidates;
+            }
+
+            var trimmed = steamUserId.Trim();
+            if (Regex.IsMatch(trimmed, @"^\d+$"))
+            {
+                candidates.Add(trimmed);
+
+                if (ulong.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var steamIdValue) &&
+                    steamIdValue >= 76561197960265728UL)
+                {
+                    var accountId = steamIdValue - 76561197960265728UL;
+                    if (accountId <= uint.MaxValue)
+                    {
+                        candidates.Add(accountId.ToString(CultureInfo.InvariantCulture));
+                    }
+                }
+            }
+
+            return candidates;
+        }
+
+        private IEnumerable<string> GetSteamAppCacheStatsRoots()
+        {
+            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var installRoot in GetSteamInstallRoots())
+            {
+                var statsRoot = Path.Combine(installRoot, "appcache", "stats");
+                if (Directory.Exists(statsRoot))
+                {
+                    roots.Add(statsRoot);
+                }
+            }
+
+            return roots;
         }
 
         internal bool TryResolveAchievementsJsonPath(Game game, out string jsonPath, out int appId, out bool isOverridden)
@@ -1145,6 +1741,415 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(folderPath);
         }
 
+        private SteamLocalProgressSummary TryGetSteamLocalProgressSummary(int appId)
+        {
+            if (appId <= 0)
+            {
+                return null;
+            }
+
+            foreach (var progressFilePath in GetSteamAchievementProgressFilePaths())
+            {
+                try
+                {
+                    if (!File.Exists(progressFilePath))
+                    {
+                        continue;
+                    }
+
+                    var json = File.ReadAllText(progressFilePath);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        continue;
+                    }
+
+                    var root = JObject.Parse(json);
+                    var mapCache = root["mapCache"] as JArray;
+                    if (mapCache == null)
+                    {
+                        continue;
+                    }
+
+                    for (var i = 0; i < mapCache.Count; i++)
+                    {
+                        if (!(mapCache[i] is JArray entry) || entry.Count < 2)
+                        {
+                            continue;
+                        }
+
+                        var entryAppId = entry[0]?.Value<int?>();
+                        if (!entryAppId.HasValue || entryAppId.Value != appId)
+                        {
+                            continue;
+                        }
+
+                        var payload = entry[1]?.ToObject<SteamLocalProgressPayload>();
+                        if (payload == null)
+                        {
+                            continue;
+                        }
+
+                        var totalCount = Math.Max(0, payload.total);
+                        if (totalCount <= 0)
+                        {
+                            return null;
+                        }
+
+                        var unlockedCount = Math.Max(0, Math.Min(payload.unlocked, totalCount));
+                        return new SteamLocalProgressSummary
+                        {
+                            AppId = appId,
+                            TotalCount = totalCount,
+                            UnlockedCount = unlockedCount,
+                            SourcePath = progressFilePath
+                        };
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM LOCAL PROGRESS ERROR: path={progressFilePath} msg={ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        private Dictionary<string, LocalEntry> TryGetSteamLibraryCacheEntries(int appId)
+        {
+            if (appId <= 0)
+            {
+                return null;
+            }
+
+            foreach (var cacheFilePath in GetSteamLibraryCacheFilePaths(appId))
+            {
+                try
+                {
+                    if (!File.Exists(cacheFilePath))
+                    {
+                        continue;
+                    }
+
+                    var json = File.ReadAllText(cacheFilePath);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        continue;
+                    }
+
+                    var sections = JArray.Parse(json);
+                    var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+
+                    for (var i = 0; i < sections.Count; i++)
+                    {
+                        if (!(sections[i] is JArray section) || section.Count < 2)
+                        {
+                            continue;
+                        }
+
+                        var sectionName = section[0]?.Value<string>();
+                        if (!string.Equals(sectionName, "achievements", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        var payload = section[1]?["data"] as JObject;
+                        if (payload == null)
+                        {
+                            continue;
+                        }
+
+                        AddSteamLibraryCacheSectionEntries(entries, payload["vecHighlight"] as JArray);
+                        AddSteamLibraryCacheSectionEntries(entries, payload["vecUnachieved"] as JArray);
+                        AddSteamLibraryCacheSectionEntries(entries, payload["vecAchievedHidden"] as JArray);
+                    }
+
+                    if (entries.Count > 0)
+                    {
+                        return entries;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM LIBRARYCACHE ERROR: path={cacheFilePath} msg={ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        private static void AddSteamLibraryCacheSectionEntries(Dictionary<string, LocalEntry> entries, JArray sectionEntries)
+        {
+            if (entries == null || sectionEntries == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < sectionEntries.Count; i++)
+            {
+                if (!(sectionEntries[i] is JObject entry))
+                {
+                    continue;
+                }
+
+                var id = entry["strID"]?.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                var unlocked = entry["bAchieved"]?.Value<bool?>() ?? false;
+                var unlockTime = entry["rtUnlocked"]?.Value<long?>() ?? 0;
+                if (!unlocked && unlockTime > 0)
+                {
+                    unlocked = true;
+                }
+
+                entries[id] = new LocalEntry
+                {
+                    earned = unlocked,
+                    earned_time = unlockTime,
+                    displayName = entry["strName"]?.Value<string>(),
+                    description = entry["strDescription"]?.Value<string>(),
+                    icon = entry["strImage"]?.Value<string>(),
+                    hidden = entry["bHidden"]?.Value<bool?>() ?? false,
+                    percent = NormalizePercent(entry["flAchieved"]?.Value<double?>())
+                };
+            }
+        }
+
+        private IEnumerable<string> GetSteamLibraryCacheFilePaths(int appId)
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fileName = appId.ToString(CultureInfo.InvariantCulture) + ".json";
+
+            foreach (var userdataRoot in GetSteamUserdataRoots())
+            {
+                if (string.IsNullOrWhiteSpace(userdataRoot) || !Directory.Exists(userdataRoot))
+                {
+                    continue;
+                }
+
+                var directCachePath = Path.Combine(userdataRoot, "config", "librarycache", fileName);
+                if (File.Exists(directCachePath))
+                {
+                    candidates.Add(directCachePath);
+                }
+
+                try
+                {
+                    foreach (var userDir in Directory.EnumerateDirectories(userdataRoot))
+                    {
+                        var cachePath = Path.Combine(userDir, "config", "librarycache", fileName);
+                        if (File.Exists(cachePath))
+                        {
+                            candidates.Add(cachePath);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM LIBRARYCACHE SEARCH ERROR: root={userdataRoot} msg={ex.Message}");
+                }
+            }
+
+            return candidates;
+        }
+
+        private IEnumerable<string> GetSteamAchievementProgressFilePaths()
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var userdataRoot in GetSteamUserdataRoots())
+            {
+                if (string.IsNullOrWhiteSpace(userdataRoot) || !Directory.Exists(userdataRoot))
+                {
+                    continue;
+                }
+
+                var directConfigPath = Path.Combine(userdataRoot, "config", "librarycache", "achievement_progress.json");
+                if (File.Exists(directConfigPath))
+                {
+                    candidates.Add(directConfigPath);
+                }
+
+                try
+                {
+                    foreach (var userDir in Directory.EnumerateDirectories(userdataRoot))
+                    {
+                        var progressPath = Path.Combine(userDir, "config", "librarycache", "achievement_progress.json");
+                        if (File.Exists(progressPath))
+                        {
+                            candidates.Add(progressPath);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM USERDATA SEARCH ERROR: root={userdataRoot} msg={ex.Message}");
+                }
+            }
+
+            return candidates;
+        }
+
+        private IEnumerable<string> GetSteamUserdataRoots()
+        {
+            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var configuredUserdataPath = GetConfiguredSteamUserdataPath();
+            if (!string.IsNullOrWhiteSpace(configuredUserdataPath))
+            {
+                roots.Add(configuredUserdataPath);
+            }
+
+            foreach (var candidate in GetSteamInstallCandidates())
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var expanded = Environment.ExpandEnvironmentVariables(candidate.Trim());
+                if (string.IsNullOrWhiteSpace(expanded))
+                {
+                    continue;
+                }
+
+                var configLibraryCachePath = Path.Combine(expanded, "config", "librarycache");
+                if (Directory.Exists(configLibraryCachePath))
+                {
+                    roots.Add(expanded);
+                    continue;
+                }
+
+                if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase))
+                {
+                    roots.Add(expanded);
+                    continue;
+                }
+
+                var userdataPath = Path.Combine(expanded, "userdata");
+                if (Directory.Exists(userdataPath))
+                {
+                    roots.Add(userdataPath);
+                }
+            }
+
+            return roots;
+        }
+
+        private IEnumerable<string> GetSteamInstallRoots()
+        {
+            var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var configuredPath = GetConfiguredSteamBasePath();
+            if (!string.IsNullOrWhiteSpace(configuredPath) && Directory.Exists(configuredPath))
+            {
+                roots.Add(configuredPath);
+            }
+
+            foreach (var candidate in GetSteamInstallCandidates())
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var expanded = Environment.ExpandEnvironmentVariables(candidate.Trim());
+                if (string.IsNullOrWhiteSpace(expanded))
+                {
+                    continue;
+                }
+
+                if (Directory.Exists(Path.Combine(expanded, "appcache", "stats")) || Directory.Exists(Path.Combine(expanded, "userdata")))
+                {
+                    roots.Add(expanded);
+                }
+            }
+
+            return roots;
+        }
+
+        private string GetConfiguredSteamBasePath()
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            var configuredPath = settings?.SteamUserdataPath?.Trim();
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                return null;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                return null;
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase))
+            {
+                var parent = Directory.GetParent(expanded);
+                return parent?.FullName;
+            }
+
+            return expanded;
+        }
+
+        private string GetConfiguredSteamUserdataPath()
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            var configuredPath = settings?.SteamUserdataPath?.Trim();
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                return null;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                return null;
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase) && Directory.Exists(expanded))
+            {
+                return expanded;
+            }
+
+            var userdataPath = Path.Combine(expanded, "userdata");
+            return Directory.Exists(userdataPath)
+                ? userdataPath
+                : expanded;
+        }
+
+        private IEnumerable<string> GetSteamInstallCandidates()
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                Environment.GetEnvironmentVariable("SteamPath"),
+                @"%ProgramFiles(x86)%\Steam",
+                @"%ProgramFiles%\Steam"
+            };
+
+            foreach (var drive in Environment.GetLogicalDrives())
+            {
+                candidates.Add(Path.Combine(drive, "Program Files (x86)", "Steam"));
+                candidates.Add(Path.Combine(drive, "Program Files", "Steam"));
+                candidates.Add(Path.Combine(drive, "Programs", "Steam"));
+                candidates.Add(Path.Combine(drive, "Steam"));
+            }
+
+            foreach (var root in GetLocalRootPaths())
+            {
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    continue;
+                }
+
+                candidates.Add(root);
+            }
+
+            return candidates;
+        }
+
         private async Task<SchemaAndPercentages> TryGetSteamSchemaAsync(int appId)
         {
             if (_steamSchemaCache.TryGetValue(appId, out var cached))
@@ -1224,6 +2229,16 @@ namespace PlayniteAchievements.Providers.Local
                 roots.Add(Path.Combine(commonAppData, "Steam"));
             }
 
+            roots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Steam"));
+            roots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Steam"));
+
+            var steamPath = Environment.GetEnvironmentVariable("SteamPath");
+            if (!string.IsNullOrWhiteSpace(steamPath))
+            {
+                roots.Add(steamPath);
+                roots.Add(Path.Combine(steamPath, "userdata"));
+            }
+
             roots.Add(Path.Combine(localAppData, "SKIDROW"));
 
             if (_pluginSettings?.Persisted?.ExtraLocalPaths != null)
@@ -1258,6 +2273,7 @@ namespace PlayniteAchievements.Providers.Local
                 settings.ExtraLocalPaths = _pluginSettings.Persisted.ExtraLocalPaths;
             }
 
+            settings.SteamUserdataPath ??= string.Empty;
             settings.SteamAppIdOverrides ??= new Dictionary<Guid, int>();
             settings.LocalFolderOverrides ??= new Dictionary<Guid, string>();
 
@@ -1275,7 +2291,7 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
-        public ProviderSettingsViewBase CreateSettingsView() => new LocalSettingsView();
+        public ProviderSettingsViewBase CreateSettingsView() => new LocalSettingsView(_api);
 
         private static readonly Dictionary<string, string> KnownIniFields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -1348,6 +2364,32 @@ namespace PlayniteAchievements.Providers.Local
             public string iconGray { get; set; }
             public bool hidden { get; set; }
             public double? percent { get; set; }
+        }
+
+        private sealed class SteamLocalProgressSummary
+        {
+            public int AppId { get; set; }
+            public int TotalCount { get; set; }
+            public int UnlockedCount { get; set; }
+            public string SourcePath { get; set; }
+        }
+
+        private sealed class SteamLocalProgressPayload
+        {
+            public int appid { get; set; }
+            public int unlocked { get; set; }
+            public int total { get; set; }
+        }
+
+        private sealed class SteamAppCacheSchemaEntry
+        {
+            public int Index { get; set; }
+            public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
+            public bool Hidden { get; set; }
+            public string IconHash { get; set; }
+            public string IconGrayHash { get; set; }
         }
     }
 }

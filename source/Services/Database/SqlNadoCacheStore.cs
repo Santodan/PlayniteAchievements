@@ -259,7 +259,7 @@ namespace PlayniteAchievements.Services.Database
             });
         }
 
-        public GameAchievementData LoadCurrentUserGameData(string key)
+        public GameAchievementData LoadCurrentUserGameData(string key, string preferredProviderKey = null)
         {
             if (string.IsNullOrWhiteSpace(key))
             {
@@ -267,10 +267,12 @@ namespace PlayniteAchievements.Services.Database
             }
 
             var cacheKey = key.Trim();
+            preferredProviderKey = string.IsNullOrWhiteSpace(preferredProviderKey)
+                ? null
+                : preferredProviderKey.Trim();
             return WithDb(db =>
             {
-                var progress = db.Load<ProgressGameJoinRow>(
-                    @"SELECT
+                var query = @"SELECT
                         ugp.Id AS UserGameProgressId,
                         ugp.GameId AS GameId,
                         ugp.CacheKey AS CacheKey,
@@ -286,10 +288,27 @@ namespace PlayniteAchievements.Services.Database
                       INNER JOIN Users u ON u.Id = ugp.UserId
                       INNER JOIN Games g ON g.Id = ugp.GameId
                       WHERE u.IsCurrentUser = 1
-                        AND ugp.CacheKey = ?
-                      ORDER BY ugp.LastUpdatedUtc DESC
-                      LIMIT 1;",
-                    cacheKey).FirstOrDefault();
+                                                AND ugp.CacheKey = ?";
+
+                                ProgressGameJoinRow progress;
+                                if (preferredProviderKey == null)
+                                {
+                                        progress = db.Load<ProgressGameJoinRow>(
+                                                query + @"
+                                            ORDER BY ugp.LastUpdatedUtc DESC
+                                            LIMIT 1;",
+                                                cacheKey).FirstOrDefault();
+                                }
+                                else
+                                {
+                                        progress = db.Load<ProgressGameJoinRow>(
+                                                query + @"
+                                                AND g.ProviderKey = ?
+                                            ORDER BY ugp.LastUpdatedUtc DESC
+                                            LIMIT 1;",
+                                                cacheKey,
+                                                preferredProviderKey).FirstOrDefault();
+                                }
 
                 if (progress == null)
                 {

@@ -552,7 +552,7 @@ namespace PlayniteAchievements.ViewModels
                 GameIconPath = (!string.IsNullOrEmpty(game.Icon)) ? _playniteApi.Database.GetFullFilePath(game.Icon) : null;
 
                 var gameData = _achievementDataService.GetGameAchievementData(_gameId);
-                if (gameData == null || !gameData.HasAchievements || gameData.Achievements == null)
+                if (gameData == null || !gameData.HasAchievements)
                 {
                     _logger?.Info($"No achievement data for game: {game.Name}");
 
@@ -579,12 +579,34 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                var achievements = gameData.Achievements;
+                var achievements = gameData.Achievements ?? new List<AchievementDetail>();
                 var hasCustomOrder = gameData.AchievementOrder != null && gameData.AchievementOrder.Count > 0;
                 HasCustomAchievementOrder = hasCustomOrder;
-                TotalAchievements = achievements.Count;
-                UnlockedAchievements = achievements.Count(a => a.Unlocked);
+                TotalAchievements = gameData.AchievementCount;
+                UnlockedAchievements = gameData.UnlockedCount;
                 IsCompleted = gameData.IsCompleted;
+
+                if (achievements.Count == 0)
+                {
+                    CommonCount = 0;
+                    UncommonCount = 0;
+                    RareCount = 0;
+                    UltraRareCount = 0;
+                    _allAchievements = new List<AchievementDisplayItem>();
+                    UpdateAchievementFilterOptions(null);
+                    HasCustomAchievementOrder = false;
+
+                    System.Windows.Application.Current?.Dispatcher?.Invoke(() =>
+                    {
+                        Achievements.Clear();
+                    });
+
+                    OnPropertyChanged(nameof(Progression));
+                    OnPropertyChanged(nameof(ProgressionText));
+
+                    Timeline.SetCounts(null);
+                    return;
+                }
 
                 // Calculate rarity counts
                 int common = 0, uncommon = 0, rare = 0, ultraRare = 0;

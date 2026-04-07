@@ -31,9 +31,46 @@
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,0,0,12"/>
 
-                    <TextBlock Text="The following folders are scanned automatically for local achievement JSON files:"
+                        <TextBlock Text="Steam path (optional):"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4"/>
+                        <DockPanel Margin="0,0,0,6">
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Width="90"
+                            DockPanel.Dock="Right"
+                            Margin="8,0,0,0"
+                            Click="SteamUserdataBrowse_Click"/>
+                        <TextBox Text="{Binding Settings.SteamUserdataPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             VerticalContentAlignment="Center"
+                             KeyDown="SteamUserdataPath_KeyDown"
+                             LostFocus="SteamUserdataPath_LostFocus"/>
+                        </DockPanel>
+                        <TextBlock Text="Point this to your Steam install folder or userdata folder if auto-detection misses it. Examples: E:\Programs\Steam or E:\Programs\Steam\userdata"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,12"
+                               TextWrapping="Wrap"/>
+
+                        <TextBlock Text="The following folders are scanned automatically for local achievement and Steam cache files:"
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,10"
+                               TextWrapping="Wrap"/>
+
+                        <TextBlock Text="%SteamPath%\userdata"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,4"/>
+                        <TextBlock Text="%SteamPath%\appcache\stats"
+                                   Style="{StaticResource MutedTextStyle}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="%ProgramFiles(x86)%\Steam\userdata"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,4"/>
+                        <TextBlock Text="%ProgramFiles%\Steam\userdata"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,4"/>
+                        <TextBlock Text="&lt;Drive&gt;:\Programs\Steam, &lt;Drive&gt;:\Steam, matching userdata folders, and appcache\stats under common Steam install roots on available drives"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,8"
                                TextWrapping="Wrap"/>
 
                     <TextBlock Text="%PUBLIC%\Documents\OnlineFix"
@@ -61,6 +98,12 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,4"/>
                     <TextBlock Text="%ProgramData%\Steam"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="%ProgramFiles(x86)%\Steam"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,4"/>
+                    <TextBlock Text="%ProgramFiles%\Steam"
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,4"/>
                     <TextBlock Text="%LOCALAPPDATA%\SKIDROW"

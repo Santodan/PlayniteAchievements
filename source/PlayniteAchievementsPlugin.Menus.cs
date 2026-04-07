@@ -321,6 +321,37 @@ namespace PlayniteAchievements
                 };
             }
 
+            var preferredProviderOverride = _achievementOverridesService?.GetPreferredProviderOverride(game.Id);
+            var providerMenuSection = PluginLocalGameMenuSection + "|" + ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Change");
+            yield return new GameMenuItem
+            {
+                Description = FormatProviderMenuLabel(
+                    ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Automatic"),
+                    string.IsNullOrWhiteSpace(preferredProviderOverride)),
+                MenuSection = providerMenuSection,
+                Action = (a) =>
+                {
+                    ChangePreferredProvider(game, null);
+                }
+            };
+
+            foreach (var providerKey in GetSelectableProviderKeys())
+            {
+                var capturedProviderKey = providerKey;
+                var providerLabel = PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(capturedProviderKey);
+                yield return new GameMenuItem
+                {
+                    Description = FormatProviderMenuLabel(
+                        providerLabel,
+                        string.Equals(preferredProviderOverride, capturedProviderKey, StringComparison.OrdinalIgnoreCase)),
+                    MenuSection = providerMenuSection,
+                    Action = (a) =>
+                    {
+                        ChangePreferredProvider(game, capturedProviderKey);
+                    }
+                };
+            }
+
             yield return new GameMenuItem
             {
                 Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearData"),
@@ -890,6 +921,93 @@ namespace PlayniteAchievements
                     SingleGameId = game.Id
                 },
                 RefreshExecutionPolicy.ProgressWindow(game.Id));
+        }
+
+        private void ChangePreferredProvider(Game game, string providerKey)
+        {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return;
+            }
+
+            CacheWriteResult result;
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                result = _achievementOverridesService?.ClearPreferredProviderOverride(game.Id);
+                if (result?.Success != true)
+                {
+                    PlayniteApi?.Dialogs?.ShowMessage(
+                        ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_ClearFailed"),
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                _ = _refreshCoordinator.ExecuteAsync(
+                    new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = game.Id
+                    },
+                    RefreshExecutionPolicy.ProgressWindow(game.Id));
+                return;
+            }
+
+            result = _achievementOverridesService?.SetPreferredProviderOverride(game.Id, providerKey);
+            if (result?.Success != true)
+            {
+                PlayniteApi?.Dialogs?.ShowMessage(
+                    ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_SetFailed"),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return;
+            }
+
+            _ = _refreshCoordinator.ExecuteAsync(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.Custom,
+                    CustomOptions = new CustomRefreshOptions
+                    {
+                        ProviderKeys = new[] { providerKey },
+                        Scope = CustomGameScope.Explicit,
+                        IncludeGameIds = new[] { game.Id },
+                        RespectUserExclusions = false,
+                        ForceBypassExclusionsForExplicitIncludes = true
+                    }
+                },
+                new RefreshExecutionPolicy
+                {
+                    UseProgressWindow = true,
+                    SwallowExceptions = true,
+                    ProgressSingleGameId = game.Id
+                });
+        }
+
+        private List<string> GetSelectableProviderKeys()
+        {
+            return Providers?
+                .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.ProviderKey))
+                .Select(provider => provider.ProviderKey.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(
+                    providerKey => PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(providerKey),
+                    StringComparer.CurrentCultureIgnoreCase)
+                .ToList() ?? new List<string>();
+        }
+
+        private static string FormatProviderMenuLabel(string label, bool isCurrent)
+        {
+            if (!isCurrent)
+            {
+                return label;
+            }
+
+            return string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Menu_LocalProvider_Current"),
+                label);
         }
 
         public bool IsGameExcluded(Guid gameId)

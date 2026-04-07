@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Models.Achievements
         /// Computed completion status based on all achievements unlocked or capstone.
         /// </summary>
         public bool IsCompleted =>
-            (Achievements?.Count > 0 && Achievements.All(a => a?.Unlocked == true)) ||
+            (AchievementCount > 0 && UnlockedCount >= AchievementCount) ||
             IsCapstoneUnlocked();
 
         private bool IsCapstoneUnlocked()
@@ -104,15 +104,50 @@ namespace PlayniteAchievements.Models.Achievements
         public List<AchievementDetail> Achievements { get; set; } = new List<AchievementDetail>();
 
         /// <summary>
+        /// Aggregate achievement total when the provider only knows summary counts.
+        /// Falls back to the detailed list count when present.
+        /// </summary>
+        public int? AggregateAchievementCount { get; set; }
+
+        /// <summary>
+        /// Aggregate unlocked count when the provider only knows summary counts.
+        /// Falls back to the detailed list count when present.
+        /// </summary>
+        public int? AggregateUnlockedCount { get; set; }
+
+        /// <summary>
         /// Total count of achievements. Computed property for performance.
         /// </summary>
         [IgnoreDataMember]
-        public int AchievementCount => Achievements?.Count ?? 0;
+        public int AchievementCount
+        {
+            get
+            {
+                if (Achievements?.Count > 0)
+                {
+                    return Achievements.Count;
+                }
+
+                return Math.Max(0, AggregateAchievementCount ?? 0);
+            }
+        }
 
         /// <summary>
         /// Count of unlocked achievements. Computed property for performance.
         /// </summary>
         [IgnoreDataMember]
-        public int UnlockedCount => Achievements?.Count(a => a.Unlocked) ?? 0;
+        public int UnlockedCount
+        {
+            get
+            {
+                if (Achievements?.Count > 0)
+                {
+                    return Achievements.Count(a => a.Unlocked);
+                }
+
+                var aggregateUnlocked = Math.Max(0, AggregateUnlockedCount ?? 0);
+                return Math.Min(aggregateUnlocked, AchievementCount);
+            }
+        }
     }
 }

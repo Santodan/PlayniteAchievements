@@ -387,15 +387,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         {
             var gameData = Plugin?.AchievementDataService?.GetGameAchievementData(gameId);
 
-            if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
+            if (gameData == null || !gameData.HasAchievements || gameData.AchievementCount <= 0)
             {
                 ClearData();
                 return;
             }
 
-            var achievements = gameData.Achievements;
-            UnlockedCount = achievements.Count(a => a.Unlocked);
-            AchievementCount = achievements.Count;
+            UnlockedCount = gameData.UnlockedCount;
+            AchievementCount = gameData.AchievementCount;
             Visibility = Visibility.Visible;
 
             // Force visual tree update so WPF re-evaluates bindings

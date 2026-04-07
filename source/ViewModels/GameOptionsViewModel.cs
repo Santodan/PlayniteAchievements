@@ -723,8 +723,8 @@ namespace PlayniteAchievements.ViewModels
 
                 var achievements = gameData?.Achievements ?? Enumerable.Empty<AchievementDetail>();
                 var list = achievements.Where(a => a != null).ToList();
-                TotalAchievements = list.Count;
-                UnlockedAchievements = list.Count(a => a.Unlocked);
+                TotalAchievements = gameData?.AchievementCount ?? 0;
+                UnlockedAchievements = gameData?.UnlockedCount ?? 0;
                 IsCompleted = gameData?.IsCompleted ?? false;
 
                 var capstone = list.FirstOrDefault(a => a.IsCapstone);

@@ -185,7 +185,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 return null;
             }
 
-            if (gameData?.Achievements == null || !gameData.HasAchievements || gameData.Achievements.Count == 0)
+            if (gameData == null || !gameData.HasAchievements || gameData.AchievementCount <= 0)
             {
                 return null;
             }
@@ -227,9 +227,10 @@ namespace PlayniteAchievements.Services.Sidebar
 
             var projectionOptions = AchievementProjectionService.CreateOptions(settings, gameData, revealedKeys);
 
-            var achievements = gameData.Achievements;
-            int gameTotal = achievements.Count;
-            int gameUnlocked = 0;
+            var achievements = gameData.Achievements ?? new List<AchievementDetail>();
+            var hasDetailedAchievements = achievements.Count > 0;
+            int gameTotal = gameData.AchievementCount;
+            int gameUnlocked = hasDetailedAchievements ? 0 : gameData.UnlockedCount;
             int gameCommon = 0;
             int gameUncommon = 0;
             int gameRare = 0;

@@ -447,14 +447,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             var gameData = Plugin?.AchievementDataService?.GetGameAchievementData(gameId);
 
-            if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
+            if (gameData == null || !gameData.HasAchievements || gameData.AchievementCount <= 0)
             {
                 ClearData();
                 return;
             }
 
-            var achievements = gameData.Achievements;
-            // Use pre-computed counts from GameAchievementData instead of counting with LINQ
             UnlockedCount = gameData.UnlockedCount;
             AchievementCount = gameData.AchievementCount;
             Visibility = Visibility.Visible;

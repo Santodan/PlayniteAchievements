@@ -69,6 +69,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
         private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
+        private Dictionary<Guid, string> _preferredProviderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
         private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
         private Dictionary<Guid, Dictionary<string, string>> _achievementCategoryOverrides =
@@ -724,6 +725,17 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Preferred provider override per game.
+        /// Key = Playnite Game ID, Value = ProviderKey.
+        /// These overrides persist across cache clears.
+        /// </summary>
+        public Dictionary<Guid, string> PreferredProviderOverrides
+        {
+            get => _preferredProviderOverrides;
+            set => SetValue(ref _preferredProviderOverrides, NormalizePreferredProviderOverrides(value));
+        }
+
+        /// <summary>
         /// Manual capstone selections. Key = Playnite Game ID, Value = Achievement ApiName.
         /// These selections persist across cache clears.
         /// </summary>
@@ -898,6 +910,9 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
                     ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
                     : new HashSet<Guid>(),
+                PreferredProviderOverrides = this.PreferredProviderOverrides != null
+                    ? new Dictionary<Guid, string>(this.PreferredProviderOverrides)
+                    : new Dictionary<Guid, string>(),
                 ManualCapstones = this.ManualCapstones != null
                     ? new Dictionary<Guid, string>(this.ManualCapstones)
                     : new Dictionary<Guid, string>(),
@@ -948,6 +963,27 @@ namespace PlayniteAchievements.Models.Settings
                 if (order.Count > 0)
                 {
                     normalized[pair.Key] = order;
+                }
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<Guid, string> NormalizePreferredProviderOverrides(
+            Dictionary<Guid, string> value)
+        {
+            var normalized = new Dictionary<Guid, string>();
+            if (value == null)
+            {
+                return normalized;
+            }
+
+            foreach (var pair in value)
+            {
+                var providerKey = (pair.Value ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(providerKey))
+                {
+                    normalized[pair.Key] = providerKey;
                 }
             }
 

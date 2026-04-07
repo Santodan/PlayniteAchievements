@@ -180,6 +180,11 @@
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_SetFailed">The local save folder override could not be saved.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearConfirm">Clear the local save folder override for "{0}"?</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearFailed">No local save folder override was set for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Change">Change Provider</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Automatic">Automatic</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Current">{0} (current)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_SetFailed">The preferred provider override could not be saved.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_ClearFailed">The preferred provider override could not be cleared.</sys:String>
     <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Open Game Options to choose a different folder if needed. Candidates found: {3}.</sys:String>
 
     <!-- ================================================================= -->

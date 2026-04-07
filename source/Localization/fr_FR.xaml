@@ -219,6 +219,11 @@
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_SetFailed">Le remplacement du dossier de sauvegarde local n'a pas pu être enregistré.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearConfirm">Effacer le remplacement du dossier de sauvegarde local pour "{0}" ?</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalFolder_ClearFailed">Aucun remplacement du dossier de sauvegarde local n'était défini pour ce jeu.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Change">Changer le fournisseur</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Automatic">Automatique</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_Current">{0} (actuel)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_SetFailed">Le remplacement du fournisseur préféré n'a pas pu être enregistré.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalProvider_ClearFailed">Le remplacement du fournisseur préféré n'a pas pu être effacé.</sys:String>
     <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Plusieurs dossiers locaux ont été trouvés pour "{0}" (App ID Steam {1}). Le fournisseur Local utilise actuellement : {2}. Ouvrez les options du jeu pour choisir un autre dossier si nécessaire. Nombre de dossiers trouvés : {3}.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Utiliser Exophase pour ce jeu</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Cochez pour forcer Exophase pour ce jeu. Les jeux décochés utilisent Exophase si leur plateforme est dans les Plateformes gérées.</sys:String>
