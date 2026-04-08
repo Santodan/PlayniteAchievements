@@ -18,12 +18,16 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers.Local
 {
     public class LocalSavesProvider : IDataProvider
     {
         private static readonly HashSet<Guid> ReportedAmbiguousFolderGames = new HashSet<Guid>();
+        private static readonly Regex GenericAchievementNamePattern = new Regex(
+            @"^(ach(ieve(ment)?)?|stat|unlock|trophy|badge)[_\-\s]?\d+$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public sealed class ExpectedAchievementsDownloadResult
         {
@@ -176,6 +180,7 @@ namespace PlayniteAchievements.Providers.Local
                             data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema));
                         }
 
+                        PreserveCachedLocalMetadata(data);
                         Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from local save data.");
                         return data;
                     }
@@ -192,6 +197,7 @@ namespace PlayniteAchievements.Providers.Local
                         added.Add(kv.Key);
                     }
 
+                    PreserveCachedLocalMetadata(data);
                     Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam appcache stats.");
                     return data;
                 }
@@ -207,6 +213,7 @@ namespace PlayniteAchievements.Providers.Local
                         added.Add(kv.Key);
                     }
 
+                    PreserveCachedLocalMetadata(data);
                     Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from Steam local library cache.");
                     return data;
                 }
@@ -253,6 +260,7 @@ namespace PlayniteAchievements.Providers.Local
                         data.Achievements.Add(detail);
                     }
 
+                    PreserveCachedLocalMetadata(data);
                     Log($"INFO: {game.Name} - Local folder found, loaded {data.Achievements.Count} achievement definitions from Steam schema.");
                     return data;
                 }
@@ -1151,6 +1159,132 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return detail;
+        }
+
+        private void PreserveCachedLocalMetadata(GameAchievementData data)
+        {
+            if (data?.PlayniteGameId == null || data.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            var previousLocalData = TryLoadCachedLocalGameData(data.PlayniteGameId.Value);
+            var previousAchievements = previousLocalData?.Achievements;
+            if (previousAchievements == null || previousAchievements.Count == 0)
+            {
+                return;
+            }
+
+            var previousByApiName = previousAchievements
+                .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.ApiName))
+                .ToDictionary(achievement => achievement.ApiName, achievement => achievement, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var achievement in data.Achievements)
+            {
+                if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName))
+                {
+                    continue;
+                }
+
+                if (!previousByApiName.TryGetValue(achievement.ApiName, out var previousAchievement) || previousAchievement == null)
+                {
+                    continue;
+                }
+
+                if (ShouldPreserveDisplayName(achievement, previousAchievement))
+                {
+                    achievement.DisplayName = previousAchievement.DisplayName;
+                }
+
+                if (ShouldPreserveDescription(achievement, previousAchievement))
+                {
+                    achievement.Description = previousAchievement.Description;
+                }
+
+                if (ShouldPreserveUnlockedIcon(achievement, previousAchievement))
+                {
+                    achievement.UnlockedIconPath = previousAchievement.UnlockedIconPath;
+                }
+
+                if (ShouldPreserveLockedIcon(achievement, previousAchievement))
+                {
+                    achievement.LockedIconPath = previousAchievement.LockedIconPath;
+                }
+            }
+        }
+
+        private GameAchievementData TryLoadCachedLocalGameData(Guid playniteGameId)
+        {
+            try
+            {
+                var cacheManager = PlayniteAchievementsPlugin.Instance?.RefreshRuntime?.Cache as CacheManager;
+                return cacheManager?.LoadGameData(playniteGameId.ToString(), ProviderKey);
+            }
+            catch (Exception ex)
+            {
+                Log($"LOCAL CACHE MERGE ERROR: gameId={playniteGameId} msg={ex.Message}");
+                return null;
+            }
+        }
+
+        private static bool ShouldPreserveDisplayName(AchievementDetail incoming, AchievementDetail existing)
+        {
+            return IsLowQualityDisplayName(incoming) && !IsLowQualityDisplayName(existing);
+        }
+
+        private static bool ShouldPreserveDescription(AchievementDetail incoming, AchievementDetail existing)
+        {
+            return IsLowQualityDescription(incoming?.Description) && !IsLowQualityDescription(existing?.Description);
+        }
+
+        private static bool ShouldPreserveUnlockedIcon(AchievementDetail incoming, AchievementDetail existing)
+        {
+            return IsLowQualityIconPath(incoming?.UnlockedIconPath, isLockedIcon: false) &&
+                   !IsLowQualityIconPath(existing?.UnlockedIconPath, isLockedIcon: false);
+        }
+
+        private static bool ShouldPreserveLockedIcon(AchievementDetail incoming, AchievementDetail existing)
+        {
+            return IsLowQualityIconPath(incoming?.LockedIconPath, isLockedIcon: true) &&
+                   !IsLowQualityIconPath(existing?.LockedIconPath, isLockedIcon: true);
+        }
+
+        private static bool IsLowQualityDisplayName(AchievementDetail achievement)
+        {
+            var displayName = achievement?.DisplayName?.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return true;
+            }
+
+            var apiName = achievement?.ApiName?.Trim();
+            if (!string.IsNullOrWhiteSpace(apiName) && string.Equals(displayName, apiName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return GenericAchievementNamePattern.IsMatch(displayName);
+        }
+
+        private static bool IsLowQualityDescription(string description)
+        {
+            description = description?.Trim();
+            return string.IsNullOrWhiteSpace(description) ||
+                   string.Equals(description, "Local achievement from Local", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLowQualityIconPath(string iconPath, bool isLockedIcon)
+        {
+            iconPath = iconPath?.Trim();
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return true;
+            }
+
+            var defaultIcon = isLockedIcon
+                ? "Resources/HiddenAchIcon.png"
+                : "Resources/UnlockedAchIcon.png";
+            return string.Equals(iconPath, defaultIcon, StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, string iniPath)
