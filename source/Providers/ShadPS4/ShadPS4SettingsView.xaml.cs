@@ -84,19 +84,56 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         private void CheckShadPS4Auth()
         {
+            // Check old-format path
             var gameDataPath = _shadps4Settings?.GameDataPath;
+            if (!string.IsNullOrWhiteSpace(gameDataPath) && System.IO.Directory.Exists(gameDataPath))
+            {
+                SetAuthenticated(true);
+                SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
+                return;
+            }
+
+            // Check new-format AppData path
+            try
+            {
+                var appData = System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData);
+                var shadps4Path = System.IO.Path.Combine(appData, "shadPS4");
+                if (System.IO.Directory.Exists(shadps4Path))
+                {
+                    // Look for any user trophy directory
+                    var homePath = System.IO.Path.Combine(shadps4Path, "home");
+                    if (System.IO.Directory.Exists(homePath))
+                    {
+                        foreach (var userDir in System.IO.Directory.GetDirectories(homePath))
+                        {
+                            var trophyPath = System.IO.Path.Combine(userDir, "trophy");
+                            if (System.IO.Directory.Exists(trophyPath) &&
+                                System.IO.Directory.GetFiles(trophyPath, "*.xml").Length > 0)
+                            {
+                                SetAuthenticated(true);
+                                SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
+                                return;
+                            }
+                        }
+                    }
+
+                    // Also check if trophy base directory exists
+                    var trophyBasePath = System.IO.Path.Combine(shadps4Path, "trophy");
+                    if (System.IO.Directory.Exists(trophyBasePath) &&
+                        System.IO.Directory.GetDirectories(trophyBasePath).Length > 0)
+                    {
+                        SetAuthenticated(true);
+                        SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
+                        return;
+                    }
+                }
+            }
+            catch { }
 
             if (string.IsNullOrWhiteSpace(gameDataPath))
             {
                 SetAuthenticated(false);
                 SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_ShadPS4")));
-                return;
-            }
-
-            if (System.IO.Directory.Exists(gameDataPath))
-            {
-                SetAuthenticated(true);
-                SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
             }
             else
             {
