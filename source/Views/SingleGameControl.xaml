@@ -29,6 +29,14 @@
                 <Setter Property="Padding" Value="12" />
             </Style>
 
+            <Style x:Key="SecondaryMetadataTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Opacity" Value="0.6" />
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
+                <Setter Property="Margin" Value="0,4,0,0" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
             <!-- Style for Expander Header ToggleButton -->
             <Style x:Key="ExpanderHeaderStyle" TargetType="ToggleButton">
                 <Setter Property="Background" Value="Transparent"/>
@@ -115,28 +123,34 @@
                 </Border>
                 
                 <!-- Game Info -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding GameName}"
-                               FontSize="{DynamicResource FontSize}"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource TextBrush}"
-                               VerticalAlignment="Center"/>
-                    <TextBlock Margin="8,0,0,0"
-                               VerticalAlignment="Center"
-                               Opacity="0.7"
-                               Foreground="{DynamicResource TextBrush}"
-                               FontSize="{DynamicResource FontSizeSmall}">
-                        <Run Text="("/>
-                        <Run Text="{Binding UnlockedAchievements, Mode=OneWay}"/>
-                        <Run Text="/"/>
-                        <Run Text="{Binding TotalAchievements, Mode=OneWay}"/>
-                        <Run Text=" "/>
-                        <Run Text="{DynamicResource LOCPlayAch_Achievements}"/>
-                        <Run Text=")"/>
-                    </TextBlock>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding GameName}"
+                                   FontSize="{DynamicResource FontSize}"
+                                   FontWeight="Bold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Opacity="0.7"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontSize="{DynamicResource FontSizeSmall}">
+                            <Run Text="("/>
+                            <Run Text="{Binding UnlockedAchievements, Mode=OneWay}"/>
+                            <Run Text="/"/>
+                            <Run Text="{Binding TotalAchievements, Mode=OneWay}"/>
+                            <Run Text=" "/>
+                            <Run Text="{DynamicResource LOCPlayAch_Achievements}"/>
+                            <Run Text=")"/>
+                        </TextBlock>
 
-                    <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}" Command="{Binding RefreshGameCommand}" Margin="12,0,0,0" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding RefreshStatusMessage}" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="{Binding IsStatusMessageVisible, Converter={StaticResource BoolToVis}}" Foreground="{DynamicResource TextBrush}"/>
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}" Command="{Binding RefreshGameCommand}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding RefreshStatusMessage}" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="{Binding IsStatusMessageVisible, Converter={StaticResource BoolToVis}}" Foreground="{DynamicResource TextBrush}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding SecondaryMetadataText}"
+                               Style="{StaticResource SecondaryMetadataTextStyle}"
+                               Visibility="{Binding HasSecondaryMetadataText, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
 
                 <!-- Complete Badge -->

@@ -576,6 +576,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool ShowSidebarBarCharts => _settings?.Persisted?.ShowSidebarBarCharts ?? true;
 
+        public bool ShowSidebarGameMetadata => _settings?.Persisted?.ShowSidebarGameMetadata ?? true;
+
         public bool ShowCompletionBorder => _settings?.Persisted?.ShowCompletionBorder ?? true;
 
         private int _totalGamesOverview;
@@ -1658,6 +1660,7 @@ namespace PlayniteAchievements.ViewModels
                 RaiseSidebarPieChartVisibilityChanged();
                 OnPropertyChanged(nameof(ShowSidebarPiePercentages));
                 OnPropertyChanged(nameof(ShowSidebarBarCharts));
+                OnPropertyChanged(nameof(ShowSidebarGameMetadata));
                 OnPropertyChanged(nameof(ShowCompletionBorder));
                 _ = RefreshViewAsync();
                 ApplyLeftFilters();
@@ -1692,6 +1695,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.ShowSidebarBarCharts))
             {
                 OnPropertyChanged(nameof(ShowSidebarBarCharts));
+            }
+            else if (propertyName == nameof(PersistedSettings.ShowSidebarGameMetadata))
+            {
+                OnPropertyChanged(nameof(ShowSidebarGameMetadata));
             }
             else if (propertyName == nameof(PersistedSettings.ShowCompletionBorder))
             {
@@ -3024,6 +3031,7 @@ namespace PlayniteAchievements.ViewModels
                 "SortingName" => (a, b) => string.Compare(a.SortingName, b.SortingName, StringComparison.OrdinalIgnoreCase),
                 nameof(GameOverviewItem.GameName) => (a, b) => string.Compare(a.GameName, b.GameName, StringComparison.OrdinalIgnoreCase),
                 nameof(GameOverviewItem.LastPlayed) => (a, b) => (a.LastPlayed ?? DateTime.MinValue).CompareTo(b.LastPlayed ?? DateTime.MinValue),
+                nameof(GameOverviewItem.PlaytimeSeconds) => (a, b) => a.PlaytimeSeconds.CompareTo(b.PlaytimeSeconds),
                 nameof(GameOverviewItem.Progression) => (a, b) => a.Progression.CompareTo(b.Progression),
                 nameof(GameOverviewItem.TotalAchievements) => (a, b) => a.TotalAchievements.CompareTo(b.TotalAchievements),
                 nameof(GameOverviewItem.UnlockedAchievements) => (a, b) => a.UnlockedAchievements.CompareTo(b.UnlockedAchievements),

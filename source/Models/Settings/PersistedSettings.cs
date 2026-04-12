@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Models.Settings
         private SidebarPieSmallSliceMode _sidebarPieSmallSliceMode = SidebarPieSmallSliceMode.Round;
         private bool _sidebarPieChartVisibilityInitializedFromIndividualSettings;
         private bool _showSidebarBarCharts = true;
+        private bool _showSidebarGameMetadata = true;
         private bool _showTopMenuBarButton = true;
         private bool _showCompactListRarityBar = true;
         private bool _showCompletionBorder = true;
@@ -441,6 +442,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showSidebarBarCharts;
             set => SetValue(ref _showSidebarBarCharts, value);
+        }
+
+        /// <summary>
+        /// When true, shows platform/playtime/region metadata under game names in the sidebar games overview.
+        /// </summary>
+        public bool ShowSidebarGameMetadata
+        {
+            get => _showSidebarGameMetadata;
+            set => SetValue(ref _showSidebarGameMetadata, value);
         }
 
         /// <summary>
@@ -1068,6 +1078,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShowSidebarPiePercentages = this.ShowSidebarPiePercentages,
                 SidebarPieSmallSliceMode = this.SidebarPieSmallSliceMode,
                 ShowSidebarBarCharts = this.ShowSidebarBarCharts,
+                ShowSidebarGameMetadata = this.ShowSidebarGameMetadata,
                 ShowTopMenuBarButton = this.ShowTopMenuBarButton,
                 ShowCompactListRarityBar = this.ShowCompactListRarityBar,
                 ShowCompletionBorder = this.ShowCompletionBorder,

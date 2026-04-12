@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Views
             {
                 ["OverviewGameName"] = 500,
                 ["OverviewLastPlayed"] = 240,
+                ["OverviewPlaytime"] = 170,
                 ["OverviewProgression"] = 360,
                 ["TotalAchievements"] = 180
             };
@@ -1440,6 +1441,5 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
 
 

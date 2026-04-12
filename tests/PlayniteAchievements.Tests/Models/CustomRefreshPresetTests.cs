@@ -145,6 +145,26 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void SettingsExtensions_CopyFromAndClone_PreserveShowSidebarGameMetadata()
+        {
+            var source = new PersistedSettings
+            {
+                ShowSidebarGameMetadata = false
+            };
+
+            var target = new PersistedSettings
+            {
+                ShowSidebarGameMetadata = true
+            };
+
+            target.CopyFrom(source);
+            Assert.IsFalse(target.ShowSidebarGameMetadata);
+
+            var clone = SettingsExtensions.Clone(source);
+            Assert.IsFalse(clone.ShowSidebarGameMetadata);
+        }
+
+        [TestMethod]
         public void PruneUnavailableSelections_RemovesUnavailableProvidersAndMissingGames()
         {
             var validGame = Guid.NewGuid();

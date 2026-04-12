@@ -26,6 +26,12 @@ namespace PlayniteAchievements.Services.Sidebar
 
             public DateTime? LastPlayed { get; set; }
 
+            public string PlatformText { get; set; }
+
+            public string RegionText { get; set; }
+
+            public ulong PlaytimeSeconds { get; set; }
+
             public Playnite.SDK.Models.Game Game { get; set; }
         }
 
@@ -259,6 +265,9 @@ namespace PlayniteAchievements.Services.Sidebar
                     SortingName = presentation.SortingName ?? game.GameName ?? "Unknown",
                     GameLogo = presentation.IconPath,
                     GameCoverPath = presentation.CoverPath,
+                    PlatformText = presentation.PlatformText,
+                    RegionText = presentation.RegionText,
+                    PlaytimeSeconds = presentation.PlaytimeSeconds,
                     AppId = game.AppId,
                     PlayniteGameId = game.PlayniteGameId,
                     TotalAchievements = game.TotalAchievements,
@@ -395,12 +404,9 @@ namespace PlayniteAchievements.Services.Sidebar
                 providerMetadata = ("ProviderIcon" + providerKey, "#888888");
             }
 
-            var gameIconPath = !string.IsNullOrEmpty(playniteGame?.Icon)
-                ? ResolveGameAssetPath(playniteGame.Icon)
-                : null;
-            var gameCoverPath = !string.IsNullOrEmpty(playniteGame?.CoverImage)
-                ? ResolveGameAssetPath(playniteGame.CoverImage)
-                : null;
+            var presentation = CreateGamePresentation(playniteGame);
+            var gameIconPath = presentation.IconPath;
+            var gameCoverPath = presentation.CoverPath;
 
             var fragment = new SidebarGameFragment
             {
@@ -530,9 +536,12 @@ namespace PlayniteAchievements.Services.Sidebar
             fragment.GameOverview = new GameOverviewItem
             {
                 GameName = gameData.GameName ?? "Unknown",
-                SortingName = playniteGame?.SortingName ?? gameData.GameName ?? "Unknown",
+                SortingName = presentation.SortingName ?? gameData.GameName ?? "Unknown",
                 GameLogo = gameIconPath,
                 GameCoverPath = gameCoverPath,
+                PlatformText = presentation.PlatformText,
+                RegionText = presentation.RegionText,
+                PlaytimeSeconds = presentation.PlaytimeSeconds,
                 AppId = gameData.AppId,
                 PlayniteGameId = gameData.PlayniteGameId,
                 TotalAchievements = gameTotal,
@@ -553,7 +562,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 TrophyGoldTotal = gameTrophyGoldTotal,
                 TrophySilverTotal = gameTrophySilverTotal,
                 TrophyBronzeTotal = gameTrophyBronzeTotal,
-                LastPlayed = playniteGame?.LastActivity,
+                LastPlayed = presentation.LastPlayed,
                 IsCompleted = gameData.IsCompleted,
                 Provider = providerName,
                 ProviderKey = providerKey,
@@ -677,18 +686,7 @@ namespace PlayniteAchievements.Services.Sidebar
                     continue;
                 }
 
-                cache[playniteGame.Id] = new GamePresentation
-                {
-                    Game = playniteGame,
-                    SortingName = playniteGame.SortingName,
-                    IconPath = !string.IsNullOrEmpty(playniteGame.Icon)
-                        ? ResolveGameAssetPath(playniteGame.Icon)
-                        : null,
-                    CoverPath = !string.IsNullOrEmpty(playniteGame.CoverImage)
-                        ? ResolveGameAssetPath(playniteGame.CoverImage)
-                        : null,
-                    LastPlayed = playniteGame.LastActivity
-                };
+                cache[playniteGame.Id] = CreateGamePresentation(playniteGame);
 
                 if (cache.Count >= ids.Count)
                 {
@@ -733,7 +731,14 @@ namespace PlayniteAchievements.Services.Sidebar
             }
 
             var playniteGame = _playniteApi?.Database?.Games?.Get(playniteGameId.Value);
-            var presentation = new GamePresentation
+            var presentation = CreateGamePresentation(playniteGame);
+            cache[playniteGameId.Value] = presentation;
+            return presentation;
+        }
+
+        private GamePresentation CreateGamePresentation(Playnite.SDK.Models.Game playniteGame)
+        {
+            return new GamePresentation
             {
                 Game = playniteGame,
                 SortingName = playniteGame?.SortingName,
@@ -743,10 +748,11 @@ namespace PlayniteAchievements.Services.Sidebar
                 CoverPath = !string.IsNullOrEmpty(playniteGame?.CoverImage)
                     ? ResolveGameAssetPath(playniteGame.CoverImage)
                     : null,
-                LastPlayed = playniteGame?.LastActivity
+                LastPlayed = playniteGame?.LastActivity,
+                PlatformText = PlayniteGameMetadataFormatter.GetPlatformText(playniteGame),
+                RegionText = PlayniteGameMetadataFormatter.GetRegionText(playniteGame),
+                PlaytimeSeconds = playniteGame?.Playtime ?? 0
             };
-            cache[playniteGameId.Value] = presentation;
-            return presentation;
         }
 
         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)

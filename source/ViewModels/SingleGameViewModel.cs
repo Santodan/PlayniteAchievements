@@ -158,6 +158,48 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _gameIconPath, value);
         }
 
+        private string _platformText;
+        public string PlatformText
+        {
+            get => _platformText;
+            private set
+            {
+                if (SetValueAndReturn(ref _platformText, value))
+                {
+                    OnPropertyChanged(nameof(SecondaryMetadataText));
+                    OnPropertyChanged(nameof(HasSecondaryMetadataText));
+                }
+            }
+        }
+
+        private string _regionText;
+        public string RegionText
+        {
+            get => _regionText;
+            private set
+            {
+                if (SetValueAndReturn(ref _regionText, value))
+                {
+                    OnPropertyChanged(nameof(SecondaryMetadataText));
+                    OnPropertyChanged(nameof(HasSecondaryMetadataText));
+                }
+            }
+        }
+
+        private string _playtimeText;
+        public string PlaytimeText
+        {
+            get => _playtimeText;
+            private set
+            {
+                if (SetValueAndReturn(ref _playtimeText, value))
+                {
+                    OnPropertyChanged(nameof(SecondaryMetadataText));
+                    OnPropertyChanged(nameof(HasSecondaryMetadataText));
+                }
+            }
+        }
+
         private int _totalAchievements;
         public int TotalAchievements
         {
@@ -301,6 +343,13 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool HasAchievements => TotalAchievements > 0;
+
+        public string SecondaryMetadataText => PlayniteGameMetadataFormatter.BuildSidebarMetadataText(
+            PlatformText,
+            PlaytimeText,
+            RegionText);
+
+        public bool HasSecondaryMetadataText => !string.IsNullOrWhiteSpace(SecondaryMetadataText);
 
         public bool HasCustomAchievementOrder
         {
@@ -545,11 +594,13 @@ namespace PlayniteAchievements.ViewModels
                 if (game == null)
                 {
                     _logger?.Warn($"Game not found: {_gameId}");
+                    ApplyGameMetadata(null);
                     return;
                 }
 
                 GameName = game.Name;
                 GameIconPath = (!string.IsNullOrEmpty(game.Icon)) ? _playniteApi.Database.GetFullFilePath(game.Icon) : null;
+                ApplyGameMetadata(game);
 
                 var gameData = _achievementDataService.GetGameAchievementData(_gameId);
                 if (gameData == null || !gameData.HasAchievements || gameData.Achievements == null)
@@ -674,6 +725,21 @@ namespace PlayniteAchievements.ViewModels
         private void RevealAchievement(AchievementDisplayItem item)
         {
             item?.ToggleReveal();
+        }
+
+        private void ApplyGameMetadata(Playnite.SDK.Models.Game game)
+        {
+            if (game == null)
+            {
+                PlatformText = string.Empty;
+                RegionText = string.Empty;
+                PlaytimeText = string.Empty;
+                return;
+            }
+
+            PlatformText = PlayniteGameMetadataFormatter.GetPlatformText(game);
+            RegionText = PlayniteGameMetadataFormatter.GetRegionText(game);
+            PlaytimeText = PlayniteGameMetadataFormatter.FormatPlaytime(game.Playtime);
         }
 
         private void DismissStatus()
