@@ -25,7 +25,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        public static Window CreateExtensionWindow(string Title, UserControl ViewExtension, WindowOptions windowOptions = null)
+        public static Window CreateExtensionWindow(string Title, UserControl ViewExtension, WindowOptions windowOptions = null, bool isFullscreen = false)
         {
             if (windowOptions == null)
             {
@@ -35,6 +35,11 @@ namespace PlayniteAchievements.Views.Helpers
                     ShowMaximizeButton = false,
                     ShowCloseButton = true
                 };
+            }
+
+            if (isFullscreen)
+            {
+                return CreateFullscreenWindow(Title, ViewExtension, windowOptions);
             }
 
             Window windowExtension = API.Instance.Dialogs.CreateWindow(windowOptions);
@@ -69,6 +74,52 @@ namespace PlayniteAchievements.Views.Helpers
             windowExtension.PreviewKeyDown += new KeyEventHandler(HandleEsc);
 
             return windowExtension;
+        }
+
+        private static Window CreateFullscreenWindow(string title, UserControl content, WindowOptions windowOptions)
+        {
+            var fsOptions = new WindowCreationOptions
+            {
+                ShowMinimizeButton = false,
+                ShowMaximizeButton = false,
+                ShowCloseButton = false
+            };
+
+            Window window = API.Instance.Dialogs.CreateWindow(fsOptions);
+
+            window.Title = title;
+            window.ShowInTaskbar = false;
+            window.WindowStyle = WindowStyle.None;
+            window.ResizeMode = ResizeMode.NoResize;
+
+            var parent = API.Instance.Dialogs.GetCurrentAppWindow();
+            if (parent != null)
+            {
+                window.Owner = parent;
+            }
+            window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            window.Height = parent != null && parent.Height > 0 ? parent.Height : SystemParameters.PrimaryScreenHeight;
+            window.Width = parent != null && parent.Width > 0 ? parent.Width : SystemParameters.PrimaryScreenWidth;
+
+            // Merge fullscreen resource fallbacks so desktop-only DynamicResource keys resolve.
+            window.Resources.MergedDictionaries.Add(
+                new ResourceDictionary
+                {
+                    Source = new Uri("/PlayniteAchievements;component/Resources/FullscreenResources.xaml", UriKind.Relative)
+                });
+
+            // Determine sizing mode based on the content type.
+            var sizeMode = content is RefreshProgressControl
+                ? FullscreenSizeMode.Dialog
+                : FullscreenSizeMode.Fullscreen;
+
+            var overlay = new FullscreenOverlayContainer(title, content, sizeMode);
+            window.Content = overlay;
+
+            window.PreviewKeyDown += new KeyEventHandler(HandleEsc);
+
+            return window;
         }
     }
 

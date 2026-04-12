@@ -172,7 +172,36 @@ namespace PlayniteAchievements.ViewModels
             OpenGameInLibraryCommand = new RelayCommand(OpenGameInLibrary);
             OpenGameInSidebarCommand = new RelayCommand(OpenGameInSidebar);
             RefreshSingleGameCommand = new AsyncCommand(ExecuteSingleGameRefreshAsync);
-            CloseViewCommand = new RelayCommand(_ => PlayniteUiProvider.RestoreMainView());
+            CloseViewCommand = new RelayCommand(_ =>
+            {
+                try
+                {
+                    if (_playniteApi?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen)
+                    {
+                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                        {
+                            var window = System.Windows.Window.GetWindow(
+                                System.Windows.Application.Current?.MainWindow);
+                            // Walk up from any focused element to find our popup window
+                            var focused = System.Windows.Input.Keyboard.FocusedElement as System.Windows.DependencyObject;
+                            while (focused != null)
+                            {
+                                if (focused is System.Windows.Window w)
+                                {
+                                    window = w;
+                                    break;
+                                }
+                                focused = System.Windows.Media.VisualTreeHelper.GetParent(focused);
+                            }
+                            window?.Close();
+                        }));
+                        return;
+                    }
+                }
+                catch { }
+
+                PlayniteUiProvider.RestoreMainView();
+            });
             ClearGameSelectionCommand = new RelayCommand(_ => ClearGameSelection());
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameOverviewItem));
 

@@ -618,6 +618,33 @@ namespace PlayniteAchievements
 
             if (!refreshInProgress)
             {
+                // Fullscreen-only: overview window (desktop uses the sidebar panel).
+                var isFullscreen = false;
+                try
+                {
+                    isFullscreen = PlayniteApi?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen;
+                }
+                catch { }
+
+                if (isFullscreen)
+                {
+                    yield return new MainMenuItem
+                    {
+                        Description = ResourceProvider.GetString("LOCPlayAch_Menu_OpenOverview"),
+                        MenuSection = PluginMainMenuSection,
+                        Action = (a) =>
+                        {
+                            OpenOverviewWindow();
+                        }
+                    };
+
+                    yield return new MainMenuItem
+                    {
+                        Description = "-",
+                        MenuSection = PluginMainMenuSection
+                    };
+                }
+
                 yield return new MainMenuItem
                 {
                     Description = ResourceProvider.GetString("LOCPlayAch_RefreshMode_Recent"),
