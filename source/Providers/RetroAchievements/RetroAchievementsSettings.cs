@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableArchiveScanning = true;
         private bool _enableDiscHashing = true;
         private bool _enableRaNameFallback = true;
+        private bool _enableFuzzyNameMatching = true;
         private bool _enableRaSubsetScanning = true;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
 
@@ -113,6 +114,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get => _enableRaNameFallback;
             set => SetValue(ref _enableRaNameFallback, value);
+        }
+
+        /// <summary>
+        /// Enable fuzzy title matching for RetroAchievements name fallback.
+        /// When disabled, name fallback only uses exact normalized title matches.
+        /// </summary>
+        public bool EnableFuzzyNameMatching
+        {
+            get => _enableFuzzyNameMatching;
+            set => SetValue(ref _enableFuzzyNameMatching, value);
         }
 
         /// <summary>

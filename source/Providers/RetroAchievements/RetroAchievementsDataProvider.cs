@@ -68,21 +68,26 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (game == null) return false;
 
             var providerSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
-            if (string.IsNullOrWhiteSpace(providerSettings.RaUsername) || string.IsNullOrWhiteSpace(providerSettings.RaWebApiKey))
+            if (!RetroAchievementsCapabilityHelper.HasConfiguredCredentials(providerSettings))
             {
                 return false;
             }
 
-            // Must have a resolvable platform
-            if (!RaConsoleIdResolver.TryResolve(game, out var consoleId))
-            {
-                return false;
-            }
-
-            // If override exists, no ROM needed
+            // Manual overrides can bypass local platform and ROM detection.
             if (TryGetGameIdOverride(game.Id, out _))
             {
                 return true;
+            }
+
+            var hasResolvedConsole = RaConsoleIdResolver.TryResolve(game, out var consoleId);
+            if (RetroAchievementsCapabilityHelper.CanUseNameFallback(game, providerSettings, hasResolvedConsole))
+            {
+                return true;
+            }
+
+            if (!hasResolvedConsole)
+            {
+                return false;
             }
 
             // Standard path: require ROM file
@@ -158,8 +163,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         /// </summary>
         public static bool CanSetOverride(Game game)
         {
-            if (game == null) return false;
-            return RaConsoleIdResolver.TryResolve(game, out _);
+            return RetroAchievementsCapabilityHelper.CanSetOverride(game);
         }
 
         internal static bool TrySetGameIdOverride(Guid gameId, int newId, string gameName, Action persistSettingsForUi, ILogger logger)

@@ -226,6 +226,9 @@
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableDiscHashing}"
                                   IsChecked="{Binding Settings.EnableDiscHashing, Mode=TwoWay}"
                                   Margin="0,0,0,10"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RaEnableFuzzyNameMatching}"
+                                  IsChecked="{Binding Settings.EnableFuzzyNameMatching, Mode=TwoWay}"
+                                  Margin="0,0,0,10"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_RaEnableSubsetScanning}"
                                   IsChecked="{Binding Settings.EnableRaSubsetScanning, Mode=TwoWay}"
                                   Margin="0,0,0,10"/>
