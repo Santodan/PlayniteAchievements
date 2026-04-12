@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
         private static readonly string[] KnownExophasePlatformTokens =
         {
-            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro", "android", "ubisoft"
+            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro", "android", "ubisoft", "uplay"
         };
         private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
         private ExophaseSettings _providerSettings;
@@ -660,6 +660,23 @@ namespace PlayniteAchievements.Providers.Exophase
                 : MapSlugToProviderPlatformKey(platformToken) ?? "Unknown";
         }
 
+        private static string NormalizePlatformTokenForExophaseSlug(string platformToken)
+        {
+            if (string.IsNullOrWhiteSpace(platformToken))
+            {
+                return null;
+            }
+
+            switch (platformToken.Trim().ToLowerInvariant())
+            {
+                case "ubisoft":
+                case "uplay":
+                    return "uplay";
+                default:
+                    return platformToken.Trim().ToLowerInvariant();
+            }
+        }
+
         #endregion
 
         #region Slug Resolution
@@ -700,7 +717,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
             }
 
-            var platformSlug = GetExophasePlatformSlug(game);
+            var platformSlug = NormalizePlatformTokenForExophaseSlug(GetExophasePlatformSlug(game));
             var normalizedName = NormalizeGameName(game.Name);
             _logger?.Debug($"[Exophase] Resolving slug for '{game.Name}' (platform: {platformSlug ?? "unknown"})");
 
@@ -942,6 +959,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "retro": return "RetroAchievements";
                 case "android": return "GooglePlay";
                 case "ubisoft": return "Ubisoft";
+                case "uplay": return "Ubisoft";
                 default:
                     return char.ToUpper(slug[0]) + slug.Substring(1);
             }
@@ -1007,7 +1025,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
-            var platformSlug = GetExophasePlatformSlug(game);
+            var platformSlug = NormalizePlatformTokenForExophaseSlug(GetExophasePlatformSlug(game));
             if (string.IsNullOrWhiteSpace(platformSlug))
             {
                 return null;
