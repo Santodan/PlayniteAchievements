@@ -588,6 +588,7 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = selectedResult.SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
+                AllowUnauthenticatedSchemaFetch = ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = DateTime.UtcNow,
                 LastModifiedUtc = DateTime.UtcNow
             };
@@ -765,6 +766,7 @@ namespace PlayniteAchievements.ViewModels
                 await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
                     _source,
                     RequireExophaseAuthentication,
+                    _existingLink,
                     _refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
@@ -1132,6 +1134,16 @@ namespace PlayniteAchievements.ViewModels
             return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
         }
 
+        private bool? ResolveAllowUnauthenticatedSchemaFetch(string sourceKey)
+        {
+            if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
+            {
+                return !RequireExophaseAuthentication;
+            }
+
+            return null;
+        }
+
         private void EnsureManualProviderEnabledForLinking()
         {
             try
@@ -1383,6 +1395,8 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
+                AllowUnauthenticatedSchemaFetch = _existingLink?.AllowUnauthenticatedSchemaFetch
+                    ?? ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = _existingLink?.CreatedUtc ?? now,
                 LastModifiedUtc = now
             };

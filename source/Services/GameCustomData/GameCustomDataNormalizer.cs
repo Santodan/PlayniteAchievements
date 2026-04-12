@@ -309,13 +309,13 @@ namespace PlayniteAchievements.Services
 
             var createdUtc = link.CreatedUtc == default ? DateTime.UtcNow : link.CreatedUtc;
             var lastModifiedUtc = link.LastModifiedUtc == default ? createdUtc : link.LastModifiedUtc;
-
             return new ManualAchievementLink
             {
                 SourceKey = normalizedSourceKey,
                 SourceGameId = normalizedSourceGameId,
                 UnlockStates = compactStates,
                 UnlockTimes = compactTimes,
+                AllowUnauthenticatedSchemaFetch = link.AllowUnauthenticatedSchemaFetch,
                 CreatedUtc = createdUtc,
                 LastModifiedUtc = lastModifiedUtc
             };

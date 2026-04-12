@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Providers.Manual
 {
@@ -13,7 +14,16 @@ namespace PlayniteAchievements.Providers.Manual
             bool requireExophaseAuthentication,
             CancellationToken ct)
         {
-            if (!ShouldRequireAuthentication(source, requireExophaseAuthentication))
+            return EnsureAuthenticatedIfRequiredAsync(source, requireExophaseAuthentication, link: null, ct);
+        }
+
+        public static Task EnsureAuthenticatedIfRequiredAsync(
+            IManualSource source,
+            bool requireExophaseAuthentication,
+            ManualAchievementLink link,
+            CancellationToken ct)
+        {
+            if (!ShouldRequireAuthentication(source, requireExophaseAuthentication, link))
             {
                 return Task.CompletedTask;
             }
@@ -21,7 +31,10 @@ namespace PlayniteAchievements.Providers.Manual
             return EnsureAuthenticatedAsync(source, ct);
         }
 
-        public static bool ShouldRequireAuthentication(IManualSource source, bool requireExophaseAuthentication)
+        public static bool ShouldRequireAuthentication(
+            IManualSource source,
+            bool requireExophaseAuthentication,
+            ManualAchievementLink link)
         {
             if (source == null)
             {
@@ -30,6 +43,11 @@ namespace PlayniteAchievements.Providers.Manual
 
             if (string.Equals(source.SourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
             {
+                if (link != null && link.AllowUnauthenticatedSchemaFetch != false)
+                {
+                    return false;
+                }
+
                 return requireExophaseAuthentication;
             }
 

@@ -139,7 +139,7 @@ namespace PlayniteAchievements.Providers.Manual
             }
 
             await ManualSourceAuthentication
-                .EnsureAuthenticatedIfRequiredAsync(source, _providerSettings.RequireExophaseAuthentication, cancel)
+                .EnsureAuthenticatedIfRequiredAsync(source, _providerSettings.RequireExophaseAuthentication, link, cancel)
                 .ConfigureAwait(false);
 
             // Fetch achievements directly as AchievementDetail list

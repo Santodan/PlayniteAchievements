@@ -121,8 +121,6 @@ namespace PlayniteAchievements.Providers.Manual
             // Build the full URL from the slug
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(this, _requireExophaseAuthentication(), ct).ConfigureAwait(false);
-
                 var achievementUrl = ExophaseApiClient.BuildUrlFromSlug(sourceGameId);
                 if (string.IsNullOrWhiteSpace(achievementUrl))
                 {
