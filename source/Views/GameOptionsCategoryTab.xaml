@@ -69,7 +69,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <TextBlock Text="{Binding ApiName}"
+                    <TextBlock Text="{Binding ApiNameResolved}"
                                FontSize="{DynamicResource FontSizeSmall}"
                                Foreground="{DynamicResource TextBrush}"
                                Opacity="0.58"

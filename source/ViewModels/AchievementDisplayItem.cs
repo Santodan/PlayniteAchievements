@@ -246,11 +246,17 @@ namespace PlayniteAchievements.ViewModels
         public string ApiName
         {
             get => _source?.ApiName;
-            set => SetSourceValue(
-                source => source.ApiName,
-                (source, next) => source.ApiName = next,
-                value,
-                nameof(ApiName));
+            set
+            {
+                if (SetSourceValue(
+                    source => source.ApiName,
+                    (source, next) => source.ApiName = next,
+                    value,
+                    nameof(ApiName)))
+                {
+                    OnPropertyChanged(nameof(ApiNameResolved));
+                }
+            }
         }
 
         // Hidden achievement visibility settings
@@ -557,6 +563,15 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (IsHidden && Hidden && !ShowHiddenDescription) return ResourceProvider.GetString("LOCPlayAch_Achievements_ClickToReveal");
                 return Description;
+            }
+        }
+
+        public string ApiNameResolved
+        {
+            get
+            {
+                if (IsHidden && Hidden && !ShowHiddenDescription) return string.Empty;
+                return ApiName;
             }
         }
 
@@ -1050,6 +1065,7 @@ namespace PlayniteAchievements.ViewModels
         private void NotifyDescriptionDisplayChanged()
         {
             OnPropertyChanged(nameof(DescriptionResolved));
+            OnPropertyChanged(nameof(ApiNameResolved));
         }
 
         private void NotifyIconDisplayChanged()
