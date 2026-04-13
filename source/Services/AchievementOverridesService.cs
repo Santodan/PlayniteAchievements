@@ -13,20 +13,17 @@ namespace PlayniteAchievements.Services
         private readonly ICacheManager _cacheService;
         private readonly ILogger _logger;
         private readonly Action<bool> _notifyCacheInvalidated;
-        private readonly Action<List<Guid>> _raiseGameDataChanged;
 
         public AchievementOverridesService(
             GameCustomDataStore gameCustomDataStore,
             ICacheManager cacheService,
             ILogger logger,
-            Action<bool> notifyCacheInvalidated,
-            Action<List<Guid>> raiseGameDataChanged)
+            Action<bool> notifyCacheInvalidated)
         {
             _gameCustomDataStore = gameCustomDataStore ?? throw new ArgumentNullException(nameof(gameCustomDataStore));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
             _logger = logger;
             _notifyCacheInvalidated = notifyCacheInvalidated ?? throw new ArgumentNullException(nameof(notifyCacheInvalidated));
-            _raiseGameDataChanged = raiseGameDataChanged;
         }
 
         public CacheWriteResult SetCapstone(Guid playniteGameId, string capstoneApiName)
@@ -47,7 +44,6 @@ namespace PlayniteAchievements.Services
                 });
 
                 _notifyCacheInvalidated(true);
-                _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -153,7 +149,6 @@ namespace PlayniteAchievements.Services
             }
 
             _notifyCacheInvalidated(true);
-            _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         public void SetExcludedFromHiddenState(Guid playniteGameId, bool hidden)
@@ -170,7 +165,6 @@ namespace PlayniteAchievements.Services
             }
 
             _notifyCacheInvalidated(true);
-            _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         public void SetExcludedFromSummaries(Guid playniteGameId, bool excluded)
@@ -186,7 +180,6 @@ namespace PlayniteAchievements.Services
             });
 
             _notifyCacheInvalidated(true);
-            _raiseGameDataChanged?.Invoke(new List<Guid> { playniteGameId });
         }
 
         public void ClearGameData(Guid playniteGameId, string gameName = null, bool clearIconCache = true, bool persistAfter = true)

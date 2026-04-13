@@ -30,6 +30,16 @@ namespace PlayniteAchievements.Services
         public bool HasIgnoredPackageImages => IgnoredPackageImageCount > 0;
     }
 
+    public sealed class GameCustomDataChangedEventArgs : EventArgs
+    {
+        public GameCustomDataChangedEventArgs(Guid playniteGameId)
+        {
+            PlayniteGameId = playniteGameId;
+        }
+
+        public Guid PlayniteGameId { get; }
+    }
+
     /// <summary>
     /// Orchestrates per-game custom data persistence and migration.
     /// </summary>
@@ -56,6 +66,8 @@ namespace PlayniteAchievements.Services
         private AchievementDataService _achievementDataService;
         private Dictionary<Guid, GameCustomDataFile> _cacheByGameId;
         private HashSet<Guid> _missingGameIds;
+
+        public event EventHandler<GameCustomDataChangedEventArgs> CustomDataChanged;
 
         public GameCustomDataStore(string pluginUserDataPath, ILogger logger = null)
         {
@@ -152,6 +164,7 @@ namespace PlayniteAchievements.Services
             _repository.Save(playniteGameId, normalized);
             RefreshCachedEntry(playniteGameId);
             SyncManagedCustomIconCache(playniteGameId, normalized);
+            RaiseCustomDataChanged(playniteGameId);
         }
 
         public void Delete(Guid playniteGameId)
@@ -165,6 +178,7 @@ namespace PlayniteAchievements.Services
             }
 
             _managedCustomIconService?.ClearGameCustomCache(playniteGameId.ToString("D"));
+            RaiseCustomDataChanged(playniteGameId);
         }
 
         public IReadOnlyList<GameCustomDataFile> LoadAll()
@@ -1203,6 +1217,16 @@ namespace PlayniteAchievements.Services
             }
 
             _ = LoadAll();
+        }
+
+        private void RaiseCustomDataChanged(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            CustomDataChanged?.Invoke(this, new GameCustomDataChangedEventArgs(playniteGameId));
         }
     }
 }

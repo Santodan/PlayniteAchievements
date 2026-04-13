@@ -447,6 +447,8 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
                                         <!-- Has Achievements Tag -->
@@ -505,30 +507,58 @@
                                                  Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
-                                        <!-- Excluded Tag -->
+                                        <!-- Customized Tag -->
                                         <CheckBox Grid.Row="4" Grid.Column="0"
-                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.CustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBlock Grid.Row="4" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_Excluded}"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_Customized}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,6"/>
                                         <TextBox Grid.Row="4" Grid.Column="2"
+                                                 x:Name="CustomizedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.CustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Not Customized Tag -->
+                                        <CheckBox Grid.Row="5" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.NotCustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_NotCustomized}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="5" Grid.Column="2"
+                                                 x:Name="NotCustomizedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.NotCustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Excluded Tag -->
+                                        <CheckBox Grid.Row="6" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_Excluded}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="6" Grid.Column="2"
                                                  x:Name="ExcludedTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- Excluded from Summaries Tag -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0"
+                                        <CheckBox Grid.Row="7" Grid.Column="0"
                                                   IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Row="5" Grid.Column="1"
+                                        <TextBlock Grid.Row="7" Grid.Column="1"
                                                    Text="{DynamicResource LOCPlayAch_GameOptions_Status_ExcludedFromSummaries}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,0"/>
-                                        <TextBox Grid.Row="5" Grid.Column="2"
+                                        <TextBox Grid.Row="7" Grid.Column="2"
                                                  x:Name="ExcludedFromSummariesTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,0"/>

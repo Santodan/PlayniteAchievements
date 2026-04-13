@@ -87,6 +87,11 @@ namespace PlayniteAchievements.Services
 
         public static bool HasPortableData(GameCustomDataFile data)
         {
+            return HasVisibleCustomization(data);
+        }
+
+        public static bool HasPortableData(GameCustomDataPortableFile data)
+        {
             if (data == null)
             {
                 return false;
@@ -105,7 +110,7 @@ namespace PlayniteAchievements.Services
                    data.ManualLink != null;
         }
 
-        public static bool HasPortableData(GameCustomDataPortableFile data)
+        public static bool HasVisibleCustomization(GameCustomDataFile data)
         {
             if (data == null)
             {

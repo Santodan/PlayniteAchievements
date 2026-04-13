@@ -62,6 +62,136 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void CustomDataChanged_RaisesForSaveAndDelete()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                var changedGameIds = new List<Guid>();
+                store.CustomDataChanged += (_, args) => changedGameIds.Add(args.PlayniteGameId);
+
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualCapstoneApiName = "capstone"
+                });
+
+                store.Delete(gameId);
+
+                CollectionAssert.AreEqual(
+                    new List<Guid> { gameId, gameId },
+                    changedGameIds);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Save_ManualLinkOnly_IsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualLink = new ManualAchievementLink
+                    {
+                        SourceKey = "Steam",
+                        SourceGameId = "123"
+                    }
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Save_RetroAchievementsOverrideOnly_IsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    RetroAchievementsGameIdOverride = 12345
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Save_ExophaseIncludeOnly_IsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ForceUseExophase = true
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Save_ExophaseSlugOverrideOnly_IsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ExophaseSlugOverride = "test-slug"
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Export_OmitsInternalExclusionFlags()
         {
             var tempDir = CreateTempDirectory();

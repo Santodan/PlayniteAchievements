@@ -1245,6 +1245,8 @@ namespace PlayniteAchievements.Views
                 InProgressTagTextBox,
                 CompletedTagTextBox,
                 NoAchievementsTagTextBox,
+                CustomizedTagTextBox,
+                NotCustomizedTagTextBox,
                 ExcludedTagTextBox,
                 ExcludedFromSummariesTagTextBox
             };

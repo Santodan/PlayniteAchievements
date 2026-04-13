@@ -97,6 +97,8 @@ namespace PlayniteAchievements.Services.Tagging
                     TagType.InProgress => ResourceProvider.GetString("LOCPlayAch_Tag_InProgress"),
                     TagType.Completed => ResourceProvider.GetString("LOCPlayAch_Tag_Completed"),
                     TagType.NoAchievements => ResourceProvider.GetString("LOCPlayAch_Tag_NoAchievements"),
+                    TagType.Customized => ResourceProvider.GetString("LOCPlayAch_Tag_Customized"),
+                    TagType.NotCustomized => ResourceProvider.GetString("LOCPlayAch_Tag_NotCustomized"),
                     TagType.Excluded => ResourceProvider.GetString("LOCPlayAch_Tag_Excluded"),
                     TagType.ExcludedFromSummaries => ResourceProvider.GetString("LOCPlayAch_Tag_ExcludedFromSummaries"),
                     _ => TaggingSettings.GetDefaultDisplayName(tagType)
@@ -549,6 +551,10 @@ namespace PlayniteAchievements.Services.Tagging
             }
 
             var gameId = game.Id;
+            types.Add(
+                GameCustomDataLookup.HasVisibleCustomization(gameId, _settings)
+                    ? TagType.Customized
+                    : TagType.NotCustomized);
 
             // Full exclusion is exclusive - no other tags
             if (GameCustomDataLookup.IsExcludedFromRefreshes(gameId, _settings))

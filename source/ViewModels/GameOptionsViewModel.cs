@@ -1278,15 +1278,10 @@ namespace PlayniteAchievements.ViewModels
 
         internal void NotifyCustomDataChanged(
             bool requiresRefresh,
-            bool forceIconRefresh = false,
-            bool syncTags = true)
+            bool forceIconRefresh = false)
         {
             _gameDataSnapshotProvider?.Invalidate();
             _refreshService?.Cache?.NotifyCacheInvalidated();
-            if (syncTags)
-            {
-                _plugin?.TagSyncService?.SyncTagsForGames(new List<Guid> { _gameId });
-            }
 
             if (_settings?.SelectedGame?.Id == _gameId)
             {

@@ -253,8 +253,7 @@ namespace PlayniteAchievements
                         _gameCustomDataStore,
                         _cacheManager,
                         _logger,
-                        force => _cacheManager.NotifyCacheInvalidated(),
-                        gameIds => OnAchievementGameDataChanged(gameIds));
+                        force => _cacheManager.NotifyCacheInvalidated());
                     _achievementDataService = new AchievementDataService(_cacheManager, PlayniteApi, _settingsViewModel.Settings, _logger);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
                     _notifications = new NotificationPublisher(api, settings, _logger);
@@ -610,6 +609,12 @@ namespace PlayniteAchievements
 
             try
             {
+                if (_gameCustomDataStore != null)
+                {
+                    _gameCustomDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
+                    _eventSubscriptions.Add(() => _gameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged);
+                }
+
                 var persisted = _settingsViewModel?.Settings?.Persisted;
                 if (persisted != null)
                 {
@@ -625,20 +630,26 @@ namespace PlayniteAchievements
             }
         }
 
+        private void GameCustomDataStore_CustomDataChanged(object sender, GameCustomDataChangedEventArgs e)
+        {
+            if (e?.PlayniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
+            {
+                _tagSyncService.SyncTagsForGames(new List<Guid> { e.PlayniteGameId });
+            }
+        }
+
         private void OnAchievementGameRefreshed(Guid gameId)
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;
             if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
                 _tagSyncService.SyncTagsForGames(new List<Guid> { gameId });
-            }
-        }
-
-        private void OnAchievementGameDataChanged(List<Guid> gameIds)
-        {
-            if (gameIds != null && gameIds.Count > 0)
-            {
-                _tagSyncService?.SyncTagsForGames(gameIds);
             }
         }
 

@@ -595,9 +595,13 @@
     <sys:String x:Key="LOCPlayAch_Tag_HasAchievements">[PA] Has Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tag_InProgress">[PA] In Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_Tag_NoAchievements">[PA] No Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_Customized">[PA] Customized</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_NotCustomized">[PA] Not Customized</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">Has Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_InProgress">In Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">No Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Customized">Customized</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_NotCustomized">Not Customized</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">Remove all Playnite Achievements tags from all games?</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">Removing tags...</sys:String>
     <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">Syncing tags...</sys:String>
