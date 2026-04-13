@@ -128,6 +128,17 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public void GetLegacyCompatibleIcon_StripsCacheBustAndGrayPrefixes()
+        {
+            var iconPath = @"C:\icons\legacy.png";
+            var wrapped = $"cachebust|123:456|gray:{iconPath}";
+
+            var displayPath = AchievementIconResolver.GetLegacyCompatibleIcon(wrapped);
+
+            Assert.AreEqual(iconPath, displayPath);
+        }
+
+        [TestMethod]
         public async Task PopulateAchievementIconCacheAsync_MigratesLegacyHashCacheToApiNamePath()
         {
             var tempDir = CreateTempDirectory();

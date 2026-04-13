@@ -755,7 +755,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Alias for themes expecting an "Icon" field (e.g. SuccessStory).
         /// </summary>
-        public string Icon => DisplayIcon;
+        public string Icon => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
 
         /// <summary>
         /// Alias for themes expecting a numeric "Percent" field (0-100).

@@ -109,7 +109,7 @@ namespace PlayniteAchievements.Models.Achievements
         public string Name => DisplayName;
 
         [IgnoreDataMember]
-        public string Icon => IconDisplay;
+        public string Icon => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
 
         [IgnoreDataMember]
         public string UnlockedIconDisplay => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);

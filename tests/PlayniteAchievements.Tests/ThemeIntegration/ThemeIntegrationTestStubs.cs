@@ -212,6 +212,38 @@ namespace PlayniteAchievements.ViewModels
 {
     public class AchievementDisplayItem
     {
+        public string DisplayName { get; set; }
+
+        public string SortingName { get; set; }
+
+        public string GameName { get; set; }
+
+        public string TrophyType { get; set; }
+
+        public string CategoryType { get; set; }
+
+        public string CategoryLabel { get; set; }
+
+        public bool Unlocked { get; set; }
+
+        public DateTime? UnlockTimeUtc { get; set; }
+
+        public DateTime UnlockTime => UnlockTimeUtc ?? DateTime.MinValue;
+
+        public double? GlobalPercentUnlocked { get; set; }
+
+        public double GlobalPercent => GlobalPercentUnlocked ?? 0;
+
+        public double RaritySortValue { get; set; }
+
+        public int? PointsValue { get; set; }
+
+        public int Points => PointsValue ?? 0;
+
+        public int? ProgressNum { get; set; }
+
+        public int? ProgressDenom { get; set; }
+
         public bool ShowHiddenSuffix { get; set; }
 
         public static AchievementDisplayItem Create(

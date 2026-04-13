@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services
@@ -84,8 +85,29 @@ namespace PlayniteAchievements.Services
                 "Points" => ApplyDirection(
                     (a, b) => a.Points.CompareTo(b.Points),
                     direction),
-                "TrophyType" => ApplyDirection(CompareByTrophyType, direction),
+                "TrophyType" => (a, b) => CompareByTrophyType(a, b, direction),
                 _ => null
+            };
+        }
+
+        public static List<AchievementDetail> CreateSortedDetailList(
+            IEnumerable<AchievementDetail> items,
+            string sortMemberPath,
+            ListSortDirection direction,
+            bool includeGameNameTieBreak = false)
+        {
+            var list = items?.ToList() ?? new List<AchievementDetail>();
+            if (list.Count == 0)
+            {
+                return list;
+            }
+
+            return sortMemberPath switch
+            {
+                "UnlockTime" => CreateDetailUnlockSortedList(list, direction, includeGameNameTieBreak),
+                "GlobalPercent" => CreateDetailRaritySortedList(list, direction, includeGameNameTieBreak),
+                "RaritySortValue" => CreateDetailRaritySortedList(list, direction, includeGameNameTieBreak),
+                _ => list
             };
         }
 
@@ -151,7 +173,8 @@ namespace PlayniteAchievements.Services
 
         private static bool SupportsQuickReverse(string sortMemberPath)
         {
-            return !string.Equals(sortMemberPath, nameof(AchievementDisplayItem.UnlockTime), StringComparison.Ordinal);
+            return !string.Equals(sortMemberPath, nameof(AchievementDisplayItem.UnlockTime), StringComparison.Ordinal) &&
+                   !string.Equals(sortMemberPath, nameof(AchievementDisplayItem.TrophyType), StringComparison.Ordinal);
         }
 
         private static Comparison<AchievementDisplayItem> ApplyDirection(
@@ -176,15 +199,14 @@ namespace PlayniteAchievements.Services
 
         private static int CompareByDisplayName(AchievementDisplayItem a, AchievementDisplayItem b)
         {
-            return string.Compare(a?.DisplayName, b?.DisplayName, StringComparison.OrdinalIgnoreCase);
+            return CompareText(a?.DisplayName, b?.DisplayName);
         }
 
         private static int CompareBySortingName(AchievementDisplayItem a, AchievementDisplayItem b)
         {
-            return string.Compare(
+            return CompareText(
                 a?.SortingName ?? a?.GameName,
-                b?.SortingName ?? b?.GameName,
-                StringComparison.OrdinalIgnoreCase);
+                b?.SortingName ?? b?.GameName);
         }
 
         private static int CompareByCategoryTypeThenUnlock(
@@ -192,10 +214,9 @@ namespace PlayniteAchievements.Services
             AchievementDisplayItem b,
             AchievementGridSortScope scope)
         {
-            var typeComparison = string.Compare(
+            var typeComparison = CompareText(
                 AchievementCategoryTypeHelper.ToDisplayText(a?.CategoryType),
-                AchievementCategoryTypeHelper.ToDisplayText(b?.CategoryType),
-                StringComparison.OrdinalIgnoreCase);
+                AchievementCategoryTypeHelper.ToDisplayText(b?.CategoryType));
             if (typeComparison != 0)
             {
                 return typeComparison;
@@ -209,10 +230,9 @@ namespace PlayniteAchievements.Services
             AchievementDisplayItem b,
             AchievementGridSortScope scope)
         {
-            var labelComparison = string.Compare(
+            var labelComparison = CompareText(
                 AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(a?.CategoryLabel),
-                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(b?.CategoryLabel),
-                StringComparison.OrdinalIgnoreCase);
+                AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(b?.CategoryLabel));
             if (labelComparison != 0)
             {
                 return labelComparison;
@@ -243,21 +263,21 @@ namespace PlayniteAchievements.Services
                 return tieBreakComparison;
             }
 
-            if (scope == AchievementGridSortScope.GameAchievements)
+            if (scope == AchievementGridSortScope.RecentAchievements)
+            {
+                var gameComparison = CompareText(a?.GameName, b?.GameName);
+                if (gameComparison != 0)
+                {
+                    return gameComparison;
+                }
+            }
+            else
             {
                 var unlockedComparison = (b?.Unlocked ?? false).CompareTo(a?.Unlocked ?? false);
                 if (unlockedComparison != 0)
                 {
                     return unlockedComparison;
                 }
-
-                return CompareByDisplayName(a, b);
-            }
-
-            var gameComparison = string.Compare(a?.GameName, b?.GameName, StringComparison.OrdinalIgnoreCase);
-            if (gameComparison != 0)
-            {
-                return gameComparison;
             }
 
             return CompareByDisplayName(a, b);
@@ -265,16 +285,16 @@ namespace PlayniteAchievements.Services
 
         private static int CompareUnlockTieBreakers(AchievementDisplayItem a, AchievementDisplayItem b)
         {
+            var rarityComparison = a.RaritySortValue.CompareTo(b.RaritySortValue);
+            if (rarityComparison != 0)
+            {
+                return rarityComparison;
+            }
+
             var trophyComparison = GetTrophyRank(b?.TrophyType).CompareTo(GetTrophyRank(a?.TrophyType));
             if (trophyComparison != 0)
             {
                 return trophyComparison;
-            }
-
-            var rarityComparison = (a?.RaritySortValue ?? double.MaxValue).CompareTo(b?.RaritySortValue ?? double.MaxValue);
-            if (rarityComparison != 0)
-            {
-                return rarityComparison;
             }
 
             var progressComparison = CompareProgressFractionDescending(
@@ -290,19 +310,113 @@ namespace PlayniteAchievements.Services
             return (b?.Points ?? 0).CompareTo(a?.Points ?? 0);
         }
 
+        private static int CompareByTrophyType(
+            AchievementDisplayItem a,
+            AchievementDisplayItem b,
+            ListSortDirection direction)
+        {
+            var trophyComparison = direction == ListSortDirection.Ascending
+                ? GetTrophyRank(a?.TrophyType).CompareTo(GetTrophyRank(b?.TrophyType))
+                : GetTrophyRank(b?.TrophyType).CompareTo(GetTrophyRank(a?.TrophyType));
+            if (trophyComparison != 0)
+            {
+                return trophyComparison;
+            }
+
+            var rarityComparison = a.RaritySortValue.CompareTo(b.RaritySortValue);
+            if (rarityComparison != 0)
+            {
+                return rarityComparison;
+            }
+
+            var progressComparison = CompareProgressFractionDescending(
+                a?.ProgressNum,
+                a?.ProgressDenom,
+                b?.ProgressNum,
+                b?.ProgressDenom);
+            if (progressComparison != 0)
+            {
+                return progressComparison;
+            }
+
+            var pointsComparison = (b?.Points ?? 0).CompareTo(a?.Points ?? 0);
+            if (pointsComparison != 0)
+            {
+                return pointsComparison;
+            }
+
+            var unlockComparison = (b?.UnlockTime ?? DateTime.MinValue).CompareTo(a?.UnlockTime ?? DateTime.MinValue);
+            if (unlockComparison != 0)
+            {
+                return unlockComparison;
+            }
+
+            return CompareByDisplayName(a, b);
+        }
+
+        private static List<AchievementDetail> CreateDetailUnlockSortedList(
+            IEnumerable<AchievementDetail> items,
+            ListSortDirection direction,
+            bool includeGameNameTieBreak)
+        {
+            IOrderedEnumerable<AchievementDetail> ordered = direction == ListSortDirection.Ascending
+                ? items.OrderBy(a => a?.UnlockTimeUtc ?? DateTime.MinValue)
+                : items.OrderByDescending(a => a?.UnlockTimeUtc ?? DateTime.MinValue);
+
+            ordered = ordered
+                .ThenBy(a => a?.RaritySortValue ?? double.MaxValue)
+                .ThenByDescending(a => GetTrophyRank(a?.TrophyType))
+                .ThenByDescending(a => HasProgress(a?.ProgressNum, a?.ProgressDenom))
+                .ThenByDescending(a => GetProgressFraction(a?.ProgressNum, a?.ProgressDenom) ?? 0)
+                .ThenByDescending(a => a?.Points ?? 0);
+
+            if (includeGameNameTieBreak)
+            {
+                ordered = ordered.ThenBy(a => a?.Game?.Name, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return ordered
+                .ThenByDescending(a => a?.Unlocked ?? false)
+                .ThenBy(a => a?.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<AchievementDetail> CreateDetailRaritySortedList(
+            IEnumerable<AchievementDetail> items,
+            ListSortDirection direction,
+            bool includeGameNameTieBreak)
+        {
+            IOrderedEnumerable<AchievementDetail> ordered = direction == ListSortDirection.Ascending
+                ? items.OrderBy(a => a?.RaritySortValue ?? double.MaxValue)
+                : items.OrderByDescending(a => a?.RaritySortValue ?? double.MaxValue);
+
+            ordered = ordered
+                .ThenByDescending(a => a?.Points ?? 0)
+                .ThenByDescending(a => a?.UnlockTimeUtc ?? DateTime.MinValue);
+
+            if (includeGameNameTieBreak)
+            {
+                ordered = ordered.ThenBy(a => a?.Game?.Name, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return ordered
+                .ThenBy(a => a?.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         private static int CompareProgressFractionDescending(
             int? aNum,
             int? aDenom,
             int? bNum,
             int? bDenom)
         {
-            var aHasProgress = aNum.HasValue && aDenom.HasValue && aDenom.Value > 0;
-            var bHasProgress = bNum.HasValue && bDenom.HasValue && bDenom.Value > 0;
+            var aHasProgress = HasProgress(aNum, aDenom);
+            var bHasProgress = HasProgress(bNum, bDenom);
 
             if (aHasProgress && bHasProgress)
             {
-                var aFraction = (double)aNum.Value / aDenom.Value;
-                var bFraction = (double)bNum.Value / bDenom.Value;
+                var aFraction = GetProgressFraction(aNum, aDenom).Value;
+                var bFraction = GetProgressFraction(bNum, bDenom).Value;
                 var fractionComparison = bFraction.CompareTo(aFraction);
                 if (fractionComparison != 0)
                 {
@@ -318,9 +432,21 @@ namespace PlayniteAchievements.Services
             return 0;
         }
 
-        private static int CompareByTrophyType(AchievementDisplayItem a, AchievementDisplayItem b)
+        private static bool HasProgress(int? numerator, int? denominator)
         {
-            return GetTrophyRank(a?.TrophyType).CompareTo(GetTrophyRank(b?.TrophyType));
+            return numerator.HasValue && denominator.HasValue && denominator.Value > 0;
+        }
+
+        private static double? GetProgressFraction(int? numerator, int? denominator)
+        {
+            return HasProgress(numerator, denominator)
+                ? (double)numerator.Value / denominator.Value
+                : (double?)null;
+        }
+
+        private static int CompareText(string a, string b)
+        {
+            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

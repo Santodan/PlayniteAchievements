@@ -17,6 +17,18 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static string GetDefaultIcon() => DefaultIconPackUri;
 
+        /// <summary>
+        /// Returns a plain path/pack URI without cache-busting or grayscale prefixes.
+        /// This preserves compatibility with legacy themes that bind directly to Image.Source.
+        /// </summary>
+        public static string GetLegacyCompatibleIcon(string iconPath)
+        {
+            var normalized = NormalizeDisplaySource(iconPath);
+            return string.IsNullOrWhiteSpace(normalized)
+                ? DefaultIconPackUri
+                : normalized;
+        }
+
         public static string GetUnlockedDisplayIcon(string unlockedIconPath) =>
             string.IsNullOrWhiteSpace(unlockedIconPath)
                 ? DefaultIconPackUri

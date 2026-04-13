@@ -52,6 +52,7 @@
     <Compile Include="..\..\source\Services\Images\DiskImageService.cs" Link="Source\Services\Images\DiskImageService.cs" />
     <Compile Include="..\..\source\Services\Images\ManagedCustomIconService.cs" Link="Source\Services\Images\ManagedCustomIconService.cs" />
     <Compile Include="..\..\source\Services\Images\AchievementIconService.cs" Link="Source\Services\Images\AchievementIconService.cs" />
+    <Compile Include="..\..\source\Services\AchievementGridSortHelper.cs" Link="Source\Services\AchievementGridSortHelper.cs" />
     <Compile Include="..\..\source\Services\AchievementOrderHelper.cs" Link="Source\Services\AchievementOrderHelper.cs" />
     <Compile Include="..\..\source\Services\AchievementCategoryTypeHelper.cs" Link="Source\Services\AchievementCategoryTypeHelper.cs" />
     <Compile Include="..\..\source\Services\PlayniteGameMetadataFormatter.cs" Link="Source\Services\PlayniteGameMetadataFormatter.cs" />
@@ -62,6 +63,9 @@
     <Compile Include="..\..\source\Providers\Settings\IProviderSettings.cs" Link="Source\Providers\Settings\IProviderSettings.cs" />
     <Compile Include="..\..\source\Providers\Settings\ProviderSettingsViewBase.cs" Link="Source\Providers\Settings\ProviderSettingsViewBase.cs" />
     <Compile Include="..\..\source\Providers\ProviderRegistry.cs" Link="Source\Providers\ProviderRegistry.cs" />
+    <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />
+    <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Settings.cs" Link="Source\Providers\ShadPS4\ShadPS4Settings.cs" />
+    <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4DataProvider.cs" Link="Source\Providers\ShadPS4\ShadPS4DataProvider.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSettings.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSettings.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCapabilityHelper.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCapabilityHelper.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RaConsoleIdResolver.cs" Link="Source\Providers\RetroAchievements\RaConsoleIdResolver.cs" />
@@ -81,6 +85,7 @@
     <Compile Include="..\..\source\Common\BulkObservableCollection.cs" Link="Source\Common\BulkObservableCollection.cs" />
     <Compile Include="..\..\source\Common\CommandBase.cs" Link="Source\Common\CommandBase.cs" />
     <Compile Include="..\..\source\Common\DispatcherExtensions.cs" Link="Source\Common\DispatcherExtensions.cs" />
+    <Compile Include="..\..\source\Common\PathExpansion.cs" Link="Source\Common\PathExpansion.cs" />
     <Compile Include="..\..\source\Common\RelayCommand.cs" Link="Source\Common\RelayCommand.cs" />
     <Compile Include="..\..\source\Common\WebViewExtensions.cs" Link="Source\Common\WebViewExtensions.cs" />
     <Compile Include="..\..\source\ViewModels\ManualAchievementEditItem.cs" Link="Source\ViewModels\ManualAchievementEditItem.cs" />

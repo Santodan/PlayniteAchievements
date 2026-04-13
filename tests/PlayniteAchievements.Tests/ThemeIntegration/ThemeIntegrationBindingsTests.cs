@@ -10,6 +10,7 @@ using PlayniteAchievements.Services.ThemeIntegration;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 
 namespace PlayniteAchievements.ThemeIntegration.Tests
 {
@@ -278,6 +279,43 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsOldestFirst)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityAsc)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)));
+        }
+
+        [TestMethod]
+        public void SelectedGameBuilder_UsesRarityTieBreakerForEqualUnlockTimes()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            var gameId = Guid.NewGuid();
+            var unlockTime = DateTime.SpecifyKind(new DateTime(2026, 3, 1, 12, 0, 0), DateTimeKind.Utc);
+            var ultra = Achievement("Ultra", 2.0, unlocked: true);
+            ultra.UnlockTimeUtc = unlockTime;
+            ultra.Points = 10;
+
+            var rare = Achievement("Rare", 8.0, unlocked: true);
+            rare.UnlockTimeUtc = unlockTime;
+            rare.Points = 50;
+
+            var common = Achievement("Common", 80.0, unlocked: true);
+            common.UnlockTimeUtc = unlockTime;
+            common.Points = 100;
+
+            var state = SelectedGameRuntimeStateBuilder.Build(
+                gameId,
+                new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    Game = new Game { Id = gameId, Name = "Tie Break Game" },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail> { common, rare, ultra }
+                });
+
+            CollectionAssert.AreEqual(
+                new[] { "Ultra", "Rare", "Common" },
+                state.AchievementsNewestFirst.Select(a => a.DisplayName).ToArray());
+            CollectionAssert.AreEqual(
+                new[] { "Ultra", "Rare", "Common" },
+                state.AchievementsOldestFirst.Select(a => a.DisplayName).ToArray());
         }
 
         [TestMethod]
