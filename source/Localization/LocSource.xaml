@@ -491,6 +491,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Xenia_Browse">Browse...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xenia_Verified">Xenia account path verified.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Xenia_NotConfigured">Xenia account path not configured.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Xenia_ShowHidden">Show Hidden Achievements</sys:String>
 
     <!-- RPCS3 Validation -->
     <sys:String x:Key="LOCPlayAch_XeniaValidation_InvalidPath">Directory does not exist</sys:String>

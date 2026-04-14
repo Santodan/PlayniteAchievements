@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
@@ -147,11 +148,14 @@ namespace PlayniteAchievements.Providers.Xenia
                         iconPath = null;
                     }
 
+                    bool HideAchievement = (achievement.flags & 8) == 0 && !_providerSettings.ShowHiddenAchievements;
+
                     achievements.Add(new AchievementDetail
                     {
                         ApiName = achievement.id.ToString(),
-                        DisplayName = achievement.title,
-                        Description = achievement.unlock_time == 0 ? achievement.description : achievement.unlockDescription,
+                        DisplayName = HideAchievement ? "Secret" : achievement.title,
+                        Description = achievement.unlock_time == 0 ? (HideAchievement ? "Hidden Description" : achievement.description) : achievement.unlockDescription,
+                        Category = ((XdbfAchievementTypes)(achievement.flags & 7)).ToString(),
                         UnlockedIconPath = iconPath,
                         LockedIconPath = iconPath,
                         Points = (int?)achievement.gamerscore,
@@ -252,8 +256,9 @@ namespace PlayniteAchievements.Providers.Xenia
 
                             var gpdfile = new GPDResolver().LoadGPD(gpdFilePath);
                             var gameName = gpdfile.StringData.Replace("\0", "");
+                            gameName = gameName.Replace("\"", "");
 
-                            if (gameName.Contains(ROMTitle))
+                            if (gameName == ROMTitle)
                             {
                                 titleID = Path.GetFileNameWithoutExtension(gpdFilePath);
                                 return true;

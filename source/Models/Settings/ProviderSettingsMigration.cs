@@ -315,7 +315,8 @@ namespace PlayniteAchievements.Models.Settings
             {
                 IsEnabled = persisted["XeniaEnabled"]?.Value<bool>() ?? true,
                 AccountPath = persisted["XeniaAccountPath"]?.ToString(),
-                GameIdOverrides = gameIdOverrides
+                GameIdOverrides = gameIdOverrides,
+                ShowHiddenAchievements = true
             };
             providerSettings["Xenia"] = JObject.Parse(settings.SerializeToJson());
         }

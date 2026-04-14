@@ -141,6 +141,20 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                    <Grid Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                            Text="{DynamicResource LOCPlayAch_Settings_Xenia_ShowHidden}"
+                            Foreground="{DynamicResource TextBrush}"
+                            VerticalAlignment="Top"
+                            Margin="0,8,0,0"/>
+
+                        <CheckBox IsChecked="{Binding Settings.ShowHiddenAchievements, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Grid.Column="1" VerticalAlignment="Top" Margin="0,8,0,0" ToolTip="Show title and desciption for achievements that are marked as secret achievements!"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>

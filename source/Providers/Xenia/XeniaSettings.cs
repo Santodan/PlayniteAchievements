@@ -11,6 +11,7 @@ namespace PlayniteAchievements.Providers.Xenia
     {
         private string _accountPath;
         private Dictionary<Guid, string> _gameIdOverrides = new Dictionary<Guid, string>();
+        private bool _showHiddenAchievements;
 
         /// <inheritdoc />
         public override string ProviderKey => "Xenia";
@@ -32,6 +33,12 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             get => _gameIdOverrides;
             set => SetValue(ref _gameIdOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public bool ShowHiddenAchievements 
+        {
+            get => _showHiddenAchievements;
+            set => SetValue(ref _showHiddenAchievements, value);
         }
     }
 }
