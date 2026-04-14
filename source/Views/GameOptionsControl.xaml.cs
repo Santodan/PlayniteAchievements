@@ -201,9 +201,7 @@ namespace PlayniteAchievements.Views
             }
             else if (_viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
-                var hadManualControl = _manualControl != null;
-                var forceRecreate = hadManualControl && _manualRefreshPending && !IsManualViewModelRefreshing();
-                EnsureManualControl(forceRecreate);
+                EnsureManualControl(forceRecreate: false);
                 if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
                 {
                     _manualRefreshPending = false;
@@ -316,6 +314,16 @@ namespace PlayniteAchievements.Views
             }
 
             var startAtEditing = ManualAchievementsProvider.TryGetManualLink(game.Id, out var existingLink);
+            if (_manualControl != null && !forceRecreate && IsManualViewModelRefreshing())
+            {
+                // The manual flow sets a transient link before refresh completes. That can
+                // temporarily flip startAtEditing and trigger an unintended control recreate,
+                // which cancels the in-flight refresh via Cleanup(). Keep the active VM alive.
+                _logger?.Debug($"Deferring manual tab recreation while refresh is active (startAtEditing={startAtEditing}).");
+                _manualStartAtEditing = startAtEditing;
+                return;
+            }
+
             if (_manualControl != null && !forceRecreate && _manualStartAtEditing == startAtEditing)
             {
                 return;
