@@ -1,5 +1,30 @@
 AddonId: PlayniteAchievements
 Packages:
+  - Version: 2.1.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-04-14
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.1.0/PlayniteAchievements_2_1_0.pext
+    Changelog:
+    - "Game Options - New Custom Icon support via Game Options, supporting web links, local files, and even GIFs!"
+    - "Game Options - Export/import per-game custom data as .PA files or .PA.ZIP to share your configurations with others."
+    - "Display - Added basic default Fullscreen theme support."
+    - "Display - Added options to disable individual theme elements."
+    - "Display - Added compact list sorting controls (Unlock Time, Rarity)."
+    - "Display - Added option to show platform/playtime/region metadata in sidebar and single-game views."
+    - "Display - Added Show Completion Border option for completed games."
+    - "Display - Added more icon options (download full resolution/compressed, download separate locked icons or greyscale the unlocked icons)"
+    - "Game Options - Added override to download locked icons for specified game"
+    - "Manual Tracking - Exophase manual links no longer require authentication (localized achievements still require Authentication)."
+    - "RetroAchievements - Added experimental EmuLibrary game ID decoding support (including Yuzu mappings)."
+    - "RetroAchievements - Removed automatic capstone assignment."
+    - "RetroAchievements - Added option to disable fuzzy name matching."
+    - "Exophase - Added Google Play and Ubisoft/Uplay support."
+    - "Tagging - Added Customized and Not Customized tag options, which reflect Game Options customization."
+    - "Game Options - Added per-game overrides for Exophase Game ID, Xenia TitleID, and ShadPS4 Match ID."
+    - "Fixed manual tracking AM/PM and 24-hour time parsing."
+    - "Fixed ShadPS4 trophy path detection for newer folder layouts and emulator paths."
+    - "Localization - Massive optimization, and hundreds of strings were removed and consolidated. Hopefully this makes things easier on Crowdin."
+
   - Version: 2.0.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-03-31

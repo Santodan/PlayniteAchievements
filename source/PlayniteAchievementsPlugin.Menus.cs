@@ -211,16 +211,6 @@ namespace PlayniteAchievements
                 }
             };
 
-            yield return new GameMenuItem
-            {
-                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
-                MenuSection = PluginGameMenuSection,
-                Action = (a) =>
-                {
-                    OpenDynamicThemeCommandTestView(game.Id);
-                }
-            };
-
             if (!refreshInProgress)
             {
                 yield return new GameMenuItem
@@ -741,16 +731,6 @@ namespace PlayniteAchievements
                                 CustomOptions = customOptions
                             },
                             RefreshExecutionPolicy.ProgressWindow());
-                    }
-                };
-
-                yield return new MainMenuItem
-                {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
-                    MenuSection = PluginMainMenuSection,
-                    Action = (a) =>
-                    {
-                        OpenDynamicThemeCommandTestView();
                     }
                 };
             }
