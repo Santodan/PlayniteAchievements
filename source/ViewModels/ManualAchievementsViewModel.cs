@@ -601,7 +601,8 @@ namespace PlayniteAchievements.ViewModels
 
             SetLinkInMemory(link);
 
-            _refreshCts = new CancellationTokenSource();
+            var refreshCts = new CancellationTokenSource();
+            _refreshCts = refreshCts;
 
             try
             {
@@ -609,9 +610,9 @@ namespace PlayniteAchievements.ViewModels
 
                 await ExecuteRefreshRequestAsync(
                     BuildManualProviderRefreshRequest(),
-                    _refreshCts.Token);
+                    refreshCts.Token);
 
-                if (_refreshCts.Token.IsCancellationRequested)
+                if (refreshCts.IsCancellationRequested)
                 {
                     RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
                     rollbackPending = false;
@@ -668,8 +669,11 @@ namespace PlayniteAchievements.ViewModels
             finally
             {
                 _refreshService.RebuildProgress -= OnRebuildProgress;
-                _refreshCts?.Dispose();
-                _refreshCts = null;
+                refreshCts.Dispose();
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    _refreshCts = null;
+                }
             }
         }
 
@@ -759,7 +763,8 @@ namespace PlayniteAchievements.ViewModels
             ProgressPercent = 0;
             CanCancelRefresh = true;
 
-            _refreshCts = new CancellationTokenSource();
+            var refreshCts = new CancellationTokenSource();
+            _refreshCts = refreshCts;
 
             try
             {
@@ -767,15 +772,15 @@ namespace PlayniteAchievements.ViewModels
                     _source,
                     RequireExophaseAuthentication,
                     _existingLink,
-                    _refreshCts.Token);
+                    refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 
                 await ExecuteRefreshRequestAsync(
                     BuildManualProviderRefreshRequest(),
-                    _refreshCts.Token);
+                    refreshCts.Token);
 
-                if (_refreshCts.Token.IsCancellationRequested)
+                if (refreshCts.IsCancellationRequested)
                 {
                     ResetToSearchStage();
                     return;
@@ -807,8 +812,11 @@ namespace PlayniteAchievements.ViewModels
             finally
             {
                 _refreshService.RebuildProgress -= OnRebuildProgress;
-                _refreshCts?.Dispose();
-                _refreshCts = null;
+                refreshCts.Dispose();
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    _refreshCts = null;
+                }
             }
         }
 
