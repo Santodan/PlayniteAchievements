@@ -1095,7 +1095,7 @@ namespace PlayniteAchievements.ViewModels
         {
             var item = new AchievementDisplayItem();
             item.SetSource(achievement, notifyChanges: false);
-            item.ProviderKey = achievement.ProviderKey ?? gameData?.ProviderKey;
+            item.ProviderKey = achievement.ProviderKey ?? gameData?.EffectiveProviderKey ?? gameData?.ProviderKey;
             item.GameName = gameData?.GameName ?? "Unknown";
             item.SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown";
             item.PlayniteGameId = playniteGameId;

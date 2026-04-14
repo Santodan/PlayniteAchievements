@@ -59,7 +59,7 @@ namespace PlayniteAchievements.Services.Hydration
                 _achievementHydrator.HydrateAllWithCapstoneOverride(
                     data.Achievements,
                     gameId,
-                    data.ProviderKey,
+                    data.EffectiveProviderKey,
                     customData);
             }
         }

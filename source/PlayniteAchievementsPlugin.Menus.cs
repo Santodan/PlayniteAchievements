@@ -211,15 +211,15 @@ namespace PlayniteAchievements
                 }
             };
 
-            // yield return new GameMenuItem
-            // {
-            //     Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
-            //     MenuSection = PluginGameMenuSection,
-            //     Action = (a) =>
-            //     {
-            //         OpenModernParityTestView(game.Id);
-            //     }
-            // };
+            yield return new GameMenuItem
+            {
+                Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
+                MenuSection = PluginGameMenuSection,
+                Action = (a) =>
+                {
+                    OpenDynamicThemeCommandTestView(game.Id);
+                }
+            };
 
             if (!refreshInProgress)
             {
@@ -741,6 +741,16 @@ namespace PlayniteAchievements
                                 CustomOptions = customOptions
                             },
                             RefreshExecutionPolicy.ProgressWindow());
+                    }
+                };
+
+                yield return new MainMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_TestModernControls"),
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenDynamicThemeCommandTestView();
                     }
                 };
             }

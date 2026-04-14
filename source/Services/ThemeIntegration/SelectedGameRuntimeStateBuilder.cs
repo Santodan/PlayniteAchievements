@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     // Modern compact lists resolve tooltip game name from AchievementDetail.Game.
                     // Ensure selected-game snapshots always carry this context.
                     achievements[i].Game = game;
+                    achievements[i].ProviderKey = data.EffectiveProviderKey;
                 }
             }
 

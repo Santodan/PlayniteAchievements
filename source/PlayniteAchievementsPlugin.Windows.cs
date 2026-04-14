@@ -39,6 +39,14 @@ namespace PlayniteAchievements
             _windowService.OpenModernParityTestView(gameId);
         }
 
+        /// <summary>
+        /// Opens an interactive dynamic command tester window for theme filters and sort commands.
+        /// </summary>
+        public void OpenDynamicThemeCommandTestView(Guid? gameId = null)
+        {
+            _windowService.OpenDynamicThemeCommandTestView(gameId);
+        }
+
         public void OpenGameOptionsView(Guid gameId, GameOptionsTab initialTab = GameOptionsTab.Overview)
         {
             _windowService.OpenGameOptionsView(gameId, initialTab);

@@ -318,6 +318,66 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        public void OpenDynamicThemeCommandTestView(Guid? gameId = null)
+        {
+            try
+            {
+                Game game = null;
+                if (gameId.HasValue)
+                {
+                    game = _api?.Database?.Games?.Get(gameId.Value);
+                    if (game == null)
+                    {
+                        _api?.Dialogs?.ShowErrorMessage(
+                            ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"),
+                            ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                        return;
+                    }
+                }
+
+                var view = new Views.ParityTests.DynamicThemeCommandTestView(game);
+
+                var windowOptions = new WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1200,
+                    Height = 860
+                };
+
+                var window = PlayniteUiProvider.CreateExtensionWindow(
+                    gameId.HasValue ? "Dynamic Theme Command Tester" : "Dynamic Theme Command Tester (All Games)",
+                    view,
+                    windowOptions
+                );
+
+                window.MinWidth = 900;
+                window.MinHeight = 640;
+
+                try
+                {
+                    if (window.Owner == null)
+                    {
+                        window.Owner = _api?.Dialogs?.GetCurrentAppWindow();
+                    }
+                }
+                catch
+                {
+                }
+
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to open dynamic theme command test view for gameId={(gameId.HasValue ? gameId.Value.ToString() : "<all>")}");
+                _api?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open dynamic command test view: {ex.Message}",
+                    "Playnite Achievements");
+            }
+        }
+
         public void OpenGameOptionsView(Guid gameId, GameOptionsTab initialTab)
         {
             try

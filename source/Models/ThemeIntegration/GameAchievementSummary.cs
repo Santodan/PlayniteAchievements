@@ -62,6 +62,16 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public string Platform { get; }
 
         /// <summary>
+        /// Stable provider key used for theme filtering and icon triggers.
+        /// </summary>
+        public string ProviderKey { get; }
+
+        /// <summary>
+        /// Localized provider name for theme display.
+        /// </summary>
+        public string ProviderName { get; }
+
+        /// <summary>
         /// Full path to the game's cover image.
         /// </summary>
         public string CoverImagePath { get; }
@@ -130,6 +140,21 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public DateTime LastUnlockDate { get; }
 
         /// <summary>
+        /// Date the game was last played in Playnite, when available.
+        /// </summary>
+        public DateTime? LastPlayed { get; }
+
+        /// <summary>
+        /// Number of unlocked achievements for this game.
+        /// </summary>
+        public int UnlockedCount { get; }
+
+        /// <summary>
+        /// Total tracked achievements for this game.
+        /// </summary>
+        public int AchievementCount { get; }
+
+        /// <summary>
         /// Command to open the detailed achievement view for this game.
         /// </summary>
         public ICommand OpenAchievementWindow { get; }
@@ -175,11 +200,18 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             AchievementRarityStats rare = null,
             AchievementRarityStats ultraRare = null,
             AchievementRarityStats rareAndUltraRare = null,
-            AchievementRarityStats overall = null)
+            AchievementRarityStats overall = null,
+            string providerKey = null,
+            string providerName = null,
+            DateTime? lastPlayed = null,
+            int unlockedCount = 0,
+            int achievementCount = 0)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
             Platform = platform ?? "Unknown";
+            ProviderKey = providerKey ?? string.Empty;
+            ProviderName = providerName ?? string.Empty;
             CoverImagePath = coverImagePath ?? string.Empty;
             _progress = Math.Max(0, Math.Min(100, progress));
             _goldCount = Math.Max(0, goldCount);
@@ -187,6 +219,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             _bronzeCount = Math.Max(0, bronzeCount);
             IsCompleted = isCompleted;
             LastUnlockDate = lastUnlockDate;
+            LastPlayed = lastPlayed;
+            UnlockedCount = Math.Max(0, unlockedCount);
+            AchievementCount = Math.Max(0, achievementCount);
             OpenAchievementWindow = openAchievementWindow;
             Common = common ?? new AchievementRarityStats();
             Uncommon = uncommon ?? new AchievementRarityStats();

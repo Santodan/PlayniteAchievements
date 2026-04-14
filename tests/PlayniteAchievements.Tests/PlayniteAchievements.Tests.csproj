@@ -122,6 +122,7 @@
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStatsCombiner.cs" Link="Source\Models\Achievements\AchievementRarityStatsCombiner.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementCompletionPercentCalculator.cs" Link="Source\Models\Achievements\AchievementCompletionPercentCalculator.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\GameAchievementSummary.cs" Link="Source\Models\ThemeIntegration\GameAchievementSummary.cs" />
+    <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeViewState.cs" Link="Source\Models\ThemeIntegration\DynamicThemeViewState.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\LegacyThemeBindings.cs" Link="Source\Models\ThemeIntegration\LegacyThemeBindings.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\LibraryRuntimeState.cs" Link="Source\Models\ThemeIntegration\LibraryRuntimeState.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\ModernThemeBindings.cs" Link="Source\Models\ThemeIntegration\ModernThemeBindings.cs" />

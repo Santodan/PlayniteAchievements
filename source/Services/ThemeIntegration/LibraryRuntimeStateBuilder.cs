@@ -1,6 +1,7 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Providers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -87,6 +88,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var gold = rare.Unlocked + ultraRare.Unlocked;
                 var silver = uncommon.Unlocked;
                 var bronze = common.Unlocked;
+                var providerKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
+                var providerName = ProviderRegistry.GetLocalizedName(providerKey);
 
                 var summary = new GameAchievementSummary(
                     data.PlayniteGameId.Value,
@@ -105,7 +108,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     rare,
                     ultraRare,
                     rareAndUltraRare,
-                    overall);
+                    overall,
+                    providerKey,
+                    providerName,
+                    data.Game?.LastActivity,
+                    unlocked,
+                    total);
 
                 allGames.Add(summary);
                 summariesById[summary.GameId] = summary;
@@ -277,6 +285,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         }
 
                         achievement.Game = data.Game;
+                        achievement.ProviderKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
                         allAchievements.Add(achievement);
                     }
                 }
@@ -328,6 +337,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     }
 
                     achievement.Game = data.Game;
+                    achievement.ProviderKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
                     unlockedRecent.Add(achievement);
                 }
             }
@@ -530,6 +540,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             if (level <= 144) return "Plat2";
             if (level <= 171) return "Plat3";
             return "Plat";
+        }
+
+        private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
+        {
+            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
+                ? providerPlatformKey
+                : providerKey;
+            return string.IsNullOrWhiteSpace(resolved) ? string.Empty : resolved.Trim();
         }
     }
 }

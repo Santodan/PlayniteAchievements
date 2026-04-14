@@ -16,10 +16,14 @@
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">Include in Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_AddType">Add Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply To Selected</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Ascending">Ascending</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_All">All</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Check">Check</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">Clear Overrides</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Continue">Continue</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Default">Default</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Deselect All</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Descending">Descending</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Edit">Edit</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Enabled">Enabled</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ExistingLabel">Existing Label</sys:String>
@@ -31,6 +35,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">Playtime</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Region">Region</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Label_Type">Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Last Unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">Locked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NewLabel">New Label</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">No cached achievements are available for this game.</sys:String>
@@ -50,6 +55,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Status_NotLinked">Not linked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">Unlocked Count</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Label_Rarity">Rarity:</sys:String>
