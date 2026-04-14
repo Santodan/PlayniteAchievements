@@ -808,7 +808,7 @@ namespace PlayniteAchievements.Views
                     break;
 
                 case CustomGameScope.Installed:
-                    scopedGames = _gamesById.Values.Where(game => game.IsInstalled);
+                    scopedGames = _gamesById.Values.Where(IsInstalledOrHasOverride);
                     if (!includeUnplayed)
                     {
                         scopedGames = scopedGames.Where(game => game.Playtime > 0);
@@ -960,6 +960,14 @@ namespace PlayniteAchievements.Views
             }
 
             return false;
+        }
+
+        private static bool IsInstalledOrHasOverride(Game game)
+        {
+            return game != null &&
+                   (game.IsInstalled ||
+                    GameCustomDataLookup.TryGetXeniaTitleIdOverride(game.Id, out _) ||
+                    GameCustomDataLookup.TryGetShadPS4MatchIdOverride(game.Id, out _));
         }
 
         private void RecalculateSummary()

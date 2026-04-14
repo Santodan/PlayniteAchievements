@@ -78,13 +78,6 @@ namespace PlayniteAchievements.Providers.Xenia
 
         private GameAchievementData GetAchievementDataAsync(Game game)
         {
-            if (!game.IsInstalled)
-            {
-                _logger.Warn("[Xenia] Game isn't installed unable to resolve titleID!");
-                _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] Game isn't installed unable to resolve titleID!", NotificationType.Error));
-                return null;
-            }
-
             if (!ResolveTitleID(game, out var titleID))
             {
                 _playniteApi.Notifications.Add(new NotificationMessage("PA_Xenia", $"[Xenia] TitleID not found for {game.Name}! Has the game been launched?", NotificationType.Error));
