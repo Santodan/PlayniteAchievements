@@ -3,6 +3,17 @@ using System.Collections.Generic;
 
 namespace PlayniteAchievements.Providers.Xenia.Models
 {
+    public enum XdbfAchievementTypes : byte
+    {
+        Completion = 1,
+        Leveling = 2,
+        Unlock = 3,
+        Event = 4,
+        Tournament = 5,
+        Checkpoint = 6,
+        Other = 7,
+    }
+
     struct XdbfHeader
     {
         public UInt32 magic;

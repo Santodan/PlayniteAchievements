@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
@@ -132,6 +133,7 @@ namespace PlayniteAchievements.Providers.Xenia
                         ApiName = achievement.id.ToString(),
                         DisplayName = achievement.title,
                         Description = achievement.unlock_time == 0 ? achievement.description : achievement.unlockDescription,
+                        Category = ((XdbfAchievementTypes)(achievement.flags & 7)).ToString(),
                         UnlockedIconPath = iconPath,
                         LockedIconPath = iconPath,
                         Points = (int?)achievement.gamerscore,
@@ -140,6 +142,7 @@ namespace PlayniteAchievements.Providers.Xenia
                         UnlockTimeUtc = achievement.unlock_time != 0
                             ? DateTime.FromFileTimeUtc((Int64)achievement.unlock_time)
                             : (DateTime?)null,
+                        Hidden = ((achievement.flags & 8) == 0)
                     });
                 }
 
