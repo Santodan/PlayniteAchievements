@@ -53,6 +53,7 @@ namespace PlayniteAchievements.Models.Settings
             target.EnableNotifications = source.EnableNotifications;
             target.NotifyPeriodicUpdates = source.NotifyPeriodicUpdates;
             target.NotifyOnRebuild = source.NotifyOnRebuild;
+            target.LastUpstreamReleaseNotificationVersion = source.LastUpstreamReleaseNotificationVersion;
 
             // Display Preferences
             target.ShowHiddenIcon = source.ShowHiddenIcon;

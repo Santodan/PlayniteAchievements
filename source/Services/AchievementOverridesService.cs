@@ -12,18 +12,27 @@ namespace PlayniteAchievements.Services
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ICacheManager _cacheService;
         private readonly ILogger _logger;
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly Action<bool> _persistSettings;
+        private readonly Action<IReadOnlyList<Guid>> _raiseGameDataChanged;
         private readonly Action<bool> _notifyCacheInvalidated;
 
         public AchievementOverridesService(
             GameCustomDataStore gameCustomDataStore,
             ICacheManager cacheService,
+            PlayniteAchievementsSettings settings,
             ILogger logger,
-            Action<bool> notifyCacheInvalidated)
+            Action<bool> persistSettings,
+            Action<bool> notifyCacheInvalidated,
+            Action<IReadOnlyList<Guid>> raiseGameDataChanged = null)
         {
             _gameCustomDataStore = gameCustomDataStore ?? throw new ArgumentNullException(nameof(gameCustomDataStore));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
+            _persistSettings = persistSettings ?? throw new ArgumentNullException(nameof(persistSettings));
             _notifyCacheInvalidated = notifyCacheInvalidated ?? throw new ArgumentNullException(nameof(notifyCacheInvalidated));
+            _raiseGameDataChanged = raiseGameDataChanged;
         }
 
         public CacheWriteResult SetCapstone(Guid playniteGameId, string capstoneApiName)
@@ -92,6 +101,11 @@ namespace PlayniteAchievements.Services
 
             try
             {
+                if (_settings.Persisted.PreferredProviderOverrides == null)
+                {
+                    _settings.Persisted.PreferredProviderOverrides = new Dictionary<Guid, string>();
+                }
+
                 providerKey = providerKey?.Trim();
                 if (string.IsNullOrWhiteSpace(providerKey))
                 {

@@ -32,6 +32,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableNotifications = true;
         private bool _notifyPeriodicUpdates = true;
         private bool _notifyOnRebuild = true;
+        private string _lastUpstreamReleaseNotificationVersion = string.Empty;
         private int _recentRefreshGamesCount = 10;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
@@ -224,6 +225,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _notifyOnRebuild;
             set => SetValue(ref _notifyOnRebuild, value);
+        }
+
+        /// <summary>
+        /// Last upstream release version already shown to the user.
+        /// </summary>
+        public string LastUpstreamReleaseNotificationVersion
+        {
+            get => _lastUpstreamReleaseNotificationVersion;
+            set => SetValue(ref _lastUpstreamReleaseNotificationVersion, value ?? string.Empty);
         }
 
         #endregion
@@ -1080,6 +1090,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableNotifications = this.EnableNotifications,
                 NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
                 NotifyOnRebuild = this.NotifyOnRebuild,
+                LastUpstreamReleaseNotificationVersion = this.LastUpstreamReleaseNotificationVersion,
 
                 // Display Preferences
                 ShowHiddenIcon = this.ShowHiddenIcon,

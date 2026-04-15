@@ -98,6 +98,7 @@
     <sys:String x:Key="LOCPlayAch_Button_Refresh">Refresh</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Reset">Reset</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Save">Save</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Remove">Remove</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Search">Search</sys:String>
 
     <!-- ================================================================= -->
@@ -700,6 +701,13 @@
     <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">Refresh failed: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">Steam unlock datetime parsing failed {0} time(s) during this scan. Check the log and failed_steam_datetimes.csv, then submit an issue on GitHub. Your PlayniteAchievements language setting must match your Steam language for correct parsing.</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} authentication has expired or is invalid. Click to open settings.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_UpstreamReleaseTitle">Original Fork Update Available</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_UpstreamReleaseMessage">The original PlayniteAchievements fork released version {0}. Click to open the upstream releases page.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockTitle">Local Achievement Unlocked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockSingle">{0}
+Unlocked: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockMultiple">{0}
+{1} new Local achievements unlocked.</sys:String>
 
     <!-- ================================================================= -->
     <!-- 18 Miscellaneous -->

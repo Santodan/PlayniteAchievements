@@ -25,7 +25,9 @@ using Playnite.SDK.Plugins;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services.ReleaseMonitoring;
 using PlayniteAchievements.Services.ThemeIntegration;
+using PlayniteAchievements.Services.Local;
 using PlayniteAchievements.Services.ThemeMigration;
 using PlayniteAchievements.Services.Tagging;
 using PlayniteAchievements.Services.UI;
@@ -87,6 +89,8 @@ namespace PlayniteAchievements
         private readonly ThemeControlRegistry _themeControlRegistry;
         private readonly PluginWindowService _windowService;
         private readonly ThemeAutoMigrationService _themeAutoMigrationService;
+        private readonly UpstreamReleaseMonitor _upstreamReleaseMonitor;
+        private readonly ActiveGameAchievementMonitor _activeGameAchievementMonitor;
 
         // Tagging
         private TagSyncService _tagSyncService;
@@ -257,15 +261,41 @@ namespace PlayniteAchievements
                     _achievementOverridesService = new AchievementOverridesService(
                         _gameCustomDataStore,
                         _cacheManager,
+                        _settingsViewModel.Settings,
                         _logger,
-                        force => _cacheManager.NotifyCacheInvalidated());
+                        _ => SavePluginSettings(_settingsViewModel.Settings),
+                        force => _cacheManager.NotifyCacheInvalidated(),
+                        gameIds =>
+                        {
+                            if (gameIds == null || gameIds.Count == 0)
+                            {
+                                return;
+                            }
+
+                            foreach (var gameId in gameIds)
+                            {
+                                _themeIntegrationService?.RequestUpdate(gameId);
+                            }
+                        });
                     _achievementDataService = new AchievementDataService(_cacheManager, PlayniteApi, _settingsViewModel.Settings, _logger);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
                     _notifications = new NotificationPublisher(api, settings, _logger);
+                    _upstreamReleaseMonitor = new UpstreamReleaseMonitor(
+                        api,
+                        settings,
+                        _notifications,
+                        () => SavePluginSettings(_settingsViewModel.Settings),
+                        _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
                         _logger,
                         runWithProgressWindow: ShowRefreshProgressControlAndRun);
+                    _activeGameAchievementMonitor = new ActiveGameAchievementMonitor(
+                        _refreshCoordinator,
+                        _cacheManager,
+                        _providerRegistry,
+                        _notifications,
+                        _logger);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -415,12 +445,23 @@ namespace PlayniteAchievements
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            _activeGameAchievementMonitor?.Stop();
             _logger.Info($"Game stopped: {args.Game.Name}. Triggering refresh.");
             _ = _refreshCoordinator.ExecuteAsync(new RefreshRequest
             {
                 Mode = RefreshModeType.Single,
                 SingleGameId = args.Game.Id
             });
+        }
+
+        public override void OnGameStarted(OnGameStartedEventArgs args)
+        {
+            if (args?.Game == null)
+            {
+                return;
+            }
+
+            _activeGameAchievementMonitor?.Start(args.Game);
         }
 
         // === Lifecycle ===
@@ -474,6 +515,8 @@ namespace PlayniteAchievements
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();
 
+                _ = _upstreamReleaseMonitor?.CheckForUpstreamReleaseAsync();
+
                 RestartBackgroundUpdater();
             }
         }
@@ -525,6 +568,7 @@ namespace PlayniteAchievements
             }
 
             _backgroundUpdates.Stop();
+            _activeGameAchievementMonitor?.Dispose();
 
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }

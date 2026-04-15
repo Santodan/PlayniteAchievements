@@ -334,6 +334,14 @@
         </Setter>
     </Style>
 
+    <Style x:Key="AchievementCascadeMenuItemStyle"
+           TargetType="MenuItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+        <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+
     <!-- =======================
          ACHIEVEMENT TEMPLATES
          ======================= -->

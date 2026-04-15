@@ -31,6 +31,102 @@
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,0,0,12"/>
 
+                    <Border BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Real-time Local unlock checks"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+
+                            <CheckBox x:Name="EnableActiveGameMonitoringCheckBox"
+                                      Content="Check Local achievements for the currently running game while it is being played"
+                                      IsChecked="{Binding Settings.EnableActiveGameMonitoring, Mode=TwoWay}"
+                                      Checked="RealtimeMonitoringSettingChanged"
+                                      Unchecked="RealtimeMonitoringSettingChanged"
+                                      Margin="0,0,0,8"/>
+
+                            <DockPanel Margin="18,0,0,8"
+                                       IsEnabled="{Binding Settings.EnableActiveGameMonitoring}">
+                                <TextBlock Text="Polling interval (seconds):"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           FontWeight="SemiBold"/>
+                                <TextBox x:Name="PollingIntervalSecondsTextBox"
+                                         Width="70"
+                                         VerticalContentAlignment="Center"
+                                         TextChanged="PollingIntervalSecondsTextBox_TextChanged"
+                                         LostFocus="PollingIntervalSecondsTextBox_LostFocus"/>
+                            </DockPanel>
+
+                            <TextBlock Text="Choose a value between 2 and 60 seconds. Lower values react faster but increase disk polling."
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="18,0,0,10"
+                                       TextWrapping="Wrap"
+                                       IsEnabled="{Binding Settings.EnableActiveGameMonitoring}"/>
+
+                            <TextBlock Text="Only the game launched from Playnite is polled, and only through the Local provider, to keep the impact low."
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="0,0,0,10"
+                                       TextWrapping="Wrap"/>
+
+                            <StackPanel Margin="18,0,0,0"
+                                        IsEnabled="{Binding Settings.EnableActiveGameMonitoring}">
+                                <DockPanel Margin="0,0,0,6">
+                                    <TextBlock Text="Bundled default sound:"
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,8,0"
+                                             Foreground="{DynamicResource TextBrush}"
+                                             FontWeight="SemiBold"/>
+                                    <ComboBox x:Name="BundledUnlockSoundComboBox"
+                                            MinWidth="240"
+                                            SelectionChanged="BundledUnlockSoundComboBox_SelectionChanged"
+                                            DisplayMemberPath="DisplayName"/>
+                                </DockPanel>
+
+                                <DockPanel Margin="0,0,0,4">
+                                    <TextBlock Text="Custom override path:"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           FontWeight="SemiBold"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Width="90"
+                                            DockPanel.Dock="Right"
+                                            Margin="8,0,0,0"
+                                            Click="BrowseUnlockSoundPath_Click"/>
+                                    <TextBox x:Name="UnlockSoundPathTextBox"
+                                         Text="{Binding Settings.CustomUnlockSoundPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             VerticalContentAlignment="Center"
+                                             TextChanged="UnlockSoundPathTextBox_TextChanged"
+                                         ToolTip="Optional .wav file to override the bundled default sound when a Local achievement notification is shown."/>
+                                </DockPanel>
+
+                                <DockPanel Margin="0,0,0,4">
+                                    <Button x:Name="TestUnlockSoundButton"
+                                        Content="Test Notification"
+                                        Width="130"
+                                            Padding="12,6"
+                                            Click="TestUnlockSoundButton_Click"/>
+                                    <TextBlock x:Name="UnlockSoundStatusTextBlock"
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               TextWrapping="Wrap"
+                                               Style="{StaticResource MutedTextStyle}"/>
+                                </DockPanel>
+
+                                <TextBlock Text="Bundled sounds are loaded from Resources\Sounds inside the extension package. Steam.wav is used by default. If a custom path is set, it overrides the bundled dropdown. Leave the custom path empty to keep using the bundled default. WAV files are recommended."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"
+                                           />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                         <TextBlock Text="Steam path (optional):"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
@@ -119,18 +215,55 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"/>
 
-                    <TextBlock Text="Additional folders to scan (semicolon-separated):"
+                    <TextBlock Text="Additional folders to scan:"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"
                                Margin="0,0,0,4"/>
-                    <TextBox Text="{Binding Settings.ExtraLocalPaths, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             AcceptsReturn="True"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Disabled"
-                             Height="100"
-                             TextWrapping="Wrap"
-                             Margin="0,0,0,6"/>
-                    <TextBlock Text="Use semicolons (;) to separate multiple root folders. Environment variables such as %PUBLIC% or %APPDATA% are expanded automatically."
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="PendingExtraLocalPathTextBox"
+                                 Grid.Column="0"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="PendingExtraLocalPathTextBox_TextChanged" />
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Width="90"
+                                Margin="8,0,0,0"
+                                Click="BrowseExtraLocalPath_Click" />
+                        <Button x:Name="AddExtraLocalPathButton"
+                                Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                Width="90"
+                                Margin="8,0,0,0"
+                                IsEnabled="False"
+                                Click="AddExtraLocalPath_Click" />
+                    </Grid>
+
+                    <Border BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4"
+                            Margin="0,0,0,6">
+                        <ListBox x:Name="ExtraLocalPathsList"
+                                 SelectionChanged="ExtraLocalPathsList_SelectionChanged"
+                                 MinHeight="110"
+                                 MaxHeight="180" />
+                    </Border>
+
+                    <Button x:Name="RemoveExtraLocalPathButton"
+                            Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                            HorizontalAlignment="Left"
+                            Padding="12,6"
+                            Margin="0,0,0,6"
+                            IsEnabled="False"
+                            Click="RemoveExtraLocalPath_Click" />
+
+                    <TextBlock Text="Use Browse to select folders, then Apply to add them to the list. Environment variables such as %PUBLIC% or %APPDATA% are still expanded automatically when scanning."
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"/>
                 </StackPanel>

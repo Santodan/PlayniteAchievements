@@ -43,6 +43,7 @@ namespace PlayniteAchievements.Providers.Local
         private readonly PlayniteAchievementsSettings _pluginSettings;
         // private readonly string debugPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "Local_Debug.txt");
         private readonly Dictionary<int, SchemaAndPercentages> _steamSchemaCache = new Dictionary<int, SchemaAndPercentages>();
+        private HashSet<int> _steamLocalProgressAppIdsCache;
 
         public string ProviderKey => "Local";
         public string ProviderName => "Local"; 
@@ -65,7 +66,36 @@ namespace PlayniteAchievements.Providers.Local
             Log("=== Provider Starting V9 (Discovery Mode) ===");
         }
 
-        public bool IsCapable(Game game) => true;
+        public bool IsCapable(Game game)
+        {
+            if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
+            {
+                return false;
+            }
+
+            var appIdText = appId.ToString(CultureInfo.InvariantCulture);
+            if (TryResolveLocalFolder(game, appIdText, out _, out _, out _, out _))
+            {
+                return true;
+            }
+
+            if (GetSteamAppCacheSchemaFilePaths(appId).Any())
+            {
+                return true;
+            }
+
+            if (GetSteamAppCacheUserStatsFilePaths(appId).Any())
+            {
+                return true;
+            }
+
+            if (GetSteamLibraryCacheFilePaths(appId).Any())
+            {
+                return true;
+            }
+
+            return HasSteamAchievementProgressForApp(appId);
+        }
 
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
         {
@@ -2248,6 +2278,72 @@ namespace PlayniteAchievements.Providers.Local
             return candidates;
         }
 
+        private bool HasSteamAchievementProgressForApp(int appId)
+        {
+            if (appId <= 0)
+            {
+                return false;
+            }
+
+            var cachedAppIds = _steamLocalProgressAppIdsCache;
+            if (cachedAppIds == null)
+            {
+                cachedAppIds = LoadSteamAchievementProgressAppIds();
+                _steamLocalProgressAppIdsCache = cachedAppIds;
+            }
+
+            return cachedAppIds.Contains(appId);
+        }
+
+        private HashSet<int> LoadSteamAchievementProgressAppIds()
+        {
+            var appIds = new HashSet<int>();
+
+            foreach (var progressFilePath in GetSteamAchievementProgressFilePaths())
+            {
+                try
+                {
+                    if (!File.Exists(progressFilePath))
+                    {
+                        continue;
+                    }
+
+                    var json = File.ReadAllText(progressFilePath);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        continue;
+                    }
+
+                    var root = JObject.Parse(json);
+                    var mapCache = root["mapCache"] as JArray;
+                    if (mapCache == null)
+                    {
+                        continue;
+                    }
+
+                    for (var i = 0; i < mapCache.Count; i++)
+                    {
+                        if (!(mapCache[i] is JArray entry) || entry.Count < 2)
+                        {
+                            continue;
+                        }
+
+                        var entryAppId = entry[0]?.Value<int?>();
+                        if (entryAppId.HasValue && entryAppId.Value > 0)
+                        {
+                            appIds.Add(entryAppId.Value);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM LOCAL PROGRESS APPID CACHE ERROR: path={progressFilePath} msg={ex.Message}");
+                }
+            }
+
+            return appIds;
+        }
+
         private IEnumerable<string> GetSteamUserdataRoots()
         {
             var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -2497,22 +2593,10 @@ namespace PlayniteAchievements.Providers.Local
 
             roots.Add(Path.Combine(localAppData, "SKIDROW"));
 
-            if (_pluginSettings?.Persisted?.ExtraLocalPaths != null)
+            foreach (var extraPath in LocalSettings.SplitExtraLocalPaths(_pluginSettings?.Persisted?.ExtraLocalPaths))
             {
-                var extra = _pluginSettings.Persisted.ExtraLocalPaths
-                    .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-
-                foreach (var raw in extra)
-                {
-                    var trimmed = raw.Trim();
-                    if (string.IsNullOrWhiteSpace(trimmed))
-                    {
-                        continue;
-                    }
-
-                    var expanded = Environment.ExpandEnvironmentVariables(trimmed);
-                    roots.Add(expanded);
-                }
+                var expanded = Environment.ExpandEnvironmentVariables(extraPath);
+                roots.Add(expanded);
             }
 
             return roots.Distinct(StringComparer.OrdinalIgnoreCase);

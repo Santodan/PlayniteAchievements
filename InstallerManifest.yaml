@@ -1,10 +1,13 @@
 AddonId: PlayniteAchievements
 Packages:
-  - Version: 2.1.0
+  - Version: 2.1.0.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-04-14
-    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.1.0/PlayniteAchievements_2_1_0.pext
+    ReleaseDate: 2026-04-15
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.1.0.1/PlayniteAchievements_2_1_0_1.pext
     Changelog:
+    - "Fork release based on upstream 2.1.0 with Santodan local-achievement additions preserved."
+    - "Playnite now follows Santodan releases for plugin updates."
+    - "Startup notification added when the original PlayniteAchievements fork publishes a newer upstream release."
     - "Game Options - New Custom Icon support via Game Options, supporting web links, local files, and even GIFs!"
     - "Game Options - Export/import per-game custom data as .PA files or .PA.ZIP to share your configurations with others."
     - "Display - Added basic default Fullscreen theme support."

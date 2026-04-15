@@ -416,7 +416,6 @@ namespace PlayniteAchievements.Services.Sidebar
                 ProviderName = providerName
             };
 
-            var projectionOptions = AchievementProjectionService.CreateOptions(settings, gameData, revealedKeys);
             var appearanceSettings = AchievementDisplayItem.CreateAppearanceSettingsSnapshot(
                 settings,
                 gameData.PlayniteGameId,

@@ -253,23 +253,32 @@ namespace PlayniteAchievements.Views
             }
 
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var mode in modes.Where(mode => mode != null && !string.IsNullOrWhiteSpace(mode.Key)))
+            var submenuStyle = button.TryFindResource("AchievementCascadeMenuItemStyle") as Style;
+            var availableModes = modes
+                .Where(mode => mode != null && !string.IsNullOrWhiteSpace(mode.Key))
+                .ToList();
+
+            foreach (var mode in availableModes.Where(mode => !IsPresetRefreshMode(mode)))
             {
-                var modeKey = mode.Key;
-                var item = new MenuItem
+                menu.Items.Add(CreateRefreshModeMenuItem(mode, selectedModeKey, setSelection, itemStyle));
+            }
+
+            var presetModes = availableModes.Where(IsPresetRefreshMode).ToList();
+            if (presetModes.Count > 0)
+            {
+                var presetsMenuItem = new MenuItem
                 {
-                    Header = !string.IsNullOrWhiteSpace(mode.ShortDisplayName)
-                        ? mode.ShortDisplayName
-                        : (!string.IsNullOrWhiteSpace(mode.DisplayName) ? mode.DisplayName : modeKey),
-                    IsCheckable = true,
-                    IsChecked = string.Equals(modeKey, selectedModeKey, StringComparison.Ordinal)
+                    Header = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_PresetsHeader") ?? "Presets",
+                    ItemContainerStyle = itemStyle,
+                    Style = submenuStyle
                 };
-                if (itemStyle != null)
+
+                foreach (var presetMode in presetModes)
                 {
-                    item.Style = itemStyle;
+                    presetsMenuItem.Items.Add(CreateRefreshModeMenuItem(presetMode, selectedModeKey, setSelection, itemStyle));
                 }
-                item.Click += (_, __) => setSelection(modeKey);
-                menu.Items.Add(item);
+
+                menu.Items.Add(presetsMenuItem);
             }
 
             if (menu.Items.Count == 0)
@@ -278,6 +287,38 @@ namespace PlayniteAchievements.Views
             }
 
             OpenSelectorContextMenu(button, menu);
+        }
+
+        private static bool IsPresetRefreshMode(RefreshMode mode)
+        {
+            return mode != null
+                && !string.IsNullOrWhiteSpace(mode.Key)
+                && mode.Key.StartsWith("CustomPreset:", StringComparison.Ordinal);
+        }
+
+        private static MenuItem CreateRefreshModeMenuItem(
+            RefreshMode mode,
+            string selectedModeKey,
+            Action<string> setSelection,
+            Style itemStyle)
+        {
+            var modeKey = mode.Key;
+            var item = new MenuItem
+            {
+                Header = !string.IsNullOrWhiteSpace(mode.ShortDisplayName)
+                    ? mode.ShortDisplayName
+                    : (!string.IsNullOrWhiteSpace(mode.DisplayName) ? mode.DisplayName : modeKey),
+                IsCheckable = true,
+                IsChecked = string.Equals(modeKey, selectedModeKey, StringComparison.Ordinal)
+            };
+
+            if (itemStyle != null)
+            {
+                item.Style = itemStyle;
+            }
+
+            item.Click += (_, __) => setSelection(modeKey);
+            return item;
         }
 
         private void ProviderFilterSelectionButton_Click(object sender, RoutedEventArgs e)

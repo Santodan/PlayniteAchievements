@@ -108,6 +108,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Remove">Supprimer</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Xenia">Xenia</sys:String>
 
@@ -816,6 +817,13 @@
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedMessage">{0} a été automatiquement mis à jour pour PlayniteAchievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">Veuillez redémarrer Playnite pour appliquer les changements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">L'authentification {0} a expiré ou est invalide. Cliquez pour ouvrir les paramètres.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_UpstreamReleaseTitle">Mise à jour du fork original disponible</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_UpstreamReleaseMessage">Le fork original de PlayniteAchievements a publié la version {0}. Cliquez pour ouvrir la page des versions amont.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockTitle">Succès local débloqué</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockSingle">{0}
+Débloqué : {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockMultiple">{0}
+{1} nouveaux succès locaux débloqués.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">Rétablir</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">Migration limitée</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">Migration complète</sys:String>

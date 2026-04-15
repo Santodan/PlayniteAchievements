@@ -68,6 +68,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly object _deltaSync = new object();
         private readonly HashSet<string> _pendingDeltaKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private bool _pendingFullResetFromDelta;
+        private const string CustomPresetModeKeyPrefix = "CustomPreset:";
 
         private List<AchievementDisplayItem> _filteredRecentAchievements = new List<AchievementDisplayItem>();
         private List<AchievementDisplayItem> _filteredSelectedGameAchievements = new List<AchievementDisplayItem>();
@@ -139,8 +140,8 @@ namespace PlayniteAchievements.ViewModels
             _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_Played", "Played"));
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
-            RefreshModes = new ObservableCollection<RefreshMode>(
-                _refreshService.GetRefreshModes().Where(m => m.Type != RefreshModeType.LibrarySelected));
+            RefreshModes = new ObservableCollection<RefreshMode>();
+            RebuildRefreshModes();
 
             GlobalTimeline = new TimelineViewModel();
             SelectedGameTimeline = new TimelineViewModel();
@@ -582,6 +583,87 @@ namespace PlayniteAchievements.ViewModels
             StringComparison.Ordinal)
             ? ResourceProvider.GetString("LOCPlayAch_Button_Configure")
             : ResourceProvider.GetString("LOCPlayAch_Button_Refresh");
+
+        private void RebuildRefreshModes()
+        {
+            var currentSelection = _selectedRefreshMode;
+
+            RefreshModes.Clear();
+
+            foreach (var mode in _refreshService.GetRefreshModes().Where(m => m.Type != RefreshModeType.LibrarySelected))
+            {
+                RefreshModes.Add(mode);
+            }
+
+            var presets = CustomRefreshPreset.NormalizePresets(
+                _settings?.Persisted?.CustomRefreshPresets,
+                CustomRefreshPreset.MaxPresetCount);
+
+            foreach (var preset in presets.Where(p => p?.Options != null && !string.IsNullOrWhiteSpace(p.Name)))
+            {
+                RefreshModes.Add(new RefreshMode(
+                    RefreshModeType.Custom,
+                    RefreshModeType.Custom.GetResourceKey(),
+                    RefreshModeType.Custom.GetShortResourceKey())
+                {
+                    Key = MakeCustomPresetModeKey(preset.Name),
+                    DisplayName = preset.Name,
+                    ShortDisplayName = preset.Name,
+                    Description = preset.Name
+                });
+            }
+
+            var fallbackSelection = RefreshModes.FirstOrDefault(mode =>
+                string.Equals(mode?.Key, RefreshModeType.Installed.GetKey(), StringComparison.Ordinal))?.Key
+                ?? RefreshModes.FirstOrDefault()?.Key
+                ?? RefreshModeType.Installed.GetKey();
+
+            var nextSelection = RefreshModes.Any(mode => string.Equals(mode?.Key, currentSelection, StringComparison.Ordinal))
+                ? currentSelection
+                : fallbackSelection;
+
+            var selectionChanged = !string.Equals(_selectedRefreshMode, nextSelection, StringComparison.Ordinal);
+            _selectedRefreshMode = nextSelection;
+
+            if (selectionChanged)
+            {
+                OnPropertyChanged(nameof(SelectedRefreshMode));
+            }
+
+            HandleRefreshModeSelectionChanged();
+            (RefreshCommand as AsyncCommand)?.RaiseCanExecuteChanged();
+        }
+
+        private static string MakeCustomPresetModeKey(string presetName)
+        {
+            return string.Concat(CustomPresetModeKeyPrefix, presetName ?? string.Empty);
+        }
+
+        private static bool TryGetCustomPresetName(string modeKey, out string presetName)
+        {
+            if (!string.IsNullOrWhiteSpace(modeKey)
+                && modeKey.StartsWith(CustomPresetModeKeyPrefix, StringComparison.Ordinal))
+            {
+                presetName = modeKey.Substring(CustomPresetModeKeyPrefix.Length);
+                return !string.IsNullOrWhiteSpace(presetName);
+            }
+
+            presetName = null;
+            return false;
+        }
+
+        private CustomRefreshPreset GetPresetFromRefreshModeKey(string modeKey)
+        {
+            if (!TryGetCustomPresetName(modeKey, out var presetName))
+            {
+                return null;
+            }
+
+            return CustomRefreshPreset.NormalizePresets(
+                    _settings?.Persisted?.CustomRefreshPresets,
+                    CustomRefreshPreset.MaxPresetCount)
+                .FirstOrDefault(preset => string.Equals(preset?.Name, presetName, StringComparison.OrdinalIgnoreCase));
+        }
 
         public bool UseCoverImages => _settings?.Persisted?.UseCoverImages ?? false;
 
@@ -1067,6 +1149,16 @@ namespace PlayniteAchievements.ViewModels
 
         private RefreshRequest BuildRefreshRequest()
         {
+            var selectedPreset = GetPresetFromRefreshModeKey(SelectedRefreshMode);
+            if (selectedPreset?.Options != null)
+            {
+                return new RefreshRequest
+                {
+                    Mode = RefreshModeType.Custom,
+                    CustomOptions = selectedPreset.Options.Clone()
+                };
+            }
+
             if (string.Equals(SelectedRefreshMode, RefreshModeType.Custom.GetKey(), StringComparison.Ordinal))
             {
                 if (!CustomRefreshControl.TryShowDialog(
@@ -1682,6 +1774,7 @@ namespace PlayniteAchievements.ViewModels
         {
             if (string.IsNullOrWhiteSpace(propertyName))
             {
+                RebuildRefreshModes();
                 OnPropertyChanged(nameof(UseCoverImages));
                 OnPropertyChanged(nameof(EnableCompactGridMode));
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
@@ -1708,6 +1801,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.IncludeUnplayedGames))
             {
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
+            }
+            else if (propertyName == nameof(PersistedSettings.CustomRefreshPresets))
+            {
+                RebuildRefreshModes();
             }
             else if (propertyName == nameof(PersistedSettings.ShowSidebarPieCharts)
                 || propertyName == nameof(PersistedSettings.ShowSidebarGamesPieChart)
