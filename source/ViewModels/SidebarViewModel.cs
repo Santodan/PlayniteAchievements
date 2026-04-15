@@ -108,8 +108,7 @@ namespace PlayniteAchievements.ViewModels
                 _achievementDataService,
                 _refreshService.Providers,
                 _playniteApi,
-                _logger,
-                PlayniteAchievementsPlugin.Instance?.GameCustomDataStore);
+                _logger);
             _selectedGamePipeline = new AchievementSelectionPipeline(_achievementDataService, _settings);
 
             // Initialize debounce timer
@@ -695,6 +694,7 @@ namespace PlayniteAchievements.ViewModels
                     }
 
                     ResetSelectedGameAchievementVisibilityFilters();
+                    RefreshSelectedGameHeaderCounts();
                     OnPropertyChanged(nameof(IsGameSelected));
                     OnPropertyChanged(nameof(TimelineSectionTitle));
                     (RefreshCommand as AsyncCommand)?.RaiseCanExecuteChanged();
@@ -709,6 +709,27 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool IsGameSelected => SelectedGame != null;
+
+        private int _selectedGameHeaderUnlockedCount;
+        public int SelectedGameHeaderUnlockedCount
+        {
+            get => _selectedGameHeaderUnlockedCount;
+            private set => SetValue(ref _selectedGameHeaderUnlockedCount, value);
+        }
+
+        private int _selectedGameHeaderTotalCount;
+        public int SelectedGameHeaderTotalCount
+        {
+            get => _selectedGameHeaderTotalCount;
+            private set => SetValue(ref _selectedGameHeaderTotalCount, value);
+        }
+
+        private string _selectedGameHeaderCountQualifier;
+        public string SelectedGameHeaderCountQualifier
+        {
+            get => _selectedGameHeaderCountQualifier;
+            private set => SetValue(ref _selectedGameHeaderCountQualifier, value);
+        }
 
         /// <summary>
         /// Determines whether the refresh command can execute.
@@ -1363,6 +1384,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 CollectionHelper.SynchronizeCollection(RecentAchievements, _filteredRecentAchievements);
             }
+
+            RefreshSelectedGameHeaderCounts();
             UpdateFilteredStatus();
         }
 
@@ -2797,6 +2820,51 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
             }
+
+            RefreshSelectedGameHeaderCounts();
+        }
+
+        private bool HasSelectedGameAchievementFiltersApplied()
+        {
+            if (!IsGameSelected)
+            {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(RightSearchText)
+                || _selectedGameTypeFilters.Count > 0
+                || _selectedGameCategoryFilters.Count > 0
+                || !ShowSelectedGameUnlocked
+                || !ShowSelectedGameLocked
+                || !ShowSelectedGameHidden;
+        }
+
+        private void RefreshSelectedGameHeaderCounts()
+        {
+            var isFiltered = HasSelectedGameAchievementFiltersApplied();
+            var unlocked = 0;
+            var total = 0;
+
+            if (IsGameSelected)
+            {
+                if (isFiltered)
+                {
+                    var filtered = _filteredSelectedGameAchievements ?? new List<AchievementDisplayItem>();
+                    total = filtered.Count;
+                    unlocked = filtered.Count(item => item?.Unlocked == true);
+                }
+                else
+                {
+                    total = SelectedGame?.TotalAchievements ?? 0;
+                    unlocked = SelectedGame?.UnlockedAchievements ?? 0;
+                }
+            }
+
+            SelectedGameHeaderUnlockedCount = unlocked;
+            SelectedGameHeaderTotalCount = total;
+            SelectedGameHeaderCountQualifier = isFiltered
+                ? L("LOCPlayAch_RefreshModeShort_Selected", "Selected")
+                : L("LOCPlayAch_Achievements", "Achievements");
         }
 
         private void ResetSelectedGameAchievementVisibilityFilters()
@@ -2882,6 +2950,7 @@ namespace PlayniteAchievements.ViewModels
                 }
                 // Restore global timeline to show all games
                 GlobalTimeline.SetCounts(_latestSnapshot?.GlobalUnlockCountsByDate);
+                RefreshSelectedGameHeaderCounts();
                 return true;
             }
 
@@ -2956,6 +3025,7 @@ namespace PlayniteAchievements.ViewModels
                 UpdateSelectedGameAchievementFilterOptions(null);
                 SelectedGameHasCustomAchievementOrder = false;
                 _logger?.Warn(ex, $"Failed to load achievements for game {SelectedGame?.AppId}");
+                RefreshSelectedGameHeaderCounts();
                 return false;
             }
         }

@@ -254,7 +254,12 @@ namespace PlayniteAchievements
                         _cacheManager,
                         _logger,
                         force => _cacheManager.NotifyCacheInvalidated());
-                    _achievementDataService = new AchievementDataService(_cacheManager, PlayniteApi, _settingsViewModel.Settings, _logger);
+                    _achievementDataService = new AchievementDataService(
+                        _cacheManager,
+                        PlayniteApi,
+                        _settingsViewModel.Settings,
+                        _logger,
+                        _gameCustomDataStore);
                     _gameCustomDataStore.AttachAchievementDataService(_achievementDataService);
                     _notifications = new NotificationPublisher(api, settings, _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
@@ -267,8 +272,7 @@ namespace PlayniteAchievements
                     _tagSyncService = new TagSyncService(
                         PlayniteApi,
                         _logger,
-                        settings.Persisted,
-                        _cacheManager);
+                        settings.Persisted);
                     _tagSyncService.InitializeAndSubscribeTaggingSettings();
 
                     _windowService = new PluginWindowService(
@@ -310,8 +314,7 @@ namespace PlayniteAchievements
                         _refreshCoordinator,
                         _settingsViewModel.Settings,
                         _fullscreenWindowService,
-                        _logger,
-                        _gameCustomDataStore);
+                        _logger);
 
                     SubscribeDatabaseEventHandlers();
 
@@ -378,7 +381,6 @@ namespace PlayniteAchievements
                         _logger,
                         PlayniteApi,
                         _refreshService,
-                        _cacheManager,
                         this);
                 }
             };

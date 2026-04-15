@@ -16,12 +16,17 @@ namespace PlayniteAchievements.Services.Hydration
     {
         private readonly IPlayniteAPI _api;
         private readonly PersistedSettings _settings;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly AchievementDetailHydrator _achievementHydrator;
 
-        public GameDataHydrator(IPlayniteAPI api, PersistedSettings settings)
+        public GameDataHydrator(
+            IPlayniteAPI api,
+            PersistedSettings settings,
+            GameCustomDataStore gameCustomDataStore = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _gameCustomDataStore = gameCustomDataStore;
             _achievementHydrator = new AchievementDetailHydrator(settings);
         }
 
@@ -36,7 +41,7 @@ namespace PlayniteAchievements.Services.Hydration
             }
 
             var gameId = data.PlayniteGameId.Value;
-            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings);
+            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings, _gameCustomDataStore);
 
             // Populate ExcludedByUser from settings
             data.ExcludedByUser = customData.ExcludedFromRefreshes;
@@ -79,7 +84,7 @@ namespace PlayniteAchievements.Services.Hydration
             }
 
             var gameId = data.PlayniteGameId.Value;
-            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings);
+            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings, _gameCustomDataStore);
 
             data.ExcludedFromSummaries = customData.ExcludedFromSummaries;
             data.UseSeparateLockedIconsWhenAvailable = customData.UseSeparateLockedIcons;

@@ -75,7 +75,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly FullscreenWindowService _windowService;
-        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ThemeRuntimeState _runtimeState = new ThemeRuntimeState();
 
         private readonly object _refreshLock = new object();
@@ -101,8 +100,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings,
             FullscreenWindowService windowService,
-            ILogger logger,
-            GameCustomDataStore gameCustomDataStore = null)
+            ILogger logger)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
@@ -111,7 +109,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
             _logger = logger;
-            _gameCustomDataStore = gameCustomDataStore;
 
             var openOverviewCommand = new RelayCommand(_ => OpenOverviewWindow());
             var openSelectedGameCommand = new RelayCommand(_ => OpenSelectedGameWindow());
@@ -740,8 +737,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Info("PopulateAllGamesDataSync: Starting to populate all-games achievement data.");
 
-                var allData = _achievementDataService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
-                allData = FilterExcludedFromSummaries(allData);
+                var allData = _achievementDataService.GetAllGameAchievementDataForTheme() ?? new List<GameAchievementData>();
                 _logger?.Info($"PopulateAllGamesDataSync: Found {allData.Count} total game data entries.");
 
                 var state = LibraryRuntimeStateBuilder.Build(
@@ -760,21 +756,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Error(ex, "Failed to populate all-games data synchronously.");
             }
-        }
-
-        private List<GameAchievementData> FilterExcludedFromSummaries(List<GameAchievementData> allData)
-        {
-            allData ??= new List<GameAchievementData>();
-
-            var excludedIds = GameCustomDataLookup.GetExcludedSummaryGameIds(_settings?.Persisted, _gameCustomDataStore);
-            if (excludedIds == null || excludedIds.Count == 0)
-            {
-                return allData;
-            }
-
-            return allData
-                .Where(data => data?.PlayniteGameId == null || !excludedIds.Contains(data.PlayniteGameId.Value))
-                .ToList();
         }
 
         /// <summary>
@@ -841,8 +822,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 {
                     await Task.Delay(500, token).ConfigureAwait(false);
 
-                    var allData = _achievementDataService.GetAllGameAchievementData() ?? new List<GameAchievementData>();
-                    allData = FilterExcludedFromSummaries(allData);
+                    var allData = _achievementDataService.GetAllGameAchievementDataForTheme() ?? new List<GameAchievementData>();
 
                     token.ThrowIfCancellationRequested();
 

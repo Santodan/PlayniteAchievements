@@ -711,8 +711,9 @@ namespace PlayniteAchievements.Views
         {
             try
             {
+                var dataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
                 return new HashSet<string>(
-                    _refreshService?.Cache?.GetCachedGameIds() ?? new List<string>(),
+                    dataService?.GetCachedGameIds() ?? new List<string>(),
                     StringComparer.OrdinalIgnoreCase);
             }
             catch (Exception ex)

@@ -141,8 +141,8 @@ namespace PlayniteAchievements.Services
             // Skip if landing page should be shown (user hasn't completed setup)
             var firstTimeCompleted = _settings.Persisted.FirstTimeSetupCompleted;
             var seenThemeMigration = _settings.Persisted.SeenThemeMigration;
-            var cachedIds = _cacheManager?.GetCachedGameIds();
-            var hasCachedData = cachedIds != null && cachedIds.Count > 0;
+            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            var hasCachedData = achievementDataService?.HasCachedGameData() == true;
             bool showLandingPage = !seenThemeMigration || !firstTimeCompleted || !hasCachedData;
 
             if (showLandingPage)

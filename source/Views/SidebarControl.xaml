@@ -1201,10 +1201,12 @@
                                                Margin="8,0,0,0"
                                                VerticalAlignment="Center">
                                         <Run Text="("/>
-                                        <Run Text="{Binding SelectedGame.UnlockedAchievements, Mode=OneWay}"/>
+                                        <Run Text="{Binding SelectedGameHeaderUnlockedCount, Mode=OneWay}"/>
                                         <Run Text="/"/>
-                                        <Run Text="{Binding SelectedGame.TotalAchievements, Mode=OneWay}"/>
-                                        <Run Text=" achievements)"/>
+                                        <Run Text="{Binding SelectedGameHeaderTotalCount, Mode=OneWay}"/>
+                                        <Run Text=" "/>
+                                        <Run Text="{Binding SelectedGameHeaderCountQualifier, Mode=OneWay}"/>
+                                        <Run Text=")"/>
                                     </TextBlock>
                                 </StackPanel>
 

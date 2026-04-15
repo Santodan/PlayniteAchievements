@@ -956,6 +956,8 @@ namespace PlayniteAchievements.Services
         public int? ProgressNum { get; set; }
 
         public int? ProgressDenom { get; set; }
+
+        public bool UseSeparateLockedIconsWhenAvailable { get; set; }
     }
 
     public class GameCacheUpdatedEventArgs : EventArgs

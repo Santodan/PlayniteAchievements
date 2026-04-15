@@ -39,20 +39,17 @@ namespace PlayniteAchievements.Services.Sidebar
         private readonly IReadOnlyList<IDataProvider> _providers;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
-        private readonly GameCustomDataStore _gameCustomDataStore;
 
         public SidebarDataBuilder(
             AchievementDataService achievementDataService,
             IReadOnlyList<IDataProvider> providers,
             IPlayniteAPI playniteApi,
-            ILogger logger,
-            GameCustomDataStore gameCustomDataStore = null)
+            ILogger logger)
         {
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _providers = providers ?? new List<IDataProvider>();
             _playniteApi = playniteApi;
             _logger = logger;
-            _gameCustomDataStore = gameCustomDataStore;
         }
 
         public SidebarDataSnapshot Build(
@@ -63,6 +60,22 @@ namespace PlayniteAchievements.Services.Sidebar
             settings ??= new PlayniteAchievementsSettings();
             revealedKeys ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+            var providerLookup = BuildProviderLookup();
+            var queryData = _achievementDataService.GetCachedSummaryDataForSidebar(InitialRecentAchievementMaterializationLimit);
+            if (queryData != null)
+            {
+                return BuildFromCachedSummaryData(settings, queryData, providerLookup, cancel);
+            }
+
+            return BuildFromHydratedData(settings, revealedKeys, providerLookup, cancel);
+        }
+
+        private SidebarDataSnapshot BuildFromHydratedData(
+            PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
+            IReadOnlyDictionary<string, (string iconKey, string colorHex)> providerLookup,
+            CancellationToken cancel)
+        {
             var snapshot = new SidebarDataSnapshot();
             var gamesOverview = new List<GameOverviewItem>();
             var recentAchievements = new List<AchievementDisplayItem>();
@@ -81,18 +94,10 @@ namespace PlayniteAchievements.Services.Sidebar
             var unlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var totalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            // Total rarity counts (including locked achievements)
             int totalCommonPossible = 0;
             int totalUncommonPossible = 0;
             int totalRarePossible = 0;
             int totalUltraRarePossible = 0;
-
-            var providerLookup = BuildProviderLookup();
-            var queryData = _achievementDataService.GetCachedSummaryData(InitialRecentAchievementMaterializationLimit);
-            if (queryData != null)
-            {
-                return BuildFromCachedSummaryData(settings, queryData, providerLookup, cancel);
-            }
 
             var allGameData = _achievementDataService.GetAllGameAchievementDataForSidebar() ?? new List<GameAchievementData>();
             for (var i = 0; i < allGameData.Count; i++)
@@ -157,14 +162,12 @@ namespace PlayniteAchievements.Services.Sidebar
                 unlockedByProvider[provider] += fragment.UnlockedAchievements;
                 totalByProvider[provider] += fragment.TotalAchievements;
 
-                // Aggregate total rarity counts
                 totalCommonPossible += fragment.TotalCommonPossible;
                 totalUncommonPossible += fragment.TotalUncommonPossible;
                 totalRarePossible += fragment.TotalRarePossible;
                 totalUltraRarePossible += fragment.TotalUltraRarePossible;
             }
 
-            // Sort stable outputs once so UI work is minimal.
             gamesOverview = gamesOverview
                 .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
                 .ToList();
@@ -223,29 +226,24 @@ namespace PlayniteAchievements.Services.Sidebar
                 HasDeferredRecentAchievements = queryData.HasMoreRecentUnlocks
             };
 
-            var excludedSummaryIds = GameCustomDataLookup.GetExcludedSummaryGameIds(settings?.Persisted, _gameCustomDataStore);
-            var manualCapstoneByGameId = BuildManualCapstoneLookup(settings);
-            RemoveExcludedTimelineCounts(
-                snapshot.GlobalUnlockCountsByDate,
-                snapshot.UnlockCountsByDateByGame,
-                excludedSummaryIds);
-            var referencedGameIds = queryData.Games
+            var games = queryData.Games ?? new List<CachedGameSummaryData>();
+            var recentUnlocks = queryData.RecentUnlocks ?? new List<CachedRecentUnlockData>();
+            var referencedGameIds = games
                 .Where(g => g?.PlayniteGameId.HasValue == true)
                 .Select(g => g.PlayniteGameId.Value)
-                .Concat(queryData.RecentUnlocks
+                .Concat(recentUnlocks
                     .Where(r => r?.PlayniteGameId.HasValue == true)
                     .Select(r => r.PlayniteGameId.Value));
             var presentationByGameId = BuildGamePresentationCache(referencedGameIds);
 
-            for (var i = 0; i < queryData.Games.Count; i++)
+            for (var i = 0; i < games.Count; i++)
             {
                 cancel.ThrowIfCancellationRequested();
 
-                var game = queryData.Games[i];
+                var game = games[i];
                 if (game == null ||
                     !game.HasAchievements ||
-                    game.TotalAchievements <= 0 ||
-                    (game.PlayniteGameId.HasValue && excludedSummaryIds.Contains(game.PlayniteGameId.Value)))
+                    game.TotalAchievements <= 0)
                 {
                     continue;
                 }
@@ -260,16 +258,6 @@ namespace PlayniteAchievements.Services.Sidebar
                 if (!providerLookup.TryGetValue(providerKey, out var providerMetadata))
                 {
                     providerMetadata = ("ProviderIcon" + providerKey, "#888888");
-                }
-
-                var isCompleted = game.IsCompleted;
-                if (!isCompleted &&
-                    game.PlayniteGameId.HasValue &&
-                    manualCapstoneByGameId.TryGetValue(game.PlayniteGameId.Value, out var manualCapstoneApiName))
-                {
-                    isCompleted = HasUnlockedManualCapstone(
-                        game.PlayniteGameId.Value,
-                        manualCapstoneApiName);
                 }
 
                 var presentation = ResolveGamePresentation(game.PlayniteGameId, presentationByGameId);
@@ -303,7 +291,7 @@ namespace PlayniteAchievements.Services.Sidebar
                     TrophySilverTotal = game.TrophySilverTotal,
                     TrophyBronzeTotal = game.TrophyBronzeTotal,
                     LastPlayed = presentation.LastPlayed,
-                    IsCompleted = isCompleted,
+                    IsCompleted = game.IsCompleted,
                     Provider = providerName,
                     ProviderKey = providerKey,
                     ProviderIconKey = providerMetadata.iconKey,
@@ -320,7 +308,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 snapshot.TotalUncommonPossible += game.TotalUncommonPossible;
                 snapshot.TotalRarePossible += game.TotalRarePossible;
                 snapshot.TotalUltraRarePossible += game.TotalUltraRarePossible;
-                if (isCompleted)
+                if (game.IsCompleted)
                 {
                     snapshot.CompletedGames++;
                 }
@@ -337,8 +325,7 @@ namespace PlayniteAchievements.Services.Sidebar
 
             snapshot.RecentAchievements = MaterializeRecentAchievements(
                 settings,
-                queryData.RecentUnlocks,
-                excludedSummaryIds,
+                recentUnlocks,
                 presentationByGameId,
                 cancel);
 
@@ -360,20 +347,45 @@ namespace PlayniteAchievements.Services.Sidebar
         {
             settings ??= new PlayniteAchievementsSettings();
 
-            var queryData = _achievementDataService.GetCachedSummaryData() ?? new CachedSummaryData();
-            var recentAchievements = queryData.RecentUnlocks ?? new List<CachedRecentUnlockData>();
-            var excludedSummaryIds = GameCustomDataLookup.GetExcludedSummaryGameIds(settings?.Persisted, _gameCustomDataStore);
-            var presentationByGameId = BuildGamePresentationCache(
-                recentAchievements
-                    .Where(r => r?.PlayniteGameId.HasValue == true)
-                    .Select(r => r.PlayniteGameId.Value));
+            var recentAchievements = _achievementDataService.GetCachedRecentUnlocksForSidebar();
+            if (recentAchievements != null)
+            {
+                var presentationByGameId = BuildGamePresentationCache(
+                    recentAchievements
+                        .Where(r => r?.PlayniteGameId.HasValue == true)
+                        .Select(r => r.PlayniteGameId.Value));
 
-            return MaterializeRecentAchievements(
-                settings,
-                recentAchievements,
-                excludedSummaryIds,
-                presentationByGameId,
-                cancel);
+                return MaterializeRecentAchievements(
+                    settings,
+                    recentAchievements,
+                    presentationByGameId,
+                    cancel);
+            }
+
+            var hydratedRecent = new List<AchievementDisplayItem>();
+            var providerLookup = BuildProviderLookup();
+            var allGameData = _achievementDataService.GetAllGameAchievementDataForSidebar() ?? new List<GameAchievementData>();
+            var revealedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < allGameData.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                var fragment = BuildGameFragment(
+                    settings,
+                    revealedKeys,
+                    allGameData[i],
+                    providerLookup,
+                    includeAchievementItems: false);
+                if (fragment?.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
+                {
+                    hydratedRecent.AddRange(fragment.RecentAchievements);
+                }
+            }
+
+            return AchievementGridSortHelper.CreateDefaultSortedList(
+                hydratedRecent,
+                AchievementGridSortScope.RecentAchievements);
         }
 
         public SidebarGameFragment BuildGameFragment(
@@ -411,10 +423,9 @@ namespace PlayniteAchievements.Services.Sidebar
             {
                 providerName = providerKey;
             }
-            
+
             if (!providerLookup.TryGetValue(providerKey, out var providerMetadata))
             {
-                // Fallback for providers without an active integration
                 providerMetadata = ("ProviderIcon" + providerKey, "#888888");
             }
 
@@ -442,13 +453,11 @@ namespace PlayniteAchievements.Services.Sidebar
             int gameRare = 0;
             int gameUltraRare = 0;
 
-            // Total rarity counts (including locked achievements)
             int gameTotalCommon = 0;
             int gameTotalUncommon = 0;
             int gameTotalRare = 0;
             int gameTotalUltraRare = 0;
 
-            // Trophy counts (for PlayStation games)
             int gameTrophyPlatinum = 0;
             int gameTrophyGold = 0;
             int gameTrophySilver = 0;
@@ -481,8 +490,6 @@ namespace PlayniteAchievements.Services.Sidebar
                     }
                 }
 
-                // Calculate total rarity tier for ALL achievements (including locked)
-                // Only count if rarity data is available (null means no rarity info for this provider)
                 AchievementDisplayItem.AccumulateRarity(ach, ref gameTotalCommon, ref gameTotalUncommon, ref gameTotalRare, ref gameTotalUltraRare);
                 AchievementDisplayItem.AccumulateTrophy(
                     ach,
@@ -495,10 +502,8 @@ namespace PlayniteAchievements.Services.Sidebar
                 {
                     gameUnlocked++;
 
-                    // Only count rarity if data is available
                     AchievementDisplayItem.AccumulateRarity(ach, ref gameCommon, ref gameUncommon, ref gameRare, ref gameUltraRare);
 
-                    // Track trophy types for unlocked achievements
                     AchievementDisplayItem.AccumulateTrophy(ach, ref gameTrophyPlatinum, ref gameTrophyGold, ref gameTrophySilver, ref gameTrophyBronze);
 
                     if (ach.UnlockTimeUtc.HasValue)
@@ -587,61 +592,9 @@ namespace PlayniteAchievements.Services.Sidebar
             return fragment;
         }
 
-        private bool HasUnlockedManualCapstone(
-            Guid playniteGameId,
-            string manualCapstoneApiName)
-        {
-            if (string.IsNullOrWhiteSpace(manualCapstoneApiName))
-            {
-                return false;
-            }
-
-            var gameData = _achievementDataService.GetRawGameAchievementData(playniteGameId);
-            return gameData?.Achievements != null &&
-                gameData.Achievements.Any(achievement =>
-                    achievement != null &&
-                    achievement.Unlocked &&
-                    string.Equals(achievement.ApiName, manualCapstoneApiName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private Dictionary<Guid, string> BuildManualCapstoneLookup(PlayniteAchievementsSettings settings)
-        {
-            var lookup = settings?.Persisted?.ManualCapstones?
-                .Where(pair => pair.Key != Guid.Empty && !string.IsNullOrWhiteSpace(pair.Value))
-                .ToDictionary(pair => pair.Key, pair => pair.Value.Trim())
-                ?? new Dictionary<Guid, string>();
-
-            if (_gameCustomDataStore == null)
-            {
-                return lookup;
-            }
-
-            foreach (var customData in _gameCustomDataStore.LoadAll())
-            {
-                var gameId = customData?.PlayniteGameId ?? Guid.Empty;
-                if (gameId == Guid.Empty)
-                {
-                    continue;
-                }
-
-                var capstoneApiName = customData?.ManualCapstoneApiName?.Trim();
-                if (string.IsNullOrWhiteSpace(capstoneApiName))
-                {
-                    // Store entry overrides legacy fallback and explicitly clears the capstone.
-                    lookup.Remove(gameId);
-                    continue;
-                }
-
-                lookup[gameId] = capstoneApiName;
-            }
-
-            return lookup;
-        }
-
         private List<AchievementDisplayItem> MaterializeRecentAchievements(
             PlayniteAchievementsSettings settings,
             IEnumerable<CachedRecentUnlockData> recentAchievements,
-            ISet<Guid> excludedSummaryIds,
             Dictionary<Guid, GamePresentation> presentationByGameId,
             CancellationToken cancel)
         {
@@ -652,7 +605,6 @@ namespace PlayniteAchievements.Services.Sidebar
             }
 
             presentationByGameId ??= new Dictionary<Guid, GamePresentation>();
-            excludedSummaryIds ??= new HashSet<Guid>();
 
             var recentGameDataByKey = new Dictionary<string, GameAchievementData>(StringComparer.OrdinalIgnoreCase);
             var appearanceByGameKey = new Dictionary<string, AchievementDisplayItem.AppearanceSettingsSnapshot>(StringComparer.OrdinalIgnoreCase);
@@ -660,9 +612,7 @@ namespace PlayniteAchievements.Services.Sidebar
             {
                 cancel.ThrowIfCancellationRequested();
 
-                if (recent == null ||
-                    !recent.UnlockTimeUtc.HasValue ||
-                    (recent.PlayniteGameId.HasValue && excludedSummaryIds.Contains(recent.PlayniteGameId.Value)))
+                if (recent == null || !recent.UnlockTimeUtc.HasValue)
                 {
                     continue;
                 }
@@ -680,6 +630,7 @@ namespace PlayniteAchievements.Services.Sidebar
                         PlayniteGameId = recent.PlayniteGameId,
                         Game = presentation.Game,
                         HasAchievements = true,
+                        UseSeparateLockedIconsWhenAvailable = recent.UseSeparateLockedIconsWhenAvailable,
                         Achievements = new List<AchievementDetail>()
                     };
                     recentGameDataByKey[gameKey] = gameData;
@@ -744,19 +695,15 @@ namespace PlayniteAchievements.Services.Sidebar
                 return cache;
             }
 
-            foreach (var playniteGame in _playniteApi.Database.Games)
+            foreach (var playniteGameId in ids)
             {
-                if (playniteGame == null || !ids.Contains(playniteGame.Id))
+                var playniteGame = _playniteApi.Database.Games.Get(playniteGameId);
+                if (playniteGame == null)
                 {
                     continue;
                 }
 
-                cache[playniteGame.Id] = CreateGamePresentation(playniteGame);
-
-                if (cache.Count >= ids.Count)
-                {
-                    break;
-                }
+                cache[playniteGameId] = CreateGamePresentation(playniteGame);
             }
 
             return cache;
@@ -877,45 +824,6 @@ namespace PlayniteAchievements.Services.Sidebar
             return result;
         }
 
-        private static void RemoveExcludedTimelineCounts(
-            IDictionary<DateTime, int> globalCounts,
-            IDictionary<Guid, Dictionary<DateTime, int>> countsByGame,
-            ISet<Guid> excludedSummaryIds)
-        {
-            if (globalCounts == null || countsByGame == null || excludedSummaryIds == null || excludedSummaryIds.Count == 0)
-            {
-                return;
-            }
-
-            foreach (var gameId in excludedSummaryIds)
-            {
-                if (!countsByGame.TryGetValue(gameId, out var excludedCounts) || excludedCounts == null)
-                {
-                    continue;
-                }
-
-                foreach (var kvp in excludedCounts)
-                {
-                    if (!globalCounts.TryGetValue(kvp.Key, out var existing))
-                    {
-                        continue;
-                    }
-
-                    var remaining = existing - kvp.Value;
-                    if (remaining > 0)
-                    {
-                        globalCounts[kvp.Key] = remaining;
-                    }
-                    else
-                    {
-                        globalCounts.Remove(kvp.Key);
-                    }
-                }
-
-                countsByGame.Remove(gameId);
-            }
-        }
-
         private static void Increment(Dictionary<DateTime, int> dict, DateTime date)
         {
             if (dict.TryGetValue(date, out var existing))
@@ -941,6 +849,3 @@ namespace PlayniteAchievements.Services.Sidebar
         }
     }
 }
-
-
-

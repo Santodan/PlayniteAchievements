@@ -994,8 +994,8 @@ namespace PlayniteAchievements.Views
 
         private IEnumerable<string> GetExplicitLockedIconCachePaths(GlobalProgressActionArgs progress = null)
         {
-            var cache = _plugin.RefreshRuntime?.Cache;
-            var cachedGameIds = cache?.GetCachedGameIds();
+            var dataService = _plugin?.AchievementDataService;
+            var cachedGameIds = dataService?.GetCachedGameIds();
             if (cachedGameIds == null || cachedGameIds.Count == 0)
             {
                 if (progress != null)
@@ -1034,7 +1034,7 @@ namespace PlayniteAchievements.Views
                         max: cachedGameIds.Count);
                 }
 
-                var gameData = cache.LoadGameData(gameId);
+                var gameData = dataService?.GetRawGameAchievementData(gameId);
                 var achievements = gameData?.Achievements;
                 if (achievements == null)
                 {

@@ -24,7 +24,6 @@ namespace PlayniteAchievements.Services.Tagging
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PersistedSettings _settings;
-        private readonly ICacheManager _cacheManager;
         private TaggingSettings _subscribedTaggingSettings;
 
         // Cache of tag IDs by tag type to avoid repeated database lookups
@@ -33,13 +32,11 @@ namespace PlayniteAchievements.Services.Tagging
         public TagSyncService(
             IPlayniteAPI api,
             ILogger logger,
-            PersistedSettings settings,
-            ICacheManager cacheManager)
+            PersistedSettings settings)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
         }
 
         /// <summary>
@@ -570,8 +567,9 @@ namespace PlayniteAchievements.Services.Tagging
                 types.Add(TagType.ExcludedFromSummaries);
             }
 
-            // Load the cached achievement data
-            var data = _cacheManager?.LoadGameData(gameId.ToString());
+            // Load achievement data through the central data service when available.
+            var achievementDataService = PlayniteAchievementsPlugin.Instance?.AchievementDataService;
+            var data = achievementDataService?.GetGameAchievementData(gameId);
             if (data == null || !data.HasAchievements)
             {
                 types.Add(TagType.NoAchievements);

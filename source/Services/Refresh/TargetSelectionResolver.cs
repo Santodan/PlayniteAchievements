@@ -204,7 +204,10 @@ namespace PlayniteAchievements.Services
                 return new List<Guid>();
             }
 
-            var cachedGameIds = new HashSet<string>(_cacheService.GetCachedGameIds(), StringComparer.OrdinalIgnoreCase);
+            var cachedGameIds = new HashSet<string>(
+                PlayniteAchievementsPlugin.Instance?.AchievementDataService?.GetCachedGameIds()
+                    ?? new List<string>(),
+                StringComparer.OrdinalIgnoreCase);
             var allGames = _api.Database.Games.ToList();
 
             var missingGameIds = new List<Guid>();
