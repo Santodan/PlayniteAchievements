@@ -1,5 +1,16 @@
 AddonId: PlayniteAchievements
 Packages:
+
+  - Version: 2.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-04-14
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.1.1/PlayniteAchievements_2_1_1.pext
+    Changelog:
+    - "RetroAchievements - Restored option to automatically assign capstones (default: Disabled). A refresh will be required to update these capstones."
+    - "Fix - Capstone completion will now show correctly show in the Sidebar"
+    - "Fix - Made sorting of theme elements (compact lists, datagrids) more consistent."
+    - "Fix - Adjusted dependencies to better match Playnite's."
+
   - Version: 2.1.0
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-04-14
