@@ -10,6 +10,7 @@ namespace PlayniteAchievements.Providers
             {
                 "BattleNet",
                 "GooglePlay",
+                "Apple",
                 "EA",
                 "Ubisoft"
             };

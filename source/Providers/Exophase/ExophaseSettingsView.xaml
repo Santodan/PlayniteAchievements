@@ -220,6 +220,17 @@
                             </CheckBox>
                             <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
+                                      Tag="apple" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoApple}" Fill="#E5E5E5"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Apple}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Click="ExophasePlatform_CheckChanged"
                                       Tag="ubisoft" Margin="0,0,0,10"
                                       FontSize="{DynamicResource FontSize}">
                                 <StackPanel Orientation="Horizontal">

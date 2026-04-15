@@ -30,7 +30,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Provider/platform tokens that Exophase should automatically claim.
         /// Games matching these tokens will use Exophase instead of modern providers.
-        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro", "android"
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro", "android", "apple"
         /// </summary>
         public HashSet<string> ManagedProviders
         {
