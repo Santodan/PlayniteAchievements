@@ -38,6 +38,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     new List<AchievementDetail>(),
                     new List<AchievementDetail>(),
                     new List<AchievementDetail>(),
+                    new List<AchievementDetail>(),
                     new AchievementRarityStats(),
                     new AchievementRarityStats(),
                     new AchievementRarityStats(),
@@ -70,11 +71,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var locked = total - unlocked;
             var percent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(unlocked, total);
             var hasCustomOrder = data.AchievementOrder != null && data.AchievementOrder.Count > 0;
-            var all = hasCustomOrder
+            var defaultOrder = hasCustomOrder
                 ? AchievementOrderHelper.ApplyOrder(
                     achievements,
                     achievement => achievement?.ApiName,
                     data.AchievementOrder)
+                : achievements.ToList();
+            var all = hasCustomOrder
+                ? defaultOrder
                 : AchievementGridSortHelper.CreateDefaultSortedDetailList(achievements);
             var oldestFirst = AchievementGridSortHelper.CreateSortedDetailList(
                 all,
@@ -137,6 +141,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 percent,
                 data.IsCompleted,
                 hasCustomOrder,
+                defaultOrder,
                 all,
                 oldestFirst,
                 newestFirst,

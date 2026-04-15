@@ -41,6 +41,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private List<AchievementDetail> _allAchievements = new List<AchievementDetail>();
         [DontSerialize]
+        private List<AchievementDetail> _achievementDefaultOrder = new List<AchievementDetail>();
+        [DontSerialize]
         private List<AchievementDetail> _achievementsNewestFirst = new List<AchievementDetail>();
         [DontSerialize]
         private List<AchievementDetail> _achievementsOldestFirst = new List<AchievementDetail>();
@@ -360,6 +362,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
             _allAchievementDisplayItems = items;
             OnPropertyChanged(nameof(AllAchievementDisplayItems));
+        }
+
+        [DontSerialize]
+        public List<AchievementDetail> AchievementDefaultOrder
+        {
+            get => _achievementDefaultOrder;
+            set => SetValue(ref _achievementDefaultOrder, value);
         }
 
         [DontSerialize]

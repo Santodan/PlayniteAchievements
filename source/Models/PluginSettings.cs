@@ -258,6 +258,9 @@ namespace PlayniteAchievements.Models
         public List<AchievementDetail> Achievements => ModernTheme.AllAchievements ?? EmptyAchievementList;
 
         [DontSerialize]
+        public List<AchievementDetail> AchievementDefaultOrder => ModernTheme.AchievementDefaultOrder ?? EmptyAchievementList;
+
+        [DontSerialize]
         public List<AchievementDetail> AchievementsNewestFirst => ModernTheme.AchievementsNewestFirst ?? EmptyAchievementList;
 
         [DontSerialize]

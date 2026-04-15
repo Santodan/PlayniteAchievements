@@ -955,6 +955,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = state.Rare;
             _settings.ModernTheme.UltraRare = state.UltraRare;
             _settings.ModernTheme.RareAndUltraRare = state.RareAndUltraRare;
+            _settings.ModernTheme.AchievementDefaultOrder = state.AchievementDefaultOrder;
             _settings.ModernTheme.AllAchievements = state.AllAchievements;
             _settings.ModernTheme.AchievementsNewestFirst = state.AchievementsNewestFirst;
             _settings.ModernTheme.AchievementsOldestFirst = state.AchievementsOldestFirst;
@@ -993,6 +994,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.LockedCount = 0;
             _settings.ModernTheme.ProgressPercentage = 0;
 
+            _settings.ModernTheme.AchievementDefaultOrder = EmptyAchievementList;
             _settings.ModernTheme.AllAchievements = EmptyAchievementList;
             _settings.ModernTheme.AchievementsNewestFirst = EmptyAchievementList;
             _settings.ModernTheme.AchievementsOldestFirst = EmptyAchievementList;

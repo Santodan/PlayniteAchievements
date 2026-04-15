@@ -101,6 +101,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             nameof(PlayniteAchievementsSettings.ProgressPercentage),
             nameof(PlayniteAchievementsSettings.IsCompleted),
             nameof(PlayniteAchievementsSettings.Achievements),
+            nameof(PlayniteAchievementsSettings.AchievementDefaultOrder),
             nameof(PlayniteAchievementsSettings.AchievementsNewestFirst),
             nameof(PlayniteAchievementsSettings.AchievementsOldestFirst),
             nameof(PlayniteAchievementsSettings.AchievementsRarityAsc),

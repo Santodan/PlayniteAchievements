@@ -72,6 +72,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             Assert.IsTrue(state.HasCustomAchievementOrder);
             AssertAchievementNames(state.AllAchievements, "Third", "First", "Second");
+            AssertAchievementNames(state.AchievementDefaultOrder, "Third", "First", "Second");
         }
 
         [TestMethod]
@@ -103,6 +104,12 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
                 "Unlocked Older",
                 "Unlocked No Time",
                 "Locked");
+            AssertAchievementNames(
+                state.AchievementDefaultOrder,
+                "Locked",
+                "Unlocked Older",
+                "Unlocked Newer",
+                "Unlocked No Time");
         }
 
         [TestMethod]
@@ -317,12 +324,14 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             service.PopulateSingleGameDataSync(gameId);
 
             Assert.AreEqual(3, settings.Achievements.Count);
+            Assert.AreEqual(3, settings.AchievementDefaultOrder.Count);
             Assert.AreEqual(3, settings.AchievementsNewestFirst.Count);
             Assert.AreEqual(3, settings.AchievementsOldestFirst.Count);
             Assert.AreEqual(3, settings.AchievementsRarityAsc.Count);
             Assert.AreEqual(3, settings.AchievementsRarityDesc.Count);
 
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Achievements)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementDefaultOrder)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsNewestFirst)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsOldestFirst)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityAsc)));
@@ -366,6 +375,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             Assert.IsTrue(settings.ModernTheme.HasCustomAchievementOrder);
             AssertAchievementNames(settings.Achievements, "Three", "One", "Two");
+            AssertAchievementNames(settings.AchievementDefaultOrder, "Three", "One", "Two");
         }
 
         [TestMethod]
@@ -692,6 +702,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             settings.ModernTheme.Rare = new AchievementRarityStats { Total = 4, Unlocked = 2, Locked = 2 };
             settings.ModernTheme.UltraRare = new AchievementRarityStats { Total = 1, Unlocked = 1, Locked = 0 };
             settings.ModernTheme.RareAndUltraRare = new AchievementRarityStats { Total = 5, Unlocked = 3, Locked = 2 };
+            settings.ModernTheme.AchievementDefaultOrder = new List<AchievementDetail> { Achievement("Default", 75.0, unlocked: true) };
             settings.ModernTheme.AllAchievements = new List<AchievementDetail> { Achievement("All", 75.0, unlocked: true) };
             settings.ModernTheme.AchievementsNewestFirst = new List<AchievementDetail> { Achievement("Newest", 2.0, unlocked: true) };
             settings.ModernTheme.AchievementsOldestFirst = new List<AchievementDetail> { Achievement("Oldest", 25.0, unlocked: true) };
@@ -715,6 +726,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             AssertStat(settings.ModernTheme.Rare, total: 0, unlocked: 0, locked: 0);
             AssertStat(settings.ModernTheme.UltraRare, total: 0, unlocked: 0, locked: 0);
             AssertStat(settings.ModernTheme.RareAndUltraRare, total: 0, unlocked: 0, locked: 0);
+            Assert.AreEqual(0, settings.AchievementDefaultOrder.Count);
             Assert.AreEqual(0, settings.Achievements.Count);
             Assert.AreEqual(0, settings.AchievementsNewestFirst.Count);
             Assert.AreEqual(0, settings.AchievementsOldestFirst.Count);
@@ -727,6 +739,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Rare)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.UltraRare)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.RareAndUltraRare)));
+            Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementDefaultOrder)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Achievements)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsNewestFirst)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsOldestFirst)));
