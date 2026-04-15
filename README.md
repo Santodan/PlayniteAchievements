@@ -2,144 +2,124 @@
   <img src="Images/big-icon.png" alt="Playnite Achievements icon" width="128" height="128">
 </p>
 
-<h1 align="center">Playnite Achievements</h1>
+<h1 align="center">Playnite Achievements - Santodan Fork</h1>
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/justin-delano/PlayniteAchievements?style=for-the-badge&logo=github&color=0ea5e9)](https://github.com/justin-delano/PlayniteAchievements/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/Santodan/PlayniteAchievements?style=for-the-badge&logo=github&color=0ea5e9)](https://github.com/Santodan/PlayniteAchievements/releases/latest)
 [![Playnite SDK](https://img.shields.io/badge/Playnite%20SDK-6.14.0-6366f1?style=for-the-badge)](https://playnite.link/)
-[![Downloads](https://img.shields.io/github/downloads/justin-delano/PlayniteAchievements/total?style=for-the-badge&label=Total%20Downloads&color=10b981)](https://github.com/justin-delano/PlayniteAchievements/releases)
-[![Latest Release Downloads](https://img.shields.io/github/downloads/justin-delano/PlayniteAchievements/latest/total?style=for-the-badge&label=Latest%20Release%20Downloads&color=8b5cf6&cacheSeconds=3600)](https://github.com/justin-delano/PlayniteAchievements/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Santodan/PlayniteAchievements/total?style=for-the-badge&label=Total%20Downloads&color=10b981)](https://github.com/Santodan/PlayniteAchievements/releases)
+[![Latest Release Downloads](https://img.shields.io/github/downloads/Santodan/PlayniteAchievements/latest/total?style=for-the-badge&label=Latest%20Release%20Downloads&color=8b5cf6&cacheSeconds=3600)](https://github.com/Santodan/PlayniteAchievements/releases/latest)
 
 </div>
 
-<p align="center">
-Achievement tracking for Playnite across Steam, RetroAchievements, GOG, Epic, PSN, Xbox, RPCS3, ShadPS4, Xenia, and Exophase.
-</p>
-
-<p align="center">
-  <img src="Images/sidebar-view1.png" alt="Sidebar overview" width="900">
-</p>
-
-## Why Switch From Legacy
-
-| Area | Legacy | PlayniteAchievements |
-| --- | --- | --- |
-| Theme integration | Legacy bindings | Legacy + modern bindings, Theme Migration, backup, revert |
-| Views | Plugin window, one-game view | Sidebar, selected-game drilldown, top-panel popout |
-| Charts and layout | Main plugin charts | Contextual pie charts, timeline, trophy charts, resizable/hideable grid columns |
-| Refresh | Recent / installed / full style passes | Background refresh, single-game refresh, Custom Refresh, presets, include/exclude targeting |
-| Per-game control | Separate fixes | One Game Options window: manual tracking, capstones, categories, order, exclusions, RA / Exophase overrides |
-| Completion rules | Provider completion / 100% | Capstones, summary exclusions |
-| Manual carryover | Rebuild manual links | Import legacy manual links from the Manual tab |
-| Cleanup | Refresh/export tools | Cache clear, image-cache clear, CSV export, data/log folder access |
-
-Docs: [Migration docs](https://github.com/justin-delano/PlayniteAchievements/wiki)
-
-## Supported Platforms
-
-| Type | Platforms |
-| --- | --- |
-| Store / service providers | Steam, GOG, Epic Games Store, PlayStation Network, Xbox Live, RetroAchievements |
-| Emulator trophy providers | RPCS3, ShadPS4 |
-| Extra tracking layers | Manual, Exophase |
-
-Docs: [Provider setup in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
-
-## What You Actually Get
-
-| Area | What you can do |
-| --- | --- |
-| Sidebar | Drill into one game, filter by provider/completion/category/type, and use contextual pie charts plus timeline data |
-| Refresh | Run quick refreshes or save a Custom Refresh preset with exact providers and game scope |
-| Game Options | Fix one game's provider, add manual tracking, set capstones, categories, order, and exclusions |
-| Library | Sync Playnite tags, set completion status, open a top-panel popout, clear cache, export CSV, and open logs |
-
-Docs: [Settings and library tools](https://github.com/justin-delano/PlayniteAchievements/wiki)
-
-## Views, Filters, and Refresh Workflows
-
-- Sidebar filters by provider, completion state, game type, and category
-- Pie charts change with the selected game where that context makes sense
-- Refresh modes include recent, installed, favorites, full, single-game, and background updates
-- Custom Refresh adds platform pickers, scope rules, include/exclude lists, overrides, and saved presets
-- The top menu button can open the sidebar popout window
-
-<img src="Images/sidebar-view2.png" alt="Sidebar single-game view" width="900">
-
-> Screenshot placeholder: [custom-refresh-dialog]
-
-Docs: [Refresh workflows](https://github.com/justin-delano/PlayniteAchievements/wiki)
-
-## Game Options and Per-Game Control
-
-| Tab | What it does |
-| --- | --- |
-| Overview | Provider, source, last update, completion, cache actions |
-| Manual Tracking | Link a source game, mark unlocks, store unlock times |
-| Capstones | Pick the achievement that marks completion |
-| Categories | Add type flags and category labels |
-| Achievement Order | Set a custom drag-and-drop order |
-| Overrides | Exclusions, summary exclusions, RetroAchievements override, Exophase override |
-
-> Screenshot placeholder: [game-options-overview]
+> Official documentation for the base project should be taken from the original repository.
 >
-> Screenshot placeholder: [manual-tracking-tab]
+> - Original repository: https://github.com/justin-delano/PlayniteAchievements
+> - Official wiki / documentation: https://github.com/justin-delano/PlayniteAchievements/wiki
+> - Official releases: https://github.com/justin-delano/PlayniteAchievements/releases
+> ## Quick Notes For Users Of This Fork
 >
-> Screenshot placeholder: [categories-tab]
->
-> Screenshot placeholder: [achievement-order-tab]
+>- If you need setup instructions for Steam, GOG, Epic, RetroAchievements, PSN, Xbox, RPCS3, ShadPS4, Xenia, or Exophase, use the upstream wiki first.
+>- If you are using this fork specifically for Local support, the main differences are the Local provider, Local overrides, Local compatibility fixes, and Local-focused refresh / notification work listed above.
 
-Docs: [Game Options in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
+## What This Fork Focuses On
 
-## Theme Integration and Migration
+- Local save support and local achievement recovery workflows
+- Compatibility work for non-standard Steam and local setups
+  - If you are using Steam local saves ( GreenLuma or SteamTools, for example) the game will be detected as been from steam, you will need to override the provider to Local
+- Per-game Local overrides inside Game Options
+- Faster access to saved refresh presets from the main sidebar refresh selector
+- Local-only realtime monitoring and notification improvements
 
-| Theme path | What you can do |
-| --- | --- |
-| Legacy themes | Keep using the legacy surface while switching plugins |
-| Modern themes | Use modern Playnite Achievements controls and bindings |
-| Migration modes | Limited, Full, or Custom |
-| Safety | Backup before changes, revert after changes |
+## Screenshot Gallery
 
-<p align="center">
-  <img src="Images/aniki-remake1.png" alt="Theme integration example" width="900">
-</p>
+The gallery below is intentionally reserved for screenshots of fork-specific features only.
 
-> Screenshot placeholder: [theme-migration-tab]
+The current screenshot files in the repo are mostly generic plugin views inherited from the broader project. Since you want this README to highlight only the changes made in your fork, the sections below are placeholders for the fork-specific screenshots you plan to add later.
 
-Docs: [Theme migration in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
+### Local Provider Folder List And Browse Flow
 
-## Installation and First-Time Setup
+You can set any custom folder where you have saves located in your system
 
-1. Download the latest `.pext` from [Releases](https://github.com/justin-delano/PlayniteAchievements/releases/latest).
-2. Install it from Playnite's addon browser or drag the file into Playnite.
-3. Open `Settings -> Extensions -> Playnite Achievements`.
-4. Enable the providers you want and finish their setup.
-5. Open the sidebar or top panel entry and run your first refresh.
+<img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
 
-If you are importing manual links from a legacy setup, do that first from the Manual tab. If you are moving a theme over, open Theme Migration before you start editing files by hand.
+### Local Game Options Overrides
 
-<p align="center">
-  <img src="Images/setup-view.png" alt="Setup view" width="900">
-</p>
+If you Right-click the game it will show a quicker way to do these changes:
 
-Docs: [First setup in the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
+<img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
 
-## Docs
+From the PlayniteAchivements menu inside the game
 
-Full docs live in the wiki.
+<img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
 
-- [Open the wiki](https://github.com/justin-delano/PlayniteAchievements/wiki)
+### Local Realtime Monitoring And Sound Settings
 
-## Support / Contributing / Credits
+This was a request from a user to have a sound playing when an achivement is unlocked while playing a game.
 
-- Issues: [GitHub Issue Tracker](https://github.com/justin-delano/PlayniteAchievements/issues)
-- Discussions: [GitHub Discussions](https://github.com/justin-delano/PlayniteAchievements/discussions)
-- Support: [Ko-fi](https://ko-fi.com/justindelano)
-- Translations: contributions are welcome through pull requests and localization updates
+<img src="Images/LocalAchivementsNotification.png" alt="Sidebar single-game view" width="900">.
 
-Thanks to the Playnite Discord testers, theme authors, and everyone who kept reporting edge cases.
 
-License: [MIT](LICENSE).
+## Fork Changelog
+
+The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
+
+### 2026-04-15
+
+- Synced the fork forward to the upstream `v2.1.0` codebase.
+- Added near-real-time Local achievement monitoring for the currently running game only, instead of polling the whole library.
+- Added Local unlock notifications with sound playback.
+- Added bundled Local notification sounds plus a separate custom sound-path override.
+- Added a Local test notification action so the configured notification + sound can be tested from settings.
+- Set the Local default bundled sound flow to use a bundled fallback instead of requiring a custom path.
+- Added quick access to saved custom refresh presets from the main sidebar refresh selector.
+- Changed the sidebar refresh selector so presets are grouped under a `Presets` menu entry instead of being mixed into the top-level refresh list.
+- Fixed Local-only preset targeting and estimation so Local presets only count games that the Local provider can actually resolve.
+- Improved extra custom local-save-folder handling so it works as a list with browse support instead of a single raw path.
+
+### 2026-04-11
+
+- Fixed Local save handling for RUNE and OnlineFix layouts.
+
+### 2026-04-08
+
+- Changed Local behavior so cached Local achievement data is preserved when Steam API access is unavailable instead of trying to refetch everything and losing useful local-state visibility.
+
+### 2026-04-07
+
+- Added GreenLuma / SteamTool compatibility improvements.
+
+### 2026-04-06
+
+- Added per-game Local Steam App ID overrides in Game Options.
+- Added per-game Local folder overrides in Game Options.
+
+### 2026-04-01
+
+- Added compatibility with the StartPage extension.
+- Updated post-build handling to improve `Toolbox.exe` detection and execution.
+- Synced the fork state around the upstream `v2.0.2` release.
+
+### 2026-03-31
+
+- Updated the fork for the upstream `2.0.0` / `2.0.1` transition.
+- Renamed and reshaped the old cracked-save workflow into the Local provider flow.
+- Added support for showing locked achievements even when `achievements.json` does not exist, as long as Local schema / cache data can still resolve them.
+- Updated local extension naming and IDs for the fork.
+- Replaced `CrackedSavesProvider` with `LocalSavesProvider`.
+
+### 2026-03-29
+
+- Added initial support for Local saves.
+- Cleaned up leftover provider debug-path behavior during the early Local provider work.
+
+
+
+## Upstream Docs And Credits
+
+- Upstream project: https://github.com/justin-delano/PlayniteAchievements
+- Upstream documentation: https://github.com/justin-delano/PlayniteAchievements/wiki
+- Upstream releases: https://github.com/justin-delano/PlayniteAchievements/releases
+- Santodan fork: https://github.com/Santodan/PlayniteAchievements
 
