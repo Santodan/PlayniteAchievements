@@ -1,4 +1,4 @@
-﻿// SettingsControl.xaml.cs
+// SettingsControl.xaml.cs
 using System;
 using System.IO;
 using System.Linq;
@@ -17,6 +17,7 @@ using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
 using System.Diagnostics;
@@ -243,16 +244,16 @@ namespace PlayniteAchievements.Views
             // Refresh the preview modern theme bindings used by modern controls
             _previewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.UseSeparateLockedIconsWhenAvailable, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
             _unlockedPreviewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.UseSeparateLockedIconsWhenAvailable, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
             _hiddenPreviewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.UseSeparateLockedIconsWhenAvailable, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
             _lockedPreviewThemeData?.RefreshDisplayItems(
                 settings.ShowHiddenIcon, settings.ShowHiddenTitle, settings.ShowHiddenDescription,
-                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
+                settings.ShowHiddenSuffix, settings.ShowLockedIcon, settings.UseSeparateLockedIconsWhenAvailable, settings.ShowRarityGlow, settings.ShowCompactListRarityBar);
         }
 
         // Theme migration UI state properties
@@ -368,7 +369,7 @@ namespace PlayniteAchievements.Views
                 nameof(LegacyManualImportStatus),
                 typeof(string),
                 typeof(SettingsControl),
-                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_Settings_Manual_Legacy_StatusIdle")));
+                new PropertyMetadata(ResourceProvider.GetString("LOCPlayAch_CustomRefresh_ProviderStatus_Ready")));
 
         public string LegacyManualImportStatus
         {
@@ -622,7 +623,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to execute theme migration.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_ThemeMigration_Failed", "Theme migration failed: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_ThemeMigration_Title", "Theme Migration"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -669,7 +670,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to execute theme revert.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_ThemeMigration_RevertFailed", "Revert failed: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_ThemeMigration_Revert", "Revert Theme"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -682,39 +683,39 @@ namespace PlayniteAchievements.Views
 
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginButton",
-                "LOCPlayAch_ThemeMigration_Custom_Button",
+                "LOCPlayAch_Settings_ButtonPreview",
                 "Button"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginChart",
-                "LOCPlayAch_ThemeMigration_Custom_Chart",
+                "LOCPlayAch_Settings_BarChartPreview",
                 "Bar Chart"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
-                "LOCPlayAch_ThemeMigration_Custom_CompactList",
+                "LOCPlayAch_Settings_CompactListPreview",
                 "Compact List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactLocked",
+                "LOCPlayAch_Settings_CompactLockedListPreview",
                 "Compact Locked List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
-                "LOCPlayAch_ThemeMigration_Custom_CompactUnlocked",
+                "LOCPlayAch_Settings_CompactUnlockedListPreview",
                 "Compact Unlocked List"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
-                "LOCPlayAch_ThemeMigration_Custom_List",
-                "Achievement Grid"));
+                "LOCPlayAch_Settings_AchievementDataGridPreview",
+                "Achievement DataGrid"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginProgressBar",
-                "LOCPlayAch_ThemeMigration_Custom_ProgressBar",
+                "LOCPlayAch_Settings_ProgressBarPreview",
                 "Progress Bar"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginUserStats",
-                "LOCPlayAch_ThemeMigration_Custom_UserStats",
-                "Stats Panel"));
+                "LOCPlayAch_Settings_StatsPreview",
+                "Stats"));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginViewItem",
-                "LOCPlayAch_ThemeMigration_Custom_ViewItem",
+                "LOCPlayAch_Settings_ViewItemPreview",
                 "View Item"));
         }
 
@@ -778,47 +779,288 @@ namespace PlayniteAchievements.Views
 
         private void WipeCache_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                _plugin.RefreshRuntime.Cache.ClearCache();
-                var stillPresent = _plugin.RefreshRuntime.Cache.CacheFileExists();
+            string message = null;
+            var image = MessageBoxImage.Information;
+            Exception operationError = null;
+            var progressText = L(
+                "LOCPlayAch_Settings_Cache_ProgressClearing",
+                "Clearing cached achievement data...");
 
-                var (msg, img) = !stillPresent
-                    ? (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_Wiped"), MessageBoxImage.Information)
-                    : (ResourceProvider.GetString("LOCPlayAch_Settings_Cache_WipeFailed"), MessageBoxImage.Error);
+            RunMaintenanceProgress(
+                progressText,
+                isIndeterminate: true,
+                operation: progress =>
+                {
+                    try
+                    {
+                        _plugin.RefreshRuntime.Cache.ClearCache();
+                        message = L("LOCPlayAch_Status_Succeeded", "Success!");
+                        image = MessageBoxImage.Information;
+                    }
+                    catch (Exception ex)
+                    {
+                        operationError = ex;
+                    }
+                });
 
-                _plugin.PlayniteApi.Dialogs.ShowMessage(msg, ResourceProvider.GetString("LOCPlayAch_Title_PluginName"), MessageBoxButton.OK, img);
-            }
-            catch (Exception ex)
+            if (operationError != null)
             {
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_Cache_WipeFailedWithError", "Failed to wipe cache: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+                return;
             }
+
+            _plugin.PlayniteApi.Dialogs.ShowMessage(
+                message ?? L("LOCPlayAch_Status_Succeeded", "Success!"),
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                image);
         }
 
-        private void ClearImageCache_Click(object sender, RoutedEventArgs e)
+        private void ClearAllIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.All);
+
+        private void ClearCompressedIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.CompressedOnly);
+
+        private void ClearFullResolutionIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.FullResolutionOnly);
+
+        private void ClearLockedIconCache_Click(object sender, RoutedEventArgs e) =>
+            ClearIconCache(IconCacheClearScope.LockedOnly);
+
+        private void ClearIconCache(IconCacheClearScope scope)
         {
-            try
+            var fileLabel = ResourceProvider.GetString(GetIconCacheFileLabelResourceKey(scope));
+            var scanningText = LF(
+                "LOCPlayAch_Settings_IconCache_ProgressScanning",
+                "Scanning cached {0} files...",
+                fileLabel);
+            var deletingTextFormat = L(
+                "LOCPlayAch_Settings_IconCache_ProgressDeletingCount",
+                "Deleting cached {0} files... ({1}/{2})");
+            var deletedCount = 0;
+            Exception operationError = null;
+
+            RunMaintenanceProgress(
+                scanningText,
+                isIndeterminate: false,
+                operation: progress =>
+                {
+                    try
+                    {
+                        UpdateMaintenanceProgress(progress, current: 0, max: 1);
+
+                        IEnumerable<string> additionalPaths = null;
+                        if (scope == IconCacheClearScope.LockedOnly)
+                        {
+                            additionalPaths = GetExplicitLockedIconCachePaths(progress);
+                        }
+
+                        _plugin.ImageService?.Clear();
+                        deletedCount = _plugin.ImageService?.ClearDiskCache(
+                            scope,
+                            additionalPaths,
+                            (processed, total) =>
+                            {
+                                var safeTotal = Math.Max(1, total);
+                                var safeProcessed = total <= 0
+                                    ? 1
+                                    : Math.Max(0, Math.Min(total, processed));
+
+                                var progressText = total <= 0
+                                    ? LF(
+                                        "LOCPlayAch_Settings_IconCache_ProgressNoFiles",
+                                        "No cached {0} files were found.",
+                                        fileLabel)
+                                    : string.Format(
+                                        deletingTextFormat,
+                                        fileLabel,
+                                        safeProcessed,
+                                        total);
+
+                                UpdateMaintenanceProgress(
+                                    progress,
+                                    text: progressText,
+                                    current: safeProcessed,
+                                    max: safeTotal);
+                            }) ?? 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        operationError = ex;
+                    }
+                });
+
+            if (operationError != null)
             {
-                _plugin.ImageService?.Clear();
-                _plugin.ImageService?.ClearDiskCache();
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_ImageCache_Cleared"),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_ImageCache_ClearFailed") + ": " + ex.Message,
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", operationError.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+                return;
             }
+
+            var message = L("LOCPlayAch_Status_Succeeded", "Success!");
+
+            _plugin.PlayniteApi.Dialogs.ShowMessage(
+                message,
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private string GetIconCacheFileLabelResourceKey(IconCacheClearScope scope)
+        {
+            switch (scope)
+            {
+                case IconCacheClearScope.CompressedOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_Compressed";
+                case IconCacheClearScope.FullResolutionOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_FullResolution";
+                case IconCacheClearScope.LockedOnly:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_Locked";
+                default:
+                    return "LOCPlayAch_Settings_IconCache_FileLabel_All";
+            }
+        }
+
+        private void RunMaintenanceProgress(
+            string initialText,
+            bool isIndeterminate,
+            Action<GlobalProgressActionArgs> operation)
+        {
+            var progressOptions = new GlobalProgressOptions(initialText)
+            {
+                Cancelable = false,
+                IsIndeterminate = isIndeterminate
+            };
+
+            _plugin.PlayniteApi.Dialogs.ActivateGlobalProgress(async progress =>
+            {
+                UpdateMaintenanceProgress(progress, text: initialText, isIndeterminate: isIndeterminate);
+                await Task.Run(() => operation?.Invoke(progress)).ConfigureAwait(false);
+            }, progressOptions);
+        }
+
+        private void UpdateMaintenanceProgress(
+            GlobalProgressActionArgs progress,
+            string text = null,
+            int? current = null,
+            int? max = null,
+            bool? isIndeterminate = null)
+        {
+            if (progress == null)
+            {
+                return;
+            }
+
+            Action update = () =>
+            {
+                if (max.HasValue)
+                {
+                    progress.ProgressMaxValue = max.Value;
+                }
+
+                if (current.HasValue)
+                {
+                    progress.CurrentProgressValue = current.Value;
+                }
+
+                if (isIndeterminate.HasValue)
+                {
+                    progress.IsIndeterminate = isIndeterminate.Value;
+                }
+
+                if (!string.IsNullOrWhiteSpace(text))
+                {
+                    progress.Text = text;
+                }
+            };
+
+            if (progress.MainDispatcher != null)
+            {
+                progress.MainDispatcher.InvokeIfNeeded(update);
+            }
+            else
+            {
+                update();
+            }
+        }
+
+        private IEnumerable<string> GetExplicitLockedIconCachePaths(GlobalProgressActionArgs progress = null)
+        {
+            var cache = _plugin.RefreshRuntime?.Cache;
+            var cachedGameIds = cache?.GetCachedGameIds();
+            if (cachedGameIds == null || cachedGameIds.Count == 0)
+            {
+                if (progress != null)
+                {
+                    UpdateMaintenanceProgress(
+                        progress,
+                        text: L(
+                            "LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences",
+                            "No cached locked icon references were found."),
+                        current: 1,
+                        max: 1);
+                }
+
+                return Array.Empty<string>();
+            }
+
+            var lockedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (progress != null)
+            {
+                UpdateMaintenanceProgress(progress, current: 0, max: cachedGameIds.Count);
+            }
+
+            for (var i = 0; i < cachedGameIds.Count; i++)
+            {
+                var gameId = cachedGameIds[i];
+                if (progress != null)
+                {
+                    UpdateMaintenanceProgress(
+                        progress,
+                        text: LF(
+                            "LOCPlayAch_Settings_IconCache_ProgressScanningLockedReferences",
+                            "Scanning cached locked icon references... ({0}/{1})",
+                            i + 1,
+                            cachedGameIds.Count),
+                        current: i + 1,
+                        max: cachedGameIds.Count);
+                }
+
+                var gameData = cache.LoadGameData(gameId);
+                var achievements = gameData?.Achievements;
+                if (achievements == null)
+                {
+                    continue;
+                }
+
+                foreach (var achievement in achievements)
+                {
+                    var lockedPath = achievement?.LockedIconPath;
+                    if (!DiskImageService.IsLocalIconPath(lockedPath))
+                    {
+                        continue;
+                    }
+
+                    var unlockedPath = achievement?.UnlockedIconPath;
+                    if (!string.IsNullOrWhiteSpace(unlockedPath) &&
+                        string.Equals(lockedPath.Trim(), unlockedPath.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    lockedPaths.Add(lockedPath);
+                }
+            }
+
+            return lockedPaths;
         }
 
         private void ResetFirstTimeSetup_Click(object sender, RoutedEventArgs e)
@@ -833,35 +1075,17 @@ namespace PlayniteAchievements.Views
 
                 _plugin.SavePluginSettings(_settingsViewModel.Settings);
 
-                _logger.Info("Settings saved. Verifying save...");
-
-                // Verify the save worked by re-loading
-                var reloaded = _plugin.LoadPluginSettings<PlayniteAchievementsSettings>();
-                var reloadedValue = reloaded?.Persisted.FirstTimeSetupCompleted ?? true;
-                _logger.Info($"Value after reload: {reloadedValue}");
-
-                if (!reloadedValue)
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ResetFirstTimeSetupDone", "First-time setup has been reset. Close and reopen the sidebar to see the landing page."),
-                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ResetFirstTimeSetupVerifyFailed", "Failed to verify reset. The settings may not have been saved correctly."),
-                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to reset first-time setup.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ResetFirstTimeSetupFailed", "Failed to reset first-time setup: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -873,24 +1097,12 @@ namespace PlayniteAchievements.Views
             try
             {
                 var exportBaseDir = _plugin.GetPluginUserDataPath();
-                var cache = _plugin.RefreshRuntime?.Cache;
-
-                if (cache == null)
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_ExportDatabaseFailed", "Database not available."),
-                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-
-                var exportDir = cache.ExportDatabaseToCsv(exportBaseDir);
+                var exportDir = _plugin.RefreshRuntime.Cache.ExportDatabaseToCsv(exportBaseDir);
 
                 _logger.Info($"Database exported to: {exportDir}");
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ExportDatabaseDone", "Database exported to:\n{0}", exportDir),
+                    L("LOCPlayAch_Status_Succeeded", "Success!") + "\n" + exportDir,
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -899,7 +1111,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to export database.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_ExportDatabaseFailed", "Failed to export database: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -928,7 +1140,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger?.Error(ex, "Failed to open extension data folder.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_OpenDataFolderFailed"), ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -945,7 +1157,7 @@ namespace PlayniteAchievements.Views
                 if (!System.IO.Directory.Exists(raCacheDir))
                 {
                     _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        L("LOCPlayAch_Settings_HashIndex_NoCacheDir", "No RetroAchievements cache directory found."),
+                        L("LOCPlayAch_Status_Succeeded", "Success!"),
                         L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -970,31 +1182,51 @@ namespace PlayniteAchievements.Views
                     }
                 }
 
-                if (deletedCount > 0)
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        LF("LOCPlayAch_Settings_HashIndex_DeletedCount", "Deleted {0} hash index cache file(s).{1}{1}The hash index will be rebuilt on the next refresh.", deletedCount, Environment.NewLine),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
-                else
-                {
-                    _plugin.PlayniteApi.Dialogs.ShowMessage(
-                        LF("LOCPlayAch_Settings_HashIndex_NoFiles", "No hash index cache files found to delete.{0}{0}The cache may have already been cleared, or no refreshes have been performed yet.", Environment.NewLine),
-                        L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
-                }
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_Status_Succeeded", "Success!"),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to force hash index rebuild.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Settings_HashIndex_ClearFailed", "Failed to clear hash index cache: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+        }
+
+        // -----------------------------
+        // Compact list sort direction toggles
+        // -----------------------------
+
+        private void ToggleCompactListSortDescending(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted != null)
+            {
+                persisted.CompactListSortDescending = !persisted.CompactListSortDescending;
+            }
+        }
+
+        private void ToggleCompactUnlockedListSortDescending(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted != null)
+            {
+                persisted.CompactUnlockedListSortDescending = !persisted.CompactUnlockedListSortDescending;
+            }
+        }
+
+        private void ToggleCompactLockedListSortDescending(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted != null)
+            {
+                persisted.CompactLockedListSortDescending = !persisted.CompactLockedListSortDescending;
             }
         }
 
@@ -1013,6 +1245,8 @@ namespace PlayniteAchievements.Views
                 InProgressTagTextBox,
                 CompletedTagTextBox,
                 NoAchievementsTagTextBox,
+                CustomizedTagTextBox,
+                NotCustomizedTagTextBox,
                 ExcludedTagTextBox,
                 ExcludedFromSummariesTagTextBox
             };
@@ -1048,7 +1282,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to apply and sync tags.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Tagging_SyncFailed", "Failed to apply and sync tags: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1083,7 +1317,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger.Error(ex, "Failed to remove tags.");
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
-                    LF("LOCPlayAch_Tagging_RemoveFailed", "Failed to remove tags: {0}", ex.Message),
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -1198,7 +1432,8 @@ namespace PlayniteAchievements.Views
                 nameof(Models.Settings.PersistedSettings.ShowHiddenTitle),
                 nameof(Models.Settings.PersistedSettings.ShowHiddenDescription),
                 nameof(Models.Settings.PersistedSettings.ShowHiddenSuffix),
-                nameof(Models.Settings.PersistedSettings.ShowLockedIcon)
+                nameof(Models.Settings.PersistedSettings.ShowLockedIcon),
+                nameof(Models.Settings.PersistedSettings.UseSeparateLockedIconsWhenAvailable)
             };
 
             if (refreshProperties.Contains(e.PropertyName))
@@ -1272,5 +1507,6 @@ namespace PlayniteAchievements.Views
         public event PropertyChangedEventHandler PropertyChanged;
     }
 }
+
 
 

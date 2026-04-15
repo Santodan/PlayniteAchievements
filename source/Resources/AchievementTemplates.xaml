@@ -16,6 +16,10 @@
     <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
     <converters:DefaultGameImageConverter x:Key="DefaultGameImage"/>
 
+    <!-- Menu highlight brush used by AchievementMultiSelectMenuItemStyle.
+         Overridden in FullscreenResources.xaml for dark backgrounds. -->
+    <SolidColorBrush x:Key="MenuHighlightBrush" Color="#14000000" />
+
     <!-- =======================
          DATAGRID STYLES
          ======================= -->
@@ -221,13 +225,51 @@
            TargetType="MenuItem">
         <Style.Resources>
             <Style x:Key="AchievementSelectorMenuCheckBoxStyle"
-                   TargetType="CheckBox"
-                   BasedOn="{StaticResource {x:Type CheckBox}}">
+                   TargetType="CheckBox">
                 <Setter Property="Margin" Value="0"/>
                 <Setter Property="Focusable" Value="False"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="HorizontalAlignment" Value="Left"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <Grid Background="Transparent">
+                                <Border x:Name="CheckBoxBox"
+                                        Width="20" Height="20"
+                                        Background="Transparent"
+                                        BorderBrush="{DynamicResource SelectionLightBrush}"
+                                        BorderThickness="1.5"
+                                        CornerRadius="2"
+                                        SnapsToDevicePixels="True"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                    <Viewbox Width="12" Height="12"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center">
+                                        <Path x:Name="CheckMark"
+                                              Data="M 1,5 L 5,9 L 11,1"
+                                              Stroke="{DynamicResource TextBrush}"
+                                              StrokeThickness="2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              Visibility="Collapsed"/>
+                                    </Viewbox>
+                                </Border>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CheckBoxBox" Property="BorderBrush"
+                                            Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </Style.Resources>
         <Setter Property="OverridesDefaultStyle" Value="True"/>
@@ -280,7 +322,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="MenuItemBorder" Property="Background" Value="#14000000"/>
+                            <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource MenuHighlightBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -503,33 +545,43 @@
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <Image Width="52" Height="52"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="Fant"
-                   helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                   helpers:AsyncImage.DecodePixel="128">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <!-- Minimal invisible shadow ensures clean edge rendering when no rarity glow -->
-                        <Setter Property="Effect">
-                            <Setter.Value>
-                                <DropShadowEffect BlurRadius="1" ShadowDepth="0" Opacity="0.001" Color="White"/>
-                            </Setter.Value>
-                        </Setter>
-                        <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                    <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <!-- Rarity glow overrides invisible shadow -->
-                                <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
+            <Grid Width="52" Height="52"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  ClipToBounds="False">
+                <Image Width="52" Height="52"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Stretch="Uniform"
+                       IsHitTestVisible="False"
+                       RenderOptions.BitmapScalingMode="Fant"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                       helpers:AsyncImage.DecodePixel="128">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Effect" Value="{x:Null}"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <Image Width="52" Height="52"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="Fant"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                       helpers:AsyncImage.DecodePixel="128"/>
+            </Grid>
         </Grid>
     </DataTemplate>
 

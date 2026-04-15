@@ -50,7 +50,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.AlreadyAuthenticated,
-                MessageKey = "LOCPlayAch_Auth_AlreadyAuthenticated",
+                MessageKey = "LOCPlayAch_Auth_Authenticated",
                 UserId = userId,
                 ExpiresUtc = expiresUtc,
                 WindowOpened = false
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.NotAuthenticated,
-                MessageKey = "LOCPlayAch_Auth_NotAuthenticated",
+                MessageKey = "LOCPlayAch_Common_NotAuthenticated",
                 WindowOpened = false
             };
         }
@@ -93,7 +93,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.TimedOut,
-                MessageKey = "LOCPlayAch_Auth_TimedOut",
+                MessageKey = "LOCPlayAch_Common_NotAuthenticated",
                 WindowOpened = windowOpened
             };
         }
@@ -106,7 +106,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.Cancelled,
-                MessageKey = "LOCPlayAch_Auth_Cancelled",
+                MessageKey = "LOCPlayAch_Common_NotAuthenticated",
                 WindowOpened = windowOpened
             };
         }
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.Failed,
-                MessageKey = "LOCPlayAch_Auth_Failed",
+                MessageKey = "LOCPlayAch_Common_NotAuthenticated",
                 WindowOpened = windowOpened
             };
         }
@@ -132,7 +132,7 @@ namespace PlayniteAchievements.Models
             return new AuthProbeResult
             {
                 Outcome = AuthOutcome.ProbeFailed,
-                MessageKey = "LOCPlayAch_Auth_ProbeFailed",
+                MessageKey = "LOCPlayAch_Common_NotAuthenticated",
                 WindowOpened = false
             };
         }

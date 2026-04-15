@@ -101,6 +101,20 @@ namespace PlayniteAchievements.Models.Achievements
         [IgnoreDataMember]
         public List<string> AchievementOrder { get; set; }
 
+        /// <summary>
+        /// Runtime-only exclusion flag for summary surfaces such as the sidebar/theme views.
+        /// Not persisted in cache/database.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool ExcludedFromSummaries { get; set; }
+
+        /// <summary>
+        /// Runtime-only resolved locked icon preference for this game.
+        /// Not persisted in cache/database.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool UseSeparateLockedIconsWhenAvailable { get; set; }
+
         public List<AchievementDetail> Achievements { get; set; } = new List<AchievementDetail>();
 
         /// <summary>

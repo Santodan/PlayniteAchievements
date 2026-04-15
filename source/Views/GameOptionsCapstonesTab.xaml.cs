@@ -21,12 +21,12 @@ namespace PlayniteAchievements.Views
         public GameOptionsCapstonesTab(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
-            AchievementDataService achievementDataService,
+            GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
         {
-            _viewModel = new CapstoneViewModel(gameId, achievementOverridesService, achievementDataService, playniteApi, logger, settings);
+            _viewModel = new CapstoneViewModel(gameId, achievementOverridesService, gameDataSnapshotProvider, playniteApi, logger, settings);
             DataContext = _viewModel;
             InitializeComponent();
             _viewModel.CapstoneChanged += ViewModel_CapstoneChanged;

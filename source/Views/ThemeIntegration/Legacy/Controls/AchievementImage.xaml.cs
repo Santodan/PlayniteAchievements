@@ -1,8 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
@@ -36,30 +34,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
             catch
             {
                 // Ignore errors loading icons
-            }
-        }
-
-        public static readonly DependencyProperty IsGrayProperty = DependencyProperty.Register(
-            nameof(IsGray),
-            typeof(bool),
-            typeof(AchievementImage),
-            new FrameworkPropertyMetadata(false, IsGrayChanged)
-        );
-        public bool IsGray
-        {
-            get => (bool)GetValue(IsGrayProperty);
-            set => SetValue(IsGrayProperty, value);
-        }
-        private static void IsGrayChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
-        {
-            try
-            {
-                AchievementImage control = (AchievementImage)obj;
-                // No-op: image loading is handled via direct XAML binding to local paths/pack URIs.
-            }
-            catch
-            {
-                // Ignore errors
             }
         }
 
@@ -329,74 +303,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls
         {
             if (PART_IconText != null)
             {
-                // Only show the overlay when we have an explicit locked icon.
-                PART_IconText.Visibility = (IsLocked && !string.IsNullOrWhiteSpace(IconCustom))
+                var hasExplicitLockedIcon = IsLocked &&
+                    AchievementIconResolver.HasExplicitLockedIcon(IconCustom, Icon);
+
+                PART_IconText.Visibility = hasExplicitLockedIcon
                     ? Visibility.Visible
                     : Visibility.Collapsed;
-            }
-        }
-
-        private BitmapSource ConvertToGrayscale(BitmapSource source)
-        {
-            // More robust grayscale conversion that preserves alpha.
-            // FormatConvertedBitmap -> Gray8 can fail for some inputs and also drops transparency.
-            // If conversion fails for any reason, fall back to the original image.
-            try
-            {
-                if (source == null)
-                {
-                    return null;
-                }
-
-                BitmapSource bgraSource = source;
-                if (bgraSource.Format != PixelFormats.Bgra32)
-                {
-                    var converted = new FormatConvertedBitmap();
-                    converted.BeginInit();
-                    converted.Source = bgraSource;
-                    converted.DestinationFormat = PixelFormats.Bgra32;
-                    converted.EndInit();
-                    converted.Freeze();
-                    bgraSource = converted;
-                }
-
-                int width = bgraSource.PixelWidth;
-                int height = bgraSource.PixelHeight;
-                int stride = width * 4;
-                byte[] pixels = new byte[stride * height];
-                bgraSource.CopyPixels(pixels, stride, 0);
-
-                // BGRA byte order.
-                for (int i = 0; i < pixels.Length; i += 4)
-                {
-                    byte b = pixels[i + 0];
-                    byte g = pixels[i + 1];
-                    byte r = pixels[i + 2];
-                    // byte a = pixels[i + 3]; // keep alpha as-is
-
-                    // Standard luma approximation.
-                    byte gray = (byte)Math.Min(255, (int)(0.114 * b + 0.587 * g + 0.299 * r));
-                    pixels[i + 0] = gray;
-                    pixels[i + 1] = gray;
-                    pixels[i + 2] = gray;
-                }
-
-                var grayImage = BitmapSource.Create(
-                    width,
-                    height,
-                    bgraSource.DpiX,
-                    bgraSource.DpiY,
-                    PixelFormats.Bgra32,
-                    null,
-                    pixels,
-                    stride);
-
-                grayImage.Freeze();
-                return grayImage;
-            }
-            catch
-            {
-                return source;
             }
         }
 

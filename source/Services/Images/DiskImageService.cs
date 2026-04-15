@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Concurrent;
-using System.IO;
+using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -15,6 +16,14 @@ using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.Images
 {
+    public enum IconCacheClearScope
+    {
+        All = 0,
+        CompressedOnly = 1,
+        FullResolutionOnly = 2,
+        LockedOnly = 3
+    }
+
     /// <summary>
     /// Persistent disk-based icon cache with URI-based organization.
     /// Downloads icons, converts to PNG, and stores on disk for fast retrieval.
@@ -30,6 +39,18 @@ namespace PlayniteAchievements.Services.Images
             "image-ssl.xboxlive.com",
             "xboxlive.com",
             "images-eds-ssl.xboxlive.com"
+        };
+
+        private static readonly string[] SupportedImageExtensions =
+        {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".bmp",
+            ".tif",
+            ".tiff",
+            ".webp"
         };
 
         private readonly ILogger _logger;
@@ -106,10 +127,9 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
-        /// Generate cache filename from URI using SHA256 hash.
-        /// If gameId is provided, creates per-game subfolder structure.
-        /// Results are cached to avoid repeated SHA256 computation.
-        /// Decode-size suffix is included to preserve "_128" naming convention.
+        /// Legacy helper: generate a cache filename from a URI using a SHA256 hash.
+        /// New achievement icon writes should use API-name paths instead.
+        /// This is retained for display-time fallback and lazy legacy migration.
         /// </summary>
         public string GetIconCachePathFromUri(string uri, int decodeSize, string gameId = null)
         {
@@ -136,22 +156,65 @@ namespace PlayniteAchievements.Services.Images
                     : Path.Combine(IconCacheDirectory, gameId);
 
                 var sizeSuffix = useDecodeSizeSuffix ? $"_{decodeSize}" : string.Empty;
-                var path = Path.Combine(cacheDir, $"{hashHex}{sizeSuffix}.png");
+                var extension = ResolvePreferredExtensionForSource(uri, decodeSize);
+                var path = Path.Combine(cacheDir, $"{hashHex}{sizeSuffix}{extension}");
                 _iconPathCache[cacheKey] = path;
                 return path;
             }
         }
 
-        private void EnsureGameIconDirectory(string gameId)
+        internal string GetAchievementIconCachePath(
+            string gameId,
+            bool preserveOriginalResolution,
+            string fileStem,
+            AchievementIconVariant variant)
         {
-            if (string.IsNullOrEmpty(gameId))
-                return;
+            var relativePath = AchievementIconCachePathBuilder.BuildRelativePath(
+                gameId,
+                preserveOriginalResolution,
+                fileStem,
+                variant);
+            return Path.Combine(_cacheRoot, relativePath);
+        }
 
-            var gameDir = Path.Combine(IconCacheDirectory, gameId);
-            if (!Directory.Exists(gameDir))
+        public bool TryMigrateLegacyAchievementIcon(
+            string legacySourceIdentifier,
+            string targetPath,
+            int legacyDecodeSize,
+            string gameId = null)
+        {
+            if (string.IsNullOrWhiteSpace(legacySourceIdentifier) ||
+                string.IsNullOrWhiteSpace(targetPath) ||
+                legacyDecodeSize <= 0)
             {
-                Directory.CreateDirectory(gameDir);
-                _logger?.Debug($"Created game icon directory: {gameDir}");
+                return false;
+            }
+
+            try
+            {
+                if (File.Exists(targetPath))
+                {
+                    return true;
+                }
+
+                var legacyPath = GetIconCachePathFromUri(legacySourceIdentifier, legacyDecodeSize, gameId);
+                if (string.IsNullOrWhiteSpace(legacyPath) || !File.Exists(legacyPath))
+                {
+                    return false;
+                }
+
+                EnsureTargetDirectory(targetPath);
+                File.Move(legacyPath, targetPath);
+                return true;
+            }
+            catch (IOException)
+            {
+                return File.Exists(targetPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to migrate legacy cached icon to {targetPath}");
+                return false;
             }
         }
 
@@ -210,41 +273,51 @@ namespace PlayniteAchievements.Services.Images
                 return null;
             }
 
-            // Ensure game directory exists if gameId provided
-            if (!string.IsNullOrEmpty(gameId))
-            {
-                EnsureGameIconDirectory(gameId);
-            }
-
-            // Check if already cached on disk
             var cachePath = GetIconCachePathFromUri(uri, decodeSize, gameId);
-            if (File.Exists(cachePath))
+            return await GetOrDownloadIconToPathAsync(uri, cachePath, decodeSize, cancel).ConfigureAwait(false);
+        }
+
+        public async Task<string> GetOrDownloadIconToPathAsync(
+            string uri,
+            string targetPath,
+            int decodeSize,
+            CancellationToken cancel,
+            bool overwriteExistingTarget = false)
+        {
+            if (string.IsNullOrWhiteSpace(uri) || string.IsNullOrWhiteSpace(targetPath))
             {
-                return cachePath;
+                return null;
             }
 
-            var pathLock = _pathWriteLocks.GetOrAdd(cachePath, _ => new SemaphoreSlim(1, 1));
+            var preserveOriginalFormat = ShouldPreserveOriginalFormat(decodeSize);
+            var resolvedTargetPath = ResolveTargetPathForSource(targetPath, uri, preserveOriginalFormat);
+            EnsureTargetDirectory(resolvedTargetPath);
+
+            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
             await pathLock.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                // Double-check after acquiring path-specific write lock.
-                if (File.Exists(cachePath))
+                if (!overwriteExistingTarget && File.Exists(targetPath))
                 {
-                    return cachePath;
+                    return targetPath;
                 }
 
-                // Use appropriate gate based on domain rate-limiting behavior
+                if (!overwriteExistingTarget &&
+                    !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(resolvedTargetPath))
+                {
+                    return resolvedTargetPath;
+                }
+
                 var downloadGate = IsRateLimitedDomain(uri) ? _rateLimitedDownloadGate : _downloadGate;
 
-                // Download bytes under shared download concurrency gate.
-                // Image processing happens outside the gate to avoid blocking other downloads.
                 byte[] bytes;
                 await downloadGate.WaitAsync(cancel).ConfigureAwait(false);
                 try
                 {
-                    if (File.Exists(cachePath))
+                    if (!overwriteExistingTarget && File.Exists(targetPath))
                     {
-                        return cachePath;
+                        return targetPath;
                     }
 
                     bytes = await DownloadBytesAsync(uri, cancel).ConfigureAwait(false);
@@ -254,40 +327,24 @@ namespace PlayniteAchievements.Services.Images
                     downloadGate.Release();
                 }
 
-                // Process image outside the download gate - allows parallel processing
                 if (bytes == null || bytes.Length == 0)
                 {
                     return null;
                 }
 
-                // Convert to PNG and save
+                if (preserveOriginalFormat)
+                {
+                    await SaveBytesWithRetryAsync(resolvedTargetPath, bytes, cancel).ConfigureAwait(false);
+                    return resolvedTargetPath;
+                }
+
                 using (var ms = new MemoryStream(bytes, writable: false))
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                    if (decodeSize > 0)
-                    {
-                        bitmap.DecodePixelWidth = decodeSize;
-                    }
-                    bitmap.StreamSource = ms;
-                    bitmap.EndInit();
-
-                    // Crop to square for consistent aspect ratio and smaller file size
-                    var finalBitmap = CropToSquare(bitmap);
-
-                    var encoder = new PngBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(finalBitmap));
-                    await SavePngWithRetryAsync(cachePath, encoder, cancel).ConfigureAwait(false);
-
-                    // _logger?.Debug($"Cached icon: {cachePath}");
-                    return cachePath;
+                    return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException)
             {
-                // Let cancellation propagate - handled by caller
                 throw;
             }
             catch (Exception ex)
@@ -318,6 +375,33 @@ namespace PlayniteAchievements.Services.Images
                     {
                         encoder.Save(fs);
                     }
+                    return;
+                }
+                catch (IOException) when (attempt < maxAttempts)
+                {
+                    await Task.Delay(50 * attempt, cancel).ConfigureAwait(false);
+                }
+            }
+        }
+
+        private static async Task SaveBytesWithRetryAsync(
+            string targetPath,
+            byte[] bytes,
+            CancellationToken cancel,
+            int maxAttempts = 3)
+        {
+            var attempt = 0;
+            while (true)
+            {
+                cancel.ThrowIfCancellationRequested();
+                attempt++;
+                try
+                {
+                    using (var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                    {
+                        await fs.WriteAsync(bytes, 0, bytes.Length, cancel).ConfigureAwait(false);
+                    }
+
                     return;
                 }
                 catch (IOException) when (attempt < maxAttempts)
@@ -471,16 +555,32 @@ namespace PlayniteAchievements.Services.Images
         {
             try
             {
-                if (Directory.Exists(IconCacheDirectory))
-                {
-                    Directory.Delete(IconCacheDirectory, recursive: true);
-                    EnsureIconCacheDirectory();
-                    _logger?.Info("Cleared all icon cache");
-                }
+                ClearIconCache(IconCacheClearScope.All);
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to clear icon cache");
+            }
+        }
+
+        public int ClearIconCache(
+            IconCacheClearScope scope,
+            IEnumerable<string> additionalPaths = null,
+            Action<int, int> reportDeleteProgress = null)
+        {
+            try
+            {
+                if (scope == IconCacheClearScope.All)
+                {
+                    return ClearEntireIconCache(reportDeleteProgress);
+                }
+
+                return ClearScopedIconCache(scope, additionalPaths, reportDeleteProgress);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed to clear icon cache for scope '{scope}'.");
+                return 0;
             }
         }
 
@@ -494,10 +594,33 @@ namespace PlayniteAchievements.Services.Images
             try
             {
                 var gameDir = Path.Combine(IconCacheDirectory, gameId.Trim());
-                if (Directory.Exists(gameDir))
+                if (!Directory.Exists(gameDir))
                 {
-                    Directory.Delete(gameDir, recursive: true);
+                    return;
                 }
+
+                var filesToDelete = Directory
+                    .EnumerateFiles(gameDir, "*", SearchOption.AllDirectories)
+                    .Where(IsSupportedCacheImageFile)
+                    .Where(file => !IsManagedCustomCacheFile(file))
+                    .ToList();
+                DeleteFiles(filesToDelete, reportDeleteProgress: null);
+
+                foreach (var directory in Directory.EnumerateDirectories(gameDir, "*", SearchOption.TopDirectoryOnly))
+                {
+                    if (string.Equals(
+                        Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                        Path.GetFullPath(Path.Combine(gameDir, AchievementIconCachePathBuilder.GetCustomFolder()))
+                            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    Directory.Delete(directory, recursive: true);
+                }
+
+                DeleteEmptyDirectories(gameDir);
             }
             catch (Exception ex)
             {
@@ -510,6 +633,249 @@ namespace PlayniteAchievements.Services.Images
             ClearGameCache(gameId);
         }
 
+        private int ClearEntireIconCache(Action<int, int> reportDeleteProgress)
+        {
+            if (!Directory.Exists(IconCacheDirectory))
+            {
+                EnsureIconCacheDirectory();
+                reportDeleteProgress?.Invoke(0, 0);
+                return 0;
+            }
+
+            var filesToDelete = Directory
+                .EnumerateFiles(IconCacheDirectory, "*", SearchOption.AllDirectories)
+                .Where(IsSupportedCacheImageFile)
+                .Where(file => !IsManagedCustomCacheFile(file))
+                .Select(Path.GetFullPath)
+                .ToList();
+            var deletedCount = DeleteFiles(filesToDelete, reportDeleteProgress);
+
+            DeleteEmptyDirectories(IconCacheDirectory);
+            EnsureIconCacheDirectory();
+            try { _iconPathCache.Clear(); } catch { }
+            _logger?.Info($"Cleared all icon cache files. deletedCount={deletedCount}");
+            return deletedCount;
+        }
+
+        private int ClearScopedIconCache(
+            IconCacheClearScope scope,
+            IEnumerable<string> additionalPaths,
+            Action<int, int> reportDeleteProgress)
+        {
+            if (!Directory.Exists(IconCacheDirectory))
+            {
+                EnsureIconCacheDirectory();
+                reportDeleteProgress?.Invoke(0, 0);
+                return 0;
+            }
+
+            var cacheRoot = Path.GetFullPath(IconCacheDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var filesToDelete = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, "*", SearchOption.AllDirectories))
+            {
+                if (!IsSupportedCacheImageFile(file))
+                {
+                    continue;
+                }
+
+                if (ShouldDeleteCacheFile(file, scope))
+                {
+                    filesToDelete.Add(Path.GetFullPath(file));
+                }
+            }
+
+            if (additionalPaths != null)
+            {
+                foreach (var path in additionalPaths)
+                {
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var normalized = Path.GetFullPath(path);
+                        if (IsPathWithinDirectory(normalized, cacheRoot) && File.Exists(normalized))
+                        {
+                            filesToDelete.Add(normalized);
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore malformed paths from stale cache data.
+                    }
+                }
+            }
+
+            var deletedCount = DeleteFiles(filesToDelete, reportDeleteProgress);
+
+            DeleteEmptyDirectories(cacheRoot);
+            EnsureIconCacheDirectory();
+            _logger?.Info($"Cleared icon cache scope '{scope}'. deletedCount={deletedCount}");
+            return deletedCount;
+        }
+
+        private int DeleteFiles(IEnumerable<string> filesToDelete, Action<int, int> reportDeleteProgress)
+        {
+            var targets = (filesToDelete ?? Enumerable.Empty<string>())
+                .Where(file => !string.IsNullOrWhiteSpace(file))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            reportDeleteProgress?.Invoke(0, targets.Count);
+
+            var deletedCount = 0;
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var file = targets[i];
+                try
+                {
+                    if (!File.Exists(file))
+                    {
+                        continue;
+                    }
+
+                    File.Delete(file);
+                    deletedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to delete cached icon '{file}'.");
+                }
+                finally
+                {
+                    reportDeleteProgress?.Invoke(i + 1, targets.Count);
+                }
+            }
+
+            return deletedCount;
+        }
+
+        private static int CountCachedImageFiles(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+            {
+                return 0;
+            }
+
+            var count = 0;
+            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                if (!IsSupportedCacheImageFile(file))
+                {
+                    continue;
+                }
+
+                count++;
+            }
+
+            return count;
+        }
+
+        private static bool ShouldDeleteCacheFile(string path, IconCacheClearScope scope)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            if (IsManagedCustomCacheFile(path))
+            {
+                return false;
+            }
+
+            var fileName = Path.GetFileName(path) ?? string.Empty;
+            var parentDirectory = Path.GetDirectoryName(path);
+            var modeFolder = string.IsNullOrWhiteSpace(parentDirectory)
+                ? string.Empty
+                : new DirectoryInfo(parentDirectory).Name;
+            var isCompressed = string.Equals(modeFolder, "128", StringComparison.OrdinalIgnoreCase) ||
+                               fileName.IndexOf("_128.", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            switch (scope)
+            {
+                case IconCacheClearScope.CompressedOnly:
+                    return isCompressed;
+                case IconCacheClearScope.FullResolutionOnly:
+                    return !isCompressed;
+                case IconCacheClearScope.LockedOnly:
+                    return fileName.IndexOf(".locked.", StringComparison.OrdinalIgnoreCase) >= 0;
+                default:
+                    return true;
+            }
+        }
+
+        private static bool IsPathWithinDirectory(string candidatePath, string directoryPath)
+        {
+            if (string.IsNullOrWhiteSpace(candidatePath) || string.IsNullOrWhiteSpace(directoryPath))
+            {
+                return false;
+            }
+
+            if (string.Equals(candidatePath, directoryPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var normalizedDirectory = directoryPath.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+                ? directoryPath
+                : directoryPath + Path.DirectorySeparatorChar;
+
+            return candidatePath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsManagedCustomCacheFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            try
+            {
+                var directory = new DirectoryInfo(Path.GetDirectoryName(path) ?? string.Empty);
+                while (directory != null)
+                {
+                    if (string.Equals(
+                        directory.Name,
+                        AchievementIconCachePathBuilder.GetCustomFolder(),
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+
+                    directory = directory.Parent;
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private static void DeleteEmptyDirectories(string rootDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(rootDirectory) || !Directory.Exists(rootDirectory))
+            {
+                return;
+            }
+
+            foreach (var directory in Directory.GetDirectories(rootDirectory, "*", SearchOption.AllDirectories))
+            {
+                DeleteEmptyDirectories(directory);
+            }
+
+            if (Directory.GetDirectories(rootDirectory).Length == 0 &&
+                Directory.GetFiles(rootDirectory).Length == 0)
+            {
+                Directory.Delete(rootDirectory, recursive: false);
+            }
+        }
+
         public long GetCacheSizeBytes()
         {
             try
@@ -520,8 +886,13 @@ namespace PlayniteAchievements.Services.Images
                 }
 
                 long total = 0;
-                foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, "*.png", SearchOption.AllDirectories))
+                foreach (var file in Directory.EnumerateFiles(IconCacheDirectory, "*", SearchOption.AllDirectories))
                 {
+                    if (!IsSupportedCacheImageFile(file))
+                    {
+                        continue;
+                    }
+
                     total += new FileInfo(file).Length;
                 }
                 return total;
@@ -556,52 +927,60 @@ namespace PlayniteAchievements.Services.Images
                 return null;
             }
 
-            // Ensure game directory exists if gameId provided
-            if (!string.IsNullOrEmpty(gameId))
-            {
-                EnsureGameIconDirectory(gameId);
-            }
-
-            // Check if already cached on disk
             var cachePath = GetIconCachePathFromUri(localPath, decodeSize, gameId);
-            if (File.Exists(cachePath))
+            return await GetOrCopyLocalIconToPathAsync(localPath, cachePath, decodeSize, cancel).ConfigureAwait(false);
+        }
+
+        public async Task<string> GetOrCopyLocalIconToPathAsync(
+            string localPath,
+            string targetPath,
+            int decodeSize,
+            CancellationToken cancel,
+            bool overwriteExistingTarget = false)
+        {
+            if (string.IsNullOrWhiteSpace(localPath) ||
+                !File.Exists(localPath) ||
+                string.IsNullOrWhiteSpace(targetPath))
             {
-                return cachePath;
+                return null;
             }
 
-            var pathLock = _pathWriteLocks.GetOrAdd(cachePath, _ => new SemaphoreSlim(1, 1));
+            var preserveOriginalFormat = ShouldPreserveOriginalFormat(decodeSize);
+            var resolvedTargetPath = ResolveTargetPathForSource(targetPath, localPath, preserveOriginalFormat);
+            EnsureTargetDirectory(resolvedTargetPath);
+
+            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
             await pathLock.WaitAsync(cancel).ConfigureAwait(false);
             try
             {
-                // Double-check after acquiring lock
-                if (File.Exists(cachePath))
+                if (!overwriteExistingTarget && File.Exists(targetPath))
                 {
-                    return cachePath;
+                    return targetPath;
                 }
 
-                // Read local file and convert to PNG
+                if (!overwriteExistingTarget &&
+                    !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
+                    File.Exists(resolvedTargetPath))
+                {
+                    return resolvedTargetPath;
+                }
+
+                cancel.ThrowIfCancellationRequested();
+
+                if (preserveOriginalFormat)
+                {
+                    File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
+                    return resolvedTargetPath;
+                }
+
                 using (var ms = new MemoryStream(File.ReadAllBytes(localPath), writable: false))
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                    if (decodeSize > 0)
-                    {
-                        bitmap.DecodePixelWidth = decodeSize;
-                    }
-                    bitmap.StreamSource = ms;
-                    bitmap.EndInit();
-
-                    // Crop to square for consistent aspect ratio and smaller file size
-                    var finalBitmap = CropToSquare(bitmap);
-
-                    var encoder = new PngBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(finalBitmap));
-                    await SavePngWithRetryAsync(cachePath, encoder, cancel).ConfigureAwait(false);
-
-                    return cachePath;
+                    return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -613,5 +992,184 @@ namespace PlayniteAchievements.Services.Images
                 pathLock.Release();
             }
         }
+
+        public async Task<string> CopyCachedIconAsync(
+            string existingPath,
+            string targetPath,
+            CancellationToken cancel,
+            bool overwriteExistingTarget = false)
+        {
+            if (string.IsNullOrWhiteSpace(existingPath) ||
+                !File.Exists(existingPath) ||
+                string.IsNullOrWhiteSpace(targetPath))
+            {
+                return null;
+            }
+
+            if (string.Equals(existingPath, targetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return existingPath;
+            }
+
+            EnsureTargetDirectory(targetPath);
+            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
+            await pathLock.WaitAsync(cancel).ConfigureAwait(false);
+            try
+            {
+                if (!overwriteExistingTarget && File.Exists(targetPath))
+                {
+                    return targetPath;
+                }
+
+                cancel.ThrowIfCancellationRequested();
+                File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
+                return targetPath;
+            }
+            catch (IOException)
+            {
+                return File.Exists(targetPath) ? targetPath : null;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to copy cached icon from {existingPath} to {targetPath}");
+                return null;
+            }
+            finally
+            {
+                pathLock.Release();
+            }
+        }
+
+        private async Task<string> SaveBitmapStreamToPathAsync(
+            Stream imageStream,
+            string targetPath,
+            int decodeSize,
+            CancellationToken cancel)
+        {
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            if (decodeSize > 0)
+            {
+                bitmap.DecodePixelWidth = decodeSize;
+            }
+            bitmap.StreamSource = imageStream;
+            bitmap.EndInit();
+
+            var finalBitmap = CropToSquare(bitmap);
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(finalBitmap));
+            await SavePngWithRetryAsync(targetPath, encoder, cancel).ConfigureAwait(false);
+            return targetPath;
+        }
+
+        private static void EnsureTargetDirectory(string targetPath)
+        {
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(targetPath);
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                return;
+            }
+
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
+        private static bool ShouldPreserveOriginalFormat(int decodeSize)
+        {
+            return decodeSize <= 0;
+        }
+
+        private static string ResolvePreferredExtensionForSource(string source, int decodeSize)
+        {
+            if (!ShouldPreserveOriginalFormat(decodeSize))
+            {
+                return ".png";
+            }
+
+            var extension = GetNormalizedSourceExtension(source);
+            return string.IsNullOrWhiteSpace(extension)
+                ? ".png"
+                : extension;
+        }
+
+        private static string ResolveTargetPathForSource(string targetPath, string source, bool preserveOriginalFormat)
+        {
+            if (!preserveOriginalFormat || string.IsNullOrWhiteSpace(targetPath))
+            {
+                return targetPath;
+            }
+
+            var sourceExtension = GetNormalizedSourceExtension(source);
+            if (string.IsNullOrWhiteSpace(sourceExtension))
+            {
+                return targetPath;
+            }
+
+            return Path.ChangeExtension(targetPath, sourceExtension);
+        }
+
+        private static string GetNormalizedSourceExtension(string source)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return null;
+            }
+
+            try
+            {
+                if (Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+                    !string.IsNullOrWhiteSpace(uri.AbsolutePath))
+                {
+                    var uriExtension = Path.GetExtension(uri.AbsolutePath);
+                    if (IsSupportedImageExtension(uriExtension))
+                    {
+                        return uriExtension.ToLowerInvariant();
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            var extension = Path.GetExtension(source);
+            return IsSupportedImageExtension(extension)
+                ? extension.ToLowerInvariant()
+                : null;
+        }
+
+        private static bool IsSupportedImageExtension(string extension)
+        {
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                return false;
+            }
+
+            return SupportedImageExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSupportedCacheImageFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            return IsSupportedImageExtension(Path.GetExtension(path));
+        }
+
     }
 }

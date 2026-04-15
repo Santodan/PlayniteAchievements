@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Services.Hydration
 {
@@ -34,30 +35,51 @@ namespace PlayniteAchievements.Services.Hydration
             }
 
             var gameId = data.PlayniteGameId.Value;
+            var customData = GameCustomDataLookup.ResolveGameCustomData(gameId, _settings);
 
             // Populate ExcludedByUser from settings
-            data.ExcludedByUser = _settings.ExcludedGameIds.Contains(gameId);
+            data.ExcludedByUser = customData.ExcludedFromRefreshes;
+            data.ExcludedFromSummaries = customData.ExcludedFromSummaries;
+            data.UseSeparateLockedIconsWhenAvailable = customData.UseSeparateLockedIcons;
 
             // Set Game reference from Playnite database (SortingName is computed from this)
             data.Game = GetGame(gameId);
 
             // Populate runtime custom order from settings.
             data.AchievementOrder = null;
-            if (_settings.AchievementOrderOverrides != null &&
-                _settings.AchievementOrderOverrides.TryGetValue(gameId, out var configuredOrder))
+            var configuredOrder = customData.AchievementOrder;
+            if (configuredOrder.Count > 0)
             {
-                var normalizedOrder = Services.AchievementOrderHelper.NormalizeApiNames(configuredOrder);
-                if (normalizedOrder.Count > 0)
-                {
-                    data.AchievementOrder = normalizedOrder;
-                }
+                data.AchievementOrder = configuredOrder;
             }
 
             // Hydrate achievements with settings overlays (capstone + category/category-type overrides).
             if (data.Achievements != null && data.Achievements.Count > 0)
             {
-                _achievementHydrator.HydrateAllWithCapstoneOverride(data.Achievements, gameId, data.ProviderKey);
+                _achievementHydrator.HydrateAllWithCapstoneOverride(
+                    data.Achievements,
+                    gameId,
+                    data.EffectiveProviderKey,
+                    customData);
             }
+        }
+
+        /// <summary>
+        /// Hydrates only sidebar-relevant runtime properties and skips per-achievement overlays.
+        /// </summary>
+        public void HydrateForSidebar(GameAchievementData data)
+        {
+            if (data?.PlayniteGameId == null)
+            {
+                return;
+            }
+
+            var gameId = data.PlayniteGameId.Value;
+            var customData = GameCustomDataLookup.ResolveSidebarGameCustomData(gameId, _settings);
+
+            data.ExcludedFromSummaries = customData.ExcludedFromSummaries;
+            data.UseSeparateLockedIconsWhenAvailable = customData.UseSeparateLockedIcons;
+            data.Game = GetGame(gameId);
         }
 
         /// <summary>
@@ -73,6 +95,22 @@ namespace PlayniteAchievements.Services.Hydration
             foreach (var game in games)
             {
                 Hydrate(game);
+            }
+        }
+
+        /// <summary>
+        /// Hydrates multiple GameAchievementData instances for sidebar use only.
+        /// </summary>
+        public void HydrateAllForSidebar(IEnumerable<GameAchievementData> games)
+        {
+            if (games == null)
+            {
+                return;
+            }
+
+            foreach (var game in games)
+            {
+                HydrateForSidebar(game);
             }
         }
 

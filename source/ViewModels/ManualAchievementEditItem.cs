@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.ViewModels
 {
@@ -23,6 +23,7 @@ namespace PlayniteAchievements.ViewModels
     /// </summary>
     public sealed class ManualAchievementEditItem : INotifyPropertyChanged
     {
+        private readonly Guid? _playniteGameId;
         private bool _isUnlocked;
         private bool _isRevealed;
         private DateTime? _unlockTime;
@@ -102,7 +103,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Icon URL for display.
         /// For hidden achievements that aren't revealed, uses placeholder icon.
-        /// Otherwise uses unlocked icon with grayscale prefix applied for locked achievements.
+        /// Otherwise uses the unlocked icon or the resolved locked-icon display path.
         /// </summary>
         public string DisplayIconUrl
         {
@@ -114,11 +115,11 @@ namespace PlayniteAchievements.ViewModels
                     return DefaultIcon;
                 }
 
-                var candidate = UnlockedIconUrl;
-                if (!IsUnlocked && !string.IsNullOrWhiteSpace(candidate))
-                {
-                    candidate = AchievementIconResolver.ApplyGrayPrefix(candidate);
-                }
+                var candidate = IsUnlocked
+                    ? AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconUrl)
+                    : AchievementIconResolver.GetLockedDisplayIcon(
+                        UnlockedIconUrl,
+                        UseSeparateLockedIconsWhenAvailable ? LockedIconUrl : null);
 
                 return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
             }
@@ -126,6 +127,10 @@ namespace PlayniteAchievements.ViewModels
         public string DisplayIcon => DisplayIconUrl;
 
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
+        private bool UseSeparateLockedIconsWhenAvailable =>
+            GameCustomDataLookup.ShouldUseSeparateLockedIcons(
+                _playniteGameId,
+                PlayniteAchievementsPlugin.Instance?.Settings?.Persisted);
 
         /// <summary>
         /// Whether this hidden achievement can be revealed (hidden and not unlocked).
@@ -204,7 +209,11 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(UnlockTimeLocal));
                     OnPropertyChanged(nameof(UnlockDate));
                     OnPropertyChanged(nameof(UnlockTimeOfDay));
-                    InitializeTimePickerFromUnlockTime();
+
+                    if (!_isApplyingPickerUpdate)
+                    {
+                        InitializeTimePickerFromUnlockTime();
+                    }
 
                     // Ensure unlocked state matches
                     if (value.HasValue && !_isUnlocked)
@@ -292,6 +301,7 @@ namespace PlayniteAchievements.ViewModels
         private string _timeText;
         private bool _isValidTime = true;
         private bool _isUpdatingFromText;
+        private bool _isApplyingPickerUpdate;
 
         // Cached time mode display strings for dropdown
         private static readonly string[] TimeModeDisplayNames = { "AM", "PM", "24hr" };
@@ -442,8 +452,15 @@ namespace PlayniteAchievements.ViewModels
                     }
                     else if (previousMode == TimeMode.TwentyFourHour)
                     {
-                        // Switching from 24hr to 12hr
-                        Convert24To12Hour(_selectedHour, out _selectedHour, out _selectedTimeMode);
+                        // Switching from 24hr to 12hr keeps explicit AM/PM selection.
+                        if (_selectedHour == 0)
+                        {
+                            _selectedHour = 12;
+                        }
+                        else if (_selectedHour > 12)
+                        {
+                            _selectedHour -= 12;
+                        }
                     }
                     // Switching between AM and PM keeps hour/minute values as entered.
                     SetTimeTextFromSelection();
@@ -467,7 +484,15 @@ namespace PlayniteAchievements.ViewModels
                 ? _selectedHour
                 : Convert12To24Hour(_selectedHour, _selectedTimeMode);
 
-            UnlockTimeLocal = UnlockDate.Value.Date + new TimeSpan(hour24, _selectedMinute, 0);
+            _isApplyingPickerUpdate = true;
+            try
+            {
+                UnlockTimeLocal = UnlockDate.Value.Date + new TimeSpan(hour24, _selectedMinute, 0);
+            }
+            finally
+            {
+                _isApplyingPickerUpdate = false;
+            }
         }
 
         private int Convert12To24Hour(int hour12, TimeMode mode)
@@ -527,9 +552,10 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedTimeModeText));
         }
 
-        public ManualAchievementEditItem(AchievementDetail source, bool isUnlocked, DateTime? unlockTime)
+        public ManualAchievementEditItem(AchievementDetail source, bool isUnlocked, DateTime? unlockTime, Guid? playniteGameId = null)
         {
             Source = source ?? throw new ArgumentNullException(nameof(source));
+            _playniteGameId = playniteGameId;
             _isUnlocked = isUnlocked;
             _unlockTime = unlockTime;
             InitializeTimePickerFromUnlockTime();

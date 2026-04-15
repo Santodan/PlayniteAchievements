@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Views.Converters
     /// Selects which icon URI to display based on the locked state.
     /// Values: [0]=IsLocked (bool), [1]=IconCustom (string), [2]=Icon (string).
     /// Returns IconCustom when locked, Icon when unlocked.
-    /// Note: Grayscale is applied by AsyncImage.Gray based on IsLocked, not via URL prefix.
+    /// IconCustom may be a real locked icon path or a gray-prefixed unlocked icon fallback.
     /// </summary>
     public sealed class LockedIconSelectorConverter : IMultiValueConverter
     {
@@ -24,7 +24,7 @@ namespace PlayniteAchievements.Views.Converters
             string iconCustom = values[1] as string;
             string icon = values[2] as string;
 
-            // When locked, use IconCustom (gray-prefixed)
+            // When locked, use IconCustom
             // When unlocked, use Icon (color)
             string selected = isLocked ? iconCustom : icon;
 
@@ -42,4 +42,3 @@ namespace PlayniteAchievements.Views.Converters
         }
     }
 }
-

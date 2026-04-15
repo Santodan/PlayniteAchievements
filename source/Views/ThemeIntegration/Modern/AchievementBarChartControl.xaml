@@ -22,6 +22,16 @@
     </base:ThemeControlBase.Resources>
 
     <Grid x:Name="RootGrid">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementBarChartControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

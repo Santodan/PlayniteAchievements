@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
             string displayIcon = isHiddenAndObscured
                 ? AchievementIconResolver.GetDefaultIcon()
-                : achievement.UnlockedIconDisplay;
+                : achievement.LockedIconDisplay;
 
             string displayToolTip = isHiddenAndObscured
                 ? ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle")
@@ -91,7 +91,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 Width = IconHeight,
                 Height = IconHeight,
                 ToolTip = displayToolTip,
-                Icon = displayIcon,
+                Icon = isHiddenAndObscured ? displayIcon : achievement.UnlockedIconDisplay,
                 IconCustom = displayIcon,
                 IsLocked = true,
                 Percent = achievement.RarityPercentValue,
@@ -140,7 +140,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
                     string displayIcon = isHiddenAndObscured
                         ? AchievementIconResolver.GetDefaultIcon()
-                        : achievement.UnlockedIconDisplay;
+                        : achievement.LockedIconDisplay;
 
                     string displayToolTip = isHiddenAndObscured
                         ? ResourceProvider.GetString("LOCPlayAch_Achievements_HiddenTitle")
@@ -148,7 +148,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
                     if (fe is AchievementImage image)
                     {
-                        image.Icon = displayIcon;
+                        image.Icon = isHiddenAndObscured ? displayIcon : achievement.UnlockedIconDisplay;
                         image.IconCustom = displayIcon;
                         image.ToolTip = displayToolTip;
                     }

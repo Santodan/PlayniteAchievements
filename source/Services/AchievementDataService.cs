@@ -15,6 +15,7 @@ namespace PlayniteAchievements.Services
     public sealed class AchievementDataService
     {
         private readonly ICacheManager _cacheService;
+        private readonly ICacheReadOptimizations _cacheReadOptimizations;
         private readonly GameDataHydrator _hydrator;
         private readonly ILogger _logger;
         private readonly PersistedSettings _persistedSettings;
@@ -31,6 +32,7 @@ namespace PlayniteAchievements.Services
 
             _logger = logger;
             _persistedSettings = settings.Persisted;
+            _cacheReadOptimizations = cacheService as ICacheReadOptimizations;
             _hydrator = new GameDataHydrator(api, _persistedSettings);
         }
 
@@ -43,9 +45,7 @@ namespace PlayniteAchievements.Services
 
             try
             {
-                var data = LoadGameDataWithPreferredProvider(playniteGameId);
-                _hydrator.Hydrate(data);
-                return data;
+                return GetMergedGameAchievementData(playniteGameId, includeAchievementOverlays: true);
             }
             catch (Exception ex)
             {
@@ -81,36 +81,121 @@ namespace PlayniteAchievements.Services
             return GetGameAchievementData(playniteGameId.ToString());
         }
 
+        public GameAchievementData GetGameAchievementDataForSidebar(Guid playniteGameId)
+        {
+            if (playniteGameId == Guid.Empty)
+            {
+                return null;
+            }
+
+            try
+            {
+                return GetMergedGameAchievementData(playniteGameId.ToString(), includeAchievementOverlays: false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, string.Format(
+                    "Failed to get sidebar achievement data for gameId={0}",
+                    playniteGameId));
+                return null;
+            }
+        }
+
         public List<GameAchievementData> GetAllGameAchievementData()
         {
             try
             {
-                List<GameAchievementData> result;
-                if (_cacheService is CacheManager optimizedCacheManager)
-                {
-                    result = optimizedCacheManager.LoadAllGameDataFast(GetPreferredProviderOverridesByCacheKey()) ?? new List<GameAchievementData>();
-                }
-                else
-                {
-                    var gameIds = _cacheService.GetCachedGameIds();
-                    result = new List<GameAchievementData>();
-                    foreach (var gameId in gameIds)
-                    {
-                        var gameData = _cacheService.LoadGameData(gameId);
-                        if (gameData != null)
-                        {
-                            result.Add(gameData);
-                        }
-                    }
-                }
-
-                _hydrator.HydrateAll(result);
+                var result = LoadAllCachedGameData();
+                HydrateAll(result, includeAchievementOverlays: true);
                 return result;
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, "Failed to get all achievement data");
                 return new List<GameAchievementData>();
+            }
+        }
+
+        public List<GameAchievementData> GetAllGameAchievementDataForSidebar()
+        {
+            try
+            {
+                var result = LoadAllCachedGameData();
+                HydrateAll(result, includeAchievementOverlays: false);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to get all sidebar achievement data");
+                return new List<GameAchievementData>();
+            }
+        }
+
+        internal CachedSummaryData GetCachedSummaryData(int recentAchievementDetailLimit = 0)
+        {
+            try
+            {
+                return _cacheReadOptimizations?.LoadCachedSummaryDataFast(recentAchievementDetailLimit);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to get cached summary data");
+                return null;
+            }
+        }
+
+        private List<GameAchievementData> LoadAllCachedGameData()
+        {
+            if (_cacheService is CacheManager optimizedCacheManager)
+            {
+                return optimizedCacheManager.LoadAllGameDataFast(GetPreferredProviderOverridesByCacheKey()) ?? new List<GameAchievementData>();
+            }
+
+            if (_cacheReadOptimizations != null)
+            {
+                return _cacheReadOptimizations.LoadAllGameDataFast() ?? new List<GameAchievementData>();
+            }
+
+            var gameIds = _cacheService.GetCachedGameIds();
+            var result = new List<GameAchievementData>();
+            foreach (var gameId in gameIds)
+            {
+                var gameData = _cacheService.LoadGameData(gameId);
+                if (gameData != null)
+                {
+                    result.Add(gameData);
+                }
+            }
+
+            return result;
+        }
+
+        private GameAchievementData GetMergedGameAchievementData(
+            string playniteGameId,
+            bool includeAchievementOverlays)
+        {
+            var data = LoadGameDataWithPreferredProvider(playniteGameId);
+            if (includeAchievementOverlays)
+            {
+                _hydrator.Hydrate(data);
+            }
+            else
+            {
+                _hydrator.HydrateForSidebar(data);
+            }
+
+            return data;
+        }
+
+        private void HydrateAll(IEnumerable<GameAchievementData> games, bool includeAchievementOverlays)
+        {
+            if (includeAchievementOverlays)
+            {
+                _hydrator.HydrateAll(games);
+            }
+            else
+            {
+                _hydrator.HydrateAllForSidebar(games);
             }
         }
 

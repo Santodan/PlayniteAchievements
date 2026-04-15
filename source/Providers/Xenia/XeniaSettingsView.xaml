@@ -16,6 +16,17 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
+
+            <!-- Provider Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <Path Data="{StaticResource GeoXenia}" Fill="#92C83E"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Xenia}"
+                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
@@ -37,12 +48,8 @@
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_XeniaConnection}"
+                    <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Xenia_Description}"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,12"
-                               TextWrapping="Wrap"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -127,7 +134,7 @@
                                                      KeyDown="XeniaAccountPath_KeyDown"
                                                      LostFocus="XeniaAccountPath_LostFocus"/>
                                             <Button Grid.Column="1"
-                                                    Content="{DynamicResource LOCPlayAch_Settings_Xenia_Browse}"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Browse}"
                                                     Click="Xenia_Browse_Click"
                                                     Padding="10,4"/>
                                         </Grid>

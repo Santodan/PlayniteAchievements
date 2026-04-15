@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
@@ -17,6 +18,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableArchiveScanning = true;
         private bool _enableDiscHashing = true;
         private bool _enableRaNameFallback = true;
+        private bool _enableFuzzyNameMatching = true;
         private bool _enableRaSubsetScanning = true;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
 
@@ -115,6 +117,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         /// <summary>
+        /// Enable fuzzy title matching for RetroAchievements name fallback.
+        /// When disabled, name fallback only uses exact normalized title matches.
+        /// </summary>
+        public bool EnableFuzzyNameMatching
+        {
+            get => _enableFuzzyNameMatching;
+            set => SetValue(ref _enableFuzzyNameMatching, value);
+        }
+
+        /// <summary>
         /// Enable scanning for RetroAchievements subset achievement sets alongside the base game.
         /// When enabled, subset achievements are merged into the same game entry with distinct categories.
         /// </summary>
@@ -129,6 +141,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         /// Key is Playnite Game ID, value is RetroAchievements game ID.
         /// Used when automatic hash-based or name-based matching fails.
         /// </summary>
+        [JsonIgnore]
         public Dictionary<Guid, int> RaGameIdOverrides
         {
             get => _raGameIdOverrides;

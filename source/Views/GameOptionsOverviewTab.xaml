@@ -27,6 +27,11 @@
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                 <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
+            <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
+            </Style>
             <Style x:Key="MetaChipStyle" TargetType="Border">
                 <Setter Property="Background" Value="#1EFFFFFF" />
                 <Setter Property="BorderBrush" Value="#2FFFFFFF" />
@@ -139,7 +144,7 @@
                                    Margin="0,4,0,0" />
 
                         <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                   Text="{DynamicResource LOCPlayAch_GameOptions_Overview_ManualTracking}"
+                                   Text="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                    Margin="0,12,0,0" />
                         <TextBlock Text="{Binding ManualTrackingSummary}"
                                    Style="{StaticResource FieldValueStyle}"
@@ -148,13 +153,15 @@
                 </Grid>
             </Border>
 
-            <Border Style="{StaticResource CardBorderStyle}">
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -208,8 +215,62 @@
                                Style="{StaticResource FieldValueStyle}"
                                Text="{Binding LocalFolderStatusText}"
                                Margin="0,8,0,0" />
+
+                    <TextBlock Grid.Row="5"
+                               Style="{StaticResource FieldLabelStyle}"
+                               Text="{DynamicResource LOCPlayAch_GameOptions_Overview_XeniaOverride}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding ShowXeniaTitleIdOverride, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Grid.Row="5"
+                               Grid.Column="1"
+                               Style="{StaticResource FieldValueStyle}"
+                               Text="{Binding XeniaTitleIdStatusText}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding ShowXeniaTitleIdOverride, Converter={StaticResource BoolToVis}}" />
+
+                    <TextBlock Grid.Row="6"
+                               Style="{StaticResource FieldLabelStyle}"
+                               Text="{DynamicResource LOCPlayAch_GameOptions_Overview_ShadPS4Override}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding ShowShadPS4MatchIdOverride, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Grid.Row="6"
+                               Grid.Column="1"
+                               Style="{StaticResource FieldValueStyle}"
+                               Text="{Binding ShadPS4MatchIdStatusText}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding ShowShadPS4MatchIdOverride, Converter={StaticResource BoolToVis}}" />
                 </Grid>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_CustomDataHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_CustomDataHint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_ExportPaButton}"
+                                Command="{Binding ExportCustomJsonCommand}"
+                                Padding="12,6"
+                                Margin="0,0,8,0" />
+                        <Button Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_ExportPackageButton}"
+                                Command="{Binding ExportCustomPackageCommand}"
+                                Padding="12,6"
+                                Margin="0,0,8,0" />
+                        <Button Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_ImportPortableButton}"
+                                Command="{Binding ImportCustomJsonCommand}"
+                                Padding="12,6"
+                                Margin="0,0,8,0" />
+                        <Button Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton}"
+                                Command="{Binding ClearCustomDataCommand}"
+                                Padding="12,6" />
+                    </StackPanel>
+                </StackPanel>
             </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+

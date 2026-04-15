@@ -27,6 +27,16 @@ namespace PlayniteAchievements.Models.Tagging
         NoAchievements,
 
         /// <summary>
+        /// Game has visible per-game customization data stored by the plugin.
+        /// </summary>
+        Customized,
+
+        /// <summary>
+        /// Game has no visible per-game customization data stored by the plugin.
+        /// </summary>
+        NotCustomized,
+
+        /// <summary>
         /// Game is excluded from all plugin tracking.
         /// </summary>
         Excluded,

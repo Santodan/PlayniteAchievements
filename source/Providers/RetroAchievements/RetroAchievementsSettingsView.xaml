@@ -20,6 +20,16 @@
                   HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
 
+            <!-- Provider Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <Path Data="{StaticResource GeoRetroAchievements}" Fill="#FFD700"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_RetroAchievements}"
+                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
             <!-- Provider Enable Toggle -->
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
@@ -54,7 +64,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Label_RaAuth}"
+                                   x:Name="AuthLabel"
                                    Foreground="{DynamicResource TextBrush}"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Top"
@@ -117,20 +127,20 @@
                                         BorderThickness="0,1,0,0"
                                         Padding="0,12,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_Username}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername}"
                                                    Margin="0,0,0,8"/>
                                         <TextBox Text="{Binding Settings.RaUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_Username_Help}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaUsername_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"/>
 
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_WebApiKey}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey}"
                                                    Margin="0,12,0,8"/>
                                         <TextBox Text="{Binding Settings.RaWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="4"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Label_WebApiKey_Help}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RaWebApiKey_Help}"
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="0,8,0,0"
                                                    TextWrapping="Wrap"/>
@@ -215,6 +225,9 @@
                                   Margin="0,0,0,10"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableDiscHashing}"
                                   IsChecked="{Binding Settings.EnableDiscHashing, Mode=TwoWay}"
+                                  Margin="0,0,0,10"/>
+                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RaEnableFuzzyNameMatching}"
+                                  IsChecked="{Binding Settings.EnableFuzzyNameMatching, Mode=TwoWay}"
                                   Margin="0,0,0,10"/>
                         <CheckBox Content="{DynamicResource LOCPlayAch_RaEnableSubsetScanning}"
                                   IsChecked="{Binding Settings.EnableRaSubsetScanning, Mode=TwoWay}"

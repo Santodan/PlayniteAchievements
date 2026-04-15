@@ -83,7 +83,7 @@
                 <Grid>
                     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ClearableSearchTextBoxStyle}"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Capstone_SearchPlaceholder}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterAchievementsPlaceholder}"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Left"
                                Margin="12,0,0,0"

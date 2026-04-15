@@ -60,6 +60,11 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowHiddenDescription = source.ShowHiddenDescription;
             target.ShowHiddenSuffix = source.ShowHiddenSuffix;
             target.ShowLockedIcon = source.ShowLockedIcon;
+            target.PreserveAchievementIconResolution = source.PreserveAchievementIconResolution;
+            target.UseSeparateLockedIconsWhenAvailable = source.UseSeparateLockedIconsWhenAvailable;
+            target.SeparateLockedIconEnabledGameIds = source.SeparateLockedIconEnabledGameIds != null
+                ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
+                : new HashSet<Guid>();
             target.ShowRarityGlow = source.ShowRarityGlow;
             target.UseCoverImages = source.UseCoverImages;
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
@@ -71,9 +76,16 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowSidebarPiePercentages = source.ShowSidebarPiePercentages;
             target.SidebarPieSmallSliceMode = source.SidebarPieSmallSliceMode;
             target.ShowSidebarBarCharts = source.ShowSidebarBarCharts;
+            target.ShowSidebarGameMetadata = source.ShowSidebarGameMetadata;
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.CompactListSortMode = source.CompactListSortMode;
+            target.CompactListSortDescending = source.CompactListSortDescending;
+            target.CompactUnlockedListSortMode = source.CompactUnlockedListSortMode;
+            target.CompactUnlockedListSortDescending = source.CompactUnlockedListSortDescending;
+            target.CompactLockedListSortMode = source.CompactLockedListSortMode;
+            target.CompactLockedListSortDescending = source.CompactLockedListSortDescending;
             target.AchievementDataGridMaxHeight = source.AchievementDataGridMaxHeight;
             target.EnableParallelProviderRefresh = source.EnableParallelProviderRefresh;
             target.ScanDelayMs = source.ScanDelayMs;

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
@@ -396,6 +397,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             return propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
                    propertyName == nameof(ModernThemeBindings.AllAchievements) ||
                    propertyName == GetOrderedAchievementsPropertyName();
+        }
+
+        /// <summary>
+        /// Determines whether a settings change should trigger a refresh.
+        /// Responds to sort mode and direction changes so the list reorders live.
+        /// </summary>
+        protected override bool ShouldHandleSettingsDataChange(string propertyName)
+        {
+            return propertyName == nameof(PersistedSettings.CompactListSortMode) ||
+                   propertyName == nameof(PersistedSettings.CompactListSortDescending) ||
+                   propertyName == nameof(PersistedSettings.CompactUnlockedListSortMode) ||
+                   propertyName == nameof(PersistedSettings.CompactUnlockedListSortDescending) ||
+                   propertyName == nameof(PersistedSettings.CompactLockedListSortMode) ||
+                   propertyName == nameof(PersistedSettings.CompactLockedListSortDescending);
         }
 
         /// <summary>

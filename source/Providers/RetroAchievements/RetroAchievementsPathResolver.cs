@@ -19,14 +19,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         public IEnumerable<string> ResolveCandidateFilePaths(Game game)
         {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             if (game?.Roms != null)
             {
                 foreach (var rom in game.Roms)
                 {
                     var p = ResolvePath(game, rom?.Path);
-                    if (!string.IsNullOrWhiteSpace(p))
+                    if (TryAddUniqueCandidate(seen, p, out var candidatePath))
                     {
-                        yield return p;
+                        yield return candidatePath;
                     }
                 }
             }
@@ -36,12 +38,59 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 foreach (var act in game.GameActions)
                 {
                     var p = ResolvePath(game, act?.Path, act);
-                    if (!string.IsNullOrWhiteSpace(p) && !p.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    if (TryAddUniqueCandidate(seen, p, out var candidatePath) &&
+                        !candidatePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                     {
-                        yield return p;
+                        yield return candidatePath;
                     }
                 }
             }
+
+            if (TryResolveEmuLibraryCandidateFilePath(game, out var emuLibraryPath) &&
+                TryAddUniqueCandidate(seen, emuLibraryPath, out var emuLibraryCandidatePath))
+            {
+                yield return emuLibraryCandidatePath;
+            }
+        }
+
+        private bool TryResolveEmuLibraryCandidateFilePath(Game game, out string path)
+        {
+            path = null;
+
+            if (!EmuLibraryGameIdDecoder.TryDecodeSingleFile(game, out var mappingId, out var sourcePath))
+            {
+                return false;
+            }
+
+            if (!EmuLibrarySettingsReader.TryResolveSourceRoot(
+                _playniteApi?.Paths?.ExtensionsDataPath,
+                _playniteApi?.Paths?.ApplicationPath,
+                mappingId,
+                out var sourceRoot))
+            {
+                return false;
+            }
+
+            var fullSourcePath = Path.Combine(sourceRoot, sourcePath);
+            var resolvedPath = ResolvePath(game, fullSourcePath);
+            if (string.IsNullOrWhiteSpace(resolvedPath))
+            {
+                return false;
+            }
+
+            path = resolvedPath;
+            return true;
+        }
+
+        private static bool TryAddUniqueCandidate(HashSet<string> seen, string path, out string normalizedPath)
+        {
+            normalizedPath = (path ?? string.Empty).Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+            {
+                return false;
+            }
+
+            return seen.Add(normalizedPath);
         }
 
         private string ResolvePath(Game game, string path, GameAction sourceAction = null)

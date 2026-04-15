@@ -1,10 +1,13 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Providers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
+using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services.ThemeIntegration
 {
@@ -85,6 +88,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var gold = rare.Unlocked + ultraRare.Unlocked;
                 var silver = uncommon.Unlocked;
                 var bronze = common.Unlocked;
+                var providerKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
+                var providerName = ProviderRegistry.GetLocalizedName(providerKey);
 
                 var summary = new GameAchievementSummary(
                     data.PlayniteGameId.Value,
@@ -103,7 +108,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     rare,
                     ultraRare,
                     rareAndUltraRare,
-                    overall);
+                    overall,
+                    providerKey,
+                    providerName,
+                    data.Game?.LastActivity,
+                    unlocked,
+                    total);
 
                 allGames.Add(summary);
                 summariesById[summary.GameId] = summary;
@@ -275,28 +285,31 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                         }
 
                         achievement.Game = data.Game;
+                        achievement.ProviderKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
                         allAchievements.Add(achievement);
                     }
                 }
 
-                state.AllAchievementsUnlockAsc = allAchievements
-                    .OrderBy(a => a?.UnlockTimeUtc)
-                    .ThenBy(a => a?.DisplayName)
-                    .ToList();
-                state.AllAchievementsUnlockDesc = allAchievements
-                    .OrderByDescending(a => a?.UnlockTimeUtc)
-                    .ThenBy(a => a?.DisplayName)
-                    .ToList();
-                state.AllAchievementsRarityAsc = allAchievements
-                    .OrderBy(a => a?.RaritySortValue ?? double.MaxValue)
-                    .ThenByDescending(a => a?.Points ?? 0)
-                    .ThenBy(a => a?.DisplayName)
-                    .ToList();
-                state.AllAchievementsRarityDesc = allAchievements
-                    .OrderByDescending(a => a?.RaritySortValue ?? double.MinValue)
-                    .ThenByDescending(a => a?.Points ?? 0)
-                    .ThenBy(a => a?.DisplayName)
-                    .ToList();
+                state.AllAchievementsUnlockAsc = AchievementGridSortHelper.CreateSortedDetailList(
+                    allAchievements,
+                    nameof(AchievementDisplayItem.UnlockTime),
+                    ListSortDirection.Ascending,
+                    includeGameNameTieBreak: true);
+                state.AllAchievementsUnlockDesc = AchievementGridSortHelper.CreateSortedDetailList(
+                    allAchievements,
+                    nameof(AchievementDisplayItem.UnlockTime),
+                    ListSortDirection.Descending,
+                    includeGameNameTieBreak: true);
+                state.AllAchievementsRarityAsc = AchievementGridSortHelper.CreateSortedDetailList(
+                    allAchievements,
+                    nameof(AchievementDisplayItem.RaritySortValue),
+                    ListSortDirection.Ascending,
+                    includeGameNameTieBreak: true);
+                state.AllAchievementsRarityDesc = AchievementGridSortHelper.CreateSortedDetailList(
+                    allAchievements,
+                    nameof(AchievementDisplayItem.RaritySortValue),
+                    ListSortDirection.Descending,
+                    includeGameNameTieBreak: true);
 
                 var unlockedAchievements = allAchievements
                     .Where(a => a != null && a.UnlockTimeUtc.HasValue && a.UnlockTimeUtc.Value != DateTime.MinValue)
@@ -324,6 +337,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     }
 
                     achievement.Game = data.Game;
+                    achievement.ProviderKey = ResolveEffectiveProviderKey(data.ProviderKey, data.ProviderPlatformKey);
                     unlockedRecent.Add(achievement);
                 }
             }
@@ -338,18 +352,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             unlockedAchievements ??= new List<AchievementDetail>();
 
-            var mostRecent = unlockedAchievements
-                .OrderByDescending(a => NormalizeUtc(a.UnlockTimeUtc.Value))
-                .ThenBy(a => a.DisplayName)
-                .ToList();
+            var mostRecent = AchievementGridSortHelper.CreateSortedDetailList(
+                unlockedAchievements,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Descending,
+                includeGameNameTieBreak: true);
             var rareRecentCutoffUtc = DateTime.UtcNow.AddDays(-180);
-            var rareRecent = unlockedAchievements
-                .Where(a => NormalizeUtc(a.UnlockTimeUtc.Value) >= rareRecentCutoffUtc)
-                .OrderBy(a => a.RaritySortValue)
-                .ThenByDescending(a => a.Points ?? 0)
-                .ThenByDescending(a => NormalizeUtc(a.UnlockTimeUtc.Value))
-                .ThenBy(a => a.DisplayName)
-                .ToList();
+            var rareRecent = AchievementGridSortHelper.CreateSortedDetailList(
+                unlockedAchievements.Where(a => NormalizeUtc(a.UnlockTimeUtc.Value) >= rareRecentCutoffUtc),
+                nameof(AchievementDisplayItem.RaritySortValue),
+                ListSortDirection.Ascending,
+                includeGameNameTieBreak: true);
 
             if (includeFullLists)
             {
@@ -527,6 +540,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             if (level <= 144) return "Plat2";
             if (level <= 171) return "Plat3";
             return "Plat";
+        }
+
+        private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)
+        {
+            var resolved = !string.IsNullOrWhiteSpace(providerPlatformKey)
+                ? providerPlatformKey
+                : providerKey;
+            return string.IsNullOrWhiteSpace(resolved) ? string.Empty : resolved.Trim();
         }
     }
 }

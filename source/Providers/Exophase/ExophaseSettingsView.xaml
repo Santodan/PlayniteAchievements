@@ -24,6 +24,12 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
+
+            <!-- Provider Header -->
+            <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Exophase}"
+                       FontSize="20" FontWeight="Bold" Margin="0,0,0,16"
+                       Foreground="{DynamicResource TextBrush}"/>
+
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
@@ -49,19 +55,16 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"
                                TextWrapping="Wrap"/>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ExophaseConnection}"
+                    <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Style="{StaticResource MutedTextStyle}"
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_Help}"
+                               Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"
-                               TextWrapping="Wrap">
-                        <Run Text="{DynamicResource LOCPlayAch_Settings_ExophaseAuth_Description}"/>
-                        <Run Text=" "/>
-                        <Run Text="{DynamicResource LOCPlayAch_Settings_Exophase_Help}"/>
-                    </TextBlock>
+                               TextWrapping="Wrap"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="180"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{DynamicResource LOCPlayAch_Label_ExophaseAuth}"
+                        <TextBlock Grid.Column="0" x:Name="AuthLabel"
                                    Foreground="{DynamicResource TextBrush}" VerticalAlignment="Top" Margin="0,8,0,0"/>
 
                         <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}"
@@ -126,57 +129,118 @@
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,4,0,0">
-                        <WrapPanel Orientation="Horizontal"
-                                   Margin="0,2,0,0">
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_Steam}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                        <StackPanel Margin="0,2,0,0">
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="steam"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_PSN}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="steam" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoSteam}" Fill="#B0B0B0"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Steam}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="psn"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_Xbox}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="psn" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoPSN}" Fill="#0070D1"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_PSN}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="xbox"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_GOG}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="xbox" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoXbox}" Fill="#107C10"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Xbox}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="gog"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_Epic}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="gog" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoGOG}" Fill="#A855F7"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GOG}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="epic"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_BattleNet}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="epic" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoEpic}" Fill="#26BBFF"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Epic}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="blizzard"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_EA}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="blizzard" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoBattleNet}" Fill="#14B8A6"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_BattleNet}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="origin"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Exophase_Platform_Retro}"
-                                      Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Tag="origin" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoEA}" Fill="#E11D48"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_EA}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
                                       Click="ExophasePlatform_CheckChanged"
-                                      Tag="retro"
-                                      Margin="0,0,12,10"
-                                      FontSize="{DynamicResource FontSize}"/>
-                        </WrapPanel>
+                                      Tag="android" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoGooglePlay}" Fill="#0F9D58"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_GooglePlay}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Click="ExophasePlatform_CheckChanged"
+                                      Tag="ubisoft" Margin="0,0,0,10"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoUbisoft}" Fill="#0044AA"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Ubisoft}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox Loaded="ExophasePlatform_CheckboxLoaded"
+                                      Click="ExophasePlatform_CheckChanged"
+                                      Tag="retro" Margin="0,0,0,0"
+                                      FontSize="{DynamicResource FontSize}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Viewbox Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <Path Data="{StaticResource GeoRetroAchievements}" Fill="#FFD700"/>
+                                    </Viewbox>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Provider_RetroAchievements}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </CheckBox>
+                        </StackPanel>
                     </Border>
 
                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Exophase_Note}"

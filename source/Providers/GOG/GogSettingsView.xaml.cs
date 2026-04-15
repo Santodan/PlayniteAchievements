@@ -68,6 +68,12 @@ namespace PlayniteAchievements.Providers.GOG
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             InitializeComponent();
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_GOG"));
+            AuthLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_GOG"));
         }
 
         public override void Initialize(IProviderSettings settings)
@@ -81,13 +87,10 @@ namespace PlayniteAchievements.Providers.GOG
         {
             var isAuthenticated = result?.IsSuccess ?? false;
             IsAuthenticated = isAuthenticated;
-            var providerName = ResourceProvider.GetString("LOCPlayAch_Provider_GOG");
 
             if (isAuthenticated)
             {
-                AuthStatus = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Settings_Auth_AlreadyAuthenticated"),
-                    providerName);
+                AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated");
             }
             else
             {
@@ -96,9 +99,7 @@ namespace PlayniteAchievements.Providers.GOG
                     : null;
 
                 AuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result?.MessageKey, StringComparison.Ordinal)
-                    ? string.Format(
-                        ResourceProvider.GetString("LOCPlayAch_Settings_Auth_NotAuthenticated"),
-                        providerName)
+                    ? ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated")
                     : localized;
             }
         }
@@ -177,3 +178,4 @@ namespace PlayniteAchievements.Providers.GOG
         }
     }
 }
+

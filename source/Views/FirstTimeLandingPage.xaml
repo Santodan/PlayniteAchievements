@@ -90,7 +90,7 @@
                                Margin="0,0,12,0"/>
 
                     <TextBlock Grid.Column="1"
-                               Text="{DynamicResource LOCPlayAch_Landing_LanguageHint}"
+                               Text="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
                                FontSize="{DynamicResource FontSize}"
                                Foreground="{DynamicResource TextBrush}"
                                Opacity="0.6"
@@ -300,7 +300,7 @@
                             Padding="16"
                             Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Landing_NeedsRefreshTitle}"
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Landing_Status_ReadyToRefresh}"
                                        Style="{DynamicResource BaseTextBlockStyle}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextBrush}"
@@ -371,7 +371,7 @@
                                        TextWrapping="Wrap"
                                        Opacity="0.85"
                                        Margin="0,0,0,12"/>
-                            <Button Content="{DynamicResource LOCPlayAch_Landing_Continue}"
+                            <Button Content="{DynamicResource LOCPlayAch_Common_Continue}"
                                     Command="{Binding ContinueCommand}"
                                     HorizontalAlignment="Center"
                                     Padding="16,6"
@@ -443,7 +443,7 @@
                                    Foreground="{DynamicResource TextBrush}"
                                    Margin="0,0,0,8"/>
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_MigrateFullDescription}"
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                    Style="{DynamicResource BaseTextBlockStyle}"
                                    Foreground="{DynamicResource TextBrush}"
                                    TextWrapping="Wrap"
@@ -475,7 +475,7 @@
                                     ToolTipService.ShowOnDisabled="True">
                                 <Button.ToolTip>
                                     <ToolTip>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_LimitedTooltip}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                    TextWrapping="Wrap"
                                                    MaxWidth="250"/>
                                     </ToolTip>
@@ -489,7 +489,7 @@
                                     ToolTipService.ShowOnDisabled="True">
                                 <Button.ToolTip>
                                     <ToolTip>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_FullTooltip}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                    TextWrapping="Wrap"
                                                    MaxWidth="250"/>
                                     </ToolTip>
@@ -519,7 +519,7 @@
                                 </Expander.Header>
 
                                 <StackPanel Margin="12,0,12,12">
-                                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_CustomDescription}"
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                Foreground="{DynamicResource TextBrush}"
                                                Opacity="0.6"
                                                FontSize="11"
@@ -624,13 +624,6 @@
                                    Foreground="{DynamicResource TextBrush}"
                                    Margin="0,0,0,8"/>
 
-                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_RevertDescription}"
-                                   Style="{DynamicResource BaseTextBlockStyle}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   TextWrapping="Wrap"
-                                   Opacity="0.7"
-                                   Margin="0,0,0,12"/>
-
                         <!-- Revertable Theme Dropdown and Revert Button -->
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center">
@@ -670,3 +663,5 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
+

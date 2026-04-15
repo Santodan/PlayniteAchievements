@@ -20,6 +20,16 @@
     </base:ThemeControlBase.Resources>
 
     <Button x:Name="PART_PluginButton" Click="PART_PluginButton_Click">
+        <Button.Style>
+            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementButtonControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Button.Style>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>

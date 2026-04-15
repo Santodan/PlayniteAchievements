@@ -56,6 +56,41 @@ namespace PlayniteAchievements.Services.UI
             _ensureAchievementResourcesLoaded = ensureAchievementResourcesLoaded;
         }
 
+        private bool DetectFullscreenMode()
+        {
+            try
+            {
+                return _api?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to check fullscreen mode");
+                return false;
+            }
+        }
+
+        private void ShowWindow(Window window, bool isFullscreen)
+        {
+            if (isFullscreen)
+            {
+                window.Show();
+                try
+                {
+                    window.Topmost = true;
+                    window.Activate();
+                    window.Topmost = false;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to activate window in fullscreen");
+                }
+            }
+            else
+            {
+                window.ShowDialog();
+            }
+        }
+
         public void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Action<Guid> openSingleGameAchievementsView, Guid? singleGameRefreshId = null)
         {
             ShowRefreshProgressControl(singleGameRefreshId, refreshTask, openSingleGameAchievementsView, validateCanStart: false);
@@ -85,6 +120,8 @@ namespace PlayniteAchievements.Services.UI
             Func<Task> refreshTask,
             Action<Guid> openSingleGameAchievementsView)
         {
+            var isFullscreen = DetectFullscreenMode();
+
             var progressWindow = new RefreshProgressControl(
                 _refreshService,
                 _logger,
@@ -104,7 +141,8 @@ namespace PlayniteAchievements.Services.UI
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 progressWindow.WindowTitle,
                 progressWindow,
-                windowOptions
+                windowOptions,
+                isFullscreen
             );
 
             try
@@ -129,16 +167,6 @@ namespace PlayniteAchievements.Services.UI
                 }
             };
 
-            var isFullscreen = false;
-            try
-            {
-                isFullscreen = _api?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to check fullscreen mode");
-            }
-
             if (refreshTask != null)
             {
                 Task.Run(async () =>
@@ -154,24 +182,7 @@ namespace PlayniteAchievements.Services.UI
                 });
             }
 
-            if (isFullscreen)
-            {
-                window.Show();
-                try
-                {
-                    window.Topmost = true;
-                    window.Activate();
-                    window.Topmost = false;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Failed to activate window in fullscreen");
-                }
-            }
-            else
-            {
-                window.ShowDialog();
-            }
+            ShowWindow(window, isFullscreen);
         }
 
         private void InvokeOnUiThread(Action action)
@@ -201,6 +212,8 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
+                var isFullscreen = DetectFullscreenMode();
+
                 var view = new SingleGameControl(
                     gameId,
                     _refreshService,
@@ -222,7 +235,8 @@ namespace PlayniteAchievements.Services.UI
                 var window = PlayniteUiProvider.CreateExtensionWindow(
                     view.WindowTitle,
                     view,
-                    windowOptions
+                    windowOptions,
+                    isFullscreen
                 );
 
                 window.MinWidth = 450;
@@ -240,33 +254,7 @@ namespace PlayniteAchievements.Services.UI
 
                 window.Closed += (s, ev) => view.Cleanup();
 
-                var isFullscreen = false;
-                try
-                {
-                    isFullscreen = _api?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Failed to check fullscreen mode");
-                }
-
-                if (isFullscreen)
-                {
-                    window.Show();
-                    try
-                    {
-                        window.Topmost = true;
-                        window.Activate();
-                        window.Topmost = false;
-                    }
-                    catch
-                    {
-                    }
-                }
-                else
-                {
-                    window.ShowDialog();
-                }
+                ShowWindow(window, isFullscreen);
             }
             catch (Exception ex)
             {
@@ -330,10 +318,72 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        public void OpenDynamicThemeCommandTestView(Guid? gameId = null)
+        {
+            try
+            {
+                Game game = null;
+                if (gameId.HasValue)
+                {
+                    game = _api?.Database?.Games?.Get(gameId.Value);
+                    if (game == null)
+                    {
+                        _api?.Dialogs?.ShowErrorMessage(
+                            ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame"),
+                            ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+                        return;
+                    }
+                }
+
+                var view = new Views.ParityTests.DynamicThemeCommandTestView(game);
+
+                var windowOptions = new WindowOptions
+                {
+                    ShowMinimizeButton = true,
+                    ShowMaximizeButton = true,
+                    ShowCloseButton = true,
+                    CanBeResizable = true,
+                    Width = 1200,
+                    Height = 860
+                };
+
+                var window = PlayniteUiProvider.CreateExtensionWindow(
+                    gameId.HasValue ? "Dynamic Theme Command Tester" : "Dynamic Theme Command Tester (All Games)",
+                    view,
+                    windowOptions
+                );
+
+                window.MinWidth = 900;
+                window.MinHeight = 640;
+
+                try
+                {
+                    if (window.Owner == null)
+                    {
+                        window.Owner = _api?.Dialogs?.GetCurrentAppWindow();
+                    }
+                }
+                catch
+                {
+                }
+
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to open dynamic theme command test view for gameId={(gameId.HasValue ? gameId.Value.ToString() : "<all>")}");
+                _api?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open dynamic command test view: {ex.Message}",
+                    "Playnite Achievements");
+            }
+        }
+
         public void OpenGameOptionsView(Guid gameId, GameOptionsTab initialTab)
         {
             try
             {
+                var isFullscreen = DetectFullscreenMode();
+
                 var game = _api?.Database?.Games?.Get(gameId);
                 if (game == null)
                 {
@@ -371,7 +421,8 @@ namespace PlayniteAchievements.Services.UI
                 var window = PlayniteUiProvider.CreateExtensionWindow(
                     view.WindowTitle,
                     view,
-                    windowOptions);
+                    windowOptions,
+                    isFullscreen);
 
                 window.MinWidth = 860;
                 window.MinHeight = 620;
@@ -388,34 +439,7 @@ namespace PlayniteAchievements.Services.UI
 
                 window.Closed += (s, e) => view.Cleanup();
 
-                var isFullscreen = false;
-                try
-                {
-                    isFullscreen = _api?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, "Failed to check fullscreen mode");
-                }
-
-                if (isFullscreen)
-                {
-                    window.Show();
-                    try
-                    {
-                        window.Topmost = true;
-                        window.Activate();
-                        window.Topmost = false;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.Debug(ex, "Failed to activate Game Options window in fullscreen");
-                    }
-                }
-                else
-                {
-                    window.ShowDialog();
-                }
+                ShowWindow(window, isFullscreen);
             }
             catch (Exception ex)
             {
@@ -541,4 +565,3 @@ namespace PlayniteAchievements.Services.UI
         }
     }
 }
-

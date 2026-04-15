@@ -57,6 +57,10 @@ namespace PlayniteAchievements.ViewModels
         private ManualAchievementLink _lastSavedLink;
         private List<InheritedUnlockEntry> _pendingInheritedUnlocks;
 
+        private bool RequireExophaseAuthentication => ProviderRegistry.Settings<ManualSettings>().RequireExophaseAuthentication;
+
+        private GameCustomDataStore GameCustomDataStore => PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+
         private WizardStage _currentStage = WizardStage.Search;
         private double _progressPercent;
         private string _progressMessage = string.Empty;
@@ -414,8 +418,7 @@ namespace PlayniteAchievements.ViewModels
 
             if (startAtEditingStage)
             {
-                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-                if (!manualSettings.AchievementLinks.TryGetValue(playniteGame.Id, out _existingLink) || _existingLink == null)
+                if (!ManualAchievementsProvider.TryGetManualLink(playniteGame.Id, out _existingLink) || _existingLink == null)
                 {
                     throw new ArgumentException("Cannot start at editing stage: no existing link found for game.");
                 }
@@ -478,7 +481,10 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, ct);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    ct);
 
                 var results = await _source.SearchGamesAsync(SearchText.Trim(), _language, ct);
 
@@ -523,7 +529,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, "Manual achievement search failed");
                 SearchStatusMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Search_Error"),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
                     ex.Message);
             }
             finally
@@ -558,7 +564,10 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, CancellationToken.None);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    CancellationToken.None);
             }
             catch (ManualSourceAuthenticationException ex)
             {
@@ -579,22 +588,21 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = selectedResult.SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
+                AllowUnauthenticatedSchemaFetch = ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = DateTime.UtcNow,
                 LastModifiedUtc = DateTime.UtcNow
             };
             SeedLinkUnlocksFromInheritedSnapshot(link, _pendingInheritedUnlocks);
 
-            ManualAchievementLink existingLink = null;
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-            var hadExistingLink = manualSettings?.AchievementLinks != null &&
-                                  manualSettings.AchievementLinks.TryGetValue(_playniteGame.Id, out existingLink);
+            var hadExistingLink = ManualAchievementsProvider.TryGetManualLink(_playniteGame.Id, out var existingLink);
             var rollbackLink = existingLink?.Clone();
             var rollbackCacheData = _cacheManager?.LoadGameData(_playniteGame.Id.ToString());
             var rollbackPending = true;
 
             SetLinkInMemory(link);
 
-            _refreshCts = new CancellationTokenSource();
+            var refreshCts = new CancellationTokenSource();
+            _refreshCts = refreshCts;
 
             try
             {
@@ -602,9 +610,9 @@ namespace PlayniteAchievements.ViewModels
 
                 await ExecuteRefreshRequestAsync(
                     BuildManualProviderRefreshRequest(),
-                    _refreshCts.Token);
+                    refreshCts.Token);
 
-                if (_refreshCts.Token.IsCancellationRequested)
+                if (refreshCts.IsCancellationRequested)
                 {
                     RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
                     rollbackPending = false;
@@ -661,8 +669,11 @@ namespace PlayniteAchievements.ViewModels
             finally
             {
                 _refreshService.RebuildProgress -= OnRebuildProgress;
-                _refreshCts?.Dispose();
-                _refreshCts = null;
+                refreshCts.Dispose();
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    _refreshCts = null;
+                }
             }
         }
 
@@ -752,19 +763,24 @@ namespace PlayniteAchievements.ViewModels
             ProgressPercent = 0;
             CanCancelRefresh = true;
 
-            _refreshCts = new CancellationTokenSource();
+            var refreshCts = new CancellationTokenSource();
+            _refreshCts = refreshCts;
 
             try
             {
-                await ManualSourceAuthentication.EnsureAuthenticatedAsync(_source, _refreshCts.Token);
+                await ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    _source,
+                    RequireExophaseAuthentication,
+                    _existingLink,
+                    refreshCts.Token);
 
                 _refreshService.RebuildProgress += OnRebuildProgress;
 
                 await ExecuteRefreshRequestAsync(
                     BuildManualProviderRefreshRequest(),
-                    _refreshCts.Token);
+                    refreshCts.Token);
 
-                if (_refreshCts.Token.IsCancellationRequested)
+                if (refreshCts.IsCancellationRequested)
                 {
                     ResetToSearchStage();
                     return;
@@ -796,8 +812,11 @@ namespace PlayniteAchievements.ViewModels
             finally
             {
                 _refreshService.RebuildProgress -= OnRebuildProgress;
-                _refreshCts?.Dispose();
-                _refreshCts = null;
+                refreshCts.Dispose();
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    _refreshCts = null;
+                }
             }
         }
 
@@ -1123,6 +1142,16 @@ namespace PlayniteAchievements.ViewModels
             return string.IsNullOrWhiteSpace(_source.SourceName) ? _source.SourceKey : _source.SourceName;
         }
 
+        private bool? ResolveAllowUnauthenticatedSchemaFetch(string sourceKey)
+        {
+            if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
+            {
+                return !RequireExophaseAuthentication;
+            }
+
+            return null;
+        }
+
         private void EnsureManualProviderEnabledForLinking()
         {
             try
@@ -1159,22 +1188,34 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-                if (manualSettings?.AchievementLinks == null)
+                if (GameCustomDataStore != null)
                 {
-                    return;
-                }
-
-                if (hadExistingLink && previousLink != null)
-                {
-                    manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
+                    GameCustomDataStore.Update(_playniteGame.Id, customData =>
+                    {
+                        customData.ManualLink = hadExistingLink && previousLink != null
+                            ? previousLink.Clone()
+                            : null;
+                    });
                 }
                 else
                 {
-                    manualSettings.AchievementLinks.Remove(_playniteGame.Id);
-                }
+                    var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+                    if (manualSettings?.AchievementLinks == null)
+                    {
+                        return;
+                    }
 
-                ProviderRegistry.Write(manualSettings);
+                    if (hadExistingLink && previousLink != null)
+                    {
+                        manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
+                    }
+                    else
+                    {
+                        manualSettings.AchievementLinks.Remove(_playniteGame.Id);
+                    }
+
+                    ProviderRegistry.Write(manualSettings);
+                }
 
                 if (persist)
                 {
@@ -1253,7 +1294,7 @@ namespace PlayniteAchievements.ViewModels
                         unlockTime = null;
                     }
 
-                    var item = new ManualAchievementEditItem(detail, isUnlocked, unlockTime);
+                    var item = new ManualAchievementEditItem(detail, isUnlocked, unlockTime, _playniteGame.Id);
                     item.PropertyChanged += OnAchievementChanged;
                     AllAchievements.Add(item);
                 }
@@ -1362,6 +1403,8 @@ namespace PlayniteAchievements.ViewModels
                 SourceGameId = SourceGameId,
                 UnlockTimes = new Dictionary<string, DateTime?>(),
                 UnlockStates = new Dictionary<string, bool>(),
+                AllowUnauthenticatedSchemaFetch = _existingLink?.AllowUnauthenticatedSchemaFetch
+                    ?? ResolveAllowUnauthenticatedSchemaFetch(_source?.SourceKey),
                 CreatedUtc = _existingLink?.CreatedUtc ?? now,
                 LastModifiedUtc = now
             };
@@ -1443,7 +1486,7 @@ namespace PlayniteAchievements.ViewModels
                 _logger?.Info($"Saved manual achievement link for '{_playniteGame.Name}' (source={link.SourceKey}, gameId={link.SourceGameId})");
 
                 _lastSavedLink = link.Clone();
-                SaveStatusMessage = ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Edit_SaveSuccess");
+                SaveStatusMessage = ResourceProvider.GetString("LOCPlayAch_Status_Succeeded");
                 ManualLinkSaved?.Invoke(this, EventArgs.Empty);
                 CurrentStage = WizardStage.Editing;
             }
@@ -1451,14 +1494,14 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed to save manual achievements for '{_playniteGame.Name}'");
                 ErrorMessage = string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Edit_SaveFailed"),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Failed"),
                     ex.Message);
             }
         }
 
         private void SaveLink(ManualAchievementLink link)
         {
-            SetLinkInMemory(CompactLinkForPersistence(link));
+            SetLinkInMemory(GameCustomDataStore != null ? link : CompactLinkForPersistence(link));
             _saveSettings(_settings);
         }
 
@@ -1466,6 +1509,15 @@ namespace PlayniteAchievements.ViewModels
         {
             if (link == null)
             {
+                return;
+            }
+
+            if (GameCustomDataStore != null)
+            {
+                GameCustomDataStore.Update(_playniteGame.Id, customData =>
+                {
+                    customData.ManualLink = link.Clone();
+                });
                 return;
             }
 

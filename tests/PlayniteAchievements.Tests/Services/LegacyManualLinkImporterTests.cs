@@ -63,6 +63,55 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Import_ExtractsExophaseSlugFromAchievementAndTrophyUrlsAndAllowsUnauthenticatedSchemaFetch()
+        {
+            var achievementGameId = Guid.NewGuid();
+            var trophyGameId = Guid.NewGuid();
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                WriteLegacyFile(
+                    tempDir,
+                    achievementGameId,
+                    CreateLegacyPayload(
+                        isManual: true,
+                        isIgnored: false,
+                        sourceName: "Exophase",
+                        sourceUrl: "https://www.exophase.com/game/shogun-showdown-steam/achievements/",
+                        items: new[] { CreateItem("ach_one") }));
+
+                WriteLegacyFile(
+                    tempDir,
+                    trophyGameId,
+                    CreateLegacyPayload(
+                        isManual: true,
+                        isIgnored: false,
+                        sourceName: "Exophase",
+                        sourceUrl: "https://www.exophase.com/game/final-fantasy-vii-rebirth-ps5/trophies/",
+                        items: new[] { CreateItem("trophy_one") }));
+
+                var settings = new PersistedSettings();
+                var importer = CreateImporter(
+                    settings,
+                    new HashSet<Guid> { achievementGameId, trophyGameId },
+                    new HashSet<Guid>());
+
+                var result = importer.Import(tempDir);
+
+                Assert.AreEqual(2, result.Imported);
+                Assert.AreEqual("shogun-showdown-steam", GetManualLinks(settings)[achievementGameId].SourceGameId);
+                Assert.AreEqual("final-fantasy-vii-rebirth-ps5", GetManualLinks(settings)[trophyGameId].SourceGameId);
+                Assert.IsTrue(GetManualLinks(settings)[achievementGameId].AllowUnauthenticatedSchemaFetch == true);
+                Assert.IsTrue(GetManualLinks(settings)[trophyGameId].AllowUnauthenticatedSchemaFetch == true);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Import_SkipsNonManualAndIgnored()
         {
             var nonManualGameId = Guid.NewGuid();
@@ -145,6 +194,62 @@ namespace PlayniteAchievements.Services.Tests
             finally
             {
                 DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Import_SkipsExistingExophaseStoreLinkWithoutMutatingIt()
+        {
+            var gameId = Guid.NewGuid();
+            var tempDir = CreateTempDirectory();
+            var storeDir = CreateTempDirectory();
+
+            try
+            {
+                WriteLegacyFile(
+                    tempDir,
+                    gameId,
+                    CreateLegacyPayload(
+                        isManual: true,
+                        isIgnored: false,
+                        sourceName: "Exophase",
+                        sourceUrl: "https://www.exophase.com/game/test-game-steam/achievements/",
+                        items: new[] { CreateItem("ach") }));
+
+                var settings = new PersistedSettings();
+                ProviderSettingsHelper.Bind(settings);
+
+                var store = new GameCustomDataStore(storeDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ManualLink = new ManualAchievementLink
+                    {
+                        SourceKey = "Exophase",
+                        SourceGameId = "already-linked"
+                    }
+                });
+
+                var importer = new LegacyManualLinkImporter(
+                    settings,
+                    gameIdValue => gameIdValue == gameId,
+                    _ => false,
+                    logger: null,
+                    gameCustomDataStore: store);
+
+                var result = importer.Import(tempDir);
+
+                Assert.AreEqual(0, result.Imported);
+                Assert.AreEqual(1, result.SkippedManualLinkExists);
+                Assert.IsTrue(store.TryLoad(gameId, out var stored));
+                Assert.IsNotNull(stored?.ManualLink);
+                Assert.AreEqual("already-linked", stored.ManualLink.SourceGameId);
+                Assert.IsFalse(stored.ManualLink.AllowUnauthenticatedSchemaFetch.HasValue);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+                DeleteDirectory(storeDir);
             }
         }
 

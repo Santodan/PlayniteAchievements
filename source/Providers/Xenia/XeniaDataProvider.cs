@@ -4,6 +4,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -47,7 +48,17 @@ namespace PlayniteAchievements.Providers.Xenia
 
         public bool IsCapable(Game game)
         {
-            if (game == null || !HasSupportedRom(game))
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (TryGetTitleIdOverride(game.Id, out _))
+            {
+                return true;
+            }
+
+            if (!HasSupportedRom(game))
             {
                 return false;
             }
@@ -148,6 +159,59 @@ namespace PlayniteAchievements.Providers.Xenia
             }
 
             return false;
+        }
+
+        internal static bool TryGetTitleIdOverride(Guid gameId, out string titleIdOverride)
+        {
+            return GameCustomDataLookup.TryGetXeniaTitleIdOverride(gameId, out titleIdOverride);
+        }
+
+        internal static bool TrySetTitleIdOverride(Guid gameId, string titleId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (!XeniaTitleIdHelper.TryNormalize(titleId, out var normalizedTitleId))
+            {
+                return false;
+            }
+
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null)
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, customData =>
+            {
+                customData.XeniaTitleIdOverride = normalizedTitleId;
+            });
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Xenia TitleID override for '{gameName}' to {normalizedTitleId}");
+            return true;
+        }
+
+        internal static bool TryClearTitleIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null ||
+                !customDataStore.TryLoad(gameId, out var customData) ||
+                string.IsNullOrWhiteSpace(customData.XeniaTitleIdOverride))
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, data =>
+            {
+                data.XeniaTitleIdOverride = null;
+            });
+
+            XeniaScanner.ClearCachedTitleId(
+                PlayniteAchievementsPlugin.Instance?.GetPluginUserDataPath(),
+                gameId,
+                logger);
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Xenia TitleID override for '{gameName}'");
+            return true;
         }
 
         /// <inheritdoc />

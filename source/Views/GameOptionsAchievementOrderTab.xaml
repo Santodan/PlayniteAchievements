@@ -18,6 +18,60 @@
             </ResourceDictionary.MergedDictionaries>
             <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
             <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
+
+            <DataTemplate x:Key="OrderAchievementInfoTemplate">
+                <StackPanel VerticalAlignment="Center"
+                            Background="Transparent"
+                            Margin="12,10">
+                    <TextBlock FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
+                                <Setter Property="Opacity" Value="0.7" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                        <Setter Property="Opacity" Value="1" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <Run Text="{Binding DisplayNameResolved, Mode=OneWay}" />
+                        <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                             FontStyle="Italic"
+                             FontSize="{DynamicResource FontSizeSmall}"
+                             Foreground="{DynamicResource TextBrushDarker}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding DescriptionResolved}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
+                               MaxHeight="44"
+                               Margin="0,3,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                        <Setter Property="FontStyle" Value="Italic" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding ApiNameResolved}"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontSize="{DynamicResource FontSizeSmall}"
+                               Opacity="0.58"
+                               Margin="0,4,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -50,7 +104,7 @@
                                Margin="0,6,0,0" />
                 </StackPanel>
                 <Button Grid.Column="1"
-                        Content="{DynamicResource LOCPlayAch_GameOptions_Order_Reset}"
+                    Content="{DynamicResource LOCPlayAch_Button_Reset}"
                         Click="ResetOrderButton_Click"
                         Margin="12,0,0,0"
                         VerticalAlignment="Top"
@@ -59,7 +113,7 @@
         </Border>
 
         <TextBlock Grid.Row="2"
-                   Text="{DynamicResource LOCPlayAch_GameOptions_Order_NoAchievements}"
+                   Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
                    Foreground="{DynamicResource TextBrush}"
                    Opacity="0.8"
                    TextWrapping="Wrap"
@@ -87,6 +141,7 @@
                   CanUserReorderColumns="False"
                   CanUserSortColumns="False"
                   EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                   VirtualizingStackPanel.ScrollUnit="Pixel"
                   ScrollViewer.CanContentScroll="True"
@@ -150,7 +205,7 @@
                                         CellTemplate="{StaticResource AchievementIconTemplate}" />
 
                 <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}"
-                                        CellTemplate="{StaticResource AchievementInfoTemplate}" />
+                                        CellTemplate="{StaticResource OrderAchievementInfoTemplate}" />
             </DataGrid.Columns>
         </DataGrid>
 

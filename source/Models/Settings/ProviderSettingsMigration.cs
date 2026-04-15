@@ -210,6 +210,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableArchiveScanning = persisted["EnableArchiveScanning"]?.Value<bool>() ?? true,
                 EnableDiscHashing = persisted["EnableDiscHashing"]?.Value<bool>() ?? true,
                 EnableRaNameFallback = persisted["EnableRaNameFallback"]?.Value<bool>() ?? true,
+                EnableFuzzyNameMatching = persisted["EnableFuzzyNameMatching"]?.Value<bool>() ?? true,
                 RaGameIdOverrides = gameIdOverrides
             };
             providerSettings["RetroAchievements"] = JObject.Parse(settings.SerializeToJson());
@@ -298,24 +299,10 @@ namespace PlayniteAchievements.Models.Settings
             // Skip if already migrated
             if (providerSettings["Xenia"] != null) return;
 
-            var gameIdOverrides = new Dictionary<Guid, string>();
-            var overridesObj = persisted["XeniaGameIdOverrides"] as JObject;
-            if (overridesObj != null)
-            {
-                foreach (var kvp in overridesObj)
-                {
-                    if (Guid.TryParse(kvp.Key, out var gameId))
-                    {
-                        gameIdOverrides[gameId] = kvp.Value?.ToString();
-                    }
-                }
-            }
-
             var settings = new XeniaSettings
             {
                 IsEnabled = persisted["XeniaEnabled"]?.Value<bool>() ?? true,
-                AccountPath = persisted["XeniaAccountPath"]?.ToString(),
-                GameIdOverrides = gameIdOverrides
+                AccountPath = persisted["XeniaAccountPath"]?.ToString()
             };
             providerSettings["Xenia"] = JObject.Parse(settings.SerializeToJson());
         }
@@ -385,6 +372,7 @@ namespace PlayniteAchievements.Models.Settings
             persisted.Remove("EnableArchiveScanning");
             persisted.Remove("EnableDiscHashing");
             persisted.Remove("EnableRaNameFallback");
+            persisted.Remove("EnableFuzzyNameMatching");
             persisted.Remove("RaGameIdOverrides");
 
             // Exophase
@@ -405,7 +393,6 @@ namespace PlayniteAchievements.Models.Settings
             // Xenia
             persisted.Remove("XeniaEnabled");
             persisted.Remove("XeniaAccountPath");
-            persisted.Remove("XeniaGameIdOverrides");
 
             // Manual
             persisted.Remove("ManualEnabled");

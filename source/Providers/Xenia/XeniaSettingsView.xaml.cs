@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             _playniteApi = playniteApi;
             InitializeComponent();
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_Xenia"));
         }
 
         public override void Initialize(IProviderSettings settings)
@@ -87,14 +90,14 @@ namespace PlayniteAchievements.Providers.Xenia
             if (string.IsNullOrWhiteSpace(accountPath))
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Settings_Xenia_NotConfigured");
+                SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_Xenia")));
             }
             else if (Directory.Exists(accountPath))
             {
                 if (File.Exists(Path.Combine(accountPath, "Account")))
                 {
                     SetAuthenticated(true);
-                    SetAuthStatusByKey("LOCPlayAch_XeniaValidation_Success");
+                    SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
                 }
                 else
                 {
@@ -105,7 +108,7 @@ namespace PlayniteAchievements.Providers.Xenia
             else
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_XeniaValidation_InvalidPath");
+                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
             }
         }
 

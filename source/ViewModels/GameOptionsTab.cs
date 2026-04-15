@@ -7,6 +7,7 @@ namespace PlayniteAchievements.ViewModels
         Capstones,
         ManualTracking,
         AchievementOrder,
-        Category
+        Category,
+        CustomIcons
     }
 }

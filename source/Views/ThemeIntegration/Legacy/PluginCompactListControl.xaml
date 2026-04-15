@@ -109,7 +109,7 @@
                                 </localControls:AchievementImage.Icon>
                                 <localControls:AchievementImage.IconCustom>
                                     <MultiBinding Converter="{StaticResource HiddenIconConverter}">
-                                        <Binding Path="UnlockedIconDisplay" IsAsync="True" />
+                                        <Binding Path="LockedIconDisplay" IsAsync="True" />
                                         <Binding Path="Hidden" />
                                         <Binding Path="Unlocked" />
                                         <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="ShowHiddenIcon" />

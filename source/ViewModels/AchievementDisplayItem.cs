@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Services;
 using Playnite.SDK;
 
@@ -10,89 +13,153 @@ using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 namespace PlayniteAchievements.ViewModels
 {
     /// <summary>
-    /// Display model for achievements in views.
+    /// Thin display wrapper around <see cref="AchievementDetail"/> for view-only state.
     /// </summary>
     public class AchievementDisplayItem : ObservableObject
     {
+        public sealed class AppearanceSettingsSnapshot
+        {
+            public bool ShowHiddenIcon { get; set; }
+
+            public bool ShowHiddenTitle { get; set; }
+
+            public bool ShowHiddenDescription { get; set; }
+
+            public bool ShowHiddenSuffix { get; set; }
+
+            public bool ShowLockedIcon { get; set; }
+
+            public bool UseSeparateLockedIconsWhenAvailable { get; set; }
+
+            public bool ShowRarityGlow { get; set; }
+
+            public bool ShowRarityBar { get; set; }
+        }
+
+        private AchievementDetail _source;
         private string _gameName;
+        private string _sortingName;
+        private Guid? _playniteGameId;
+        private string _providerKey;
+        private int? _pointsValue;
+        private string _categoryType;
+        private string _categoryLabel;
+        private string _gameIconPath;
+        private string _gameCoverPath;
+
+        public AchievementDetail Source => _source;
+
         public string GameName { get => _gameName; set => SetValue(ref _gameName, value); }
 
-        private string _sortingName;
         public string SortingName { get => _sortingName; set => SetValue(ref _sortingName, value); }
 
-        private Guid? _playniteGameId;
         public Guid? PlayniteGameId { get => _playniteGameId; set => SetValue(ref _playniteGameId, value); }
 
-        private string _providerKey;
         public string ProviderKey
         {
             get => _providerKey;
             set => SetValue(ref _providerKey, value);
         }
 
-        private string _displayName;
         public string DisplayName
         {
-            get => _displayName;
+            get => _source?.DisplayName;
             set
             {
-                if (SetValueAndReturn(ref _displayName, value))
+                if (SetSourceValue(
+                    source => source.DisplayName,
+                    (source, next) => source.DisplayName = next,
+                    value,
+                    nameof(DisplayName),
+                    nameof(Name)))
                 {
-                    OnPropertyChanged(nameof(Name));
-                    OnPropertyChanged(nameof(DisplayNameResolved));
-                    OnPropertyChanged(nameof(HiddenTitleSuffix));
+                    NotifyTitleDisplayChanged();
                 }
             }
         }
 
-        private string _description;
         public string Description
         {
-            get => _description;
+            get => _source?.Description;
             set
             {
-                if (SetValueAndReturn(ref _description, value))
+                if (SetSourceValue(
+                    source => source.Description,
+                    (source, next) => source.Description = next,
+                    value,
+                    nameof(Description)))
                 {
-                    OnPropertyChanged(nameof(DescriptionResolved));
+                    NotifyDescriptionDisplayChanged();
                 }
             }
         }
 
-        private string _iconPath;
+        public string UnlockedIconPath
+        {
+            get => _source?.UnlockedIconPath;
+            set
+            {
+                if (SetSourceValue(
+                    source => source.UnlockedIconPath,
+                    (source, next) => source.UnlockedIconPath = next,
+                    value,
+                    nameof(UnlockedIconPath)))
+                {
+                    NotifyIconPathChanged();
+                }
+            }
+        }
+
+        public string LockedIconPath
+        {
+            get => _source?.LockedIconPath;
+            set
+            {
+                if (SetSourceValue(
+                    source => source.LockedIconPath,
+                    (source, next) => source.LockedIconPath = next,
+                    value,
+                    nameof(LockedIconPath)))
+                {
+                    NotifyIconPathChanged();
+                }
+            }
+        }
+
         public string IconPath
         {
-            get => _iconPath;
-            set
-            {
-                if (SetValueAndReturn(ref _iconPath, value))
-                {
-                    OnPropertyChanged(nameof(DisplayIcon));
-                    OnPropertyChanged(nameof(Icon));
-                }
-            }
+            get => UnlockedIconPath;
+            set => UnlockedIconPath = value;
         }
 
-        private DateTime? _unlockTimeUtc;
         public DateTime? UnlockTimeUtc
         {
-            get => _unlockTimeUtc;
+            get => _source?.UnlockTimeUtc;
             set
             {
-                if (SetValueAndReturn(ref _unlockTimeUtc, value))
+                if (SetSourceValue(
+                    source => source.UnlockTimeUtc,
+                    (source, next) => source.UnlockTimeUtc = next,
+                    value,
+                    nameof(UnlockTimeUtc)))
                 {
                     OnPropertyChanged(nameof(UnlockTimeText));
                     OnPropertyChanged(nameof(DateUnlocked));
+                    OnPropertyChanged(nameof(UnlockTime));
                 }
             }
         }
 
-        private double? _globalPercentUnlocked;
         public double? GlobalPercentUnlocked
         {
-            get => _globalPercentUnlocked;
+            get => _source?.GlobalPercentUnlocked;
             set
             {
-                if (SetValueAndReturn(ref _globalPercentUnlocked, value))
+                if (SetSourceValue(
+                    source => source.GlobalPercentUnlocked,
+                    (source, next) => source.GlobalPercentUnlocked = next,
+                    value,
+                    nameof(GlobalPercentUnlocked)))
                 {
                     OnPropertyChanged(nameof(HasRarityPercent));
                     OnPropertyChanged(nameof(GlobalPercentText));
@@ -105,7 +172,6 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private int? _pointsValue;
         public int? PointsValue
         {
             get => _pointsValue;
@@ -119,13 +185,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private RarityTier _rarity = RarityTier.Common;
         public RarityTier Rarity
         {
-            get => _rarity;
+            get => _source?.Rarity ?? RarityTier.Common;
             set
             {
-                if (SetValueAndReturn(ref _rarity, value))
+                if (SetSourceValue(
+                    source => source.Rarity,
+                    (source, next) => source.Rarity = next,
+                    value,
+                    nameof(Rarity)))
                 {
                     OnPropertyChanged(nameof(GlobalPercentText));
                     OnPropertyChanged(nameof(RarityDetailText));
@@ -135,47 +204,60 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private bool _unlocked;
         public bool Unlocked
         {
-            get => _unlocked;
+            get => _source?.Unlocked == true;
             set
             {
-                if (SetValueAndReturn(ref _unlocked, value))
+                if (SetSourceValue(
+                    source => source.Unlocked,
+                    (source, next) => source.Unlocked = next,
+                    value,
+                    nameof(Unlocked)))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
-                    OnPropertyChanged(nameof(DisplayIcon));
-                    OnPropertyChanged(nameof(Icon));
-                    OnPropertyChanged(nameof(DisplayNameResolved));
-                    OnPropertyChanged(nameof(HiddenTitleSuffix));
-                    OnPropertyChanged(nameof(DescriptionResolved));
+                    NotifyRevealStateChanged();
+                    NotifyIconDisplayChanged();
+                    NotifyTitleDisplayChanged();
+                    NotifyDescriptionDisplayChanged();
                     OnPropertyChanged(nameof(IsUnlock));
                 }
             }
         }
 
-        private bool _hidden;
         public bool Hidden
         {
-            get => _hidden;
+            get => _source?.Hidden == true;
             set
             {
-                if (SetValueAndReturn(ref _hidden, value))
+                if (SetSourceValue(
+                    source => source.Hidden,
+                    (source, next) => source.Hidden = next,
+                    value,
+                    nameof(Hidden)))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
-                    OnPropertyChanged(nameof(DisplayIcon));
-                    OnPropertyChanged(nameof(Icon));
-                    OnPropertyChanged(nameof(DisplayNameResolved));
-                    OnPropertyChanged(nameof(HiddenTitleSuffix));
-                    OnPropertyChanged(nameof(DescriptionResolved));
+                    NotifyRevealStateChanged();
+                    NotifyIconDisplayChanged();
+                    NotifyTitleDisplayChanged();
+                    NotifyDescriptionDisplayChanged();
                 }
             }
         }
 
-        private string _apiName;
-        public string ApiName { get => _apiName; set => SetValue(ref _apiName, value); }
+        public string ApiName
+        {
+            get => _source?.ApiName;
+            set
+            {
+                if (SetSourceValue(
+                    source => source.ApiName,
+                    (source, next) => source.ApiName = next,
+                    value,
+                    nameof(ApiName)))
+                {
+                    OnPropertyChanged(nameof(ApiNameResolved));
+                }
+            }
+        }
 
         // Hidden achievement visibility settings
         private bool _showHiddenIcon;
@@ -186,11 +268,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _showHiddenIcon, value))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
+                    NotifyRevealStateChanged();
                     OnPropertyChanged(nameof(IsIconHidden));
-                    OnPropertyChanged(nameof(DisplayIcon));
-                    OnPropertyChanged(nameof(Icon));
+                    NotifyIconDisplayChanged();
                 }
             }
         }
@@ -203,11 +283,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _showHiddenTitle, value))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
+                    NotifyRevealStateChanged();
                     OnPropertyChanged(nameof(IsTitleHidden));
-                    OnPropertyChanged(nameof(DisplayNameResolved));
-                    OnPropertyChanged(nameof(HiddenTitleSuffix));
+                    NotifyTitleDisplayChanged();
                 }
             }
         }
@@ -220,10 +298,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _showHiddenDescription, value))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
+                    NotifyRevealStateChanged();
                     OnPropertyChanged(nameof(IsDescriptionHidden));
-                    OnPropertyChanged(nameof(DescriptionResolved));
+                    NotifyDescriptionDisplayChanged();
                 }
             }
         }
@@ -236,7 +313,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _showHiddenSuffix, value))
                 {
-                    OnPropertyChanged(nameof(HiddenTitleSuffix));
+                    NotifyTitleDisplayChanged();
                 }
             }
         }
@@ -249,10 +326,24 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _showLockedIcon, value))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
+                    NotifyRevealStateChanged();
                     OnPropertyChanged(nameof(IsLockedIconHidden));
-                    OnPropertyChanged(nameof(DisplayIcon));
-                    OnPropertyChanged(nameof(Icon));
+                    NotifyIconDisplayChanged();
+                }
+            }
+        }
+
+        private bool _useSeparateLockedIconsWhenAvailable;
+        public bool UseSeparateLockedIconsWhenAvailable
+        {
+            get => _useSeparateLockedIconsWhenAvailable;
+            set
+            {
+                if (SetValueAndReturn(ref _useSeparateLockedIconsWhenAvailable, value))
+                {
+                    OnPropertyChanged(nameof(UsesExplicitLockedIcon));
+                    NotifyIconDisplayChanged();
+                    OnPropertyChanged(nameof(ImageLocked));
                 }
             }
         }
@@ -279,40 +370,37 @@ namespace PlayniteAchievements.ViewModels
             {
                 if (SetValueAndReturn(ref _isRevealed, value))
                 {
-                    OnPropertyChanged(nameof(CanReveal));
-                    OnPropertyChanged(nameof(IsHidden));
+                    NotifyRevealStateChanged();
                     OnPropertyChanged(nameof(IsIconHidden));
                     OnPropertyChanged(nameof(IsLockedIconHidden));
                     OnPropertyChanged(nameof(IsTitleHidden));
                     OnPropertyChanged(nameof(IsDescriptionHidden));
-                    // Only notify icon changes if icon hiding is enabled (hidden or locked)
                     if (!ShowHiddenIcon || !ShowLockedIcon)
                     {
-                        OnPropertyChanged(nameof(DisplayIcon));
-                        OnPropertyChanged(nameof(Icon));
+                        NotifyIconDisplayChanged();
                     }
-                    // Only notify name changes if title hiding is enabled
                     if (!ShowHiddenTitle)
                     {
-                        OnPropertyChanged(nameof(DisplayNameResolved));
-                        OnPropertyChanged(nameof(HiddenTitleSuffix));
+                        NotifyTitleDisplayChanged();
                     }
-                    // Only notify description changes if description hiding is enabled
                     if (!ShowHiddenDescription)
                     {
-                        OnPropertyChanged(nameof(DescriptionResolved));
+                        NotifyDescriptionDisplayChanged();
                     }
                 }
             }
         }
 
-        private int? _progressNum;
         public int? ProgressNum
         {
-            get => _progressNum;
+            get => _source?.ProgressNum;
             set
             {
-                if (SetValueAndReturn(ref _progressNum, value))
+                if (SetSourceValue(
+                    source => source.ProgressNum,
+                    (source, next) => source.ProgressNum = next,
+                    value,
+                    nameof(ProgressNum)))
                 {
                     OnPropertyChanged(nameof(HasProgress));
                     OnPropertyChanged(nameof(ProgressText));
@@ -321,13 +409,16 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private int? _progressDenom;
         public int? ProgressDenom
         {
-            get => _progressDenom;
+            get => _source?.ProgressDenom;
             set
             {
-                if (SetValueAndReturn(ref _progressDenom, value))
+                if (SetSourceValue(
+                    source => source.ProgressDenom,
+                    (source, next) => source.ProgressDenom = next,
+                    value,
+                    nameof(ProgressDenom)))
                 {
                     OnPropertyChanged(nameof(HasProgress));
                     OnPropertyChanged(nameof(ProgressText));
@@ -336,24 +427,26 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private string _trophyType;
         /// <summary>
         /// Trophy type for PlayStation games: "bronze", "silver", "gold", "platinum".
         /// Null for non-PlayStation achievements.
         /// </summary>
         public string TrophyType
         {
-            get => _trophyType;
+            get => _source?.TrophyType;
             set
             {
-                if (SetValueAndReturn(ref _trophyType, value))
+                if (SetSourceValue(
+                    source => source.TrophyType,
+                    (source, next) => source.TrophyType = next,
+                    value,
+                    nameof(TrophyType)))
                 {
                     OnPropertyChanged(nameof(HasTrophyType));
                 }
             }
         }
 
-        private string _categoryType;
         public string CategoryType
         {
             get => _categoryType;
@@ -368,14 +461,12 @@ namespace PlayniteAchievements.ViewModels
 
         public string CategoryTypeDisplay => AchievementCategoryTypeHelper.ToDisplayText(CategoryType);
 
-        private string _categoryLabel;
         public string CategoryLabel
         {
             get => _categoryLabel;
             set => SetValue(ref _categoryLabel, value);
         }
 
-        private string _gameIconPath;
         /// <summary>
         /// Path to the game's icon image.
         /// Used by the Game column in sidebar recent achievements.
@@ -386,7 +477,6 @@ namespace PlayniteAchievements.ViewModels
             set => SetValue(ref _gameIconPath, value);
         }
 
-        private string _gameCoverPath;
         /// <summary>
         /// Path to the game's cover image.
         /// Used by the Game column in sidebar recent achievements when UseCoverImages is true.
@@ -418,9 +508,6 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public double ProgressPercent => HasProgress ? (ProgressNum.Value * 100.0 / ProgressDenom.Value) : 0;
 
-        /// <summary>
-        /// True if the achievement can be revealed (is locked and at least one hiding setting is enabled).
-        /// </summary>
         /// <summary>
         /// True if the achievement can be revealed (is locked and at least one hiding setting is enabled).
         /// Includes both hidden achievements and locked achievements when ShowLockedIcon is false.
@@ -479,6 +566,15 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public string ApiNameResolved
+        {
+            get
+            {
+                if (IsHidden && Hidden && !ShowHiddenDescription) return string.Empty;
+                return ApiName;
+            }
+        }
+
         /// <summary>
         /// Toggles the revealed state if the achievement can be revealed.
         /// </summary>
@@ -494,35 +590,104 @@ namespace PlayniteAchievements.ViewModels
         /// Updates this item's properties from a source Achievement object.
         /// This is used to synchronize data without recreating the entire object, preventing UI flicker.
         /// </summary>
-        public void UpdateFrom(Models.Achievements.AchievementDetail source, string gameName, Guid? playniteGameId, bool hideIcon, bool hideTitle, bool hideDescription, bool hideLockedIcon, bool showRarityGlow, bool showRarityBar = true, string sortingName = null, string gameIconPath = null, string gameCoverPath = null)
+        public void UpdateFrom(
+            Models.Achievements.AchievementDetail source,
+            string gameName,
+            Guid? playniteGameId,
+            bool showHiddenIcon,
+            bool showHiddenTitle,
+            bool showHiddenDescription,
+            bool showHiddenSuffix,
+            bool showLockedIcon,
+            bool useSeparateLockedIconsWhenAvailable,
+            bool showRarityGlow,
+            bool showRarityBar = true,
+            string sortingName = null,
+            string gameIconPath = null,
+            string gameCoverPath = null)
         {
-            ProviderKey = source.ProviderKey;
+            SetSource(source, notifyChanges: true);
+            ProviderKey = source?.ProviderKey;
             GameName = gameName;
             SortingName = sortingName ?? gameName;
             PlayniteGameId = playniteGameId;
-            DisplayName = source.DisplayName ?? source.ApiName ?? "Unknown Achievement";
-            Description = source.Description ?? "No description";
-            IconPath = source.UnlockedIconPath;
-            UnlockTimeUtc = source.UnlockTimeUtc;
-            GlobalPercentUnlocked = source.GlobalPercentUnlocked;
-            Rarity = source.Rarity;
-            Unlocked = source.Unlocked;
-            Hidden = source.Hidden;
-            ApiName = source.ApiName;
-            ShowHiddenIcon = !hideIcon;
-            ShowHiddenTitle = !hideTitle;
-            ShowHiddenDescription = !hideDescription;
-            ShowLockedIcon = !hideLockedIcon;
-            ShowRarityGlow = showRarityGlow;
-            ShowRarityBar = showRarityBar;
-            ProgressNum = source.ProgressNum;
-            ProgressDenom = source.ProgressDenom;
-            PointsValue = source.Points;
-            TrophyType = source.TrophyType;
-            CategoryType = source.CategoryType;
-            CategoryLabel = source.Category;
+            ApplyAppearanceSettings(
+                showHiddenIcon,
+                showHiddenTitle,
+                showHiddenDescription,
+                showHiddenSuffix,
+                showLockedIcon,
+                useSeparateLockedIconsWhenAvailable,
+                showRarityGlow,
+                showRarityBar);
+            PointsValue = source?.Points;
+            CategoryType = source?.CategoryType;
+            CategoryLabel = source?.Category;
             GameIconPath = gameIconPath;
             GameCoverPath = gameCoverPath;
+        }
+
+        public void ApplyAppearanceSettings(
+            bool showHiddenIcon,
+            bool showHiddenTitle,
+            bool showHiddenDescription,
+            bool showHiddenSuffix,
+            bool showLockedIcon,
+            bool useSeparateLockedIconsWhenAvailable,
+            bool showRarityGlow,
+            bool showRarityBar = true)
+        {
+            ShowHiddenIcon = showHiddenIcon;
+            ShowHiddenTitle = showHiddenTitle;
+            ShowHiddenDescription = showHiddenDescription;
+            ShowHiddenSuffix = showHiddenSuffix;
+            ShowLockedIcon = showLockedIcon;
+            UseSeparateLockedIconsWhenAvailable = useSeparateLockedIconsWhenAvailable;
+            ShowRarityGlow = showRarityGlow;
+            ShowRarityBar = showRarityBar;
+        }
+
+        public void ApplyAppearanceSettings(PlayniteAchievementsSettings settings, Guid? playniteGameId = null)
+        {
+            ApplyAppearanceSettings(CreateAppearanceSettingsSnapshot(
+                settings,
+                playniteGameId,
+                null));
+        }
+
+        public void ApplyAppearanceSettings(AppearanceSettingsSnapshot snapshot)
+        {
+            var resolved = snapshot ?? new AppearanceSettingsSnapshot();
+            ApplyAppearanceSettings(
+                resolved.ShowHiddenIcon,
+                resolved.ShowHiddenTitle,
+                resolved.ShowHiddenDescription,
+                resolved.ShowHiddenSuffix,
+                resolved.ShowLockedIcon,
+                resolved.UseSeparateLockedIconsWhenAvailable,
+                resolved.ShowRarityGlow,
+                resolved.ShowRarityBar);
+        }
+
+        public static AppearanceSettingsSnapshot CreateAppearanceSettingsSnapshot(
+            PlayniteAchievementsSettings settings,
+            Guid? playniteGameId,
+            bool? resolvedUseSeparateLockedIcons)
+        {
+            var persisted = settings?.Persisted;
+            var resolvedGameId = playniteGameId;
+            return new AppearanceSettingsSnapshot
+            {
+                ShowHiddenIcon = persisted?.ShowHiddenIcon ?? false,
+                ShowHiddenTitle = persisted?.ShowHiddenTitle ?? false,
+                ShowHiddenDescription = persisted?.ShowHiddenDescription ?? false,
+                ShowHiddenSuffix = persisted?.ShowHiddenSuffix ?? true,
+                ShowLockedIcon = persisted?.ShowLockedIcon ?? true,
+                UseSeparateLockedIconsWhenAvailable = resolvedUseSeparateLockedIcons ??
+                    GameCustomDataLookup.ShouldUseSeparateLockedIcons(resolvedGameId, persisted),
+                ShowRarityGlow = persisted?.ShowRarityGlow ?? true,
+                ShowRarityBar = persisted?.ShowCompactListRarityBar ?? true
+            };
         }
 
         public string UnlockTimeText =>
@@ -545,45 +710,26 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Returns the appropriate icon based on unlock state and hide settings.
-        /// When hiding is enabled and achievement is locked and not revealed, shows the gray/hidden icon.
-        /// Otherwise, uses IconPath with grayscale prefix when locked.
+        /// When hiding is enabled and achievement is locked and not revealed, shows the placeholder icon.
+        /// Otherwise, uses a real locked icon when available and enabled, or falls back to the grayscale unlocked icon.
         /// </summary>
         public string DisplayIcon
         {
             get
             {
-                // Hidden achievement icon hiding (takes precedence)
-                if (IsHidden && Hidden && !ShowHiddenIcon)
+                if (ShouldShowPlaceholderIcon())
                 {
                     return DefaultIcon;
                 }
 
-                // Locked achievement icon hiding
-                if (!Unlocked && !ShowLockedIcon && !IsRevealed)
-                {
-                    return DefaultIcon;
-                }
-
-                var candidate = AchievementIconResolver.NormalizeIconPath(IconPath);
-                if (!Unlocked && !string.IsNullOrWhiteSpace(candidate))
-                {
-                    candidate = AchievementIconResolver.ApplyGrayPrefix(candidate);
-                }
-
-                return !string.IsNullOrWhiteSpace(candidate) ? candidate : DefaultIcon;
+                return Unlocked
+                    ? AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath)
+                    : GetLockedDisplayIcon();
             }
         }
 
-        private static bool IsHttpUrl(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return false;
-            }
-
-            return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                   value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
-        }
+        public bool UsesExplicitLockedIcon =>
+            AchievementIconResolver.HasExplicitLockedIcon(LockedIconPath, UnlockedIconPath);
 
         /// <summary>
         /// The unlock time for sorting purposes.
@@ -609,7 +755,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Alias for themes expecting an "Icon" field (e.g. SuccessStory).
         /// </summary>
-        public string Icon => DisplayIcon;
+        public string Icon => AchievementIconResolver.GetLegacyCompatibleIcon(UnlockedIconPath);
 
         /// <summary>
         /// Alias for themes expecting a numeric "Percent" field (0-100).
@@ -646,39 +792,18 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Alias for themes expecting ImageUnlocked field (SuccessStory compatibility).
-        /// Always returns IconPath (unlocked state uses the color icon).
+        /// Returns the unlocked display icon or the default placeholder.
         /// </summary>
         public string ImageUnlocked
         {
-            get
-            {
-                var candidate = AchievementIconResolver.NormalizeIconPath(IconPath);
-                if (string.IsNullOrWhiteSpace(candidate))
-                {
-                    return DefaultIcon;
-                }
-
-                return candidate;
-            }
+            get => AchievementIconResolver.GetUnlockedDisplayIcon(UnlockedIconPath);
         }
 
         /// <summary>
         /// Alias for themes expecting ImageLocked field (SuccessStory compatibility).
-        /// Returns IconPath with grayscale prefix for locked state.
+        /// Returns a real locked icon when enabled and available, otherwise a grayscale unlocked fallback.
         /// </summary>
-        public string ImageLocked
-        {
-            get
-            {
-                var candidate = AchievementIconResolver.NormalizeIconPath(IconPath);
-                if (string.IsNullOrWhiteSpace(candidate))
-                {
-                    return DefaultIcon;
-                }
-
-                return AchievementIconResolver.ApplyGrayPrefix(candidate);
-            }
-        }
+        public string ImageLocked => GetLockedDisplayIcon();
 
         /// <summary>
         /// Creates a shallow copy of this display item with independent reveal state.
@@ -686,38 +811,351 @@ namespace PlayniteAchievements.ViewModels
         /// </summary>
         public AchievementDisplayItem Clone()
         {
-            return new AchievementDisplayItem
+            var clone = new AchievementDisplayItem();
+            clone.SetSource(_source, notifyChanges: false);
+            clone.ProviderKey = _providerKey;
+            clone.GameName = _gameName;
+            clone.SortingName = _sortingName;
+            clone.PlayniteGameId = _playniteGameId;
+            clone.PointsValue = _pointsValue;
+            clone.ShowHiddenIcon = _showHiddenIcon;
+            clone.ShowHiddenTitle = _showHiddenTitle;
+            clone.ShowHiddenDescription = _showHiddenDescription;
+            clone.ShowHiddenSuffix = _showHiddenSuffix;
+            clone.ShowLockedIcon = _showLockedIcon;
+            clone.UseSeparateLockedIconsWhenAvailable = _useSeparateLockedIconsWhenAvailable;
+            clone.ShowRarityGlow = _showRarityGlow;
+            clone.ShowRarityBar = _showRarityBar;
+            clone.CategoryType = _categoryType;
+            clone.CategoryLabel = _categoryLabel;
+            clone.GameIconPath = _gameIconPath;
+            clone.GameCoverPath = _gameCoverPath;
+            return clone;
+        }
+
+        public static AchievementDisplayItem Create(
+            GameAchievementData gameData,
+            AchievementDetail achievement,
+            PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys = null,
+            Guid? playniteGameIdOverride = null,
+            AppearanceSettingsSnapshot appearanceSettings = null)
+        {
+            if (achievement == null)
             {
-                ProviderKey = _providerKey,
-                GameName = _gameName,
-                SortingName = _sortingName,
-                PlayniteGameId = _playniteGameId,
-                DisplayName = _displayName,
-                Description = _description,
-                IconPath = _iconPath,
-                UnlockTimeUtc = _unlockTimeUtc,
-                GlobalPercentUnlocked = _globalPercentUnlocked,
-                Rarity = _rarity,
-                PointsValue = _pointsValue,
-                Unlocked = _unlocked,
-                Hidden = _hidden,
-                ApiName = _apiName,
-                ShowHiddenIcon = _showHiddenIcon,
-                ShowHiddenTitle = _showHiddenTitle,
-                ShowHiddenDescription = _showHiddenDescription,
-                ShowHiddenSuffix = _showHiddenSuffix,
-                ShowLockedIcon = _showLockedIcon,
-                ShowRarityGlow = _showRarityGlow,
-                ShowRarityBar = _showRarityBar,
-                // IsRevealed intentionally not copied - each clone starts unrevealed
-                ProgressNum = _progressNum,
-                ProgressDenom = _progressDenom,
-                TrophyType = _trophyType,
-                CategoryType = _categoryType,
-                CategoryLabel = _categoryLabel,
-                GameIconPath = _gameIconPath,
-                GameCoverPath = _gameCoverPath
-            };
+                return null;
+            }
+
+            var gameId = playniteGameIdOverride ?? gameData?.PlayniteGameId;
+            var item = CreateBaseItem(gameData, achievement, gameId, ResolvePoints(achievement, gameData));
+            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
+                settings,
+                gameId,
+                gameData?.UseSeparateLockedIconsWhenAvailable);
+            item.IsRevealed = ShouldRestoreRevealedState(gameData, achievement, settings, revealedKeys, gameId);
+            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
+            return item;
+        }
+
+        public static AchievementDisplayItem CreateRecent(
+            GameAchievementData gameData,
+            AchievementDetail achievement,
+            PlayniteAchievementsSettings settings,
+            string gameIconPath,
+            string gameCoverPath,
+            AppearanceSettingsSnapshot appearanceSettings = null)
+        {
+            if (achievement == null || !achievement.Unlocked || !achievement.UnlockTimeUtc.HasValue)
+            {
+                return null;
+            }
+
+            var item = CreateBaseItem(
+                gameData,
+                achievement,
+                gameData?.PlayniteGameId,
+                ResolvePoints(achievement, gameData));
+            item.GameIconPath = gameIconPath;
+            item.GameCoverPath = gameCoverPath;
+            var resolvedAppearanceSettings = appearanceSettings ?? CreateAppearanceSettingsSnapshot(
+                settings,
+                gameData?.PlayniteGameId,
+                gameData?.UseSeparateLockedIconsWhenAvailable);
+            item.ApplyAppearanceSettings(resolvedAppearanceSettings);
+            return item;
+        }
+
+        public static bool IsAppearanceSettingPropertyName(string propertyName)
+        {
+            switch (NormalizePersistedPropertyName(propertyName))
+            {
+                case nameof(PersistedSettings.ShowHiddenIcon):
+                case nameof(PersistedSettings.ShowHiddenTitle):
+                case nameof(PersistedSettings.ShowHiddenDescription):
+                case nameof(PersistedSettings.ShowHiddenSuffix):
+                case nameof(PersistedSettings.ShowLockedIcon):
+                case nameof(PersistedSettings.UseSeparateLockedIconsWhenAvailable):
+                case nameof(PersistedSettings.SeparateLockedIconEnabledGameIds):
+                case nameof(PersistedSettings.ShowRarityGlow):
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public static string MakeRevealKey(Guid? playniteGameId, string apiName, string gameName)
+        {
+            var gamePart = playniteGameId?.ToString() ?? (gameName ?? string.Empty);
+            return $"{gamePart}\u001f{apiName ?? string.Empty}";
+        }
+
+        public static void AccumulateRarity(AchievementDetail achievement, ref int common, ref int uncommon, ref int rare, ref int ultraRare)
+        {
+            if (achievement == null)
+            {
+                return;
+            }
+
+            switch (achievement.Rarity)
+            {
+                case RarityTier.UltraRare:
+                    ultraRare++;
+                    break;
+                case RarityTier.Rare:
+                    rare++;
+                    break;
+                case RarityTier.Uncommon:
+                    uncommon++;
+                    break;
+                default:
+                    common++;
+                    break;
+            }
+        }
+
+        public static void AccumulateTrophy(AchievementDetail achievement, ref int platinum, ref int gold, ref int silver, ref int bronze)
+        {
+            AccumulateTrophy(achievement?.TrophyType, ref platinum, ref gold, ref silver, ref bronze);
+        }
+
+        public static void AccumulateTrophy(string trophyType, ref int platinum, ref int gold, ref int silver, ref int bronze)
+        {
+            if (string.IsNullOrWhiteSpace(trophyType))
+            {
+                return;
+            }
+
+            switch (trophyType.Trim().ToLowerInvariant())
+            {
+                case "platinum":
+                    platinum++;
+                    break;
+                case "gold":
+                    gold++;
+                    break;
+                case "silver":
+                    silver++;
+                    break;
+                case "bronze":
+                    bronze++;
+                    break;
+            }
+        }
+
+        private void SetSource(AchievementDetail source, bool notifyChanges)
+        {
+            if (ReferenceEquals(_source, source) && !notifyChanges)
+            {
+                return;
+            }
+
+            _source = source;
+            if (notifyChanges)
+            {
+                NotifySourceChanged();
+            }
+        }
+
+        private bool SetSourceValue<T>(
+            Func<AchievementDetail, T> getter,
+            Action<AchievementDetail, T> setter,
+            T value,
+            params string[] propertyNames)
+        {
+            var source = _source ?? (_source = new AchievementDetail());
+            if (EqualityComparer<T>.Default.Equals(getter(source), value))
+            {
+                return false;
+            }
+
+            setter(source, value);
+            for (var i = 0; i < propertyNames.Length; i++)
+            {
+                OnPropertyChanged(propertyNames[i]);
+            }
+
+            return true;
+        }
+
+        private void NotifySourceChanged()
+        {
+            OnPropertyChanged(nameof(Source));
+            OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(Name));
+            OnPropertyChanged(nameof(Description));
+            OnPropertyChanged(nameof(UnlockedIconPath));
+            OnPropertyChanged(nameof(LockedIconPath));
+            OnPropertyChanged(nameof(IconPath));
+            OnPropertyChanged(nameof(UnlockTimeUtc));
+            OnPropertyChanged(nameof(UnlockTimeText));
+            OnPropertyChanged(nameof(DateUnlocked));
+            OnPropertyChanged(nameof(UnlockTime));
+            OnPropertyChanged(nameof(GlobalPercentUnlocked));
+            OnPropertyChanged(nameof(HasRarityPercent));
+            OnPropertyChanged(nameof(GlobalPercentText));
+            OnPropertyChanged(nameof(RarityDetailText));
+            OnPropertyChanged(nameof(GlobalPercent));
+            OnPropertyChanged(nameof(RarityPercentValue));
+            OnPropertyChanged(nameof(Percent));
+            OnPropertyChanged(nameof(RaritySortValue));
+            OnPropertyChanged(nameof(Rarity));
+            OnPropertyChanged(nameof(GamerScore));
+            OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(Hidden));
+            OnPropertyChanged(nameof(IsUnlock));
+            OnPropertyChanged(nameof(ApiName));
+            OnPropertyChanged(nameof(ProgressNum));
+            OnPropertyChanged(nameof(ProgressDenom));
+            OnPropertyChanged(nameof(HasProgress));
+            OnPropertyChanged(nameof(ProgressText));
+            OnPropertyChanged(nameof(ProgressPercent));
+            OnPropertyChanged(nameof(TrophyType));
+            OnPropertyChanged(nameof(HasTrophyType));
+            NotifyRevealStateChanged();
+            OnPropertyChanged(nameof(IsIconHidden));
+            OnPropertyChanged(nameof(IsLockedIconHidden));
+            OnPropertyChanged(nameof(IsTitleHidden));
+            OnPropertyChanged(nameof(IsDescriptionHidden));
+            NotifyTitleDisplayChanged();
+            NotifyDescriptionDisplayChanged();
+            NotifyIconPathChanged();
+        }
+
+        private void NotifyIconPathChanged()
+        {
+            OnPropertyChanged(nameof(IconPath));
+            NotifyIconDisplayChanged();
+            OnPropertyChanged(nameof(ImageUnlocked));
+            OnPropertyChanged(nameof(ImageLocked));
+            OnPropertyChanged(nameof(UsesExplicitLockedIcon));
+        }
+
+        private void NotifyRevealStateChanged()
+        {
+            OnPropertyChanged(nameof(CanReveal));
+            OnPropertyChanged(nameof(IsHidden));
+        }
+
+        private void NotifyTitleDisplayChanged()
+        {
+            OnPropertyChanged(nameof(DisplayNameResolved));
+            OnPropertyChanged(nameof(HiddenTitleSuffix));
+        }
+
+        private void NotifyDescriptionDisplayChanged()
+        {
+            OnPropertyChanged(nameof(DescriptionResolved));
+            OnPropertyChanged(nameof(ApiNameResolved));
+        }
+
+        private void NotifyIconDisplayChanged()
+        {
+            OnPropertyChanged(nameof(DisplayIcon));
+            OnPropertyChanged(nameof(Icon));
+        }
+
+        private bool ShouldShowPlaceholderIcon()
+        {
+            return (IsHidden && Hidden && !ShowHiddenIcon) ||
+                   (!Unlocked && !ShowLockedIcon && !IsRevealed);
+        }
+
+        private string GetLockedDisplayIcon()
+        {
+            return AchievementIconResolver.GetLockedDisplayIcon(
+                UnlockedIconPath,
+                LockedIconPath);
+        }
+
+        private static AchievementDisplayItem CreateBaseItem(
+            GameAchievementData gameData,
+            AchievementDetail achievement,
+            Guid? playniteGameId,
+            int? pointsValue)
+        {
+            var item = new AchievementDisplayItem();
+            item.SetSource(achievement, notifyChanges: false);
+            item.ProviderKey = achievement.ProviderKey ?? gameData?.EffectiveProviderKey ?? gameData?.ProviderKey;
+            item.GameName = gameData?.GameName ?? "Unknown";
+            item.SortingName = gameData?.SortingName ?? gameData?.GameName ?? "Unknown";
+            item.PlayniteGameId = playniteGameId;
+            item.PointsValue = pointsValue;
+            item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(achievement.CategoryType);
+            item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            return item;
+        }
+
+        private static int? ResolvePoints(AchievementDetail achievement, GameAchievementData gameData)
+        {
+            if (achievement == null)
+            {
+                return null;
+            }
+
+            if (RetroAchievementsDataProvider.UseScaledPoints(gameData))
+            {
+                return achievement.ScaledPoints ?? achievement.Points;
+            }
+
+            return achievement.Points;
+        }
+
+        private static bool ShouldRestoreRevealedState(
+            GameAchievementData gameData,
+            AchievementDetail achievement,
+            PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
+            Guid? gameId)
+        {
+            if (achievement == null || !achievement.Hidden || achievement.Unlocked)
+            {
+                return false;
+            }
+
+            var persisted = settings?.Persisted;
+            var hidesAny = !(persisted?.ShowHiddenIcon ?? false) ||
+                           !(persisted?.ShowHiddenTitle ?? false) ||
+                           !(persisted?.ShowHiddenDescription ?? false);
+            if (!hidesAny || revealedKeys == null || revealedKeys.Count == 0)
+            {
+                return false;
+            }
+
+            var key = MakeRevealKey(gameId, achievement.ApiName, gameData?.GameName);
+            return revealedKeys.Contains(key);
+        }
+
+        private static string NormalizePersistedPropertyName(string propertyName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                return string.Empty;
+            }
+
+            const string persistedPrefix = "Persisted.";
+            return propertyName.StartsWith(persistedPrefix, StringComparison.Ordinal)
+                ? propertyName.Substring(persistedPrefix.Length)
+                : propertyName;
         }
     }
 }

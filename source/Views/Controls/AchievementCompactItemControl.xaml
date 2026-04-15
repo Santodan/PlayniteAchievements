@@ -97,27 +97,41 @@
             </ToolTip>
         </Grid.ToolTip>
 
-        <!-- Achievement icon with glow effect - Image with conditional glow -->
-        <Image Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
-               Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-               Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-               helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-               helpers:AsyncImage.DecodePixel="64">
-            <Image.Style>
-                <Style TargetType="Image">
-                    <Setter Property="Effect" Value="{x:Null}"/>
-                    <Style.Triggers>
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
-                            </MultiDataTrigger.Conditions>
-                            <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
-                        </MultiDataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Image.Style>
-        </Image>
+        <!-- Achievement icon with glow effect - keep glow on a backing layer so the front icon stays sharp -->
+        <Grid Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+              Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+              ClipToBounds="False">
+            <Image Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="Fant"
+                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   IsHitTestVisible="False"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                   helpers:AsyncImage.DecodePixel="64">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Setter Property="Effect" Value="{x:Null}"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+            <Image Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="Fant"
+                   Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
+                   helpers:AsyncImage.DecodePixel="64"/>
+        </Grid>
 
         <!-- Rarity bar overlay at bottom - shows global unlock percentage -->
         <Grid VerticalAlignment="Bottom">

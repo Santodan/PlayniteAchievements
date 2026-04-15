@@ -15,6 +15,16 @@
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
                   VirtualizingPanel.ScrollUnit="Pixel">
+        <ItemsControl.Style>
+            <Style TargetType="ItemsControl">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ItemsControl.Style>
         <ItemsControl.Template>
             <ControlTemplate TargetType="ItemsControl">
                 <ScrollViewer CanContentScroll="True"

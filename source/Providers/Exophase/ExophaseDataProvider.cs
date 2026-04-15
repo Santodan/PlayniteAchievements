@@ -31,7 +31,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
         private static readonly string[] KnownExophasePlatformTokens =
         {
-            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro"
+            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro", "android", "ubisoft", "uplay"
         };
         private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
         private ExophaseSettings _providerSettings;
@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Check explicit game inclusion first
-            if (_providerSettings.IncludedGames.Contains(game.Id))
+            if (GameCustomDataLookup.IsExophaseIncluded(game.Id, _providerSettings))
             {
                 _logger.Debug($"Exophase IsCapable for '{game.Name}': true (explicitly included)");
                 return true;
@@ -395,28 +395,47 @@ namespace PlayniteAchievements.Providers.Exophase
 
             showToggle = true;
             isManagedByPlatform = settings.ManagedProviders.Contains(gamePlatformSlug);
-            useForGame = settings.IncludedGames.Contains(gameId);
+            useForGame = GameCustomDataLookup.IsExophaseIncluded(gameId, settings);
             autoSlug = GeneratePreviewSlug(game);
-            hasSlugOverride = settings.SlugOverrides.TryGetValue(gameId, out slugOverrideValue);
+            hasSlugOverride = GameCustomDataLookup.TryGetExophaseSlugOverride(gameId, out slugOverrideValue, settings);
         }
 
         internal static bool SetIncludedGame(Guid gameId, string gameName, bool include, Action persistSettingsForUi, ILogger logger)
         {
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null)
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                var previous = customDataStore.TryLoad(gameId, out var customData) &&
+                    customData?.ForceUseExophase == true;
+                if (previous == include)
+                {
+                    return true;
+                }
+
+                customDataStore.Update(gameId, data =>
+                {
+                    data.ForceUseExophase = include ? true : (bool?)null;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null)
+                {
+                    return false;
+                }
+
+                var changed = include
+                    ? settings.IncludedGames.Add(gameId)
+                    : settings.IncludedGames.Remove(gameId);
+                if (!changed)
+                {
+                    return true;
+                }
+
+                ProviderRegistry.Write(settings);
             }
 
-            var changed = include
-                ? settings.IncludedGames.Add(gameId)
-                : settings.IncludedGames.Remove(gameId);
-            if (!changed)
-            {
-                return true;
-            }
-
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
 
             if (include)
@@ -438,15 +457,28 @@ namespace PlayniteAchievements.Providers.Exophase
                 return false;
             }
 
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null)
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                customDataStore.Update(gameId, customData =>
+                {
+                    customData.ExophaseSlugOverride = slug;
+                    customData.ForceUseExophase = true;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null)
+                {
+                    return false;
+                }
+
+                settings.SlugOverrides[gameId] = slug;
+                settings.IncludedGames.Add(gameId);
+                ProviderRegistry.Write(settings);
             }
 
-            settings.SlugOverrides[gameId] = slug;
-            settings.IncludedGames.Add(gameId);
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
 
             logger?.Info($"Set Exophase slug override for '{gameName}' to '{slug}'");
@@ -455,13 +487,31 @@ namespace PlayniteAchievements.Providers.Exophase
 
         internal static bool TryClearSlugOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
-            var settings = ProviderRegistry.Settings<ExophaseSettings>();
-            if (settings == null || !settings.SlugOverrides.Remove(gameId))
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore != null)
             {
-                return false;
+                if (!customDataStore.TryLoad(gameId, out var customData) ||
+                    string.IsNullOrWhiteSpace(customData.ExophaseSlugOverride))
+                {
+                    return false;
+                }
+
+                customDataStore.Update(gameId, data =>
+                {
+                    data.ExophaseSlugOverride = null;
+                });
+            }
+            else
+            {
+                var settings = ProviderRegistry.Settings<ExophaseSettings>();
+                if (settings == null || !settings.SlugOverrides.Remove(gameId))
+                {
+                    return false;
+                }
+
+                ProviderRegistry.Write(settings);
             }
 
-            ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Cleared Exophase slug override for '{gameName}'");
             return true;
@@ -610,13 +660,30 @@ namespace PlayniteAchievements.Providers.Exophase
                 : MapSlugToProviderPlatformKey(platformToken) ?? "Unknown";
         }
 
+        private static string NormalizePlatformTokenForExophaseSlug(string platformToken)
+        {
+            if (string.IsNullOrWhiteSpace(platformToken))
+            {
+                return null;
+            }
+
+            switch (platformToken.Trim().ToLowerInvariant())
+            {
+                case "ubisoft":
+                case "uplay":
+                    return "uplay";
+                default:
+                    return platformToken.Trim().ToLowerInvariant();
+            }
+        }
+
         #endregion
 
         #region Slug Resolution
 
         /// <summary>
         /// Resolves an Exophase game slug for a Playnite game using deterministic linking.
-        /// Priority: Manual override -> Cache -> API search.
+        /// Priority: Manual override -> Cache -> API search with a resolved platform token.
         /// </summary>
         public async Task<string> ResolveExophaseSlugAsync(Game game, CancellationToken ct)
         {
@@ -626,7 +693,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Check for manual override first.
-            if (_providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+            if (GameCustomDataLookup.TryGetExophaseSlugOverride(game.Id, out var overrideSlug, _providerSettings) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 _logger?.Debug($"[Exophase] Using override slug for '{game.Name}': {overrideSlug}");
@@ -650,9 +717,15 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
             }
 
-            var platformSlug = GetExophasePlatformSlug(game);
+            var platformSlug = NormalizePlatformTokenForExophaseSlug(GetExophasePlatformSlug(game));
             var normalizedName = NormalizeGameName(game.Name);
             _logger?.Debug($"[Exophase] Resolving slug for '{game.Name}' (platform: {platformSlug ?? "unknown"})");
+
+            if (string.IsNullOrWhiteSpace(platformSlug))
+            {
+                _logger?.Debug($"[Exophase] No platform token resolved for '{game.Name}' - skipping name-only fallback");
+                return null;
+            }
 
             try
             {
@@ -660,13 +733,8 @@ namespace PlayniteAchievements.Providers.Exophase
                 var games = await _apiClient.SearchGamesAsync(normalizedName, platformSlug, ct).ConfigureAwait(false);
                 if (games == null || games.Count == 0)
                 {
-                    // Fallback: try without platform filter.
-                    games = await _apiClient.SearchGamesAsync(normalizedName, ct).ConfigureAwait(false);
-                    if (games == null || games.Count == 0)
-                    {
-                        _logger?.Debug($"[Exophase] No games found for '{normalizedName}'");
-                        return null;
-                    }
+                    _logger?.Debug($"[Exophase] No games found for '{normalizedName}' on platform '{platformSlug}'");
+                    return null;
                 }
 
                 var bestMatch = FindBestMatch(normalizedName, games, platformSlug);
@@ -805,6 +873,8 @@ namespace PlayniteAchievements.Providers.Exophase
             if (name.Contains("epic")) return "epic";
             if (name.Contains("battle.net") || name.Contains("battlenet") || ContainsDelimitedToken(name, "blizzard")) return "blizzard";
             if (name.Contains("origin") || name.Contains("electronic arts") || name.Contains("ea app") || ContainsDelimitedToken(name, "ea")) return "origin";
+            if (name.Contains("google play") || name.Contains("googleplay") || name.Contains("android") || ContainsDelimitedToken(name, "android")) return "android";
+            if (name.Contains("ubisoft") || name.Contains("uplay") || name.Contains("ubisoft connect")) return "ubisoft";
 
             return null;
         }
@@ -865,6 +935,9 @@ namespace PlayniteAchievements.Providers.Exophase
             // RetroAchievements
             if (name.Contains("retro") || name.Contains("retroachievements")) return "retro";
 
+            // Android / Google Play
+            if (name.Contains("android") || name.Contains("google play") || name.Contains("googleplay")) return "android";
+
             return null;
         }
 
@@ -885,6 +958,9 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "xbox": return "Xbox";
                 case "psn": return "PSN";
                 case "retro": return "RetroAchievements";
+                case "android": return "GooglePlay";
+                case "ubisoft": return "Ubisoft";
+                case "uplay": return "Ubisoft";
                 default:
                     return char.ToUpper(slug[0]) + slug.Substring(1);
             }
@@ -912,7 +988,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private string ResolveProviderPlatformKey(Game game, string resolvedSlug)
         {
             if (game != null &&
-                _providerSettings.SlugOverrides.TryGetValue(game.Id, out var overrideSlug) &&
+                GameCustomDataLookup.TryGetExophaseSlugOverride(game.Id, out var overrideSlug, _providerSettings) &&
                 !string.IsNullOrWhiteSpace(overrideSlug))
             {
                 var overrideToken = ExtractPlatformTokenFromSlug(overrideSlug);
@@ -950,7 +1026,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 return null;
             }
 
-            var platformSlug = GetExophasePlatformSlug(game);
+            var platformSlug = NormalizePlatformTokenForExophaseSlug(GetExophasePlatformSlug(game));
             if (string.IsNullOrWhiteSpace(platformSlug))
             {
                 return null;

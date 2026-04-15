@@ -12,6 +12,16 @@
         DataContext is inherited from parent (the Game for this row).
     -->
     <Grid x:Name="PART_GridContainer">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementViewItemControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <!-- Simple label format (when ShowProgressBar=False) -->
         <TextBlock x:Name="LabelMode"
                    VerticalAlignment="Center"

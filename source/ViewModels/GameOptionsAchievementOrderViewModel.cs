@@ -16,7 +16,7 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Guid _gameId;
         private readonly AchievementOverridesService _achievementOverridesService;
-        private readonly AchievementDataService _achievementDataService;
+        private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
 
@@ -26,13 +26,13 @@ namespace PlayniteAchievements.ViewModels
         public GameOptionsAchievementOrderViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
-            AchievementDataService achievementDataService,
+            GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
             PlayniteAchievementsSettings settings,
             ILogger logger)
         {
             _gameId = gameId;
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
-            _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _gameDataSnapshotProvider = gameDataSnapshotProvider ?? throw new ArgumentNullException(nameof(gameDataSnapshotProvider));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
 
@@ -63,7 +63,7 @@ namespace PlayniteAchievements.ViewModels
                     .GroupBy(row => row.ApiName.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(group => group.Key, group => group.First().IsRevealed, StringComparer.OrdinalIgnoreCase);
 
-                var gameData = _achievementDataService.GetGameAchievementData(_gameId);
+                var gameData = _gameDataSnapshotProvider.GetHydratedGameData();
                 var achievements = gameData?.Achievements?
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
@@ -82,13 +82,12 @@ namespace PlayniteAchievements.ViewModels
                     orderedAchievements = achievements;
                 }
 
-                var projectionOptions = AchievementProjectionService.CreateOptions(_settings, gameData);
                 var rows = orderedAchievements
-                    .Select(a => AchievementProjectionService.CreateDisplayItem(
+                    .Select(a => AchievementDisplayItem.Create(
                         gameData,
                         a,
-                        projectionOptions,
-                        _gameId))
+                        _settings,
+                        playniteGameIdOverride: _gameId))
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList();
 

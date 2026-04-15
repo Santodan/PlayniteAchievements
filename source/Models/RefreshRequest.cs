@@ -29,6 +29,11 @@ namespace PlayniteAchievements.Models
         public IReadOnlyCollection<Guid> GameIds { get; set; }
 
         /// <summary>
+        /// When true, force achievement icon redownload even if the target cache files already exist.
+        /// </summary>
+        public bool ForceIconRefresh { get; set; }
+
+        /// <summary>
         /// Optional custom refresh options for ad-hoc custom mode runs.
         /// </summary>
         public CustomRefreshOptions CustomOptions { get; set; }

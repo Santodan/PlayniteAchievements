@@ -18,6 +18,11 @@ namespace PlayniteAchievements.Services.Images
     public sealed class MemoryImageService : IDisposable
     {
         private static readonly ILogger StaticLogger = PluginLogger.GetLogger(nameof(MemoryImageService));
+        private const int DefaultDecodePixel = 64;
+        private const int MinDecodePixel = 16;
+        private const int MaxDecodePixel = 1024;
+        private const string CacheBustPrefix = "cachebust|";
+        private const string PreviewHttpPrefix = "previewhttp:";
 
         private readonly ILogger _logger;
         private readonly DiskImageService _diskService;
@@ -67,24 +72,26 @@ namespace PlayniteAchievements.Services.Images
             _diskService.ClearAllCache();
         }
 
+        public int ClearDiskCache(
+            IconCacheClearScope scope,
+            IEnumerable<string> additionalPaths = null,
+            Action<int, int> reportDeleteProgress = null)
+        {
+            return _diskService.ClearIconCache(scope, additionalPaths, reportDeleteProgress);
+        }
+
         private const string GrayPrefix = "gray:";
 
         public Task<BitmapSource> GetAsync(string uri, int decodePixel, CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(uri))
+            var requestedUri = (uri ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(requestedUri))
             {
                 return Task.FromResult<BitmapSource>(null);
             }
 
-            bool gray = TryStripGrayPrefix(ref uri);
-            if (string.IsNullOrWhiteSpace(uri))
-            {
-                return Task.FromResult<BitmapSource>(null);
-            }
-
-            // Clamp decode size to a reasonable range. 0 means "auto", treated as 64.
-            var size = decodePixel <= 0 ? 64 : Math.Max(16, Math.Min(decodePixel, 512));
-            var key = $"{size}\u001f{(gray ? 1 : 0)}\u001f{uri}";
+            var size = NormalizeDecodePixel(decodePixel);
+            var key = $"{size}\u001f{requestedUri}";
 
             if (TryGetCached(key, out var cached))
             {
@@ -92,7 +99,7 @@ namespace PlayniteAchievements.Services.Images
             }
 
             // Dedupe work per key, but allow UI-level cancellation (we just won't apply the result).
-            var inflight = _inflight.GetOrAdd(key, _ => LoadAndCacheAsync(key, uri, size, gray));
+            var inflight = _inflight.GetOrAdd(key, _ => LoadAndCacheAsync(key, requestedUri, size));
             return inflight.WithCancellation(cancel);
         }
 
@@ -117,15 +124,24 @@ namespace PlayniteAchievements.Services.Images
             return false;
         }
 
-        private async Task<BitmapSource> LoadAndCacheAsync(string key, string uri, int decodePixel, bool gray)
+        private async Task<BitmapSource> LoadAndCacheAsync(string key, string requestedUri, int decodePixel)
         {
             try
             {
+                var uri = requestedUri;
+                TryStripCacheBust(ref uri);
+                bool gray = TryStripGrayPrefix(ref uri);
+                TryStripPreviewHttpPrefix(ref uri);
+                if (string.IsNullOrWhiteSpace(uri))
+                {
+                    return null;
+                }
+
                 BitmapSource bmp;
                 if (IsHttpUrl(uri))
                 {
-                    // HTTP URIs should only be used during download in RefreshRuntime.
-                    // At display time, check disk cache only - do NOT download.
+                    // Route preview HTTP values through the normal disk-cache path.
+                    // This avoids creating thread-affined WPF image objects in ad-hoc direct-load paths.
                     bmp = await LoadFromDiskCacheAsync(uri, decodePixel).ConfigureAwait(false);
                 }
                 else
@@ -176,6 +192,41 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return gray;
+        }
+
+        private static bool TryStripPreviewHttpPrefix(ref string uri)
+        {
+            if (string.IsNullOrWhiteSpace(uri) ||
+                !uri.StartsWith(PreviewHttpPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            uri = uri.Substring(PreviewHttpPrefix.Length);
+            return true;
+        }
+
+        private static void TryStripCacheBust(ref string uri)
+        {
+            if (string.IsNullOrWhiteSpace(uri) ||
+                !uri.StartsWith(CacheBustPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var firstSeparator = uri.IndexOf('|');
+            if (firstSeparator < 0)
+            {
+                return;
+            }
+
+            var secondSeparator = uri.IndexOf('|', firstSeparator + 1);
+            if (secondSeparator < 0 || secondSeparator + 1 >= uri.Length)
+            {
+                return;
+            }
+
+            uri = uri.Substring(secondSeparator + 1);
         }
 
         private static BitmapSource ConvertToGrayscale(BitmapSource source)
@@ -240,6 +291,16 @@ namespace PlayniteAchievements.Services.Images
             }
         }
 
+        private static int NormalizeDecodePixel(int decodePixel)
+        {
+            if (decodePixel <= 0)
+            {
+                return DefaultDecodePixel;
+            }
+
+            return Math.Max(MinDecodePixel, Math.Min(decodePixel, MaxDecodePixel));
+        }
+
         private void AddToCache(string key, BitmapSource value)
         {
             lock (_cacheLock)
@@ -273,12 +334,13 @@ namespace PlayniteAchievements.Services.Images
         {
             try
             {
+                var isGif = IsGifPathOrUri(uri);
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
 
-                if (decodePixel > 0)
+                if (!isGif && decodePixel > 0)
                 {
                     bitmap.DecodePixelWidth = decodePixel;
                 }
@@ -294,23 +356,32 @@ namespace PlayniteAchievements.Services.Images
         }
 
         /// <summary>
-        /// Load an image from disk cache only. Returns null if not cached.
-        /// HTTP URIs should be resolved during refresh, not at display time.
+        /// Load an image from disk cache. If missing, attempt to download and cache it.
         /// </summary>
         private async Task<BitmapSource> LoadFromDiskCacheAsync(string uri, int decodePixel)
         {
             try
             {
-                if (!_diskService.IsIconCached(uri, decodePixel, gameId: null))
+                var decodeForCache = IsGifPathOrUri(uri) ? 0 : decodePixel;
+                var cachePath = _diskService.GetIconCachePathFromUri(uri, decodeForCache, gameId: null);
+                if (string.IsNullOrWhiteSpace(cachePath))
                 {
                     return null;
                 }
 
-                var cachePath = _diskService.GetIconCachePathFromUri(uri, decodePixel, gameId: null);
+                if (!File.Exists(cachePath))
+                {
+                    cachePath = await _diskService
+                        .GetOrDownloadIconAsync(uri, decodeForCache, CancellationToken.None, gameId: null)
+                        .ConfigureAwait(false);
+                }
+
                 if (string.IsNullOrWhiteSpace(cachePath) || !File.Exists(cachePath))
                 {
                     return null;
                 }
+
+                var isGif = IsGifPathOrUri(cachePath);
 
                 return await Task.Run(() =>
                 {
@@ -318,7 +389,7 @@ namespace PlayniteAchievements.Services.Images
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-                    if (decodePixel > 0)
+                    if (!isGif && decodePixel > 0)
                     {
                         bitmap.DecodePixelWidth = decodePixel;
                     }
@@ -338,6 +409,27 @@ namespace PlayniteAchievements.Services.Images
         {
             return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                    url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsGifPathOrUri(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            try
+            {
+                if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+                {
+                    return uri.AbsolutePath.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+            catch
+            {
+            }
+
+            return value.EndsWith(".gif", StringComparison.OrdinalIgnoreCase);
         }
     }
 

@@ -9,6 +9,7 @@
              xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -17,6 +18,7 @@
         <ResourceDictionary>
             <conv:NullableDoubleTextConverter x:Key="NullableDoubleTextConverter"/>
             <conv:EnumToBoolConverter x:Key="EnumToBool"/>
+            <conv:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
 
             <Style x:Key="PreviewThemeControlStyle"
                    TargetType="{x:Type base:ThemeControlBase}">
@@ -209,7 +211,7 @@
     <Grid Margin="24,20,24,24">
         <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
             <!-- ================== TAB: GENERAL SETTINGS ================== -->
-            <TabItem x:Name="GeneralTab" Header="{DynamicResource LOCPlayAch_Settings_TabGeneral}">
+            <TabItem x:Name="GeneralTab" Header="{DynamicResource LOCPlayAch_Common_General}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">
@@ -236,11 +238,11 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GlobalLanguage}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Language}"
                                                    Foreground="{DynamicResource TextBrush}"
                                                    FontWeight="SemiBold"
                                                    Margin="0,0,0,2"/>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GlobalLanguageHint}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_LanguageHint}"
                                                    Style="{StaticResource MutedTextStyle}"/>
                                     </StackPanel>
 
@@ -330,7 +332,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RecentRefresh_Title}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_RefreshMode_Recent}"
                                                    Foreground="{DynamicResource TextBrush}"
                                                    FontWeight="SemiBold"
                                                    Margin="0,0,0,2"/>
@@ -445,6 +447,8 @@
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
                                         <!-- Has Achievements Tag -->
@@ -481,7 +485,7 @@
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_Completed}"
+                                                   Text="{DynamicResource LOCPlayAch_Completed}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,6"/>
                                         <TextBox Grid.Row="2" Grid.Column="2"
@@ -503,30 +507,58 @@
                                                  Text="{Binding Persisted.TaggingSettings.NoAchievementsConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
-                                        <!-- Excluded Tag -->
+                                        <!-- Customized Tag -->
                                         <CheckBox Grid.Row="4" Grid.Column="0"
-                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.CustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,6"/>
                                         <TextBlock Grid.Row="4" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_Excluded}"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_Customized}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,6"/>
                                         <TextBox Grid.Row="4" Grid.Column="2"
+                                                 x:Name="CustomizedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.CustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Not Customized Tag -->
+                                        <CheckBox Grid.Row="5" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.NotCustomizedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_Tagging_NotCustomized}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="5" Grid.Column="2"
+                                                 x:Name="NotCustomizedTagTextBox"
+                                                 Text="{Binding Persisted.TaggingSettings.NotCustomizedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                 Margin="0,0,0,6"/>
+
+                                        <!-- Excluded Tag -->
+                                        <CheckBox Grid.Row="6" Grid.Column="0"
+                                                  IsChecked="{Binding Persisted.TaggingSettings.ExcludedConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,8,6"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_Excluded}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,6"/>
+                                        <TextBox Grid.Row="6" Grid.Column="2"
                                                  x:Name="ExcludedTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,6"/>
 
                                         <!-- Excluded from Summaries Tag -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0"
+                                        <CheckBox Grid.Row="7" Grid.Column="0"
                                                   IsChecked="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.IsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center"
                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Row="5" Grid.Column="1"
-                                                   Text="{DynamicResource LOCPlayAch_Tagging_ExcludedFromSummaries}"
+                                        <TextBlock Grid.Row="7" Grid.Column="1"
+                                                   Text="{DynamicResource LOCPlayAch_GameOptions_Status_ExcludedFromSummaries}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,12,0"/>
-                                        <TextBox Grid.Row="5" Grid.Column="2"
+                                        <TextBox Grid.Row="7" Grid.Column="2"
                                                  x:Name="ExcludedFromSummariesTagTextBox"
                                                  Text="{Binding Persisted.TaggingSettings.ExcludedFromSummariesConfig.DisplayName, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
                                                  Margin="0,0,0,0"/>
@@ -577,90 +609,199 @@
                             </StackPanel>
                         </Border> -->
 
-                        <!-- ================== DATA MANAGEMENT ================== -->
+                        <!-- ================== MAINTENANCE ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Cache_Title}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Title}"
                                            Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Maintenance_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"/>
 
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_Cache_Description}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               VerticalAlignment="Center"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Row="0" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_WipeCache_All}"
-                                            Click="WipeCache_Click"
-                                            Padding="14,6"
-                                            Margin="16,0,0,0"
-                                            MinWidth="90"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_CachedAchievementData_ClearDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ImageCache_Description}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    Click="WipeCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                    <Button Grid.Row="1" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ImageCache_Clear}"
-                                            Click="ClearImageCache_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_IconCache_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <Button Grid.Row="2" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
-                                            Click="ResetFirstTimeSetup_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearAllDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <TextBlock Grid.Row="3" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    Click="ClearAllIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
 
-                                    <Button Grid.Row="3" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
-                                            Click="ExportDatabase_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="4" Grid.Column="0"
-                                               Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
-                                               Style="{StaticResource MutedTextStyle}"
-                                               Margin="0,10,0,0"
-                                               VerticalAlignment="Top"/>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearCompressedDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
 
-                                    <Button Grid.Row="4" Grid.Column="1"
-                                            Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
-                                            Click="OpenDataFolder_Click"
-                                            Padding="14,6"
-                                            Margin="16,10,0,0"
-                                            MinWidth="90"/>
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    Click="ClearCompressedIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
 
-                                </Grid>
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    Click="ClearFullResolutionIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_IconCache_ClearLockedDescription}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                                    Click="ClearLockedIconCache_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Utilities_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,12"/>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetup}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_ResetFirstTimeSetupButton}"
+                                                    Click="ResetFirstTimeSetup_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid Style="{StaticResource SettingRowStyle}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_ExportDatabase}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_ExportDatabaseButton}"
+                                                    Click="ExportDatabase_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_OpenDataFolder}"
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       VerticalAlignment="Center"/>
+
+                                            <Button Grid.Column="1"
+                                                    Content="{DynamicResource LOCPlayAch_Settings_OpenDataFolderButton}"
+                                                    Click="OpenDataFolder_Click"
+                                                    Padding="14,6"
+                                                    Margin="16,0,0,0"
+                                                    MinWidth="130"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -687,7 +828,7 @@
                             <StackPanel>
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GeneralSection}"
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,0,0,10"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCompactGridMode}"
@@ -735,7 +876,7 @@
                                         </StackPanel>
 
                                         <StackPanel Margin="0,0,0,8">
-                                            <RadioButton Content="{DynamicResource LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide}"
+                                            <RadioButton Content="{DynamicResource LOCPlayAch_Common_Hide}"
                                                          GroupName="SidebarPieSmallSliceMode"
                                                          Style="{StaticResource SidebarPieModeRadioButtonStyle}"
                                                          IsChecked="{Binding Persisted.SidebarPieSmallSliceMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource EnumToBool}, ConverterParameter=Hide}"/>
@@ -763,8 +904,14 @@
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowSidebarBarCharts}"
                                                   IsChecked="{Binding Persisted.ShowSidebarBarCharts}"
                                                   Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowGamePlatformPlaytimeRegion}"
+                                                  IsChecked="{Binding Persisted.ShowSidebarGameMetadata}"
+                                                  Margin="0,0,0,8"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_UseCoverImages}"
-                                                  IsChecked="{Binding Persisted.UseCoverImages}"/>
+                                                  IsChecked="{Binding Persisted.UseCoverImages}"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletionBorder}"
+                                                  IsChecked="{Binding Persisted.ShowCompletionBorder}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -773,7 +920,7 @@
                         <!-- ================== ACHIEVEMENTS SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_AchievementsSection}"
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Achievements}"
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
@@ -822,6 +969,32 @@
                                     </StackPanel>
                                 </Border>
 
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Description}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,8"
+                                                   TextWrapping="Wrap"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable}"
+                                                  IsChecked="{Binding Persisted.UseSeparateLockedIconsWhenAvailable}"
+                                                  Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="24,0,0,10"
+                                                   TextWrapping="Wrap"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_PreserveAchievementIconResolution}"
+                                                  IsChecked="{Binding Persisted.PreserveAchievementIconResolution}"
+                                                  Margin="0,0,0,4"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PreserveAchievementIconResolution_Help}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="24,0,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Hidden Achievement Visibility -->
                                 <Border Style="{StaticResource SettingGroupCardStyle}">
                                     <StackPanel>
@@ -857,11 +1030,22 @@
                         <!-- ================== COMPACT LIST PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactListPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementCompactListControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementCompactListControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -873,7 +1057,44 @@
                                         <TextBlock Text="SETTINGS"
                                                    Style="{StaticResource ContextLabelStyle}"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompactListRarityBar}"
-                                                  IsChecked="{Binding Persisted.ShowCompactListRarityBar}"/>
+                                                  IsChecked="{Binding Persisted.ShowCompactListRarityBar}"
+                                                  Margin="0,0,0,8"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_SortBy}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"/>
+                                            <ComboBox Grid.Column="1"
+                                                      SelectedValue="{Binding Persisted.CompactListSortMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
+                                            </ComboBox>
+                                            <Button Grid.Column="2"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Click="ToggleCompactListSortDescending">
+                                                <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="&#xea65;"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Persisted.CompactListSortDescending}" Value="True">
+                                                                    <Setter Property="Text" Value="&#xea66;"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -882,11 +1103,22 @@
                         <!-- ================== DATA GRID PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementDataGridPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementDataGridControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementDataGridControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -911,55 +1143,164 @@
                         </Border>
 
                         <!-- ================== COMPACT UNLOCKED LIST PREVIEW SECTION ================== -->
-                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactUnlockedListPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementCompactUnlockedListControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementCompactUnlockedListControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
                                         <modern:AchievementCompactUnlockedListControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
                                             ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            IconSize="48"/>
+                                            IconSize="48"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_SortBy}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"/>
+                                            <ComboBox Grid.Column="1"
+                                                      SelectedValue="{Binding Persisted.CompactUnlockedListSortMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
+                                            </ComboBox>
+                                            <Button Grid.Column="2"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Click="ToggleCompactUnlockedListSortDescending">
+                                                <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="&#xea65;"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Persisted.CompactUnlockedListSortDescending}" Value="True">
+                                                                    <Setter Property="Text" Value="&#xea66;"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
                         </Border>
-                        -->
 
                         <!-- ================== COMPACT LOCKED LIST PREVIEW SECTION ================== -->
-                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CompactLockedListPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementCompactLockedListControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementCompactLockedListControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
                                         <modern:AchievementCompactLockedListControl
+                                            Style="{StaticResource PreviewThemeControlStyle}"
                                             ThemeDataOverride="{Binding PreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            IconSize="48"/>
+                                            IconSize="48"
+                                            Margin="0,0,0,12"/>
+                                        <TextBlock Text="SETTINGS"
+                                                   Style="{StaticResource ContextLabelStyle}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_SortBy}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"/>
+                                            <ComboBox Grid.Column="1"
+                                                      SelectedValue="{Binding Persisted.CompactLockedListSortMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_None}" Tag="{x:Static settings:CompactListSortMode.None}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_UnlockTime}" Tag="{x:Static settings:CompactListSortMode.UnlockTime}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Rarity}" Tag="{x:Static settings:CompactListSortMode.Rarity}"/>
+                                            </ComboBox>
+                                            <Button Grid.Column="2"
+                                                    ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                                                    Margin="4,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Click="ToggleCompactLockedListSortDescending">
+                                                <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="&#xea65;"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Persisted.CompactLockedListSortDescending}" Value="True">
+                                                                    <Setter Property="Text" Value="&#xea66;"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
                         </Border>
-                        -->
 
                         <!-- ================== PROGRESS BAR PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProgressBarPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementProgressBarControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementProgressBarControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -974,11 +1315,22 @@
                         <!-- ================== STATS PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_StatsPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementStatsControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementStatsControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -993,11 +1345,22 @@
                         <!-- ================== BUTTON PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ButtonPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementButtonControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementButtonControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -1015,14 +1378,24 @@
                         </Border>
 
                         <!-- ================== VIEW ITEM PREVIEW SECTION ================== -->
-                        <!-- Disabled until this preview is needed.
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewItemPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementViewItemControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementViewItemControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -1038,16 +1411,26 @@
                                 </Border>
                             </StackPanel>
                         </Border>
-                        -->
 
                         <!-- ================== PIE CHART PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PieChartPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementPieChartControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementPieChartControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -1064,11 +1447,22 @@
                         <!-- ================== BAR CHART PREVIEW SECTION ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview}"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           Margin="0,0,0,12"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_BarChartPreview}"
+                                               Style="{StaticResource SectionHeaderStyle}"
+                                               Margin="0"/>
+                                    <CheckBox Grid.Column="1"
+                                              Content="{DynamicResource LOCPlayAch_Common_Enabled}"
+                                              IsChecked="{Binding Persisted.EnableAchievementBarChartControl}"
+                                              VerticalAlignment="Center"/>
+                                </Grid>
                                 <Border Style="{StaticResource SectionAccentRuleStyle}"/>
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        Visibility="{Binding Persisted.EnableAchievementBarChartControl, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
                                         <TextBlock Text="PREVIEW"
                                                    Style="{StaticResource ContextLabelStyle}"/>
@@ -1095,12 +1489,10 @@
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <TextBlock Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16">
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"/>
-                                    <LineBreak/>
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_BackupNote}"/>
-                                </TextBlock>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"
+                                           TextWrapping="Wrap"/>
 
                                 <!-- Theme Dropdown -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
@@ -1126,7 +1518,7 @@
                                             ToolTipService.ShowOnDisabled="True">
                                         <Button.ToolTip>
                                             <ToolTip>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_LimitedTooltip}"
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                            TextWrapping="Wrap"
                                                            MaxWidth="250"/>
                                             </ToolTip>
@@ -1140,7 +1532,7 @@
                                             ToolTipService.ShowOnDisabled="True">
                                         <Button.ToolTip>
                                             <ToolTip>
-                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_FullTooltip}"
+                                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                            TextWrapping="Wrap"
                                                            MaxWidth="250"/>
                                             </ToolTip>
@@ -1169,7 +1561,7 @@
                                         </Expander.Header>
 
                                         <StackPanel Margin="12,0,12,12">
-                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_CustomDescription}"
+                                            <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Description}"
                                                        Style="{StaticResource MutedTextStyle}"
                                                        HorizontalAlignment="Left"
                                                        Margin="0,0,0,12"
@@ -1260,11 +1652,6 @@
                                            Style="{StaticResource SectionHeaderStyle}"
                                            Margin="0,0,0,12"/>
 
-                                <TextBlock Style="{StaticResource MutedTextStyle}"
-                                           Margin="0,0,0,16">
-                                    <Run Text="{DynamicResource LOCPlayAch_ThemeMigration_RevertDescription}"/>
-                                </TextBlock>
-
                                 <!-- Revertable Theme Dropdown and Revert Button -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>
@@ -1303,6 +1690,8 @@
         </TabControl>
     </Grid>
 </UserControl>
+
+
 
 
 

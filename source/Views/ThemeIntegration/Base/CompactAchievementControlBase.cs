@@ -132,7 +132,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 Height = IconHeight,
                 ToolTip = achievement.DisplayName,
                 Icon = achievement.UnlockedIconDisplay,
-                IconCustom = achievement.UnlockedIconDisplay,
+                IconCustom = achievement.LockedIconDisplay,
                 IsLocked = false,
                 Percent = achievement.RarityPercentValue,
                 HasRarityPercent = achievement.HasRarityPercent,

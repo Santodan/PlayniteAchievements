@@ -13,7 +13,18 @@
                                          ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementDataGridControl}}"
                                          ColumnSettingsKey="DesktopTheme"
                                          UseExternalSorting="True"
-                                         Sorting="AchievementsGrid_Sorting"/>
+                                         Sorting="AchievementsGrid_Sorting">
+        <controls:AchievementDataGridControl.Style>
+            <Style TargetType="controls:AchievementDataGridControl">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementDataGridControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </controls:AchievementDataGridControl.Style>
+    </controls:AchievementDataGridControl>
 </base:ThemeControlBase>
 
 

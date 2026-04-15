@@ -38,6 +38,9 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             _playniteApi = playniteApi;
             InitializeComponent();
+            ConnectionLabel.Text = string.Format(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ProviderConnection"),
+                ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3"));
         }
 
         public override void Initialize(IProviderSettings settings)
@@ -87,7 +90,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (string.IsNullOrWhiteSpace(exePath))
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Settings_Rpcs3_NotConfigured");
+                SetAuthStatus(string.Format(ResourceProvider.GetString("LOCPlayAch_Settings_NotConfigured"), ResourceProvider.GetString("LOCPlayAch_Provider_RPCS3")));
                 return;
             }
 
@@ -95,7 +98,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (string.IsNullOrWhiteSpace(installFolder) || !System.IO.Directory.Exists(installFolder))
             {
                 SetAuthenticated(false);
-                SetAuthStatusByKey("LOCPlayAch_Rpcs3Validation_InvalidPath");
+                SetAuthStatusByKey("LOCPlayAch_InvalidPath");
                 return;
             }
 
@@ -139,22 +142,8 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return;
             }
 
-            var trophyCount = 0;
-            try
-            {
-                trophyCount = System.IO.Directory.GetDirectories(trophyPath)
-                    .Count(d => System.IO.File.Exists(System.IO.Path.Combine(d, "TROPCONF.SFM")));
-            }
-            catch
-            {
-            }
-
             SetAuthenticated(true);
-            var successMsg = ResourceProvider.GetString("LOCPlayAch_Rpcs3Validation_Success");
-            if (!string.IsNullOrWhiteSpace(successMsg))
-            {
-                SetAuthStatus(string.Format(successMsg, trophyCount));
-            }
+            SetAuthStatusByKey("LOCPlayAch_Status_Succeeded");
         }
 
         private void SetAuthStatusByKey(string key)

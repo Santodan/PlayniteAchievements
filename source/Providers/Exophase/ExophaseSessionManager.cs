@@ -90,18 +90,30 @@ namespace PlayniteAchievements.Providers.Exophase
                         return AuthProbeResult.AlreadyAuthenticated(accountProbe.Username);
                     }
 
-                    _logger?.Warn("[ExophaseAuth] Not authenticated - deleting cookie snapshot and clearing UserId");
-                    DeleteSavedCookieSnapshot();
-                    ClearPersistedUserId();
+                    // Only destroy auth state when the server explicitly redirected
+                    // to login. Transient failures (network, timeout, CEF issues)
+                    // should preserve the snapshot for the next attempt.
+                    if (accountProbe.WasRedirectedToLogin)
+                    {
+                        _logger?.Warn("[ExophaseAuth] Server redirected to login - session expired, clearing auth state");
+                        DeleteSavedCookieSnapshot();
+                        ClearPersistedUserId();
+                    }
+                    else
+                    {
+                        _logger?.Warn("[ExophaseAuth] Probe failed without login redirect - preserving snapshot for retry");
+                    }
+
                     return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
                 {
+                    _logger?.Warn("[ExophaseAuth] Probe cancelled - preserving snapshot for retry");
                     return AuthProbeResult.Cancelled();
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Error(ex, "[ExophaseAuth] Auth probe failed");
+                    _logger?.Error(ex, "[ExophaseAuth] Auth probe failed with exception - preserving snapshot for retry");
                     return AuthProbeResult.ProbeFailed();
                 }
             }
@@ -275,10 +287,15 @@ namespace PlayniteAchievements.Providers.Exophase
                 var resultTask = await dispatchOperation.Task.ConfigureAwait(false);
                 var result = await resultTask.ConfigureAwait(false);
 
-                // Update snapshot with fresh cookies if authenticated
+                // Merge fresh probe cookies with snapshot to avoid degradation.
+                // The server may not re-include all auth cookies in its response,
+                // so we preserve snapshot cookies absent from the probe result.
                 if (result?.IsAuthenticated == true && result.Cookies?.Count > 0)
                 {
-                    _cookieSnapshotStore.Save(result.Cookies);
+                    var mergedCookies = snapshotLoaded && snapshotCookies?.Count > 0
+                        ? MergeCookieSets(snapshotCookies, result.Cookies)
+                        : result.Cookies;
+                    _cookieSnapshotStore.Save(mergedCookies);
                 }
 
                 return result ?? new ExophaseAccountProbeResult();
@@ -301,6 +318,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 if (IsLoginPageUrl(result.FinalUrl))
                 {
+                    result.WasRedirectedToLogin = true;
                     return result;
                 }
 
@@ -322,6 +340,8 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             view.DeleteDomainCookies(".exophase.com");
             view.DeleteDomainCookies("exophase.com");
+            view.DeleteDomainCookies(".www.exophase.com");
+            view.DeleteDomainCookies("www.exophase.com");
 
             foreach (var cookie in cookies ?? Enumerable.Empty<HttpCookie>())
             {
@@ -528,6 +548,77 @@ namespace PlayniteAchievements.Providers.Exophase
             };
         }
 
+        /// <summary>
+        /// Merges fresh probe cookies with an existing snapshot, preferring probe values
+        /// but preserving snapshot cookies absent from the probe result.
+        /// Prevents progressive cookie degradation across restarts.
+        /// </summary>
+        private List<HttpCookie> MergeCookieSets(
+            IReadOnlyList<HttpCookie> snapshotCookies,
+            IReadOnlyList<HttpCookie> freshCookies)
+        {
+            if (snapshotCookies == null || snapshotCookies.Count == 0)
+            {
+                return freshCookies?.ToList() ?? new List<HttpCookie>();
+            }
+
+            if (freshCookies == null || freshCookies.Count == 0)
+            {
+                return snapshotCookies.ToList();
+            }
+
+            // Index fresh cookies by normalized "Name|Domain" for O(1) lookup.
+            var freshKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in freshCookies)
+            {
+                if (c != null && !string.IsNullOrWhiteSpace(c.Name))
+                {
+                    freshKeys.Add(CookieKey(c.Name, c.Domain));
+                }
+            }
+
+            // Start with all fresh cookies.
+            var merged = new List<HttpCookie>(freshCookies.Count + snapshotCookies.Count);
+            foreach (var cookie in freshCookies)
+            {
+                if (cookie != null)
+                {
+                    merged.Add(CloneCookie(cookie));
+                }
+            }
+
+            // Preserve snapshot cookies that have no matching fresh cookie.
+            var preservedNames = new List<string>();
+            foreach (var cookie in snapshotCookies)
+            {
+                if (cookie == null || string.IsNullOrWhiteSpace(cookie.Name))
+                {
+                    continue;
+                }
+
+                if (!freshKeys.Contains(CookieKey(cookie.Name, cookie.Domain)))
+                {
+                    merged.Add(CloneCookie(cookie));
+                    preservedNames.Add(cookie.Name);
+                }
+            }
+
+            if (preservedNames.Count > 0)
+            {
+                _logger?.Debug($"[ExophaseAuth] Merge preserved {preservedNames.Count} snapshot-only cookie(s): {string.Join(", ", preservedNames)}");
+            }
+
+            return merged;
+        }
+
+        private static string CookieKey(string name, string domain)
+        {
+            var normalizedDomain = string.IsNullOrWhiteSpace(domain)
+                ? ""
+                : domain.Trim().TrimStart('.').ToLowerInvariant();
+            return $"{name ?? ""}|{normalizedDomain}";
+        }
+
         private static string BuildCookieOriginUrl(HttpCookie cookie)
         {
             var domain = (cookie?.Domain ?? string.Empty).Trim().TrimStart('.');
@@ -569,6 +660,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
             public List<HttpCookie> Cookies { get; set; } = new List<HttpCookie>();
             public bool IsAuthenticated => !string.IsNullOrWhiteSpace(Username);
+
+            /// <summary>
+            /// True when the server redirected to the login page, indicating
+            /// the session has definitively expired (vs a transient failure).
+            /// </summary>
+            public bool WasRedirectedToLogin { get; set; }
         }
     }
 }

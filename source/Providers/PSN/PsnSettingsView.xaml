@@ -26,6 +26,17 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="20">
+
+            <!-- Provider Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <Path Data="{StaticResource GeoPSN}" Fill="#0070D1"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_PSN}"
+                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
             <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
@@ -47,7 +58,7 @@
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PsnConnection}"
+                    <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
                     <StackPanel Margin="0,0,0,16">
@@ -68,7 +79,7 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="{DynamicResource LOCPlayAch_Label_PsnAuth}"
+                        <TextBlock Grid.Column="0" x:Name="AuthLabel"
                                    Foreground="{DynamicResource TextBrush}" VerticalAlignment="Top" Margin="0,8,0,0"/>
 
                         <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}"
@@ -108,7 +119,7 @@
                                 </Grid>
 
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Psn_Check}"
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Click="PsnAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="0,0,8,0"/>
@@ -154,3 +165,5 @@
         </StackPanel>
     </ScrollViewer>
 </settings:ProviderSettingsViewBase>
+
+

@@ -36,7 +36,7 @@
                           Visibility="{Binding ElementName=PART_AllPeriod, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}"
                           Click="ToggleButtonCut_Click" />
 
-            <ToggleButton Grid.Column="3" Content="{DynamicResource LOCPlayAch_ChartAll}" IsChecked="{Binding AllPeriod, FallbackValue=True}"
+            <ToggleButton Grid.Column="3" Content="{DynamicResource LOCPlayAch_TimeRange_All}" IsChecked="{Binding AllPeriod, FallbackValue=True}"
                           Name="PART_AllPeriod"
                           Click="ToggleButtonAllPeriod_Click" />
         </Grid>
@@ -93,3 +93,4 @@
         </Grid>
     </Grid>
 </local:ThemeControlBase>
+

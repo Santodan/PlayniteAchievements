@@ -1,3 +1,4 @@
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 
@@ -34,6 +35,13 @@ namespace PlayniteAchievements.Models.Settings
         public Dictionary<string, bool> UnlockStates { get; set; } = new Dictionary<string, bool>();
 
         /// <summary>
+        /// For Exophase links, true allows unauthenticated schema fetch and false follows the current auth setting.
+        /// Null preserves pre-flag legacy links, which are treated as grandfathered unauthenticated links.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public bool? AllowUnauthenticatedSchemaFetch { get; set; }
+
+        /// <summary>
         /// UTC timestamp when this link was first created.
         /// </summary>
         public DateTime CreatedUtc { get; set; }
@@ -58,6 +66,7 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockStates = this.UnlockStates != null
                     ? new Dictionary<string, bool>(this.UnlockStates)
                     : new Dictionary<string, bool>(),
+                AllowUnauthenticatedSchemaFetch = this.AllowUnauthenticatedSchemaFetch,
                 CreatedUtc = this.CreatedUtc,
                 LastModifiedUtc = this.LastModifiedUtc
             };

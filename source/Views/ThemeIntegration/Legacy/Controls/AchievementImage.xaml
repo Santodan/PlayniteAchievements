@@ -30,33 +30,49 @@
 
         <!-- Border for image container -->
         <Border>
-            <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant" x:Name="PART_Image"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Loaded="Image_Loaded" ImageFailed="Image_ImageFailed"
-                   helpers:AsyncImage.Gray="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}">
-                <helpers:AsyncImage.Uri>
-                    <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
-                        <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
-                        <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
-                        <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
-                    </MultiBinding>
-                </helpers:AsyncImage.Uri>
-                <Image.Style>
-                    <Style TargetType="{x:Type Image}">
-                        <Style.Triggers>
-                            <!-- Rarity indicator glow effect - color based on achievement rarity, only for unlocked -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
-                                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
-                                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
+            <Grid ClipToBounds="False">
+                <Image Stretch="UniformToFill"
+                       RenderOptions.BitmapScalingMode="Fant"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+                    <helpers:AsyncImage.Uri>
+                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                        </MultiBinding>
+                    </helpers:AsyncImage.Uri>
+                    <Image.Style>
+                        <Style TargetType="{x:Type Image}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Effect" Value="{x:Null}"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=EnableRaretyIndicator}" Value="True"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IsLocked}" Value="False"/>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=ShowRarityGlow}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Effect" Value="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Rarity, Converter={StaticResource PercentToRarityGlowConverter}}"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+                <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant" x:Name="PART_Image"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Loaded="Image_Loaded" ImageFailed="Image_ImageFailed">
+                    <helpers:AsyncImage.Uri>
+                        <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IconCustom" />
+                            <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="Icon" />
+                        </MultiBinding>
+                    </helpers:AsyncImage.Uri>
+                </Image>
+            </Grid>
         </Border>
 
         <!-- Custom icon text overlay (only shown when using custom locked icon) -->

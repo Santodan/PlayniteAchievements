@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Windows.Controls;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.ThemeIntegration;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 {
@@ -22,16 +24,58 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected override bool FilterAchievement(AchievementDetail achievement) => achievement.Unlocked;
 
         /// <summary>
-        /// Mirrors legacy PluginCompactUnlocked behavior: newest unlocked achievements first.
+        /// Selects the pre-sorted achievement collection based on CompactUnlockedListSortMode and direction.
+        /// None (default) preserves newest-first ordering.
         /// </summary>
-        protected override List<AchievementDetail> GetOrderedAchievements(Models.ThemeIntegration.ModernThemeBindings theme)
+        protected override List<AchievementDetail> GetOrderedAchievements(ModernThemeBindings theme)
         {
-            return theme?.AchievementsNewestFirst ?? base.GetOrderedAchievements(theme);
+            if (theme == null)
+            {
+                return new List<AchievementDetail>();
+            }
+
+            var settings = EffectiveSettings?.Persisted;
+            if (settings == null)
+            {
+                return theme.AchievementsNewestFirst ?? base.GetOrderedAchievements(theme);
+            }
+
+            switch (settings.CompactUnlockedListSortMode)
+            {
+                case CompactListSortMode.UnlockTime:
+                    return settings.CompactUnlockedListSortDescending
+                        ? theme.AchievementsNewestFirst ?? theme.AllAchievements
+                        : theme.AchievementsOldestFirst ?? theme.AllAchievements;
+                case CompactListSortMode.Rarity:
+                    return settings.CompactUnlockedListSortDescending
+                        ? theme.AchievementsRarityDesc ?? theme.AllAchievements
+                        : theme.AchievementsRarityAsc ?? theme.AllAchievements;
+                default:
+                    return theme.AchievementsNewestFirst ?? base.GetOrderedAchievements(theme);
+            }
         }
 
         protected override string GetOrderedAchievementsPropertyName()
         {
-            return nameof(Models.ThemeIntegration.ModernThemeBindings.AchievementsNewestFirst);
+            var settings = EffectiveSettings?.Persisted;
+            if (settings == null)
+            {
+                return nameof(ModernThemeBindings.AchievementsNewestFirst);
+            }
+
+            switch (settings.CompactUnlockedListSortMode)
+            {
+                case CompactListSortMode.UnlockTime:
+                    return settings.CompactUnlockedListSortDescending
+                        ? nameof(ModernThemeBindings.AchievementsNewestFirst)
+                        : nameof(ModernThemeBindings.AchievementsOldestFirst);
+                case CompactListSortMode.Rarity:
+                    return settings.CompactUnlockedListSortDescending
+                        ? nameof(ModernThemeBindings.AchievementsRarityDesc)
+                        : nameof(ModernThemeBindings.AchievementsRarityAsc);
+                default:
+                    return nameof(ModernThemeBindings.AchievementsNewestFirst);
+            }
         }
 
         /// <summary>
@@ -41,8 +85,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             if (AchievementsList != null)
             {
-                // Direct reassignment without null first - WPF detects collection changes
-                // and only updates what's needed rather than rebuilding entire visual tree
                 AchievementsList.ItemsSource = DisplayItems;
             }
         }

@@ -314,6 +314,18 @@
                 </Style.Triggers>
             </Style>
 
+            <Style x:Key="OverviewGameMetadataTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Opacity" Value="0.6"/>
+                <Setter Property="Margin" Value="0,4,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="0,2,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
             <Style x:Key="OverviewProviderIconStyle" TargetType="Image">
                 <Setter Property="Width" Value="32"/>
                 <Setter Property="Height" Value="32"/>
@@ -727,11 +739,11 @@
                                                  ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                                 </Button.ContextMenu>
                             </Button>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Unlocked}"
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
                                   IsChecked="{Binding ShowSelectedGameUnlocked}"
                                   VerticalAlignment="Center"
                                   Margin="0,0,8,0"/>
-                            <CheckBox Content="{DynamicResource LOCPlayAch_Sidebar_Locked}"
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Common_Locked}"
                                   IsChecked="{Binding ShowSelectedGameLocked}"
                                   VerticalAlignment="Center"
                                   Margin="0,0,8,0"/>
@@ -815,9 +827,13 @@
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
                                                                 <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
+                                                            </MultiDataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
@@ -839,18 +855,30 @@
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
                                                                 <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
+                                                            </MultiDataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
                                             </Border>
-                                            <TextBlock Text="{Binding GameName}"
-                                                       HorizontalAlignment="Left"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Style="{StaticResource OverviewGameNameTextStyle}"/>
+                                            <StackPanel VerticalAlignment="Center"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding GameName}"
+                                                           HorizontalAlignment="Left"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Style="{StaticResource OverviewGameNameTextStyle}"/>
+                                                <TextBlock Text="{Binding SecondaryMetadataText}"
+                                                           HorizontalAlignment="Left"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Style="{StaticResource OverviewGameMetadataTextStyle}"
+                                                           Visibility="{Binding DataContext.ShowSidebarGameMetadata, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}"/>
+                                            </StackPanel>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -858,7 +886,7 @@
 
                             <!-- Platform -->
                             <DataGridTemplateColumn Width="40" MinWidth="40" MaxWidth="40"
-                                                    Header="{DynamicResource LOCPlayAch_Filter_ProviderSelectorPlaceholder}"
+                                                    Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                                     CanUserResize="False"
                                                     CanUserSort="False"
                                                     helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlatform">
@@ -875,9 +903,13 @@
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
                                                                 <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
+                                                            </MultiDataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
@@ -906,9 +938,13 @@
                                                     <Style TargetType="Border">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
                                                                 <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
+                                                            </MultiDataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </Border.Style>
@@ -924,6 +960,38 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
+                            <!-- Playtime -->
+                            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Playtime}" SortMemberPath="PlaytimeSeconds" helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlaytime">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBlock Text="{Binding PlaytimeText}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Style="{DynamicResource BaseTextBlockStyle}"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       Opacity="0.7"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
                                 <!-- Progression with Rarity UNDER the bar -->
                                 <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" helpers:ColumnVisibilityHelper.ColumnKey="OverviewProgression">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -934,9 +1002,13 @@
                                                         <Style TargetType="Border">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                        <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                    </MultiDataTrigger.Conditions>
                                                                     <Setter Property="Visibility" Value="Visible"/>
-                                                                </DataTrigger>
+                                                                </MultiDataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
@@ -1062,9 +1134,13 @@
                                                         <Style TargetType="Border">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                        <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                    </MultiDataTrigger.Conditions>
                                                                     <Setter Property="Visibility" Value="Visible"/>
-                                                                </DataTrigger>
+                                                                </MultiDataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Border.Style>
@@ -1501,3 +1577,5 @@
         </Grid>
     </Grid>
 </UserControl>
+
+

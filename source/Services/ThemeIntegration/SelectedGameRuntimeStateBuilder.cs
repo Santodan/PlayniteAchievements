@@ -1,7 +1,9 @@
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Models.ThemeIntegration;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 
 namespace PlayniteAchievements.Services.ThemeIntegration
@@ -55,6 +57,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     // Modern compact lists resolve tooltip game name from AchievementDetail.Game.
                     // Ensure selected-game snapshots always carry this context.
                     achievements[i].Game = game;
+                    achievements[i].ProviderKey = data.EffectiveProviderKey;
                 }
             }
 
@@ -70,24 +73,22 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var locked = total - unlocked;
             var percent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(unlocked, total);
             var all = achievements.ToList();
-            var oldestFirst = all
-                .OrderBy(a => a?.UnlockTimeUtc)
-                .ThenBy(a => a?.DisplayName)
-                .ToList();
-            var newestFirst = all
-                .OrderByDescending(a => a?.UnlockTimeUtc)
-                .ThenBy(a => a?.DisplayName)
-                .ToList();
-            var rarityAsc = all
-                .OrderBy(a => a?.RaritySortValue ?? double.MaxValue)
-                .ThenByDescending(a => a?.Points ?? 0)
-                .ThenBy(a => a?.DisplayName)
-                .ToList();
-            var rarityDesc = all
-                .OrderByDescending(a => a?.RaritySortValue ?? double.MinValue)
-                .ThenByDescending(a => a?.Points ?? 0)
-                .ThenBy(a => a?.DisplayName)
-                .ToList();
+            var oldestFirst = AchievementGridSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Ascending);
+            var newestFirst = AchievementGridSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Descending);
+            var rarityAsc = AchievementGridSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.RaritySortValue),
+                ListSortDirection.Ascending);
+            var rarityDesc = AchievementGridSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.RaritySortValue),
+                ListSortDirection.Descending);
 
             var common = new AchievementRarityStats();
             var uncommon = new AchievementRarityStats();

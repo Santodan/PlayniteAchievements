@@ -55,6 +55,7 @@ namespace PlayniteAchievements.Views
             {
                 ["OverviewGameName"] = 500,
                 ["OverviewLastPlayed"] = 240,
+                ["OverviewPlaytime"] = 170,
                 ["OverviewProgression"] = 360,
                 ["TotalAchievements"] = 180
             };
@@ -1213,7 +1214,7 @@ namespace PlayniteAchievements.Views
             menu.Items.Add(new Separator());
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_GameOptions", () => OpenGameOptions(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ClearData", () => ClearGameData(data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Common_Action_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshes", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: false)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: true)));
 
@@ -1309,7 +1310,7 @@ namespace PlayniteAchievements.Views
                 }
 
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_SuccessSingle"), game.Name),
+                    ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -1317,7 +1318,7 @@ namespace PlayniteAchievements.Views
             {
                 _logger?.Error(ex, $"Failed to clear data for game '{game.Name}' ({game.Id}).");
                 _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_Failed"), ex.Message),
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -1440,6 +1441,5 @@ namespace PlayniteAchievements.Views
         }
     }
 }
-
 
 

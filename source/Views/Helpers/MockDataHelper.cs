@@ -285,6 +285,8 @@ namespace PlayniteAchievements.Views.Helpers
                 Locked = unlocked ? 0 : 1
             };
 
+            PopulateOrderedAchievementLists(themeData);
+
             return themeData;
         }
 
@@ -313,8 +315,29 @@ namespace PlayniteAchievements.Views.Helpers
             themeData.TotalUltraRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
             themeData.TotalRareAndUltraRare = new AchievementRarityStats { Unlocked = 2, Locked = 0, Total = 2 };
             themeData.TotalOverall = new AchievementRarityStats { Unlocked = 2, Locked = 3, Total = 5 };
+            PopulateOrderedAchievementLists(themeData);
 
             return themeData;
+        }
+
+        /// <summary>
+        /// Populates ordered achievement lists used by modern compact list controls in preview mode.
+        /// </summary>
+        private static void PopulateOrderedAchievementLists(ModernThemeBindings themeData)
+        {
+            var all = themeData?.AllAchievements ?? new List<AchievementDetail>();
+
+            // Keep the preview deterministic: source order is newest-first by default.
+            themeData.AchievementsNewestFirst = new List<AchievementDetail>(all);
+
+            var oldestFirst = new List<AchievementDetail>(all);
+            oldestFirst.Reverse();
+            themeData.AchievementsOldestFirst = oldestFirst;
+
+            themeData.AchievementsRarityAsc = new List<AchievementDetail>(all);
+            themeData.AchievementsRarityDesc = new List<AchievementDetail>(all);
+            themeData.AllAchievementsRarityAsc = new List<AchievementDetail>(all);
+            themeData.AllAchievementsRarityDesc = new List<AchievementDetail>(all);
         }
 
         /// <summary>

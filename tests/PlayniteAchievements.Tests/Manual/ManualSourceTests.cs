@@ -4,6 +4,7 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using System;
@@ -78,7 +79,12 @@ namespace PlayniteAchievements.Manual.Tests
                 IsAuthenticated = false,
                 ProbeResult = AuthProbeResult.NotAuthenticated()
             };
-            var source = new ExophaseManualSource(new FakePlayniteApi(), sessionManager, logger: null, getLanguage: () => "german");
+            var source = new ExophaseManualSource(
+                new FakePlayniteApi(),
+                sessionManager,
+                logger: null,
+                getLanguage: () => "german",
+                requireExophaseAuthentication: () => true);
 
             Assert.AreSame(sessionManager, source.AuthSession);
             Assert.IsFalse(source.IsAuthenticated);
@@ -89,6 +95,102 @@ namespace PlayniteAchievements.Manual.Tests
             Assert.AreEqual("Exophase", ex.SourceKey);
             Assert.AreEqual("LOCPlayAch_ManualAchievements_ExophaseAuthRequired", ex.MessageKey);
             Assert.AreEqual(1, sessionManager.ProbeCallCount);
+        }
+
+        [TestMethod]
+        public async Task ManualSourceAuthentication_AllowsExophaseWhenAuthRequirementDisabled()
+        {
+            var sessionManager = new ExophaseSessionManager
+            {
+                IsAuthenticated = false,
+                ProbeResult = AuthProbeResult.NotAuthenticated()
+            };
+
+            var source = new ExophaseManualSource(
+                new FakePlayniteApi(),
+                sessionManager,
+                logger: null,
+                getLanguage: () => "english",
+                requireExophaseAuthentication: () => false);
+
+            await ManualSourceAuthentication
+                .EnsureAuthenticatedIfRequiredAsync(source, requireExophaseAuthentication: false, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(0, sessionManager.ProbeCallCount);
+        }
+
+        [TestMethod]
+        public async Task ManualSourceAuthentication_AllowsExophaseWhenLinkAllowsUnauthenticatedSchemaFetch()
+        {
+            var sessionManager = new ExophaseSessionManager
+            {
+                IsAuthenticated = false,
+                ProbeResult = AuthProbeResult.NotAuthenticated()
+            };
+
+            var source = new ExophaseManualSource(
+                new FakePlayniteApi(),
+                sessionManager,
+                logger: null,
+                getLanguage: () => "english",
+                requireExophaseAuthentication: () => true);
+
+            var link = new ManualAchievementLink
+            {
+                SourceKey = "Exophase",
+                SourceGameId = "test-game",
+                AllowUnauthenticatedSchemaFetch = true
+            };
+
+            await ManualSourceAuthentication
+                .EnsureAuthenticatedIfRequiredAsync(source, requireExophaseAuthentication: true, link, CancellationToken.None)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(0, sessionManager.ProbeCallCount);
+        }
+
+        [TestMethod]
+        public async Task ManualSourceAuthentication_AllowsLegacyExophaseLinkWithoutSchemaFetchFlag()
+        {
+            var sessionManager = new ExophaseSessionManager
+            {
+                IsAuthenticated = false,
+                ProbeResult = AuthProbeResult.NotAuthenticated()
+            };
+
+            var source = new ExophaseManualSource(
+                new FakePlayniteApi(),
+                sessionManager,
+                logger: null,
+                getLanguage: () => "english",
+                requireExophaseAuthentication: () => true);
+
+            await ManualSourceAuthentication
+                .EnsureAuthenticatedIfRequiredAsync(
+                    source,
+                    requireExophaseAuthentication: true,
+                    new ManualAchievementLink { SourceKey = "Exophase", SourceGameId = "legacy-game" },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+
+            Assert.AreEqual(0, sessionManager.ProbeCallCount);
+        }
+
+        [TestMethod]
+        public async Task ManualSourceAuthentication_StillRequiresSteamWhenExophaseRequirementDisabled()
+        {
+            using var httpClient = new HttpClient(new StubHttpMessageHandler(_ => throw new InvalidOperationException("Should not send requests.")));
+            var source = new SteamManualSource(httpClient, logger: null, getApiKey: () => string.Empty);
+
+            var ex = await Assert.ThrowsExceptionAsync<ManualSourceAuthenticationException>(
+                () => ManualSourceAuthentication.EnsureAuthenticatedIfRequiredAsync(
+                    source,
+                    requireExophaseAuthentication: false,
+                    CancellationToken.None)).ConfigureAwait(false);
+
+            Assert.AreEqual("Steam", ex.SourceKey);
+            Assert.AreEqual("LOCPlayAch_ManualAchievements_Schema_ApiKeyRequired", ex.MessageKey);
         }
 
         private sealed class FakePlayniteApi : IPlayniteAPI

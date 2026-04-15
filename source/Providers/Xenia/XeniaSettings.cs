@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Xenia
@@ -10,7 +8,6 @@ namespace PlayniteAchievements.Providers.Xenia
     public class XeniaSettings : ProviderSettingsBase
     {
         private string _accountPath;
-        private Dictionary<Guid, string> _gameIdOverrides = new Dictionary<Guid, string>();
 
         /// <inheritdoc />
         public override string ProviderKey => "Xenia";
@@ -22,16 +19,6 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             get => _accountPath;
             set => SetValue(ref _accountPath, value);
-        }
-
-        /// <summary>
-        /// Per-game Xbox Title ID overrides for games where auto-detection fails.
-        /// Key = Playnite Game ID, Value = Xbox Title ID (hex string, e.g., "584109DF").
-        /// </summary>
-        public Dictionary<Guid, string> GameIdOverrides
-        {
-            get => _gameIdOverrides;
-            set => SetValue(ref _gameIdOverrides, value ?? new Dictionary<Guid, string>());
         }
     }
 }

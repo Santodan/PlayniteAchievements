@@ -139,6 +139,7 @@ namespace PlayniteAchievements.Services
             PlayniteAchievementsPlugin plugin,
             IEnumerable<IDataProvider> providers,
             DiskImageService diskImageService,
+            ManagedCustomIconService managedCustomIconService,
             ProviderRegistry providerRegistry,
             IEnumerable<string> refreshOrder,
             Action<RebuildPayload> onRefreshCompleted = null)
@@ -150,7 +151,11 @@ namespace PlayniteAchievements.Services
             if (providers == null) throw new ArgumentNullException(nameof(providers));
             _diskImageService = diskImageService ?? throw new ArgumentNullException(nameof(diskImageService));
             _cacheService = new CacheManager(api, logger, plugin, _diskImageService);
-            _achievementIconService = new AchievementIconService(_diskImageService, _logger);
+            _achievementIconService = new AchievementIconService(
+                _diskImageService,
+                managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService)),
+                settings?.Persisted,
+                _logger);
             _progressReportingService = new ProgressReportingService(_logger, PostToUi);
             _refreshStateManager = new RefreshStateManager();
             _targetSelectionResolver = new TargetSelectionResolver(_api, _settings, _cacheService, _logger, refreshOrder);
@@ -509,6 +514,7 @@ namespace PlayniteAchievements.Services
             Guid operationId,
             RefreshModeType mode,
             Guid? singleGameId = null,
+            bool forceIconRefresh = false,
             IReadOnlyList<IDataProvider> providerScope = null,
             bool? runProvidersInParallelOverride = null)
         {
@@ -567,7 +573,8 @@ namespace PlayniteAchievements.Services
                         data,
                         progressScope,
                         cancel,
-                        OnGameRefreshed),
+                        (provider, refreshedGame, refreshedData, scope, token) =>
+                            OnGameRefreshed(provider, refreshedGame, refreshedData, scope, forceIconRefresh, token)),
                     cancel),
                 cancel).ConfigureAwait(false);
 
@@ -620,6 +627,7 @@ namespace PlayniteAchievements.Services
             Game game,
             GameAchievementData data,
             RefreshProgressScope progressScope,
+            bool forceIconRefresh,
             CancellationToken cancel = default)
         {
             if (data?.PlayniteGameId == null) return;
@@ -636,10 +644,16 @@ namespace PlayniteAchievements.Services
             {
             }
 
+            var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
+            var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
+
             await _achievementIconService.PopulateAchievementIconCacheAsync(
                 data,
+                unlockedIconOverrides,
+                lockedIconOverrides,
                 cancel,
-                (downloaded, total) => _refreshProgressReporter.ReportIconProgress(game, data, downloaded, total, progressScope))
+                (downloaded, total) => _refreshProgressReporter.ReportIconProgress(game, data, downloaded, total, progressScope),
+                forceRefreshExistingTargets: forceIconRefresh)
                 .ConfigureAwait(false);
 
             var key = data.PlayniteGameId.Value.ToString();
@@ -679,7 +693,15 @@ namespace PlayniteAchievements.Services
             GameAchievementData data,
             CancellationToken cancel = default)
         {
-            await _achievementIconService.DownloadAchievementIconsAsync(data, cancel).ConfigureAwait(false);
+            var unlockedIconOverrides = data?.PlayniteGameId != null
+                ? GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value)
+                : null;
+            var lockedIconOverrides = data?.PlayniteGameId != null
+                ? GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value)
+                : null;
+            await _achievementIconService
+                .DownloadAchievementIconsAsync(data, unlockedIconOverrides, lockedIconOverrides, cancel)
+                .ConfigureAwait(false);
         }
 
         private string ResolveFinalSuccessMessage(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)
@@ -732,6 +754,7 @@ namespace PlayniteAchievements.Services
             Func<RebuildPayload, string> finalMessage,
             string errorLogMessage,
             Guid? singleGameId = null,
+            bool forceIconRefresh = false,
             IReadOnlyList<IDataProvider> providerScope = null,
             bool? runProvidersInParallelOverride = null,
             CancellationToken externalToken = default)
@@ -746,6 +769,7 @@ namespace PlayniteAchievements.Services
                     operationId,
                     mode,
                     singleGameId,
+                    forceIconRefresh,
                     providerScope,
                     runProvidersInParallelOverride),
                 finalMessage,
@@ -764,6 +788,7 @@ namespace PlayniteAchievements.Services
                 payload => FormatRefreshCompletionForResolvedRequest(resolved, payload),
                 resolved.ErrorLogMessage ?? "Refresh failed.",
                 singleGameId: resolved.SingleGameId,
+                forceIconRefresh: resolved.ForceIconRefresh,
                 providerScope: resolved.ProviderScope,
                 runProvidersInParallelOverride: resolved.RunProvidersInParallelOverride,
                 externalToken: externalToken);

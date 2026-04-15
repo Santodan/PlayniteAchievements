@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Views.Helpers
@@ -14,6 +15,9 @@ namespace PlayniteAchievements.Views.Helpers
     public static class AsyncImage
     {
         private const string GrayPrefix = "gray:";
+        private const int DefaultDecodePixel = 64;
+        private const double DecodeOverscan = 1.25;
+        private const double DecodeReloadThreshold = 1.2;
 
         public static readonly DependencyProperty UriProperty = DependencyProperty.RegisterAttached(
             "Uri",
@@ -55,6 +59,30 @@ namespace PlayniteAchievements.Views.Helpers
         private static void SetLoadCts(DependencyObject element, CancellationTokenSource value) =>
             element.SetValue(LoadCtsProperty, value);
 
+        private static readonly DependencyProperty LastRequestedDecodePixelProperty = DependencyProperty.RegisterAttached(
+            "LastRequestedDecodePixel",
+            typeof(int),
+            typeof(AsyncImage),
+            new PropertyMetadata(0));
+
+        private static int GetLastRequestedDecodePixel(DependencyObject element) =>
+            (int)element.GetValue(LastRequestedDecodePixelProperty);
+
+        private static void SetLastRequestedDecodePixel(DependencyObject element, int value) =>
+            element.SetValue(LastRequestedDecodePixelProperty, value);
+
+        private static readonly DependencyProperty ActiveAnimatedGifSourceProperty = DependencyProperty.RegisterAttached(
+            "ActiveAnimatedGifSource",
+            typeof(string),
+            typeof(AsyncImage),
+            new PropertyMetadata(null));
+
+        private static string GetActiveAnimatedGifSource(DependencyObject element) =>
+            element?.GetValue(ActiveAnimatedGifSourceProperty) as string;
+
+        private static void SetActiveAnimatedGifSource(DependencyObject element, string value) =>
+            element?.SetValue(ActiveAnimatedGifSourceProperty, value);
+
         private static void OnUriChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d == null)
@@ -64,21 +92,29 @@ namespace PlayniteAchievements.Views.Helpers
 
             CancelExisting(d);
 
-            // If the new value is already an ImageSource, apply it directly
-            if (e.NewValue is ImageSource imageSource)
-            {
-                ApplySource(d, imageSource);
-                return;
-            }
-
             if (d is FrameworkElement fe)
             {
                 fe.Loaded -= OnLoaded;
                 fe.Unloaded -= OnUnloaded;
+                fe.SizeChanged -= OnSizeChanged;
+                fe.IsVisibleChanged -= OnIsVisibleChanged;
                 fe.Loaded += OnLoaded;
                 fe.Unloaded += OnUnloaded;
+                fe.SizeChanged += OnSizeChanged;
+                fe.IsVisibleChanged += OnIsVisibleChanged;
+            }
 
-                if (fe.IsLoaded)
+            // If the new value is already an ImageSource, apply it directly
+            if (e.NewValue is ImageSource imageSource)
+            {
+                SetLastRequestedDecodePixel(d, 0);
+                ApplySource(d, imageSource);
+                return;
+            }
+
+            if (d is FrameworkElement loadedElement)
+            {
+                if (loadedElement.IsLoaded)
                 {
                     _ = StartLoadAsync(d);
                 }
@@ -98,6 +134,46 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        private static void OnSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!(sender is FrameworkElement fe) || !fe.IsLoaded)
+            {
+                return;
+            }
+
+            if (!fe.IsVisible)
+            {
+                return;
+            }
+
+            if (!(GetUri(fe) is string uri) || string.IsNullOrWhiteSpace(uri))
+            {
+                return;
+            }
+
+            var normalizedGifUri = GifAnimationHelper.NormalizeGifSourceUri(uri);
+            if (!string.IsNullOrWhiteSpace(normalizedGifUri) &&
+                normalizedGifUri.EndsWith(".gif", StringComparison.OrdinalIgnoreCase))
+            {
+                // GIFs do not benefit from decode-pixel resize reloads and reloading causes visible animation flicker.
+                return;
+            }
+
+            var desiredDecode = ResolveDecodePixel(fe);
+            if (desiredDecode <= 0)
+            {
+                return;
+            }
+
+            var lastDecode = GetLastRequestedDecodePixel(fe);
+            if (lastDecode > 0 && desiredDecode <= Math.Ceiling(lastDecode * DecodeReloadThreshold))
+            {
+                return;
+            }
+
+            _ = StartLoadAsync(fe);
+        }
+
         private static void OnUnloaded(object sender, RoutedEventArgs e)
         {
             if (sender is DependencyObject d)
@@ -110,10 +186,28 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        private static void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!(sender is FrameworkElement fe) || !fe.IsLoaded)
+            {
+                return;
+            }
+
+            if (fe.IsVisible)
+            {
+                _ = StartLoadAsync(fe);
+                return;
+            }
+
+            CancelExisting(fe);
+        }
+
         private static void CancelExisting(DependencyObject d)
         {
             try
             {
+                StopAnimation(d);
+
                 var existing = GetLoadCts(d);
                 if (existing != null)
                 {
@@ -132,11 +226,17 @@ namespace PlayniteAchievements.Views.Helpers
 
         private static async Task StartLoadAsync(DependencyObject d)
         {
+            if (d is FrameworkElement fe && !fe.IsVisible)
+            {
+                return;
+            }
+
             var uri = GetUri(d);
 
             // If already an ImageSource, apply directly (fallback path from converter)
             if (uri is ImageSource imageSource)
             {
+                SetLastRequestedDecodePixel(d, 0);
                 ApplySource(d, imageSource);
                 return;
             }
@@ -144,9 +244,12 @@ namespace PlayniteAchievements.Views.Helpers
             var uriString = uri as string;
             if (string.IsNullOrWhiteSpace(uriString))
             {
+                SetLastRequestedDecodePixel(d, 0);
                 ApplySource(d, null);
                 return;
             }
+
+            CancelExisting(d);
 
             if (GetGray(d) && !uriString.StartsWith(GrayPrefix, StringComparison.OrdinalIgnoreCase))
             {
@@ -167,15 +270,8 @@ namespace PlayniteAchievements.Views.Helpers
                     return;
                 }
 
-                var decode = GetDecodePixel(d);
-                if (decode <= 0 && d is FrameworkElement fe)
-                {
-                    // Try to infer a reasonable decode size from the realized element.
-                    var w = fe.ActualWidth > 0 ? fe.ActualWidth : fe.Width;
-                    var h = fe.ActualHeight > 0 ? fe.ActualHeight : fe.Height;
-                    var max = Math.Max(w, h);
-                    decode = double.IsNaN(max) || max <= 0 ? 64 : (int)Math.Ceiling(max);
-                }
+                var decode = ResolveDecodePixel(d);
+                SetLastRequestedDecodePixel(d, decode);
 
                 BitmapSource bmp = await service.GetAsync(uriString, decode, cts.Token).ConfigureAwait(false);
                 if (cts.IsCancellationRequested)
@@ -199,6 +295,9 @@ namespace PlayniteAchievements.Views.Helpers
                 {
                     ApplySource(d, bmp);
                 }
+
+                // Start GIF animation asynchronously after the first static frame is already visible.
+                _ = StartGifAnimationAsync(d, uriString, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -220,19 +319,174 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
+        private static async Task StartGifAnimationAsync(DependencyObject d, string uriString, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested || string.IsNullOrWhiteSpace(uriString))
+            {
+                return;
+            }
+
+            try
+            {
+                var applyGray = GetGray(d);
+                var created = await Task.Run(() =>
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return (ok: false, normalized: (string)null, firstFrame: (ImageSource)null, animation: (ObjectAnimationUsingKeyFrames)null);
+                    }
+
+                    var ok = GifAnimationHelper.TryCreateAnimation(
+                        uriString,
+                        applyGray,
+                        out var normalized,
+                        out var firstFrame,
+                        out var animation);
+                    return (ok, normalized, firstFrame, animation);
+                }, cancellationToken).ConfigureAwait(false);
+
+                if (!created.ok || cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                {
+                    _ = dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (!cancellationToken.IsCancellationRequested)
+                        {
+                            ApplyAnimatedFrames(d, created.normalized, created.firstFrame, created.animation);
+                        }
+                    }));
+                }
+                else if (!cancellationToken.IsCancellationRequested)
+                {
+                    ApplyAnimatedFrames(d, created.normalized, created.firstFrame, created.animation);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+            }
+        }
+
         private static void ApplySource(DependencyObject d, ImageSource source)
         {
             if (d is System.Windows.Controls.Image img)
             {
+                StopAnimation(d);
                 img.Source = source;
                 return;
             }
 
             if (d is System.Windows.Media.ImageBrush brush)
             {
+                StopAnimation(d);
                 brush.ImageSource = source;
                 return;
             }
+        }
+
+        private static int ResolveDecodePixel(DependencyObject d)
+        {
+            var explicitDecode = GetDecodePixel(d);
+            if (!(d is FrameworkElement fe))
+            {
+                return explicitDecode > 0 ? explicitDecode : DefaultDecodePixel;
+            }
+
+            var inferredDecode = InferDecodePixel(fe);
+            if (explicitDecode > 0 && inferredDecode > 0)
+            {
+                return Math.Max(explicitDecode, inferredDecode);
+            }
+
+            if (explicitDecode > 0)
+            {
+                return explicitDecode;
+            }
+
+            return inferredDecode > 0 ? inferredDecode : DefaultDecodePixel;
+        }
+
+        private static void ApplyAnimatedFrames(DependencyObject target, string normalizedSource, ImageSource firstFrame, ObjectAnimationUsingKeyFrames animation)
+        {
+            StopAnimation(target);
+            SetActiveAnimatedGifSource(target, normalizedSource);
+
+            if (target is System.Windows.Controls.Image image)
+            {
+                image.Source = firstFrame;
+                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+                return;
+            }
+
+            if (target is System.Windows.Media.ImageBrush brush)
+            {
+                brush.ImageSource = firstFrame;
+                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, animation, HandoffBehavior.SnapshotAndReplace);
+            }
+        }
+
+        private static void StopAnimation(DependencyObject target)
+        {
+            SetActiveAnimatedGifSource(target, null);
+
+            if (target is System.Windows.Controls.Image image)
+            {
+                image.BeginAnimation(System.Windows.Controls.Image.SourceProperty, null);
+                return;
+            }
+
+            if (target is System.Windows.Media.ImageBrush brush)
+            {
+                brush.BeginAnimation(System.Windows.Media.ImageBrush.ImageSourceProperty, null);
+            }
+        }
+
+        private static int InferDecodePixel(FrameworkElement fe)
+        {
+            var width = GetRealizedLength(fe.ActualWidth, fe.Width);
+            var height = GetRealizedLength(fe.ActualHeight, fe.Height);
+            var maxLength = Math.Max(width, height);
+            if (maxLength <= 0)
+            {
+                return 0;
+            }
+
+            var dpiScale = 1.0;
+            if (fe is Visual visual)
+            {
+                try
+                {
+                    var dpi = VisualTreeHelper.GetDpi(visual);
+                    dpiScale = Math.Max(dpi.DpiScaleX, dpi.DpiScaleY);
+                }
+                catch
+                {
+                }
+            }
+
+            return (int)Math.Ceiling(maxLength * dpiScale * DecodeOverscan);
+        }
+
+        private static double GetRealizedLength(double actual, double fallback)
+        {
+            if (!double.IsNaN(actual) && actual > 0)
+            {
+                return actual;
+            }
+
+            if (!double.IsNaN(fallback) && fallback > 0)
+            {
+                return fallback;
+            }
+
+            return 0;
         }
     }
 }

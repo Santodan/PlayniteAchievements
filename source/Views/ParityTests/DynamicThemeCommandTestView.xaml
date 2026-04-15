@@ -1,0 +1,240 @@
+<UserControl x:Class="PlayniteAchievements.Views.ParityTests.DynamicThemeCommandTestView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="900"
+             d:DesignWidth="1300">
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Padding="12"
+                CornerRadius="6"
+                BorderBrush="{DynamicResource NormalBorderBrush}"
+                BorderThickness="1"
+                Background="{DynamicResource ControlBackgroundBrush}">
+            <StackPanel>
+                <TextBlock Text="PlayniteAchievements - Dynamic Theme Command Tester"
+                           FontSize="19"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextBrush}" />
+                <TextBlock Margin="0,6,0,0"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.85">
+                    <Run Text="Game: " />
+                    <Run Text="{Binding GameName, Mode=OneWay}" FontWeight="SemiBold" />
+                    <Run Text="  (" />
+                    <Run Text="{Binding GameIdText, Mode=OneWay}" />
+                    <Run Text=")" />
+                </TextBlock>
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.7"
+                           Text="{Binding SelectedGameModeHint, Mode=OneWay}" />
+                <TextBlock Margin="0,4,0,0"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75">
+                    <Run Text="Selected-game items: " />
+                    <Run Text="{Binding Settings.DynamicAchievements.Count, Mode=OneWay}" FontWeight="SemiBold" />
+                    <Run Text=" | Library items: " />
+                    <Run Text="{Binding Settings.DynamicLibraryAchievements.Count, Mode=OneWay}" FontWeight="SemiBold" />
+                    <Run Text=" | Summary items: " />
+                    <Run Text="{Binding Settings.DynamicGameSummaries.Count, Mode=OneWay}" FontWeight="SemiBold" />
+                </TextBlock>
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Content="Request Update"
+                            Click="RequestUpdate_Click"
+                            MinWidth="120"
+                            Margin="0,0,8,0" />
+                    <Button Content="Open Game View"
+                            Click="OpenGameView_Click"
+                            MinWidth="120"
+                            IsEnabled="{Binding HasSelectedGame, Mode=OneWay}" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1"
+                      Margin="0,12,0,0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+
+                <GroupBox Header="DynamicAchievements (selected game)"
+                          IsEnabled="{Binding HasSelectedGame, Mode=OneWay}">
+                    <StackPanel Margin="8">
+                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
+                            <TextBlock Text="Filter" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SelectedGameFilterCombo"
+                                      Width="130"
+                                      ItemsSource="{Binding SelectedGameFilterOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplySelectedGameFilter_Click" />
+
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SelectedGameSortCombo"
+                                      Width="130"
+                                      ItemsSource="{Binding SelectedGameSortOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplySelectedGameSort_Click" />
+
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SelectedGameDirectionCombo"
+                                      Width="130"
+                                      ItemsSource="{Binding SortDirectionOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,0,0"
+                                    Click="ApplySelectedGameDirection_Click" />
+                        </WrapPanel>
+
+                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                            <Run Text="Current: " />
+                            <Run Text="Filter=" />
+                            <Run Text="{Binding Settings.DynamicAchievementsFilterLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Sort=" />
+                            <Run Text="{Binding Settings.DynamicAchievementsSortLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Direction=" />
+                            <Run Text="{Binding Settings.DynamicAchievementsSortDirectionLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+
+                        <DataGrid ItemsSource="{Binding Settings.DynamicAchievements, Mode=OneWay}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  Height="230"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
+                                <DataGridCheckBoxColumn Header="Unlocked" Binding="{Binding Unlocked}" Width="95" />
+                                <DataGridTextColumn Header="Unlock Date" Binding="{Binding DateUnlocked, StringFormat={}{0:G}}" Width="170" />
+                                <DataGridTextColumn Header="Rarity" Binding="{Binding RarityText}" Width="130" />
+                                <DataGridTextColumn Header="Provider" Binding="{Binding ProviderKey}" Width="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="DynamicLibraryAchievements (all games)" Margin="0,12,0,0">
+                    <StackPanel Margin="8">
+                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
+                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="LibraryProviderCombo"
+                                      Width="160"
+                                      ItemsSource="{Binding LibraryProviderOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplyLibraryProvider_Click" />
+
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="LibrarySortCombo"
+                                      Width="140"
+                                      ItemsSource="{Binding LibrarySortOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplyLibrarySort_Click" />
+
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="LibraryDirectionCombo"
+                                      Width="130"
+                                      ItemsSource="{Binding SortDirectionOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,0,0"
+                                    Click="ApplyLibraryDirection_Click" />
+                        </WrapPanel>
+
+                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                            <Run Text="Current: " />
+                            <Run Text="Provider=" />
+                            <Run Text="{Binding Settings.DynamicLibraryAchievementsProviderLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Sort=" />
+                            <Run Text="{Binding Settings.DynamicLibraryAchievementsSortLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Direction=" />
+                            <Run Text="{Binding Settings.DynamicLibraryAchievementsSortDirectionLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+
+                        <DataGrid ItemsSource="{Binding Settings.DynamicLibraryAchievements, Mode=OneWay}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  Height="230"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
+                                <DataGridTextColumn Header="Game" Binding="{Binding Game.Name}" Width="1.6*" />
+                                <DataGridTextColumn Header="Unlock Date" Binding="{Binding DateUnlocked, StringFormat={}{0:G}}" Width="170" />
+                                <DataGridTextColumn Header="Rarity" Binding="{Binding RarityText}" Width="130" />
+                                <DataGridTextColumn Header="Provider" Binding="{Binding ProviderKey}" Width="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Header="DynamicGameSummaries (all games)" Margin="0,12,0,0">
+                    <StackPanel Margin="8">
+                        <WrapPanel Margin="0,0,0,8" VerticalAlignment="Center">
+                            <TextBlock Text="Provider" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SummaryProviderCombo"
+                                      Width="160"
+                                      ItemsSource="{Binding SummaryProviderOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplySummaryProvider_Click" />
+
+                            <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SummarySortCombo"
+                                      Width="150"
+                                      ItemsSource="{Binding SummarySortOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,14,0"
+                                    Click="ApplySummarySort_Click" />
+
+                            <TextBlock Text="Direction" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <ComboBox x:Name="SummaryDirectionCombo"
+                                      Width="130"
+                                      ItemsSource="{Binding SortDirectionOptions}" />
+                            <Button Content="Apply"
+                                    Margin="6,0,0,0"
+                                    Click="ApplySummaryDirection_Click" />
+                        </WrapPanel>
+
+                        <TextBlock Margin="0,0,0,8" Opacity="0.8">
+                            <Run Text="Current: " />
+                            <Run Text="Provider=" />
+                            <Run Text="{Binding Settings.DynamicGameSummariesProviderLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Sort=" />
+                            <Run Text="{Binding Settings.DynamicGameSummariesSortLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="  Direction=" />
+                            <Run Text="{Binding Settings.DynamicGameSummariesSortDirectionLabel, Mode=OneWay}" FontWeight="SemiBold" />
+                        </TextBlock>
+
+                        <DataGrid ItemsSource="{Binding Settings.DynamicGameSummaries, Mode=OneWay}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  Height="230"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Game" Binding="{Binding Name}" Width="2*" />
+                                <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="1.2*" />
+                                <DataGridTextColumn Header="Unlocked" Binding="{Binding UnlockedCount}" Width="90" />
+                                <DataGridTextColumn Header="Total" Binding="{Binding AchievementCount}" Width="90" />
+                                <DataGridTextColumn Header="Progress" Binding="{Binding Progress}" Width="90" />
+                                <DataGridTextColumn Header="Last Unlock" Binding="{Binding LastUnlockDate, StringFormat={}{0:G}}" Width="170" />
+                                <DataGridTextColumn Header="Last Played" Binding="{Binding LastPlayed, StringFormat={}{0:G}}" Width="170" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </GroupBox>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -1,0 +1,435 @@
+<UserControl x:Class="PlayniteAchievements.Views.GameOptionsAchievementIconsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="620"
+             d:DesignWidth="920"
+             d:DataContext="{d:DesignInstance vm:GameOptionsAchievementIconsViewModel}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility" />
+            <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility" />
+
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="12" />
+            </Style>
+
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="MinHeight" Value="30" />
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+            </Style>
+
+            <Style x:Key="InlineBrowseButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Width" Value="34" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="8,0,0,0" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter Property="Background" Value="#18000000" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="EditorTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource ClearableSearchTextBoxStyle}">
+                <Setter Property="Padding" Value="10,6,30,6" />
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource GlyphBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+                <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
+                        <Setter Property="BorderThickness" Value="2" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="StatusTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="Opacity" Value="0.8" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding StatusIsError}" Value="True">
+                        <Setter Property="Foreground" Value="#FFE07070" />
+                        <Setter Property="Opacity" Value="1" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="VariantBadgeStyle" TargetType="Border">
+                <Setter Property="Width" Value="22" />
+                <Setter Property="Height" Value="22" />
+                <Setter Property="CornerRadius" Value="11" />
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Background" Value="#12000000" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="PreviewBorderStyle" TargetType="Border">
+                <Setter Property="Width" Value="34" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="IconCardListItemStyle" TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0,0,0,8" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <ContentPresenter />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="IconCardBorderStyle" TargetType="Border" BasedOn="{StaticResource CardBorderStyle}">
+                <Setter Property="Padding" Value="8,9" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CanReveal}" Value="True">
+                        <Setter Property="Cursor" Value="Hand" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsMouseOver}" Value="True">
+                        <Setter Property="Background" Value="#14000000" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Style="{StaticResource CardBorderStyle}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_CustomIcons_Header}"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_CustomIcons_Hint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding StatusText}"
+                               Style="{StaticResource StatusTextStyle}"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding HasStatusText, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="12,0,0,0">
+                    <WrapPanel Orientation="Horizontal"
+                               HorizontalAlignment="Right">
+                        <Button Content="{DynamicResource LOCPlayAch_Common_RevertChanges}"
+                                Command="{Binding RevertChangesCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button Content="{DynamicResource LOCPlayAch_Common_ClearOverrides}"
+                                Command="{Binding ClearAllCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}" />
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Save}"
+                                Command="{Binding SaveCommand}"
+                                Padding="12,6" />
+                    </WrapPanel>
+
+                    <Button Content="{DynamicResource LOCPlayAch_GameOptions_CustomIcons_OpenFolderButton}"
+                            Command="{Binding OpenIconsFolderCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            HorizontalAlignment="Right"
+                            Margin="0,8,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="2"
+                   Text="{DynamicResource LOCPlayAch_Common_NoCachedAchievementsForGame}"
+                   Foreground="{DynamicResource TextBrush}"
+                   Opacity="0.8"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Top"
+                   Visibility="{Binding HasAchievements, Converter={StaticResource InverseBoolToVis}}" />
+
+        <ListBox x:Name="AchievementCardsList"
+                 Grid.Row="2"
+                 Margin="0,2,0,0"
+                 ItemsSource="{Binding AchievementRows}"
+                 Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 HorizontalContentAlignment="Stretch"
+                 ItemContainerStyle="{StaticResource IconCardListItemStyle}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingStackPanel.IsVirtualizing="True"
+                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                 VirtualizingStackPanel.ScrollUnit="Pixel"
+                 PreviewMouseWheel="AchievementCardsList_PreviewMouseWheel"
+                 PreviewMouseLeftButtonDown="AchievementCardsList_PreviewMouseLeftButtonDown">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Style="{StaticResource IconCardBorderStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.15*" MinWidth="180" />
+                                <ColumnDefinition Width="2.85*" MinWidth="320" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0"
+                                        Margin="0,0,12,0"
+                                        VerticalAlignment="Center">
+                                <TextBlock FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="FontSize" Value="{DynamicResource FontSize}" />
+                                            <Setter Property="Opacity" Value="0.7" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                                    <Setter Property="FontStyle" Value="Italic" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                    <Run Text="{Binding DisplayNameResolved, Mode=OneWay}" />
+                                    <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                                         FontStyle="Italic"
+                                         FontSize="{DynamicResource FontSizeSmall}"
+                                         Foreground="{DynamicResource TextBrushDarker}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding DescriptionResolved}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           Opacity="0.72"
+                                           FontSize="{DynamicResource FontSizeSmall}"
+                                           Margin="0,3,0,0"
+                                           TextWrapping="Wrap"
+                                           MaxHeight="36"
+                                           TextTrimming="CharacterEllipsis">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                                    <Setter Property="FontStyle" Value="Italic" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding ApiNameResolved}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           Opacity="0.58"
+                                           FontSize="{DynamicResource FontSizeSmall}"
+                                           Margin="0,3,0,0"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <Grid Grid.Column="1"
+                                  VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0"
+                                      Margin="0,0,0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="40" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Style="{StaticResource VariantBadgeStyle}"
+                                            ToolTip="{DynamicResource LOCPlayAch_Common_Unlocked}">
+                                        <TextBlock Text="&#x2713;"
+                                                   FontSize="13"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource GlyphBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <Border Grid.Column="1"
+                                            Style="{StaticResource PreviewBorderStyle}"
+                                            Margin="8,0,0,0">
+                                        <Image Width="30"
+                                               Height="30"
+                                               Stretch="UniformToFill"
+                                               helpers:AsyncImage.Uri="{Binding UnlockedPreviewPath}"
+                                               helpers:AsyncImage.DecodePixel="72" />
+                                    </Border>
+
+                                    <Grid Grid.Column="2"
+                                          Margin="8,0,0,0">
+                                        <TextBox Text="{Binding UnlockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{Binding UnlockedOverrideToolTip}"
+                                                 Tag="Unlocked"
+                                                 AllowDrop="True"
+                                                 PreviewDragOver="OverrideTextBox_PreviewDragOver"
+                                                 Drop="OverrideTextBox_Drop">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasUnlockedOverrideValidationError}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#FFE07070" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+
+                                        <Button Tag="{Binding UnlockedOverrideText}"
+                                                CommandParameter="Unlocked"
+                                                Style="{StaticResource ClearSearchButtonStyle}"
+                                                Click="ClearOverrideButton_Click" />
+                                    </Grid>
+
+                                    <Button Grid.Column="3"
+                                            Content="..."
+                                            Tag="Unlocked"
+                                            ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Style="{StaticResource InlineBrowseButtonStyle}"
+                                            Click="BrowseButton_Click" />
+                                </Grid>
+
+                                <Border Grid.Row="1"
+                                        Height="1"
+                                        Background="#14000000"
+                                        Margin="30,0,0,0" />
+
+                                <Grid Grid.Row="2"
+                                      Margin="0,5,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="40" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Style="{StaticResource VariantBadgeStyle}"
+                                            ToolTip="{DynamicResource LOCPlayAch_Common_Locked}">
+                                        <Image Source="{StaticResource BadgeLocked}"
+                                               Width="13"
+                                               Height="13"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Opacity="0.72" />
+                                    </Border>
+
+                                    <Border Grid.Column="1"
+                                            Style="{StaticResource PreviewBorderStyle}"
+                                            Margin="8,0,0,0">
+                                        <Image Width="30"
+                                               Height="30"
+                                               Stretch="UniformToFill"
+                                               helpers:AsyncImage.Uri="{Binding LockedPreviewPath}"
+                                               helpers:AsyncImage.DecodePixel="72" />
+                                    </Border>
+
+                                    <Grid Grid.Column="2"
+                                          Margin="8,0,0,0">
+                                        <TextBox Text="{Binding LockedOverrideText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 ToolTip="{Binding LockedOverrideToolTip}"
+                                                 Tag="Locked"
+                                                 AllowDrop="True"
+                                                 PreviewDragOver="OverrideTextBox_PreviewDragOver"
+                                                 Drop="OverrideTextBox_Drop">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox" BasedOn="{StaticResource EditorTextBoxStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasLockedOverrideValidationError}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#FFE07070" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+
+                                        <Button Tag="{Binding LockedOverrideText}"
+                                                CommandParameter="Locked"
+                                                Style="{StaticResource ClearSearchButtonStyle}"
+                                                Click="ClearOverrideButton_Click" />
+                                    </Grid>
+
+                                    <Button Grid.Column="3"
+                                            Content="..."
+                                            Tag="Locked"
+                                            ToolTip="{DynamicResource LOCPlayAch_Button_Browse}"
+                                            Style="{StaticResource InlineBrowseButtonStyle}"
+                                            Click="BrowseButton_Click" />
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>
+
+

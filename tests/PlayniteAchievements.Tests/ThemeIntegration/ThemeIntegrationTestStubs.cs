@@ -14,6 +14,8 @@ namespace PlayniteAchievements
 
         public PlayniteAchievementsSettings Settings { get; set; }
 
+        public Services.GameCustomDataStore GameCustomDataStore { get; set; }
+
         public IPlayniteAPI PlayniteApi { get; set; }
 
         public void SavePluginSettings(PlayniteAchievementsSettings settings)
@@ -163,14 +165,6 @@ namespace PlayniteAchievements.Models.Achievements
 
 namespace PlayniteAchievements.Services
 {
-    public static class AchievementProjectionService
-    {
-        public static bool IsAppearanceSettingPropertyName(string propertyName)
-        {
-            return false;
-        }
-    }
-
     public class ProviderRegistry
     {
         public static string GetLocalizedName(string providerKey)
@@ -230,16 +224,111 @@ namespace PlayniteAchievements.ViewModels
 {
     public class AchievementDisplayItem
     {
+        public string DisplayName { get; set; }
+
+        public string SortingName { get; set; }
+
+        public string GameName { get; set; }
+
+        public string TrophyType { get; set; }
+
+        public string CategoryType { get; set; }
+
+        public string CategoryLabel { get; set; }
+
+        public bool Unlocked { get; set; }
+
+        public DateTime? UnlockTimeUtc { get; set; }
+
+        public DateTime UnlockTime => UnlockTimeUtc ?? DateTime.MinValue;
+
+        public double? GlobalPercentUnlocked { get; set; }
+
+        public double GlobalPercent => GlobalPercentUnlocked ?? 0;
+
+        public double RaritySortValue { get; set; }
+
+        public int? PointsValue { get; set; }
+
+        public int Points => PointsValue ?? 0;
+
+        public int? ProgressNum { get; set; }
+
+        public int? ProgressDenom { get; set; }
+
         public bool ShowHiddenSuffix { get; set; }
+
+        public static AchievementDisplayItem Create(
+            PlayniteAchievements.Models.Achievements.GameAchievementData gameData,
+            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
+            PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys = null,
+            Guid? playniteGameIdOverride = null)
+        {
+            return new AchievementDisplayItem();
+        }
+
+        public static AchievementDisplayItem CreateRecent(
+            PlayniteAchievements.Models.Achievements.GameAchievementData gameData,
+            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
+            PlayniteAchievements.Models.PlayniteAchievementsSettings settings,
+            string gameIconPath,
+            string gameCoverPath)
+        {
+            return new AchievementDisplayItem();
+        }
+
+        public static bool IsAppearanceSettingPropertyName(string propertyName)
+        {
+            return false;
+        }
+
+        public static string MakeRevealKey(Guid? playniteGameId, string apiName, string gameName)
+        {
+            return string.Empty;
+        }
+
+        public static void AccumulateRarity(
+            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
+            ref int common,
+            ref int uncommon,
+            ref int rare,
+            ref int ultraRare)
+        {
+        }
+
+        public static void AccumulateTrophy(
+            PlayniteAchievements.Models.Achievements.AchievementDetail achievement,
+            ref int platinum,
+            ref int gold,
+            ref int silver,
+            ref int bronze)
+        {
+        }
+
+        public static void AccumulateTrophy(
+            string trophyType,
+            ref int platinum,
+            ref int gold,
+            ref int silver,
+            ref int bronze)
+        {
+        }
+
+        public void ApplyAppearanceSettings(PlayniteAchievements.Models.PlayniteAchievementsSettings settings)
+        {
+        }
 
         public void UpdateFrom(
             PlayniteAchievements.Models.Achievements.AchievementDetail source,
             string gameName,
             Guid? playniteGameId,
-            bool hideIcon,
-            bool hideTitle,
-            bool hideDescription,
-            bool hideLockedIcon,
+            bool showHiddenIcon,
+            bool showHiddenTitle,
+            bool showHiddenDescription,
+            bool showHiddenSuffix,
+            bool showLockedIcon,
+            bool useSeparateLockedIconsWhenAvailable,
             bool showRarityGlow,
             bool showRarityBar)
         {

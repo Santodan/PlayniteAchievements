@@ -124,16 +124,15 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var hasBackup = Directory.Exists(backupPath);
                         // _logger.Debug($"Theme has backup: {hasBackup}");
 
-                        // Check if theme contains SuccessStory references
-                        var (needsMigration, couldNotScan) = CheckIfNeedsMigration(themeDir);
-
-                        // Read theme.yaml version (optional)
+                        // Read theme.yaml version/name first for display/cache metadata.
                         string currentVersion = null;
                         ThemeYamlVersionReader.TryReadThemeVersion(themeDir, out currentVersion);
 
-                        // Read theme.yaml Name (optional, for display purposes)
                         string displayName = null;
                         ThemeYamlVersionReader.TryReadThemeName(themeDir, out displayName);
+
+                        // Check if theme contains legacy references that still need migration.
+                        var (needsMigration, couldNotScan, hasNativePlayniteAchievementsSupport) = CheckIfNeedsMigration(themeDir);
 
                         // Compare against cached migrated version (optional)
                         string cachedVersion = null;
@@ -155,8 +154,11 @@ namespace PlayniteAchievements.Services.ThemeMigration
                             Name = themeName,
                             Path = themeDir,
                             HasBackup = hasBackup,
-                            NeedsMigration = !hasBackup && needsMigration,
-                            CouldNotScan = couldNotScan,
+                            NeedsMigration = !hasBackup &&
+                                             needsMigration &&
+                                             !hasNativePlayniteAchievementsSupport,
+                            CouldNotScan = couldNotScan &&
+                                           !hasNativePlayniteAchievementsSupport,
                             CurrentThemeVersion = currentVersion,
                             CachedMigratedThemeVersion = cachedVersion,
                             UpgradedSinceLastMigration = upgradedSinceLastMigration
@@ -229,11 +231,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Checks if a theme directory contains migratable legacy references.
         /// </summary>
-        private (bool needsMigration, bool couldNotScan) CheckIfNeedsMigration(string themePath)
+        private (bool needsMigration, bool couldNotScan, bool hasNativePlayniteAchievementsSupport) CheckIfNeedsMigration(string themePath)
         {
             int filesRead = 0;
             int filesSkipped = 0;
             bool foundMigratableReference = false;
+            bool foundNativePlayniteAchievementsSupport = false;
 
             try
             {
@@ -284,10 +287,15 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var content = File.ReadAllText(file);
                         filesRead++;
 
+                        if (ContainsNativePlayniteAchievementsSupport(content))
+                        {
+                            foundNativePlayniteAchievementsSupport = true;
+                            break;
+                        }
+
                         if (ContainsMigratableReference(content))
                         {
                             foundMigratableReference = true;
-                            break;
                         }
                     }
                     catch (Exception ex)
@@ -304,15 +312,15 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 if (filesRead == 0 && filesSkipped > 0)
                 {
                     _logger.Warn($"Could not read any files in theme (likely currently running): {themePath}");
-                    return (true, true); // Conservative: assume it needs migration, mark as could not scan
+                    return (true, true, false); // Conservative: assume it needs migration, mark as could not scan
                 }
 
-                return (foundMigratableReference, false);
+                return (foundMigratableReference, false, foundNativePlayniteAchievementsSupport);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, $"Failed to check if theme needs migration: {themePath}");
-                return (true, true); // Conservative: assume it needs migration on error, mark as could not scan
+                return (true, true, false); // Conservative: assume it needs migration on error, mark as could not scan
             }
         }
 
@@ -336,7 +344,6 @@ namespace PlayniteAchievements.Services.ThemeMigration
             foreach (var controlName in ControlMappings.LegacyToModernControlNames.Keys)
             {
                 if (content.IndexOf($"SuccessStory_{controlName}", StringComparison.Ordinal) >= 0 ||
-                    content.IndexOf($"PlayniteAchievements_{controlName}", StringComparison.Ordinal) >= 0 ||
                     Regex.IsMatch(content, GetStandaloneControlNamePattern(controlName)))
                 {
                     return true;
@@ -352,6 +359,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
             }
 
             return false;
+        }
+
+        private static bool ContainsNativePlayniteAchievementsSupport(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                return false;
+            }
+
+            return content.IndexOf("PlayniteAchievements", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string GetStandaloneControlNamePattern(string controlName)

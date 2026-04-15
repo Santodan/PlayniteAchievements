@@ -71,7 +71,28 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LockedIconsHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LockedIconsHint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding SeparateLockedIconsStatusText}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap" />
+                    <CheckBox Content="{DynamicResource LOCPlayAch_GameOptions_Overrides_LockedIconsCheckbox}"
+                              IsChecked="{Binding UseSeparateLockedIconsOverride}"
+                              FontWeight="SemiBold"
+                              Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="0,0,0,12"
                     Visibility="{Binding IsRaCapable, Converter={StaticResource BoolToVis}}">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_RaHeader}"
@@ -108,9 +129,27 @@
                                 Padding="12,6"
                                 Margin="8,0,0,0" />
                     </Grid>
-                    <!--
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="0,0,0,12"
+                    Visibility="{Binding ShowXeniaTitleIdOverride, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_XeniaHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_XeniaHint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding XeniaTitleIdStatusText}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap" />
+
                     <Grid Margin="0,10,0,0"
-                          Visibility="{Binding IsXeniaCapable, Converter={StaticResource BoolToVis}}">
+                          Visibility="{Binding ShowXeniaTitleIdOverride, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="220" />
                             <ColumnDefinition Width="Auto" />
@@ -118,20 +157,60 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBox Grid.Column="0"
-                                 Text="{Binding XeniaOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding XeniaTitleIdOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8,6" />
                         <Button Grid.Column="1"
                                 Content="{DynamicResource LOCPlayAch_Button_Apply}"
-                                Command="{Binding ApplyXeniaOverrideCommand}"
+                                Command="{Binding ApplyXeniaTitleIdOverrideCommand}"
                                 Padding="12,6"
                                 Margin="8,0,0,0" />
                         <Button Grid.Column="2"
                                 Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                Command="{Binding ClearXeniaOverrideCommand}"
+                                Command="{Binding ClearXeniaTitleIdOverrideCommand}"
                                 Padding="12,6"
                                 Margin="8,0,0,0" />
                     </Grid>
-                    -->
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="0,0,0,12"
+                    Visibility="{Binding ShowShadPS4MatchIdOverride, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_ShadPS4Header}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_ShadPS4Hint}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Opacity="0.75"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding ShadPS4MatchIdStatusText}"
+                               Foreground="{DynamicResource TextBrush}"
+                               Margin="0,8,0,0"
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,10,0,0"
+                          Visibility="{Binding ShowShadPS4MatchIdOverride, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding ShadPS4MatchIdOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6" />
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                Command="{Binding ApplyShadPS4MatchIdOverrideCommand}"
+                                Padding="12,6"
+                                Margin="8,0,0,0" />
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                Command="{Binding ClearShadPS4MatchIdOverrideCommand}"
+                                Padding="12,6"
+                                Margin="8,0,0,0" />
+                    </Grid>
                 </StackPanel>
             </Border>
 

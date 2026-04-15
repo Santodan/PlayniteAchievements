@@ -27,7 +27,7 @@ namespace PlayniteAchievements.Services
 
             var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
             var text = string.IsNullOrWhiteSpace(status)
-                ? ResourceProvider.GetString("LOCPlayAch_Rebuild_Completed")
+                ? ResourceProvider.GetString("LOCPlayAch_Status_RefreshComplete")
                 : status;
 
             try

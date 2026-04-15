@@ -17,8 +17,18 @@
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
-        <Grid ClipToBounds="False"
+    <Grid ClipToBounds="False"
           MinHeight="50">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementProgressBarControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.Resources>
             <Style x:Key="DesktopProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
                 <Setter Property="Height" Value="20"/>

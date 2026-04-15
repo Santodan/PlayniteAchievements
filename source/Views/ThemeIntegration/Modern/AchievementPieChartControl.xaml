@@ -10,6 +10,17 @@
 
     <controls:PieChartWithRadialIcons PieSeries="{Binding PieSeries, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWay}"
                                       LegendItems="{Binding LegendItems, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Mode=OneWay}"
-                                      IconOffset="12"/>
+                                      IconOffset="12">
+        <controls:PieChartWithRadialIcons.Style>
+            <Style TargetType="controls:PieChartWithRadialIcons">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.Persisted.EnableAchievementPieChartControl, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </controls:PieChartWithRadialIcons.Style>
+    </controls:PieChartWithRadialIcons>
 </base:ThemeControlBase>
 

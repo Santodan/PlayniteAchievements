@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.ViewModels;
@@ -140,6 +141,17 @@ namespace PlayniteAchievements.Views
             {
                 _viewModel.EditSearchFilter = string.Empty;
             }
+        }
+
+        private void TimeModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!(sender is ComboBox comboBox))
+            {
+                return;
+            }
+
+            var binding = BindingOperations.GetBindingExpression(comboBox, ComboBox.SelectedItemProperty);
+            binding?.UpdateSource();
         }
 
         public void Cleanup()

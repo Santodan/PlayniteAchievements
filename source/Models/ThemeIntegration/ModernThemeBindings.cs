@@ -47,6 +47,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private List<AchievementDetail> _achievementsRarityDesc = new List<AchievementDetail>();
         [DontSerialize]
+        private List<AchievementDetail> _dynamicAchievements = new List<AchievementDetail>();
+        [DontSerialize]
+        private string _dynamicAchievementsFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicAchievementsFilterLabel = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicAchievementsSortKey = DynamicThemeViewKeys.Default;
+        [DontSerialize]
+        private string _dynamicAchievementsSortLabel = DynamicThemeViewKeys.Default;
+        [DontSerialize]
+        private string _dynamicAchievementsSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private string _dynamicAchievementsSortDirectionLabel = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
         private List<AchievementDisplayItem> _allAchievementDisplayItems;
 
         [DontSerialize]
@@ -57,6 +71,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private readonly BulkObservableCollection<GameAchievementSummary> _gameSummariesAsc = new BulkObservableCollection<GameAchievementSummary>();
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _gameSummariesDesc = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<GameAchievementSummary> _dynamicGameSummaries = new BulkObservableCollection<GameAchievementSummary>();
+        [DontSerialize]
+        private string _dynamicGameSummariesProviderKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesProviderLabel = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesSortKey = DynamicThemeViewKeys.LastUnlock;
+        [DontSerialize]
+        private string _dynamicGameSummariesSortLabel = DynamicThemeViewKeys.LastUnlock;
+        [DontSerialize]
+        private string _dynamicGameSummariesSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private string _dynamicGameSummariesSortDirectionLabel = DynamicThemeViewKeys.Descending;
 
         [DontSerialize]
         private List<AchievementDetail> _allAchievementsUnlockAsc = new List<AchievementDetail>();
@@ -66,6 +94,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private List<AchievementDetail> _allAchievementsRarityAsc = new List<AchievementDetail>();
         [DontSerialize]
         private List<AchievementDetail> _allAchievementsRarityDesc = new List<AchievementDetail>();
+        [DontSerialize]
+        private List<AchievementDetail> _dynamicLibraryAchievements = new List<AchievementDetail>();
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsProviderKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsProviderLabel = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsSortKey = DynamicThemeViewKeys.UnlockTime;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsSortLabel = DynamicThemeViewKeys.UnlockTime;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsSortDirectionLabel = DynamicThemeViewKeys.Descending;
         [DontSerialize]
         private List<AchievementDetail> _mostRecentUnlocks = new List<AchievementDetail>();
         [DontSerialize]
@@ -232,13 +274,15 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 }
 
                 var settings = PlayniteAchievementsPlugin.Instance?.Settings;
-                var hideIcon = !(settings?.Persisted?.ShowHiddenIcon ?? false);
-                var hideTitle = !(settings?.Persisted?.ShowHiddenTitle ?? false);
-                var hideDescription = !(settings?.Persisted?.ShowHiddenDescription ?? false);
-                var showHiddenSuffix = settings?.Persisted?.ShowHiddenSuffix ?? true;
-                var hideLockedIcon = !(settings?.Persisted?.ShowLockedIcon ?? true);
-                var showRarityGlow = settings?.Persisted?.ShowRarityGlow ?? true;
-                var showRarityBar = settings?.Persisted?.ShowCompactListRarityBar ?? true;
+                var persisted = settings?.Persisted;
+                var showHiddenIcon = persisted?.ShowHiddenIcon ?? false;
+                var showHiddenTitle = persisted?.ShowHiddenTitle ?? false;
+                var showHiddenDescription = persisted?.ShowHiddenDescription ?? false;
+                var showHiddenSuffix = persisted?.ShowHiddenSuffix ?? true;
+                var showLockedIcon = persisted?.ShowLockedIcon ?? true;
+                var useSeparateLockedIcons = persisted?.UseSeparateLockedIconsWhenAvailable ?? false;
+                var showRarityGlow = persisted?.ShowRarityGlow ?? true;
+                var showRarityBar = persisted?.ShowCompactListRarityBar ?? true;
 
                 var items = new List<AchievementDisplayItem>(_allAchievements.Count);
                 foreach (var achievement in _allAchievements)
@@ -246,8 +290,18 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                     var item = new AchievementDisplayItem();
                     var gameName = achievement.Game?.Name ?? "Unknown";
                     var gameId = achievement.Game?.Id;
-                    item.UpdateFrom(achievement, gameName, gameId, hideIcon, hideTitle, hideDescription, hideLockedIcon, showRarityGlow, showRarityBar);
-                    item.ShowHiddenSuffix = showHiddenSuffix;
+                    item.UpdateFrom(
+                        achievement,
+                        gameName,
+                        gameId,
+                        showHiddenIcon,
+                        showHiddenTitle,
+                        showHiddenDescription,
+                        showHiddenSuffix,
+                        showLockedIcon,
+                        ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIcons),
+                        showRarityGlow,
+                        showRarityBar);
                     items.Add(item);
                 }
 
@@ -262,6 +316,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             bool showHiddenDescription,
             bool showHiddenSuffix,
             bool showLockedIcon,
+            bool useSeparateLockedIconsWhenAvailable,
             bool showRarityGlow,
             bool showRarityBar)
         {
@@ -272,19 +327,25 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 return;
             }
 
-            var hideIcon = !showHiddenIcon;
-            var hideTitle = !showHiddenTitle;
-            var hideDescription = !showHiddenDescription;
-            var hideLockedIcon = !showLockedIcon;
-
             var items = new List<AchievementDisplayItem>(_allAchievements.Count);
+            var persisted = PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
             foreach (var achievement in _allAchievements)
             {
                 var item = new AchievementDisplayItem();
                 var gameName = achievement.Game?.Name ?? "Unknown";
                 var gameId = achievement.Game?.Id;
-                item.UpdateFrom(achievement, gameName, gameId, hideIcon, hideTitle, hideDescription, hideLockedIcon, showRarityGlow, showRarityBar);
-                item.ShowHiddenSuffix = showHiddenSuffix;
+                item.UpdateFrom(
+                    achievement,
+                    gameName,
+                    gameId,
+                    showHiddenIcon,
+                    showHiddenTitle,
+                    showHiddenDescription,
+                    showHiddenSuffix,
+                    showLockedIcon,
+                    ResolveUseSeparateLockedIcons(persisted, gameId, useSeparateLockedIconsWhenAvailable),
+                    showRarityGlow,
+                    showRarityBar);
                 items.Add(item);
             }
 
@@ -321,6 +382,55 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
+        public List<AchievementDetail> DynamicAchievements
+        {
+            get => _dynamicAchievements;
+            set => SetValue(ref _dynamicAchievements, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsFilterKey
+        {
+            get => _dynamicAchievementsFilterKey;
+            set => SetValue(ref _dynamicAchievementsFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsFilterLabel
+        {
+            get => _dynamicAchievementsFilterLabel;
+            set => SetValue(ref _dynamicAchievementsFilterLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsSortKey
+        {
+            get => _dynamicAchievementsSortKey;
+            set => SetValue(ref _dynamicAchievementsSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsSortLabel
+        {
+            get => _dynamicAchievementsSortLabel;
+            set => SetValue(ref _dynamicAchievementsSortLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsSortDirectionKey
+        {
+            get => _dynamicAchievementsSortDirectionKey;
+            set => SetValue(ref _dynamicAchievementsSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsSortDirectionLabel
+        {
+            get => _dynamicAchievementsSortDirectionLabel;
+            set => SetValue(ref _dynamicAchievementsSortDirectionLabel, value);
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> CompletedGamesAsc
         {
             get => _completedGamesAsc;
@@ -346,6 +456,55 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _gameSummariesDesc;
             set => ReplaceCollection(_gameSummariesDesc, value, nameof(GameSummariesDesc));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> DynamicGameSummaries
+        {
+            get => _dynamicGameSummaries;
+            set => ReplaceCollection(_dynamicGameSummaries, value, nameof(DynamicGameSummaries));
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesProviderKey
+        {
+            get => _dynamicGameSummariesProviderKey;
+            set => SetValue(ref _dynamicGameSummariesProviderKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesProviderLabel
+        {
+            get => _dynamicGameSummariesProviderLabel;
+            set => SetValue(ref _dynamicGameSummariesProviderLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesSortKey
+        {
+            get => _dynamicGameSummariesSortKey;
+            set => SetValue(ref _dynamicGameSummariesSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesSortLabel
+        {
+            get => _dynamicGameSummariesSortLabel;
+            set => SetValue(ref _dynamicGameSummariesSortLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesSortDirectionKey
+        {
+            get => _dynamicGameSummariesSortDirectionKey;
+            set => SetValue(ref _dynamicGameSummariesSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesSortDirectionLabel
+        {
+            get => _dynamicGameSummariesSortDirectionLabel;
+            set => SetValue(ref _dynamicGameSummariesSortDirectionLabel, value);
         }
 
         [DontSerialize]
@@ -416,6 +575,55 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _allAchievementsRarityDesc;
             set => SetValue(ref _allAchievementsRarityDesc, value);
+        }
+
+        [DontSerialize]
+        public List<AchievementDetail> DynamicLibraryAchievements
+        {
+            get => _dynamicLibraryAchievements;
+            set => SetValue(ref _dynamicLibraryAchievements, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsProviderKey
+        {
+            get => _dynamicLibraryAchievementsProviderKey;
+            set => SetValue(ref _dynamicLibraryAchievementsProviderKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsProviderLabel
+        {
+            get => _dynamicLibraryAchievementsProviderLabel;
+            set => SetValue(ref _dynamicLibraryAchievementsProviderLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsSortKey
+        {
+            get => _dynamicLibraryAchievementsSortKey;
+            set => SetValue(ref _dynamicLibraryAchievementsSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsSortLabel
+        {
+            get => _dynamicLibraryAchievementsSortLabel;
+            set => SetValue(ref _dynamicLibraryAchievementsSortLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsSortDirectionKey
+        {
+            get => _dynamicLibraryAchievementsSortDirectionKey;
+            set => SetValue(ref _dynamicLibraryAchievementsSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsSortDirectionLabel
+        {
+            get => _dynamicLibraryAchievementsSortDirectionLabel;
+            set => SetValue(ref _dynamicLibraryAchievementsSortDirectionLabel, value);
         }
 
         [DontSerialize]
@@ -562,6 +770,19 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             target.ReplaceAll(value ?? new List<T>());
             OnPropertyChanged(propertyName);
+        }
+
+        private static bool ResolveUseSeparateLockedIcons(
+            Models.Settings.PersistedSettings settings,
+            System.Guid? playniteGameId,
+            bool fallbackValue)
+        {
+            if (settings == null || !playniteGameId.HasValue || playniteGameId.Value == System.Guid.Empty)
+            {
+                return fallbackValue;
+            }
+
+            return Services.GameCustomDataLookup.ShouldUseSeparateLockedIcons(playniteGameId, settings);
         }
     }
 }

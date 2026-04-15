@@ -9,7 +9,9 @@ namespace PlayniteAchievements.Providers
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "BattleNet",
-                "EA"
+                "GooglePlay",
+                "EA",
+                "Ubisoft"
             };
 
         public static bool ShouldHideFromSetupSurfaces(string providerKey)

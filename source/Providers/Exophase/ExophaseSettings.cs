@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Exophase
@@ -29,7 +30,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Provider/platform tokens that Exophase should automatically claim.
         /// Games matching these tokens will use Exophase instead of modern providers.
-        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro"
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro", "android"
         /// </summary>
         public HashSet<string> ManagedProviders
         {
@@ -41,6 +42,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Individual game IDs that should use Exophase even if their provider/platform token is not in managed providers.
         /// Allows per-game override for platforms not globally enabled.
         /// </summary>
+        [JsonIgnore]
         public HashSet<Guid> IncludedGames
         {
             get => _includedGames;
@@ -52,6 +54,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Key is Playnite Game ID, value is the Exophase game slug (e.g., "game-name-gog").
         /// When set, this slug is used directly instead of auto-detection.
         /// </summary>
+        [JsonIgnore]
         public Dictionary<Guid, string> SlugOverrides
         {
             get => _slugOverrides;

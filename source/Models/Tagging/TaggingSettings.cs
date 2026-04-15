@@ -60,6 +60,8 @@ namespace PlayniteAchievements.Models.Tagging
         public TagConfig InProgressConfig => GetOrCreateTagConfig(TagType.InProgress);
         public TagConfig CompletedConfig => GetOrCreateTagConfig(TagType.Completed);
         public TagConfig NoAchievementsConfig => GetOrCreateTagConfig(TagType.NoAchievements);
+        public TagConfig CustomizedConfig => GetOrCreateTagConfig(TagType.Customized);
+        public TagConfig NotCustomizedConfig => GetOrCreateTagConfig(TagType.NotCustomized);
         public TagConfig ExcludedConfig => GetOrCreateTagConfig(TagType.Excluded);
         public TagConfig ExcludedFromSummariesConfig => GetOrCreateTagConfig(TagType.ExcludedFromSummaries);
 
@@ -133,6 +135,8 @@ namespace PlayniteAchievements.Models.Tagging
                 TagType.InProgress => "[PA] In Progress",
                 TagType.Completed => "[PA] Completed",
                 TagType.NoAchievements => "[PA] No Achievements",
+                TagType.Customized => "[PA] Customized",
+                TagType.NotCustomized => "[PA] Not Customized",
                 TagType.Excluded => "[PA] Excluded",
                 TagType.ExcludedFromSummaries => "[PA] Excluded from Summaries",
                 _ => $"[PA] {tagType}"
