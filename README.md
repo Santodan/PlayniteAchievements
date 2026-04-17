@@ -25,7 +25,9 @@
 
 ## What This Fork Focuses On
 
-- Local save support and local achievement recovery workflows
+- Local save support and local achievement
+- No need for a steam account to gather the achivements schema
+  - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
 - Compatibility work for non-standard Steam and local setups
   - If you are using Steam local saves ( GreenLuma or SteamTools, for example) the game will be detected as been from steam, you will need to override the provider to Local
 - Per-game Local overrides inside Game Options
@@ -62,9 +64,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ### 2026-04-17 - v2.1.1.3
 
-- Added anonymous Steam metadata lookup for the Local provider using the reachable SteamHunters API, so Local Steam achievements can resolve proper names and rarity without requiring a Steam login.
+- Added anonymous Steam metadata lookup for the Local provider without requiring Steam API access, including selectable SteamHunters and Completionist.me source priority in Local settings.
+- Changed the Steam-mode anonymous fallback flow to prefer SteamHunters first, with Steam Community kept only as a later title-based fallback and old Community-first configs remapped away from that path.
+- Improved Local schema matching, hidden-achievement handling, and metadata enrichment for anonymous Steam sources so titles, descriptions, icons, and hidden flags resolve more reliably when public data is available.
 - Fixed Local schema fallback order so progress-only Goldberg or GSE `achievements.json` files are no longer mistaken for full schema payloads.
-- Added Local provider icon enrichment from Steam's public achievement pages when public icon data is available.
+- Removed the need for the steam account to have an API key
 
 ### 2026-04-15 - v2.1.1.2
 

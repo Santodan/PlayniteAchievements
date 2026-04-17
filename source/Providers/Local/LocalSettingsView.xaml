@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:PlayniteAchievements.Providers.Local"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
              mc:Ignorable="d" d:DesignHeight="600" d:DesignWidth="700">
 
@@ -146,6 +147,25 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,12"
                                TextWrapping="Wrap"/>
+
+                           <TextBlock Text="Anonymous metadata source priority:"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4"/>
+                           <ComboBox SelectedValue="{Binding Settings.SteamSchemaPreference, Mode=TwoWay}"
+                                  SelectedValuePath="Tag"
+                                  Margin="0,0,0,6">
+                                <ComboBoxItem Content="Prefer Steam sources first, then SteamHunters"
+                                    Tag="{x:Static local:LocalSteamSchemaPreference.PreferSteam}"/>
+                            <ComboBoxItem Content="Prefer SteamHunters first"
+                                    Tag="{x:Static local:LocalSteamSchemaPreference.PreferSteamHunters}"/>
+                            <ComboBoxItem Content="Prefer Completionist.me first"
+                                Tag="{x:Static local:LocalSteamSchemaPreference.PreferCompletionist}"/>
+                           </ComboBox>
+                          <TextBlock Text="This controls which public web source is tried first when Steam API and local Steam schema files are unavailable. The Steam option falls back to SteamHunters first, then Steam Community. SteamHunters can expose API names when available. Completionist.me and Steam Community are title-based fallbacks and may not correlate with API-key-only save files like Goldberg JSON."
+                                Style="{StaticResource MutedTextStyle}"
+                                Margin="0,0,0,12"
+                                TextWrapping="Wrap"/>
 
                         <TextBlock Text="The following folders are scanned automatically for local achievement and Steam cache files:"
                                Style="{StaticResource MutedTextStyle}"

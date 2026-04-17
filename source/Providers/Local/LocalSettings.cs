@@ -7,6 +7,14 @@ using PlayniteAchievements.Providers.Settings;
 
 namespace PlayniteAchievements.Providers.Local
 {
+    public enum LocalSteamSchemaPreference
+    {
+        PreferSteam = 0,
+        PreferSteamHunters = 1,
+        PreferSteamCommunity = 2,
+        PreferCompletionist = 3
+    }
+
     public class LocalSettings : ProviderSettingsBase
     {
         public const int MinActiveGameMonitoringIntervalSeconds = 2;
@@ -20,6 +28,7 @@ namespace PlayniteAchievements.Providers.Local
         private int _activeGameMonitoringIntervalSeconds = 5;
         private string _bundledUnlockSoundPath = string.Empty;
         private string _customUnlockSoundPath = string.Empty;
+        private LocalSteamSchemaPreference _steamSchemaPreference = LocalSteamSchemaPreference.PreferSteam;
 
         public override string ProviderKey => "Local";
 
@@ -100,6 +109,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _steamUserdataPath;
             set => SetValue(ref _steamUserdataPath, value ?? string.Empty);
+        }
+
+        public LocalSteamSchemaPreference SteamSchemaPreference
+        {
+            get => _steamSchemaPreference;
+            set => SetValue(ref _steamSchemaPreference, value);
         }
 
         public Dictionary<Guid, int> SteamAppIdOverrides

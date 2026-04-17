@@ -5,10 +5,16 @@ using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -66,10 +72,10 @@ namespace PlayniteAchievements.Providers.Steam
             try
             {
                 var apiKey = _providerSettings.SteamApiKey?.Trim();
-                if (string.IsNullOrWhiteSpace(apiKey))
+                var hasApiKey = !string.IsNullOrWhiteSpace(apiKey);
+                if (!hasApiKey)
                 {
-                    _logger?.Warn("[SteamAch] Missing Steam API key - cannot scan achievements.");
-                    return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
+                    _logger?.Warn("[SteamAch] Steam API key is missing. Falling back to web-authenticated scanning with anonymous schema metadata where available.");
                 }
 
                 _logger?.Info("[SteamAch] Probing Steam login status before scan...");
@@ -306,8 +312,14 @@ namespace PlayniteAchievements.Providers.Steam
         private Task<SchemaAndPercentages> FetchSchemaAsync(int appId, CancellationToken cancel)
         {
             var language = string.IsNullOrWhiteSpace(_settings.Persisted.GlobalLanguage) ? "english" : _settings.Persisted.GlobalLanguage.Trim();
+            var apiKey = _providerSettings.SteamApiKey?.Trim();
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                return TryGetAnonymousSteamSchemaAsync(appId, cancel);
+            }
+
             return _steamApiClient.GetSchemaForGameDetailedAsync(
-                _providerSettings.SteamApiKey.Trim(),
+                apiKey,
                 appId,
                 language,
                 cancel);
@@ -320,7 +332,7 @@ namespace PlayniteAchievements.Providers.Steam
             SchemaAndPercentages schema,
             CancellationToken cancel)
         {
-            if (string.IsNullOrWhiteSpace(steamUserId) || string.IsNullOrWhiteSpace(_providerSettings.SteamApiKey))
+            if (string.IsNullOrWhiteSpace(steamUserId))
                 return new UserUnlockedAchievements();
 
             // If the schema confirms no achievements, skip HTML scraping entirely.
@@ -937,6 +949,394 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return RarityTier.Common;
+        }
+
+        private async Task<SchemaAndPercentages> TryGetAnonymousSteamSchemaAsync(int appId, CancellationToken cancel)
+        {
+            if (appId <= 0)
+            {
+                return null;
+            }
+
+            cancel.ThrowIfCancellationRequested();
+
+            try
+            {
+                using (var httpClient = CreateAnonymousSteamHttpClient())
+                {
+                    var bootstrapSchema = await TryGetSteamHuntersBootstrapSchemaAsync(appId, cancel).ConfigureAwait(false);
+                    if (bootstrapSchema?.Achievements?.Count > 0)
+                    {
+                        _logger?.Info($"[SteamAch] Using anonymous SteamHunters bootstrap schema for appId={appId} count={bootstrapSchema.Achievements.Count}");
+                        return bootstrapSchema;
+                    }
+
+                    var apiSchema = await TryGetSteamHuntersApiSchemaAsync(httpClient, appId, cancel).ConfigureAwait(false);
+                    if (apiSchema?.Achievements?.Count > 0)
+                    {
+                        _logger?.Info($"[SteamAch] Using anonymous SteamHunters API schema for appId={appId} count={apiSchema.Achievements.Count}");
+                        return apiSchema;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[SteamAch] Anonymous Steam schema fallback failed for appId={appId}.");
+            }
+
+            return null;
+        }
+
+        private async Task<SchemaAndPercentages> TryGetSteamHuntersApiSchemaAsync(HttpClient httpClient, int appId, CancellationToken cancel)
+        {
+            if (httpClient == null || appId <= 0)
+            {
+                return null;
+            }
+
+            cancel.ThrowIfCancellationRequested();
+            var response = await httpClient.GetAsync($"https://steamhunters.com/api/apps/{appId}/achievements", cancel).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var payload = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(payload))
+            {
+                return null;
+            }
+
+            var items = JArray.Parse(payload);
+            if (items.Count == 0)
+            {
+                return null;
+            }
+
+            var percentages = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var achievements = items
+                .OfType<JObject>()
+                .Select(item => CreateSteamHuntersAchievement(appId, item, percentages))
+                .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.Name))
+                .GroupBy(achievement => achievement.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            return achievements.Count == 0
+                ? null
+                : new SchemaAndPercentages
+                {
+                    Achievements = achievements,
+                    GlobalPercentages = percentages
+                };
+        }
+
+        private async Task<SchemaAndPercentages> TryGetSteamHuntersBootstrapSchemaAsync(int appId, CancellationToken cancel)
+        {
+            cancel.ThrowIfCancellationRequested();
+            var html = await TryGetUrlContentViaCurlAsync($"https://steamhunters.com/apps/{appId}/achievements?group=&sort=name", cancel).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            var modelJson = ExtractSteamHuntersModelJson(html);
+            if (string.IsNullOrWhiteSpace(modelJson))
+            {
+                return null;
+            }
+
+            var model = JObject.Parse(modelJson);
+            var items = model.SelectToken("listData.pagedList.items") as JArray;
+            if (items == null || items.Count == 0)
+            {
+                return null;
+            }
+
+            var percentages = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            var achievements = items
+                .OfType<JObject>()
+                .Select(item => CreateSteamHuntersAchievement(appId, item, percentages))
+                .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.Name))
+                .GroupBy(achievement => achievement.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            return achievements.Count == 0
+                ? null
+                : new SchemaAndPercentages
+                {
+                    Achievements = achievements,
+                    GlobalPercentages = percentages
+                };
+        }
+
+        private SchemaAchievement CreateSteamHuntersAchievement(int appId, JObject item, IDictionary<string, double> percentages)
+        {
+            var apiName = item?["apiName"]?.Value<string>()?.Trim();
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            var steamPercentage = item["steamPercentage"]?.Value<double?>() ?? item["estimatedSteamPercentage"]?.Value<double?>();
+            if (steamPercentage.HasValue && !double.IsNaN(steamPercentage.Value) && !double.IsInfinity(steamPercentage.Value))
+            {
+                percentages[apiName] = steamPercentage.Value;
+            }
+
+            return new SchemaAchievement
+            {
+                Name = apiName,
+                DisplayName = WebUtility.HtmlDecode(item["name"]?.Value<string>()?.Trim() ?? apiName),
+                Description = WebUtility.HtmlDecode(item["description"]?.Value<string>()?.Trim() ?? string.Empty),
+                Icon = ResolveSteamHuntersIcon(appId, item["icon"]?.Value<string>()),
+                IconGray = ResolveSteamHuntersIcon(appId, item["iconGray"]?.Value<string>()),
+                Hidden = item["hidden"]?.Value<bool?>() == true ? 1 : 0,
+                GlobalPercent = steamPercentage
+            };
+        }
+
+        private static string ResolveSteamHuntersIcon(int appId, string iconHashOrUrl)
+        {
+            iconHashOrUrl = iconHashOrUrl?.Trim();
+            if (string.IsNullOrWhiteSpace(iconHashOrUrl))
+            {
+                return null;
+            }
+
+            Uri absoluteIconUri;
+            if (Uri.TryCreate(iconHashOrUrl, UriKind.Absolute, out absoluteIconUri))
+            {
+                return absoluteIconUri.ToString();
+            }
+
+            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{iconHashOrUrl}";
+        }
+
+        private static HttpClient CreateAnonymousSteamHttpClient()
+        {
+            var handler = new HttpClientHandler
+            {
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            };
+
+            var client = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(20)
+            };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36");
+            client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("en-US"));
+            client.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue("en", 0.9));
+            return client;
+        }
+
+        private async Task<string> TryGetUrlContentViaCurlAsync(string url, CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            string tempFilePath = null;
+            try
+            {
+                cancel.ThrowIfCancellationRequested();
+                tempFilePath = Path.Combine(Path.GetTempPath(), $"playniteachievements_steam_{Guid.NewGuid():N}.html");
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "curl.exe",
+                    Arguments = $"-L --compressed --silent --show-error -A \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36\" -H \"Accept-Language: en-US,en;q=0.9\" -o {QuoteCommandLineArgument(tempFilePath)} {QuoteCommandLineArgument(url)}",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = new Process { StartInfo = startInfo })
+                {
+                    if (!process.Start())
+                    {
+                        return null;
+                    }
+
+                    var errorTask = process.StandardError.ReadToEndAsync();
+                    var exited = await Task.Run(() => process.WaitForExit(20000), cancel).ConfigureAwait(false);
+                    if (!exited)
+                    {
+                        try
+                        {
+                            process.Kill();
+                        }
+                        catch
+                        {
+                        }
+
+                        return null;
+                    }
+
+                    var error = await errorTask.ConfigureAwait(false);
+                    if (process.ExitCode != 0)
+                    {
+                        if (!string.IsNullOrWhiteSpace(error))
+                        {
+                            _logger?.Warn($"[SteamAch] SteamHunters curl fallback failed for {url}: {error.Trim()}");
+                        }
+
+                        return null;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(tempFilePath) || !File.Exists(tempFilePath))
+                {
+                    return null;
+                }
+
+                var content = File.ReadAllText(tempFilePath);
+                return LooksLikeCloudflareChallenge(content) ? null : content;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[SteamAch] SteamHunters curl fallback failed for {url}.");
+                return null;
+            }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(tempFilePath))
+                {
+                    try
+                    {
+                        if (File.Exists(tempFilePath))
+                        {
+                            File.Delete(tempFilePath);
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+
+        private static bool LooksLikeCloudflareChallenge(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return false;
+            }
+
+            return content.IndexOf("Just a moment...", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   content.IndexOf("cf-browser-verification", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   content.IndexOf("challenge-platform", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string ExtractSteamHuntersModelJson(string html)
+        {
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            var varIndex = html.IndexOf("var sh", StringComparison.OrdinalIgnoreCase);
+            if (varIndex < 0)
+            {
+                return null;
+            }
+
+            var modelIndex = html.IndexOf("model:", varIndex, StringComparison.OrdinalIgnoreCase);
+            if (modelIndex < 0)
+            {
+                return null;
+            }
+
+            var jsonStart = html.IndexOf('{', modelIndex);
+            if (jsonStart < 0)
+            {
+                return null;
+            }
+
+            return ExtractBalancedJsonObject(html, jsonStart);
+        }
+
+        private static string ExtractBalancedJsonObject(string text, int startIndex)
+        {
+            if (string.IsNullOrWhiteSpace(text) || startIndex < 0 || startIndex >= text.Length || text[startIndex] != '{')
+            {
+                return null;
+            }
+
+            var depth = 0;
+            var inString = false;
+            var isEscaped = false;
+
+            for (var index = startIndex; index < text.Length; index++)
+            {
+                var current = text[index];
+
+                if (inString)
+                {
+                    if (isEscaped)
+                    {
+                        isEscaped = false;
+                        continue;
+                    }
+
+                    if (current == '\\')
+                    {
+                        isEscaped = true;
+                        continue;
+                    }
+
+                    if (current == '"')
+                    {
+                        inString = false;
+                    }
+
+                    continue;
+                }
+
+                if (current == '"')
+                {
+                    inString = true;
+                    continue;
+                }
+
+                if (current == '{')
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (current != '}')
+                {
+                    continue;
+                }
+
+                depth--;
+                if (depth == 0)
+                {
+                    return text.Substring(startIndex, index - startIndex + 1);
+                }
+            }
+
+            return null;
+        }
+
+        private static string QuoteCommandLineArgument(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return "\"\"";
+            }
+
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
     }
 }

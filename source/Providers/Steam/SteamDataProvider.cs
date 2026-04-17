@@ -51,8 +51,7 @@ namespace PlayniteAchievements.Providers.Steam
         /// AuthSession is the authoritative auth check for runtime flows.
         /// </summary>
         public bool IsAuthenticated =>
-            !string.IsNullOrWhiteSpace(_providerSettings.SteamUserId) &&
-            !string.IsNullOrWhiteSpace(_providerSettings.SteamApiKey);
+            !string.IsNullOrWhiteSpace(_providerSettings.SteamUserId);
 
         public ISessionManager AuthSession => _sessionManager;
 

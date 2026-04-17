@@ -803,6 +803,8 @@ namespace PlayniteAchievements.Views
                 return new List<Guid>();
             }
 
+            var capabilityCache = new Dictionary<Guid, bool>();
+
             IEnumerable<Game> scopedGames;
             switch (scope)
             {
@@ -851,7 +853,7 @@ namespace PlayniteAchievements.Views
                 case CustomGameScope.Missing:
                     scopedGames = _gamesById.Values.Where(game =>
                         !_cachedGameIds.Contains(game.Id.ToString()) &&
-                        IsCapableForAnyProvider(game, providers));
+                        IsCapableForAnyProvider(game, providers, capabilityCache));
                     break;
 
                 case CustomGameScope.Explicit:
@@ -922,7 +924,7 @@ namespace PlayniteAchievements.Views
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                if (_gamesById.TryGetValue(gameId, out var game) && IsCapableForAnyProvider(game, providers))
+                if (_gamesById.TryGetValue(gameId, out var game) && IsCapableForAnyProvider(game, providers, capabilityCache))
                 {
                     resolvedIds.Add(gameId);
                 }
@@ -943,11 +945,16 @@ namespace PlayniteAchievements.Views
             return Math.Max(1, _settings?.Persisted?.RecentRefreshGamesCount ?? 10);
         }
 
-        private bool IsCapableForAnyProvider(Game game, IReadOnlyList<IDataProvider> providers)
+        private bool IsCapableForAnyProvider(Game game, IReadOnlyList<IDataProvider> providers, IDictionary<Guid, bool> capabilityCache = null)
         {
             if (game == null || providers == null || providers.Count == 0)
             {
                 return false;
+            }
+
+            if (capabilityCache != null && capabilityCache.TryGetValue(game.Id, out var cachedResult))
+            {
+                return cachedResult;
             }
 
             foreach (var provider in providers)
@@ -961,6 +968,7 @@ namespace PlayniteAchievements.Views
                 {
                     if (provider.IsCapable(game))
                     {
+                        capabilityCache?[game.Id] = true;
                         return true;
                     }
                 }
@@ -969,6 +977,8 @@ namespace PlayniteAchievements.Views
                     _logger?.Debug(ex, $"Provider capability check failed for game '{game?.Name}'.");
                 }
             }
+
+            capabilityCache?[game.Id] = false;
 
             return false;
         }

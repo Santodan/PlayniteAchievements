@@ -513,7 +513,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId">Steam User ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId_Help">Your 64-bit Steam ID. This is automatically detected when you authenticate.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active, but API key is required.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active. Limited mode works without an API key; schema metadata may come from SteamHunters.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKey">Steam Web API Key</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Get your API key from</sys:String>
 

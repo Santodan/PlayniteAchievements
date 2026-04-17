@@ -82,7 +82,7 @@
                                    VerticalAlignment="Top"
                                    Margin="0,8,0,0"/>
 
-                        <!-- Auth Card (green if BOTH api key + web auth, red otherwise) -->
+                        <!-- Auth Card (green when web auth is active; API key enables the full mode) -->
                         <Border Grid.Column="1"
                                 Background="{DynamicResource PanelBackgroundBrush}"
                                 CornerRadius="8"
@@ -92,7 +92,7 @@
                                 <Style TargetType="Border">
                                     <Setter Property="BorderBrush" Value="#F72585"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding FullyConfigured, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                      Value="True">
                                             <Setter Property="BorderBrush" Value="#06FFA5"/>
                                         </DataTrigger>
@@ -122,7 +122,7 @@
                                                     <Setter Property="Text" Value="&#xE783;"/>
                                                     <Setter Property="Foreground" Value="#F72585"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding FullyConfigured, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                      Value="True">
                                                             <Setter Property="Text" Value="&#xE73E;"/>
                                                             <Setter Property="Foreground" Value="#06FFA5"/>

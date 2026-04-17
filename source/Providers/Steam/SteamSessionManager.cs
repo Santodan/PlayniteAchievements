@@ -24,6 +24,7 @@ namespace PlayniteAchievements.Providers.Steam
     {
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
+        private volatile bool _suppressAuthProbe;
 
         // Temporary state for interactive login dialog coordination
         private (bool Success, string SteamId) _authResult;
@@ -72,6 +73,13 @@ namespace PlayniteAchievements.Providers.Steam
                 try
                 {
                     ct.ThrowIfCancellationRequested();
+
+                    if (_suppressAuthProbe)
+                    {
+                        PersistSteamUserId(null);
+                        _logger?.Info("[SteamAuth] Auth probe suppressed for current Playnite session; reporting not authenticated.");
+                        return AuthProbeResult.NotAuthenticated();
+                    }
 
                     // First try quick hydration from existing CEF cookies
                     var steamId = ProbeSteamIdFromCefCookies();
@@ -131,6 +139,7 @@ namespace PlayniteAchievements.Providers.Steam
                 else
                 {
                     ClearSession();
+                    _suppressAuthProbe = false;
                 }
 
                 progress?.Report(AuthProgressStep.OpeningLoginWindow);
@@ -177,6 +186,7 @@ namespace PlayniteAchievements.Providers.Steam
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
 
+                _suppressAuthProbe = false;
                 PersistSteamUserId(extractedId);
                 progress?.Report(AuthProgressStep.Completed);
 
@@ -200,8 +210,10 @@ namespace PlayniteAchievements.Providers.Steam
         /// </summary>
         public void ClearSession()
         {
+            _suppressAuthProbe = true;
             ClearSteamCookiesFromCef(_api, _logger);
             PersistSteamUserId(null);
+            _logger?.Info("[SteamAuth] Steam authentication cleared for current Playnite session.");
         }
 
         // ---------------------------------------------------------------------
