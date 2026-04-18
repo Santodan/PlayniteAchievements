@@ -11,13 +11,14 @@ using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    internal sealed class SteamDataProvider : IDataProvider, IDisposable
+    internal sealed class SteamDataProvider : IDataProvider, IRefreshTargetFilter, IDisposable
     {
-        internal static readonly Guid SteamPluginId = Guid.Parse("CB91DFC9-B977-43BF-8E70-55F46E410FAB");
+        internal static readonly Guid SteamPluginId = ResolveSteamPluginId();
 
         private readonly SteamHttpClient _steamClient;
         private readonly SteamScanner _scanner;
         private readonly SteamSessionManager _sessionManager;
+        private readonly IPlayniteAPI _api;
         private SteamSettings _providerSettings;
 
         public SteamDataProvider(
@@ -30,6 +31,7 @@ namespace PlayniteAchievements.Providers.Steam
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (api == null) throw new ArgumentNullException(nameof(api));
 
+            _api = api;
             _sessionManager = new SteamSessionManager(api, logger);
 
             // Initialize provider settings from persisted settings dictionary
@@ -72,6 +74,13 @@ namespace PlayniteAchievements.Providers.Steam
             return _scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
         }
 
+        public Task<IReadOnlyList<Game>> FilterRefreshTargetsAsync(
+            IReadOnlyList<Game> gamesToRefresh,
+            CancellationToken cancel)
+        {
+            return _scanner.FilterOwnedGamesAsync(gamesToRefresh, cancel);
+        }
+
         /// <inheritdoc />
         public IProviderSettings GetSettings() => _providerSettings;
 
@@ -85,11 +94,23 @@ namespace PlayniteAchievements.Providers.Steam
         }
 
         /// <inheritdoc />
-        public ProviderSettingsViewBase CreateSettingsView() => new SteamSettingsView(_sessionManager);
+        public ProviderSettingsViewBase CreateSettingsView() => new SteamSettingsView(_sessionManager, _api);
 
         public void Dispose()
         {
             _steamClient?.Dispose();
+        }
+
+        private static Guid ResolveSteamPluginId()
+        {
+            try
+            {
+                return BuiltinExtensions.GetIdFromExtension(BuiltinExtension.SteamLibrary);
+            }
+            catch
+            {
+                return Guid.Parse("CB91DFC9-B977-43BF-8E70-55F46E410FAB");
+            }
         }
     }
 }

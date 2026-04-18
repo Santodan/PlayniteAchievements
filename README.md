@@ -70,6 +70,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed Local schema fallback order so progress-only Goldberg or GSE `achievements.json` files are no longer mistaken for full schema payloads.
 - Removed the need for the steam account to have an API key
 - Better refresh performance
+- No longer needed the Steam API key for the extension to gather the owned games
+- Added setting in the General tab to select the default filter in the main page
 
 ### 2026-04-15 - v2.1.1.2
 

@@ -8,6 +8,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ namespace PlayniteAchievements.Providers.Steam
     {
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
+        private readonly SteamApiClient _steamApiClient;
         private volatile bool _suppressAuthProbe;
 
         // Temporary state for interactive login dialog coordination
@@ -44,6 +46,7 @@ namespace PlayniteAchievements.Providers.Steam
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _steamApiClient = new SteamApiClient(CreateApiValidationHttpClient(), logger);
         }
 
         private void PersistSteamUserId(string steamId)
@@ -74,31 +77,13 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    if (_suppressAuthProbe)
+                    var apiResult = await ProbeApiKeyAuthStateAsync(ct).ConfigureAwait(false);
+                    if (apiResult.IsSuccess)
                     {
-                        PersistSteamUserId(null);
-                        _logger?.Info("[SteamAuth] Auth probe suppressed for current Playnite session; reporting not authenticated.");
-                        return AuthProbeResult.NotAuthenticated();
+                        return apiResult;
                     }
 
-                    // First try quick hydration from existing CEF cookies
-                    var steamId = ProbeSteamIdFromCefCookies();
-                    if (!string.IsNullOrWhiteSpace(steamId))
-                    {
-                        PersistSteamUserId(steamId);
-                        return AuthProbeResult.AlreadyAuthenticated(steamId);
-                    }
-
-                    // Try navigation to refresh cookies
-                    steamId = await RefreshCookiesHeadlessAsync(ct).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(steamId))
-                    {
-                        PersistSteamUserId(steamId);
-                        return AuthProbeResult.AlreadyAuthenticated(steamId);
-                    }
-
-                    PersistSteamUserId(null);
-                    return AuthProbeResult.NotAuthenticated();
+                    return await ProbeWebAuthStateCoreAsync(ct).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -110,6 +95,90 @@ namespace PlayniteAchievements.Providers.Steam
                     return AuthProbeResult.ProbeFailed();
                 }
             }
+        }
+
+        public Task<AuthProbeResult> ProbeWebAuthStateAsync(CancellationToken ct)
+        {
+            return ProbeWebAuthStateCoreAsync(ct);
+        }
+
+        private async Task<AuthProbeResult> ProbeWebAuthStateCoreAsync(CancellationToken ct)
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (_suppressAuthProbe)
+                {
+                    PersistSteamUserId(null);
+                    _logger?.Info("[SteamAuth] Auth probe suppressed for current Playnite session; reporting not authenticated.");
+                    return AuthProbeResult.NotAuthenticated();
+                }
+
+                var steamId = ProbeSteamIdFromCefCookies();
+                if (!string.IsNullOrWhiteSpace(steamId))
+                {
+                    PersistSteamUserId(steamId);
+                    return AuthProbeResult.AlreadyAuthenticated(steamId);
+                }
+
+                steamId = await RefreshCookiesHeadlessAsync(ct).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(steamId))
+                {
+                    PersistSteamUserId(steamId);
+                    return AuthProbeResult.AlreadyAuthenticated(steamId);
+                }
+
+                PersistSteamUserId(null);
+                return AuthProbeResult.NotAuthenticated();
+            }
+            catch (OperationCanceledException)
+            {
+                return AuthProbeResult.Cancelled();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "[SteamAuth] Web-session probe failed with exception.");
+                return AuthProbeResult.ProbeFailed();
+            }
+        }
+
+        public async Task<AuthProbeResult> ProbeApiKeyAuthStateAsync(CancellationToken ct)
+        {
+            var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+            var apiKey = steamSettings?.SteamApiKey?.Trim();
+            var steamId = steamSettings?.SteamUserId?.Trim();
+
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId))
+            {
+                return AuthProbeResult.NotAuthenticated();
+            }
+
+            if (!ulong.TryParse(steamId, out var steamIdValue) || steamIdValue <= 0)
+            {
+                return AuthProbeResult.NotAuthenticated();
+            }
+
+            var isValid = await _steamApiClient.ValidateApiKeyAsync(apiKey, steamId, ct).ConfigureAwait(false);
+            if (!isValid)
+            {
+                _logger?.Warn("[SteamAuth] Stored Steam Web API key did not validate against the configured Steam user id. Falling back to web-session auth.");
+                return AuthProbeResult.NotAuthenticated();
+            }
+
+            _logger?.Info($"[SteamAuth] Steam Web API key validated for steamId={steamId}.");
+            return AuthProbeResult.AlreadyAuthenticated(steamId);
+        }
+
+        private static HttpClient CreateApiValidationHttpClient()
+        {
+            var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(15)
+            };
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+            return client;
         }
 
         /// <summary>

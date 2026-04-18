@@ -545,9 +545,11 @@ namespace PlayniteAchievements.Services
                 })
                 .ToList();
 
+            providerPlans = await ApplyProviderTargetFiltersAsync(providerPlans, cancel).ConfigureAwait(false);
+
             _logger.Debug(string.Format(
                 "Games to refresh: {0}, Platforms: {1}, Grouped platforms: {2}",
-                refreshTargets.Count,
+                providerPlans.Sum(plan => plan.Games?.Count ?? 0),
                 _providers.Count,
                 providerPlans.Count));
 
@@ -620,6 +622,58 @@ namespace PlayniteAchievements.Services
                 AuthRequired = authRequired,
                 FailedProviderKeys = failedProviderKeys
             };
+        }
+
+        private async Task<List<ProviderRefreshExecutor.ProviderExecutionPlan>> ApplyProviderTargetFiltersAsync(
+            IReadOnlyList<ProviderRefreshExecutor.ProviderExecutionPlan> providerPlans,
+            CancellationToken cancel)
+        {
+            var filteredPlans = new List<ProviderRefreshExecutor.ProviderExecutionPlan>();
+            if (providerPlans == null || providerPlans.Count == 0)
+            {
+                return filteredPlans;
+            }
+
+            foreach (var plan in providerPlans)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                if (plan?.Provider == null)
+                {
+                    continue;
+                }
+
+                var games = plan.Games?.Where(game => game != null).ToList() ?? new List<Game>();
+                if (games.Count == 0)
+                {
+                    continue;
+                }
+
+                if (plan.Provider is IRefreshTargetFilter refreshTargetFilter)
+                {
+                    var originalCount = games.Count;
+                    var filteredGames = await refreshTargetFilter.FilterRefreshTargetsAsync(games, cancel).ConfigureAwait(false);
+                    games = filteredGames?.Where(game => game != null).ToList() ?? new List<Game>();
+
+                    if (games.Count != originalCount)
+                    {
+                        _logger?.Info($"Filtered refresh targets for provider '{plan.Provider.ProviderKey}' from {originalCount} to {games.Count}.");
+                    }
+                }
+
+                if (games.Count == 0)
+                {
+                    continue;
+                }
+
+                filteredPlans.Add(new ProviderRefreshExecutor.ProviderExecutionPlan
+                {
+                    Provider = plan.Provider,
+                    Games = games
+                });
+            }
+
+            return filteredPlans;
         }
 
         private async Task OnGameRefreshed(

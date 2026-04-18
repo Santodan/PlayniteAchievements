@@ -21,7 +21,9 @@ namespace PlayniteAchievements.Providers.Steam
     {
         private static readonly ILogger Logger = PluginLogger.GetLogger(nameof(SteamSettingsView));
 
+        private readonly IPlayniteAPI _api;
         private readonly SteamSessionManager _sessionManager;
+        private readonly SteamOwnedGamesImporter _ownedGamesImporter;
         private SteamSettings _steamSettings;
 
         #region DependencyProperties
@@ -65,6 +67,32 @@ namespace PlayniteAchievements.Providers.Steam
             set => SetValue(WebAuthenticatedProperty, value);
         }
 
+        public static readonly DependencyProperty ApiAuthenticatedProperty =
+            DependencyProperty.Register(
+                nameof(ApiAuthenticated),
+                typeof(bool),
+                typeof(SteamSettingsView),
+                new PropertyMetadata(false));
+
+        public bool ApiAuthenticated
+        {
+            get => (bool)GetValue(ApiAuthenticatedProperty);
+            set => SetValue(ApiAuthenticatedProperty, value);
+        }
+
+        public static readonly DependencyProperty AnyAuthenticatedProperty =
+            DependencyProperty.Register(
+                nameof(AnyAuthenticated),
+                typeof(bool),
+                typeof(SteamSettingsView),
+                new PropertyMetadata(false));
+
+        public bool AnyAuthenticated
+        {
+            get => (bool)GetValue(AnyAuthenticatedProperty);
+            set => SetValue(AnyAuthenticatedProperty, value);
+        }
+
         public static readonly DependencyProperty WebAuthStatusProperty =
             DependencyProperty.Register(
                 nameof(WebAuthStatus),
@@ -83,9 +111,11 @@ namespace PlayniteAchievements.Providers.Steam
 
         public new SteamSettings Settings => _steamSettings;
 
-        public SteamSettingsView(SteamSessionManager sessionManager)
+        public SteamSettingsView(SteamSessionManager sessionManager, IPlayniteAPI api)
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
+            _api = api ?? throw new ArgumentNullException(nameof(api));
+            _ownedGamesImporter = new SteamOwnedGamesImporter(_api, Logger, _sessionManager);
             InitializeComponent();
             AuthLabel.Text = string.Format(
                 ResourceProvider.GetString("LOCPlayAch_Settings_ProviderAuth"),
@@ -110,23 +140,29 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
-                var result = await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);
-                UpdateAuthStatusFromResult(result);
+                var apiResult = await _sessionManager.ProbeApiKeyAuthStateAsync(CancellationToken.None);
+                var webResult = await _sessionManager.ProbeWebAuthStateAsync(CancellationToken.None);
+                UpdateAuthStatusFromResult(apiResult, webResult);
             }
             catch (Exception ex)
             {
                 Logger.Debug(ex, "Steam auth probe failed during settings refresh.");
-                UpdateAuthStatusFromResult(AuthProbeResult.ProbeFailed());
+                UpdateAuthStatusFromResult(AuthProbeResult.ProbeFailed(), AuthProbeResult.ProbeFailed());
             }
         }
 
-        private void UpdateAuthStatusFromResult(AuthProbeResult result)
+        private void UpdateAuthStatusFromResult(AuthProbeResult apiResult, AuthProbeResult webResult)
         {
-            var hasWebAuth = result.IsSuccess;
+            var hasWebAuth = webResult?.IsSuccess == true;
+            var hasApiAuth = apiResult?.IsSuccess == true;
             var hasApiKey = !string.IsNullOrWhiteSpace(_steamSettings?.SteamApiKey);
-            var probedSteamUserId = hasWebAuth && !string.IsNullOrWhiteSpace(result.UserId)
-                ? result.UserId.Trim()
+            var apiSteamUserId = !string.IsNullOrWhiteSpace(apiResult?.UserId)
+                ? apiResult.UserId.Trim()
                 : null;
+            var webSteamUserId = hasWebAuth && !string.IsNullOrWhiteSpace(webResult?.UserId)
+                ? webResult.UserId.Trim()
+                : null;
+            var probedSteamUserId = webSteamUserId ?? apiSteamUserId;
 
             if (_steamSettings != null && !string.Equals(_steamSettings.SteamUserId, probedSteamUserId, StringComparison.Ordinal))
             {
@@ -134,20 +170,27 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             WebAuthenticated = hasWebAuth;
-            FullyConfigured = hasWebAuth && hasApiKey;
+            ApiAuthenticated = hasApiKey && hasApiAuth;
+            AnyAuthenticated = hasApiAuth || hasWebAuth;
+            FullyConfigured = hasApiKey && hasApiAuth;
 
-            if (hasWebAuth && hasApiKey)
+            if (hasApiKey && hasApiAuth)
             {
-                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated");
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ApiAuthenticated");
             }
             else if (hasWebAuth)
             {
                 WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_WebAuthOnly");
             }
+            else if (hasApiKey && string.IsNullOrWhiteSpace(probedSteamUserId))
+            {
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ApiNeedsUserId");
+            }
             else
             {
-                var localized = ResourceProvider.GetString(result.MessageKey);
-                WebAuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, result.MessageKey, StringComparison.Ordinal)
+                var messageKey = apiResult?.MessageKey ?? webResult?.MessageKey;
+                var localized = ResourceProvider.GetString(messageKey);
+                WebAuthStatus = string.IsNullOrWhiteSpace(localized) || string.Equals(localized, messageKey, StringComparison.Ordinal)
                     ? ResourceProvider.GetString("LOCPlayAch_Common_NotAuthenticated")
                     : localized;
             }
@@ -162,11 +205,12 @@ namespace PlayniteAchievements.Providers.Steam
                 if (result.IsSuccess)
                 {
                     await RefreshAuthStatusAsync();
+                    await ImportOwnedGamesAsync(showDialog: true, ct: CancellationToken.None);
                     PlayniteAchievementsPlugin.NotifySettingsSaved();
                 }
                 else
                 {
-                    UpdateAuthStatusFromResult(result);
+                    UpdateAuthStatusFromResult(result, AuthProbeResult.NotAuthenticated());
                 }
             }
             catch (Exception ex)
@@ -215,6 +259,11 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
+        private async void ImportOwnedGames_Click(object sender, RoutedEventArgs e)
+        {
+            await ImportOwnedGamesAsync(showDialog: true, ct: CancellationToken.None);
+        }
+
         private void SteamSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e?.PropertyName == nameof(SteamSettings.SteamApiKey))
@@ -226,15 +275,21 @@ namespace PlayniteAchievements.Providers.Steam
         private void UpdateConfiguredState()
         {
             var hasApiKey = !string.IsNullOrWhiteSpace(_steamSettings?.SteamApiKey);
-            FullyConfigured = WebAuthenticated && hasApiKey;
+            var apiAuthenticated = hasApiKey && ApiAuthenticated;
+            ApiAuthenticated = apiAuthenticated;
+            FullyConfigured = hasApiKey && apiAuthenticated;
 
-            if (WebAuthenticated && hasApiKey)
+            if (hasApiKey && apiAuthenticated)
             {
-                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Authenticated");
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ApiAuthenticated");
             }
             else if (WebAuthenticated)
             {
                 WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_WebAuthOnly");
+            }
+            else if (hasApiKey && string.IsNullOrWhiteSpace(_steamSettings?.SteamUserId))
+            {
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ApiNeedsUserId");
             }
             else
             {
@@ -256,6 +311,84 @@ namespace PlayniteAchievements.Providers.Steam
                 await RefreshAuthStatusAsync();
                 MoveFocusFrom((TextBox)sender);
             }
+        }
+
+        private async Task ImportOwnedGamesAsync(bool showDialog, CancellationToken ct)
+        {
+            try
+            {
+                SetAuthBusy(true);
+                var result = await _ownedGamesImporter.ImportOwnedGamesAsync(ct).ConfigureAwait(true);
+                if (showDialog)
+                {
+                    ShowOwnedGamesImportSummary(result);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Steam owned-games import failed");
+                if (showDialog)
+                {
+                    _api.Dialogs.ShowMessage(
+                        string.Format(
+                            ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesFailed"),
+                            ex.Message),
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
+        }
+
+        private void ShowOwnedGamesImportSummary(SteamOwnedGamesImporter.ImportResult result)
+        {
+            string message;
+            MessageBoxImage image;
+
+            if (result == null || !result.IsAuthenticated)
+            {
+                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNotAuthenticated");
+                image = MessageBoxImage.Warning;
+            }
+            else if (!result.HasSteamLibraryPlugin)
+            {
+                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesMissingLibraryPlugin");
+                image = MessageBoxImage.Warning;
+            }
+            else if (result.OwnedCount <= 0)
+            {
+                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNoneFound");
+                image = MessageBoxImage.Information;
+            }
+            else if (result.ImportedCount <= 0)
+            {
+                message = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesAlreadyPresent"),
+                    result.OwnedCount);
+                image = MessageBoxImage.Information;
+            }
+            else
+            {
+                message = string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesSummary"),
+                    result.ImportedCount,
+                    result.ExistingCount,
+                    result.FailedCount);
+                image = MessageBoxImage.Information;
+            }
+
+            _api.Dialogs.ShowMessage(
+                message,
+                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                MessageBoxButton.OK,
+                image);
         }
 
         private static void MoveFocusFrom(TextBox textBox)

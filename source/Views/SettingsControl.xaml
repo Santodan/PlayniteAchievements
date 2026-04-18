@@ -368,6 +368,49 @@
                                     </StackPanel>
                                 </Grid>
 
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SidebarDefaultsHeader}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,2"/>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SidebarDefaultsDescription}"
+                                                   Style="{StaticResource MutedTextStyle}"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SidebarDefaultRefreshMode}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   Margin="0,0,0,4"/>
+                                        <ComboBox Width="170"
+                                                  SelectedValuePath="Tag"
+                                                  SelectedValue="{Binding Persisted.SidebarDefaultRefreshModeKey, Mode=TwoWay}">
+                                            <ComboBoxItem Tag="Installed" Content="{DynamicResource LOCPlayAch_RefreshModeShort_Installed}"/>
+                                            <ComboBoxItem Tag="Recent" Content="{DynamicResource LOCPlayAch_RefreshModeShort_Recent}"/>
+                                            <ComboBoxItem Tag="Full" Content="{DynamicResource LOCPlayAch_RefreshModeShort_Full}"/>
+                                            <ComboBoxItem Tag="Favorites" Content="{DynamicResource LOCPlayAch_RefreshModeShort_Favorites}"/>
+                                            <ComboBoxItem Tag="Missing" Content="{DynamicResource LOCPlayAch_RefreshModeShort_Missing}"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SidebarDefaultPlayStatus}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   Margin="0,10,0,4"/>
+                                        <ComboBox Width="170"
+                                                  SelectedValuePath="Tag"
+                                                  SelectedValue="{Binding Persisted.SidebarDefaultPlayStatusFilter, Mode=TwoWay}">
+                                            <ComboBoxItem Tag="none" Content="{DynamicResource LOCPlayAch_Common_None}"/>
+                                            <ComboBoxItem Tag="played" Content="{DynamicResource LOCPlayAch_Filter_Played}"/>
+                                            <ComboBoxItem Tag="unplayed" Content="{DynamicResource LOCPlayAch_Filter_Unplayed}"/>
+                                            <ComboBoxItem Tag="noprogress" Content="{DynamicResource LOCPlayAch_Filter_NoProgress}"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+
                                 <!-- Provider Execution Mode -->
                                 <Grid Style="{StaticResource SettingRowStyle}">
                                     <Grid.ColumnDefinitions>

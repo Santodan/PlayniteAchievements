@@ -1,4 +1,5 @@
 using HtmlAgilityPack;
+using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
@@ -174,6 +175,28 @@ namespace PlayniteAchievements.Providers.Steam
             string apiKey, string steamId64, bool includePlayedFreeGames = true)
         {
             return _steamApiClient.GetOwnedGamesAsync(apiKey, steamId64, includePlayedFreeGames);
+        }
+
+        internal async Task<HashSet<int>> GetOwnedAppIdsFromSessionAsync(CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var ownedAppIds = await GetOwnedAppIdsFromDynamicStoreAsync(ct).ConfigureAwait(false);
+            return new HashSet<int>(ownedAppIds.Where(appId => appId > 0));
+        }
+
+        internal async Task<List<OwnedGame>> GetOwnedGamesFromSessionAsync(CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            _logger?.Info("[SteamAch] Loading owned Steam games from authenticated store session.");
+            var ownedAppIds = await GetOwnedAppIdsFromDynamicStoreAsync(ct).ConfigureAwait(false);
+            if (ownedAppIds.Count == 0)
+            {
+                return new List<OwnedGame>();
+            }
+
+            return await GetAppDetailsForOwnedGamesAsync(ownedAppIds, ct).ConfigureAwait(false);
         }
 
         // ---------------------------------------------------------------------
@@ -528,6 +551,157 @@ namespace PlayniteAchievements.Providers.Steam
         private async Task<bool?> FetchAppHasAchievementsAsync(string apiKey, int appId)
         {
             return await _steamApiClient.GetSchemaForGameAsync(apiKey, appId).ConfigureAwait(false);
+        }
+
+        private async Task<List<int>> GetOwnedAppIdsFromDynamicStoreAsync(CancellationToken ct)
+        {
+            var url = $"https://store.steampowered.com/dynamicstore/userdata/?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            var page = await GetSteamPageAsync(url, true, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(page?.Html))
+            {
+                _logger?.Warn("[SteamAch] Steam owned-games lookup returned an empty dynamic store payload.");
+                return new List<int>();
+            }
+
+            try
+            {
+                var root = JObject.Parse(page.Html);
+                var ownedApps = root["rgOwnedApps"] as JArray;
+                var appIds = ownedApps?
+                    .Values<int>()
+                    .Where(appId => appId > 0)
+                    .Distinct()
+                    .ToList() ?? new List<int>();
+
+                _logger?.Info($"[SteamAch] Dynamic store returned {appIds.Count} owned Steam app ids.");
+                return appIds;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[SteamAch] Failed parsing Steam dynamic store owned-games payload.");
+                return new List<int>();
+            }
+        }
+
+        private async Task<List<OwnedGame>> GetAppDetailsForOwnedGamesAsync(IEnumerable<int> ownedAppIds, CancellationToken ct)
+        {
+            var appIds = ownedAppIds?
+                .Where(appId => appId > 0)
+                .Distinct()
+                .ToList() ?? new List<int>();
+            if (appIds.Count == 0)
+            {
+                return new List<OwnedGame>();
+            }
+
+            var resolvedGames = new List<OwnedGame>();
+
+            foreach (var appId in appIds)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var requestUrl = $"https://store.steampowered.com/api/appdetails?appids={appId}&filters=basic";
+
+                try
+                {
+                    using (var response = await _apiHttp.GetAsync(requestUrl, ct).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            _logger?.Warn($"[SteamAch] App details request failed for owned game appId={appId}: {(int)response.StatusCode} {response.ReasonPhrase}");
+                            continue;
+                        }
+
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(json))
+                        {
+                            continue;
+                        }
+
+                        resolvedGames.AddRange(ParseOwnedGameAppDetails(json));
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "[SteamAch] Failed loading public app details for owned-games batch.");
+                }
+            }
+
+            _logger?.Info($"[SteamAch] Resolved {resolvedGames.Count} owned Steam games with public app details.");
+            return resolvedGames;
+        }
+
+        private static IEnumerable<OwnedGame> ParseOwnedGameAppDetails(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                yield break;
+            }
+
+            JObject root;
+            try
+            {
+                root = JObject.Parse(json);
+            }
+            catch
+            {
+                yield break;
+            }
+
+            foreach (var property in root.Properties())
+            {
+                if (!int.TryParse(property.Name, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                {
+                    continue;
+                }
+
+                var envelope = property.Value as JObject;
+                if (envelope?["success"]?.Value<bool>() != true)
+                {
+                    continue;
+                }
+
+                var data = envelope["data"] as JObject;
+                if (data == null)
+                {
+                    continue;
+                }
+
+                var type = data["type"]?.Value<string>()?.Trim();
+                if (!IsImportableOwnedGameType(type))
+                {
+                    continue;
+                }
+
+                var name = data["name"]?.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                yield return new OwnedGame
+                {
+                    AppId = appId,
+                    Name = name
+                };
+            }
+        }
+
+        private static bool IsImportableOwnedGameType(string type)
+        {
+            if (string.IsNullOrWhiteSpace(type))
+            {
+                return true;
+            }
+
+            return string.Equals(type, "game", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(type, "demo", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(type, "mod", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(type, "episode", StringComparison.OrdinalIgnoreCase);
         }
 
         // ---------------------------------------------------------------------

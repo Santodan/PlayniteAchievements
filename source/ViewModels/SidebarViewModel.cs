@@ -141,8 +141,8 @@ namespace PlayniteAchievements.ViewModels
             SelectedGameCategoryFilterOptions = new ObservableCollection<string>();
             CompletenessFilterOptions = new ObservableCollection<string>();
 
-            // Pre-seed Played as default so UI never renders the placeholder
-            _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_Played", "Played"));
+            _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
+            ApplyConfiguredDefaultPlayStatusFilter();
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>();
@@ -620,7 +620,9 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var fallbackSelection = RefreshModes.FirstOrDefault(mode =>
-                string.Equals(mode?.Key, RefreshModeType.Installed.GetKey(), StringComparison.Ordinal))?.Key
+                string.Equals(mode?.Key, GetConfiguredDefaultRefreshModeKey(), StringComparison.Ordinal))?.Key
+                ?? RefreshModes.FirstOrDefault(mode =>
+                    string.Equals(mode?.Key, RefreshModeType.Installed.GetKey(), StringComparison.Ordinal))?.Key
                 ?? RefreshModes.FirstOrDefault()?.Key
                 ?? RefreshModeType.Installed.GetKey();
 
@@ -1757,6 +1759,38 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
         }
 
+        private string GetConfiguredDefaultRefreshModeKey()
+        {
+            var configured = _settings?.Persisted?.SidebarDefaultRefreshModeKey;
+            return string.IsNullOrWhiteSpace(configured)
+                ? RefreshModeType.Installed.GetKey()
+                : configured.Trim();
+        }
+
+        private void ApplyConfiguredDefaultPlayStatusFilter()
+        {
+            _selectedPlayStatusFilters.Clear();
+
+            var defaultFilter = (_settings?.Persisted?.SidebarDefaultPlayStatusFilter ?? "played").Trim().ToLowerInvariant();
+            switch (defaultFilter)
+            {
+                case "played":
+                    _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_Played", "Played"));
+                    break;
+                case "unplayed":
+                    _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_Unplayed", "Unplayed"));
+                    break;
+                case "noprogress":
+                    _selectedPlayStatusFilters.Add(L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+                    break;
+                case "none":
+                default:
+                    break;
+            }
+
+            OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
+        }
+
         private void OnSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
@@ -1780,6 +1814,8 @@ namespace PlayniteAchievements.ViewModels
         {
             if (string.IsNullOrWhiteSpace(propertyName))
             {
+                _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
+                ApplyConfiguredDefaultPlayStatusFilter();
                 RebuildRefreshModes();
                 OnPropertyChanged(nameof(UseCoverImages));
                 OnPropertyChanged(nameof(EnableCompactGridMode));
@@ -1811,6 +1847,17 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.CustomRefreshPresets))
             {
                 RebuildRefreshModes();
+            }
+            else if (propertyName == nameof(PersistedSettings.SidebarDefaultRefreshModeKey))
+            {
+                _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
+                RebuildRefreshModes();
+            }
+            else if (propertyName == nameof(PersistedSettings.SidebarDefaultPlayStatusFilter))
+            {
+                ApplyConfiguredDefaultPlayStatusFilter();
+                ApplyLeftFilters();
+                UpdateAggregatePieCharts();
             }
             else if (propertyName == nameof(PersistedSettings.ShowSidebarPieCharts)
                 || propertyName == nameof(PersistedSettings.ShowSidebarGamesPieChart)

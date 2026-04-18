@@ -25,6 +25,22 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+            <Style x:Key="AuthenticatedAuthActionButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource AuthActionButtonStyle}">
+                <Setter Property="IsEnabled" Value="False"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 Value="True">
+                        <Setter Property="IsEnabled" Value="True"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 Value="True">
+                        <Setter Property="IsEnabled" Value="False"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -92,7 +108,7 @@
                                 <Style TargetType="Border">
                                     <Setter Property="BorderBrush" Value="#F72585"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        <DataTrigger Binding="{Binding AnyAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                      Value="True">
                                             <Setter Property="BorderBrush" Value="#06FFA5"/>
                                         </DataTrigger>
@@ -122,7 +138,7 @@
                                                     <Setter Property="Text" Value="&#xE783;"/>
                                                     <Setter Property="Foreground" Value="#F72585"/>
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        <DataTrigger Binding="{Binding AnyAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                      Value="True">
                                                             <Setter Property="Text" Value="&#xE73E;"/>
                                                             <Setter Property="Foreground" Value="#06FFA5"/>
@@ -151,6 +167,17 @@
                                                 Click="Logout_Click"
                                                 Style="{StaticResource AuthActionButtonStyle}"/>
                                     </StackPanel>
+
+                                    <TextBlock Style="{StaticResource MutedTextStyle}"
+                                               Margin="0,10,0,0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGamesHint}"
+                                               TextWrapping="Wrap"/>
+
+                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGames}"
+                                            Click="ImportOwnedGames_Click"
+                                            Style="{StaticResource AuthenticatedAuthActionButtonStyle}"
+                                            Margin="0,10,0,0"
+                                            HorizontalAlignment="Left"/>
                                 </StackPanel>
 
                                 <!-- API Key Section -->

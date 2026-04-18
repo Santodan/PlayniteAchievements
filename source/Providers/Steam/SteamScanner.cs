@@ -5,6 +5,7 @@ using PlayniteAchievements.Providers.Steam.Models;
 using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Models;
+using HtmlAgilityPack;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -73,28 +74,47 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 var apiKey = _providerSettings.SteamApiKey?.Trim();
                 var hasApiKey = !string.IsNullOrWhiteSpace(apiKey);
-                if (!hasApiKey)
+                var steamUserId = ResolveSteamId64(null);
+                var apiAuthenticated = hasApiKey
+                    && !string.IsNullOrWhiteSpace(steamUserId)
+                    && await _steamApiClient.ValidateApiKeyAsync(apiKey, steamUserId, cancel).ConfigureAwait(false);
+
+                AuthProbeResult probeResult = null;
+                if (!apiAuthenticated)
                 {
-                    _logger?.Warn("[SteamAch] Steam API key is missing. Falling back to web-authenticated scanning with anonymous schema metadata where available.");
+                    if (!hasApiKey)
+                    {
+                        _logger?.Warn("[SteamAch] Steam API key is missing. Falling back to web-authenticated scanning with anonymous schema metadata where available.");
+                    }
+
+                    _logger?.Info("[SteamAch] Probing Steam web login status before scan...");
+                    probeResult = await _sessionManager.ProbeWebAuthStateAsync(cancel).ConfigureAwait(false);
+                    steamUserId = probeResult?.UserId?.Trim();
                 }
 
-                _logger?.Info("[SteamAch] Probing Steam login status before scan...");
-                var probeResult = await _sessionManager.ProbeAuthStateAsync(cancel).ConfigureAwait(false);
-                var steamUserId = probeResult?.UserId?.Trim();
-                if (!probeResult.IsSuccess || string.IsNullOrWhiteSpace(steamUserId))
+                if ((!apiAuthenticated && (probeResult == null || !probeResult.IsSuccess)) || string.IsNullOrWhiteSpace(steamUserId))
                 {
-                    _logger?.Warn("[SteamAch] Steam web auth check failed: not logged in. Aborting scan.");
+                    _logger?.Warn("[SteamAch] Steam authentication check failed. Aborting scan.");
                     return new RebuildPayload
                     {
                         Summary = new RebuildSummary(),
                         AuthRequired = true
                     };
                 }
-                _logger?.Info("[SteamAch] Steam web auth verified.");
+                _logger?.Info(apiAuthenticated
+                    ? "[SteamAch] Steam Web API auth verified."
+                    : "[SteamAch] Steam web auth verified.");
 
                 if (gamesToRefresh is null || gamesToRefresh.Count == 0)
                 {
                     _logger?.Info("[SteamAch] No games found to scan.");
+                    return new RebuildPayload { Summary = new RebuildSummary() };
+                }
+
+                var filteredGames = await FilterOwnedGamesAsync(gamesToRefresh, cancel).ConfigureAwait(false);
+                if (filteredGames.Count == 0)
+                {
+                    _logger?.Info("[SteamAch] No games owned by the authenticated Steam account were found in the refresh scope.");
                     return new RebuildPayload { Summary = new RebuildSummary() };
                 }
 
@@ -104,7 +124,7 @@ namespace PlayniteAchievements.Providers.Steam
                     _settings.Persisted.MaxRetryAttempts);
 
                 return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
+                    filteredGames,
                     onGameStarting,
                     async (game, token) =>
                     {
@@ -115,7 +135,7 @@ namespace PlayniteAchievements.Providers.Steam
                         }
 
                         var data = await rateLimiter.ExecuteWithRetryAsync(
-                            () => FetchGameDataAsync(game, steamUserId, token),
+                            () => FetchGameDataAsync(game, steamUserId, apiAuthenticated, token),
                             IsTransientError,
                             token).ConfigureAwait(false);
 
@@ -139,6 +159,74 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 ShowDatetimeParseFailureToastIfNeeded();
             }
+        }
+
+        internal async Task<IReadOnlyList<Game>> FilterOwnedGamesAsync(
+            IReadOnlyList<Game> gamesToRefresh,
+            CancellationToken cancel)
+        {
+            HashSet<int> ownedAppIds;
+            var steamUserId = ResolveSteamId64(null);
+            var apiKey = _providerSettings.SteamApiKey?.Trim();
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(apiKey)
+                    && !string.IsNullOrWhiteSpace(steamUserId)
+                    && await _steamApiClient.ValidateApiKeyAsync(apiKey, steamUserId, cancel).ConfigureAwait(false))
+                {
+                    var ownedGames = await _steamApiClient.GetOwnedGamesAsync(apiKey, steamUserId, includePlayedFreeGames: true).ConfigureAwait(false);
+                    ownedAppIds = new HashSet<int>(ownedGames.Keys);
+                }
+                else
+                {
+                    ownedAppIds = await _steamClient.GetOwnedAppIdsFromSessionAsync(cancel).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[SteamAch] Failed to resolve owned Steam app IDs from the authenticated session. Continuing without ownership filtering.");
+                return gamesToRefresh ?? Array.Empty<Game>();
+            }
+
+            if (ownedAppIds.Count == 0)
+            {
+                _logger?.Info("[SteamAch] Authenticated Steam session reported zero owned app IDs.");
+                return Array.Empty<Game>();
+            }
+
+            var filteredGames = new List<Game>();
+            var skippedCount = 0;
+
+            foreach (var game in gamesToRefresh ?? Array.Empty<Game>())
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                if (!TryGetPlatformAppId(game, out var appId))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (!ownedAppIds.Contains(appId))
+                {
+                    skippedCount++;
+                    _logger?.Debug($"[SteamAch] Skipping Steam game not owned by authenticated account: {game?.Name} (appId={appId})");
+                    continue;
+                }
+
+                filteredGames.Add(game);
+            }
+
+            if (skippedCount > 0)
+            {
+                _logger?.Info($"[SteamAch] Filtered out {skippedCount} Steam games not owned by the authenticated account before refresh.");
+            }
+
+            return filteredGames;
         }
 
         /// <summary>
@@ -222,6 +310,7 @@ namespace PlayniteAchievements.Providers.Steam
         private async Task<GameAchievementData> FetchGameDataAsync(
             Game game,
             string steamUserId,
+            bool preferApi,
             CancellationToken cancel)
         {
             if (!TryGetPlatformAppId(game, out var appId))
@@ -230,8 +319,8 @@ namespace PlayniteAchievements.Providers.Steam
                 return null;
             }
 
-            var schema = await FetchSchemaAsync(appId, cancel).ConfigureAwait(false);
-            var unlocked = await FetchUnlockedAsync(appId, game?.Name, steamUserId, schema, cancel).ConfigureAwait(false);
+            var schema = await FetchSchemaAsync(appId, preferApi, cancel).ConfigureAwait(false);
+            var unlocked = await FetchUnlockedAsync(appId, game?.Name, steamUserId, schema, preferApi, cancel).ConfigureAwait(false);
 
             var gameData = new GameAchievementData
             {
@@ -309,11 +398,11 @@ namespace PlayniteAchievements.Providers.Steam
             return gameData;
         }
 
-        private Task<SchemaAndPercentages> FetchSchemaAsync(int appId, CancellationToken cancel)
+        private Task<SchemaAndPercentages> FetchSchemaAsync(int appId, bool preferApi, CancellationToken cancel)
         {
             var language = string.IsNullOrWhiteSpace(_settings.Persisted.GlobalLanguage) ? "english" : _settings.Persisted.GlobalLanguage.Trim();
             var apiKey = _providerSettings.SteamApiKey?.Trim();
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (!preferApi || string.IsNullOrWhiteSpace(apiKey))
             {
                 return TryGetAnonymousSteamSchemaAsync(appId, cancel);
             }
@@ -330,10 +419,16 @@ namespace PlayniteAchievements.Providers.Steam
             string gameName,
             string steamUserId,
             SchemaAndPercentages schema,
+            bool preferApi,
             CancellationToken cancel)
         {
             if (string.IsNullOrWhiteSpace(steamUserId))
                 return new UserUnlockedAchievements();
+
+            if (preferApi)
+            {
+                return await _steamApiClient.GetPlayerAchievementsAsync(_providerSettings.SteamApiKey, steamUserId, appId, cancel).ConfigureAwait(false);
+            }
 
             // If the schema confirms no achievements, skip HTML scraping entirely.
             // This avoids locale-dependent "no achievements" page handling.
@@ -967,6 +1062,7 @@ namespace PlayniteAchievements.Providers.Steam
                     var bootstrapSchema = await TryGetSteamHuntersBootstrapSchemaAsync(appId, cancel).ConfigureAwait(false);
                     if (bootstrapSchema?.Achievements?.Count > 0)
                     {
+                        await TryEnrichSteamCommunityIconsAsync(httpClient, appId, bootstrapSchema.Achievements, cancel).ConfigureAwait(false);
                         _logger?.Info($"[SteamAch] Using anonymous SteamHunters bootstrap schema for appId={appId} count={bootstrapSchema.Achievements.Count}");
                         return bootstrapSchema;
                     }
@@ -974,6 +1070,7 @@ namespace PlayniteAchievements.Providers.Steam
                     var apiSchema = await TryGetSteamHuntersApiSchemaAsync(httpClient, appId, cancel).ConfigureAwait(false);
                     if (apiSchema?.Achievements?.Count > 0)
                     {
+                        await TryEnrichSteamCommunityIconsAsync(httpClient, appId, apiSchema.Achievements, cancel).ConfigureAwait(false);
                         _logger?.Info($"[SteamAch] Using anonymous SteamHunters API schema for appId={appId} count={apiSchema.Achievements.Count}");
                         return apiSchema;
                     }
@@ -1116,6 +1213,166 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{iconHashOrUrl}";
+        }
+
+        private async Task TryEnrichSteamCommunityIconsAsync(HttpClient httpClient, int appId, List<SchemaAchievement> achievements, CancellationToken cancel)
+        {
+            if (httpClient == null || appId <= 0 || achievements == null || achievements.Count == 0)
+            {
+                return;
+            }
+
+            if (achievements.All(achievement =>
+                    achievement != null &&
+                    !string.IsNullOrWhiteSpace(achievement.Icon) &&
+                    !string.IsNullOrWhiteSpace(achievement.IconGray)))
+            {
+                return;
+            }
+
+            try
+            {
+                cancel.ThrowIfCancellationRequested();
+                var language = string.IsNullOrWhiteSpace(_settings?.Persisted?.GlobalLanguage)
+                    ? "english"
+                    : _settings.Persisted.GlobalLanguage.Trim();
+                var html = await httpClient.GetStringAsync($"https://steamcommunity.com/stats/{appId}/achievements?l={language}").ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(html))
+                {
+                    return;
+                }
+
+                var iconMap = ParseSteamCommunityAchievementIconMap(html);
+                if (iconMap.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var achievement in achievements)
+                {
+                    cancel.ThrowIfCancellationRequested();
+
+                    if (achievement == null)
+                    {
+                        continue;
+                    }
+
+                    var lookupKey = BuildAchievementLookupKey(achievement.DisplayName, achievement.Description);
+                    if (!string.IsNullOrWhiteSpace(lookupKey)
+                        && iconMap.TryGetValue(lookupKey, out var exactIconUrl)
+                        && !string.IsNullOrWhiteSpace(exactIconUrl))
+                    {
+                        achievement.Icon = achievement.Icon ?? exactIconUrl;
+                        achievement.IconGray = achievement.IconGray ?? exactIconUrl;
+                        continue;
+                    }
+
+                    var titleOnlyLookupKey = BuildAchievementTitleLookupKey(achievement.DisplayName);
+                    if (string.IsNullOrWhiteSpace(titleOnlyLookupKey)
+                        || !iconMap.TryGetValue(titleOnlyLookupKey, out var iconUrl)
+                        || string.IsNullOrWhiteSpace(iconUrl))
+                    {
+                        continue;
+                    }
+
+                    achievement.Icon = achievement.Icon ?? iconUrl;
+                    achievement.IconGray = achievement.IconGray ?? iconUrl;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[SteamAch] Failed enriching anonymous Steam icons from community stats for appId={appId}.");
+            }
+        }
+
+        private static Dictionary<string, string> ParseSteamCommunityAchievementIconMap(string html)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return result;
+            }
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            var rows = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]");
+            if (rows == null || rows.Count == 0)
+            {
+                return result;
+            }
+
+            foreach (var row in rows)
+            {
+                var title = WebUtility.HtmlDecode(row.SelectSingleNode(".//h3")?.InnerText ?? string.Empty).Trim();
+                var description = WebUtility.HtmlDecode(row.SelectSingleNode(".//h5")?.InnerText ?? string.Empty).Trim();
+                var iconUrl = row.SelectSingleNode(".//div[contains(@class,'achieveImgHolder')]//img")?.GetAttributeValue("src", string.Empty)?.Trim();
+                if (string.IsNullOrWhiteSpace(iconUrl))
+                {
+                    continue;
+                }
+
+                var key = BuildAchievementLookupKey(title, description);
+                if (!string.IsNullOrWhiteSpace(key) && !result.ContainsKey(key))
+                {
+                    result[key] = iconUrl;
+                }
+
+                var titleOnlyKey = BuildAchievementTitleLookupKey(title);
+                if (string.IsNullOrWhiteSpace(titleOnlyKey))
+                {
+                    continue;
+                }
+
+                if (result.TryGetValue(titleOnlyKey, out var existingTitleIconUrl))
+                {
+                    if (!string.Equals(existingTitleIconUrl, iconUrl, StringComparison.OrdinalIgnoreCase))
+                    {
+                        result[titleOnlyKey] = string.Empty;
+                    }
+                }
+                else
+                {
+                    result[titleOnlyKey] = iconUrl;
+                }
+            }
+
+            return result;
+        }
+
+        private static string BuildAchievementLookupKey(string displayName, string description)
+        {
+            var normalizedName = NormalizeAchievementLookupPart(displayName);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return null;
+            }
+
+            return normalizedName + "|" + NormalizeAchievementLookupPart(description);
+        }
+
+        private static string BuildAchievementTitleLookupKey(string displayName)
+        {
+            var normalizedName = NormalizeAchievementLookupPart(displayName);
+            return string.IsNullOrWhiteSpace(normalizedName)
+                ? null
+                : "title:" + normalizedName;
+        }
+
+        private static string NormalizeAchievementLookupPart(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var decoded = WebUtility.HtmlDecode(value).Trim();
+            decoded = Regex.Replace(decoded, "\\s+", " ");
+            return decoded.ToLowerInvariant();
         }
 
         private static HttpClient CreateAnonymousSteamHttpClient()

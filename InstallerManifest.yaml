@@ -10,6 +10,8 @@ Packages:
     - "Improved Local anonymous schema matching, hidden-achievement handling, and metadata enrichment so public titles, descriptions, icons, and hidden flags resolve more reliably when available."
     - "Fixed Local provider fallback order so progress-only Goldberg or GSE achievement files are no longer mistaken for schema files."
     - "Better refresh performance"
+    - "No longer needed the Steam API key for the extension to gather the owned games"
+    - "Added setting in the General tab to select the default filter in the main page"
 
   - Version: 2.1.1.2
     RequiredApiVersion: 6.14.0

@@ -46,6 +46,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _showRarityGlow = true;
         private bool _useCoverImages = true;
         private bool _includeUnplayedGames = true;
+        private string _sidebarDefaultRefreshModeKey = RefreshModeType.Installed.GetKey();
+        private string _sidebarDefaultPlayStatusFilter = "played";
         private bool _showSidebarPieCharts = true;
         private bool _showSidebarGamesPieChart = true;
         private bool _showSidebarProviderPieChart = true;
@@ -366,6 +368,22 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _includeUnplayedGames;
             set => SetValue(ref _includeUnplayedGames, value);
+        }
+
+        public string SidebarDefaultRefreshModeKey
+        {
+            get => string.IsNullOrWhiteSpace(_sidebarDefaultRefreshModeKey)
+                ? RefreshModeType.Installed.GetKey()
+                : _sidebarDefaultRefreshModeKey;
+            set => SetValue(ref _sidebarDefaultRefreshModeKey, NormalizeSidebarDefaultRefreshModeKey(value));
+        }
+
+        public string SidebarDefaultPlayStatusFilter
+        {
+            get => string.IsNullOrWhiteSpace(_sidebarDefaultPlayStatusFilter)
+                ? "played"
+                : _sidebarDefaultPlayStatusFilter;
+            set => SetValue(ref _sidebarDefaultPlayStatusFilter, NormalizeSidebarDefaultPlayStatusFilter(value));
         }
 
         /// <summary>
@@ -1114,6 +1132,8 @@ namespace PlayniteAchievements.Models.Settings
                 ShowRarityGlow = this.ShowRarityGlow,
                 UseCoverImages = this.UseCoverImages,
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
+                SidebarDefaultRefreshModeKey = this.SidebarDefaultRefreshModeKey,
+                SidebarDefaultPlayStatusFilter = this.SidebarDefaultPlayStatusFilter,
                 ShowSidebarPieCharts = this.ShowSidebarPieCharts,
                 ShowSidebarGamesPieChart = this.ShowSidebarGamesPieChart,
                 ShowSidebarProviderPieChart = this.ShowSidebarProviderPieChart,
@@ -1238,6 +1258,34 @@ namespace PlayniteAchievements.Models.Settings
         private static string NormalizePath(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        }
+
+        private static string NormalizeSidebarDefaultRefreshModeKey(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return RefreshModeType.Installed.GetKey();
+            }
+
+            var normalized = value.Trim();
+            return Enum.TryParse(normalized, true, out RefreshModeType parsed)
+                ? parsed.GetKey()
+                : RefreshModeType.Installed.GetKey();
+        }
+
+        private static string NormalizeSidebarDefaultPlayStatusFilter(string value)
+        {
+            var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+            switch (normalized)
+            {
+                case "none":
+                case "played":
+                case "unplayed":
+                case "noprogress":
+                    return normalized;
+                default:
+                    return "played";
+            }
         }
 
         private static Dictionary<Guid, List<string>> NormalizeAchievementOrderOverrides(

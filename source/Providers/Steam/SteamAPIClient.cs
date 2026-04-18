@@ -4,6 +4,8 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers.Steam.Models;
 using Playnite.SDK;
 using Playnite.SDK.Data;
@@ -61,6 +63,113 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 _logger?.Debug(ex, "OwnedGames API request failed steamId={steamId64}");
                 return new Dictionary<int, int>();
+            }
+        }
+
+        public async Task<bool> ValidateApiKeyAsync(string apiKey, string steamId64, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId64) || !ulong.TryParse(steamId64.Trim(), out var steamId) || steamId <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                var players = await GetPlayerSummariesAsync(apiKey, new[] { steamId }, ct).ConfigureAwait(false);
+                return players.Any(player => string.Equals(player?.SteamId, steamId64.Trim(), StringComparison.Ordinal));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Steam Web API key validation failed.");
+                return false;
+            }
+        }
+
+        public async Task<UserUnlockedAchievements> GetPlayerAchievementsAsync(string apiKey, string steamId64, int appId, CancellationToken ct)
+        {
+            var result = new UserUnlockedAchievements
+            {
+                AppId = appId,
+                LastUpdatedUtc = DateTime.UtcNow
+            };
+
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId64) || appId <= 0)
+            {
+                return result;
+            }
+
+            try
+            {
+                var url = "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/" +
+                          $"?key={Uri.EscapeDataString(apiKey.Trim())}" +
+                          $"&steamid={Uri.EscapeDataString(steamId64.Trim())}" +
+                          $"&appid={appId}";
+
+                using (var resp = await _apiHttp.GetAsync(url, ct).ConfigureAwait(false))
+                {
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        return result;
+                    }
+
+                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return result;
+                    }
+
+                    var root = JObject.Parse(json);
+                    var playerStats = root["playerstats"] as JObject;
+                    var success = playerStats?["success"]?.Value<bool?>();
+                    if (success == false)
+                    {
+                        return result;
+                    }
+
+                    var achievements = playerStats?["achievements"] as JArray;
+                    if (achievements == null || achievements.Count == 0)
+                    {
+                        return result;
+                    }
+
+                    foreach (var token in achievements.OfType<JObject>())
+                    {
+                        var apiName = token["apiname"]?.Value<string>()?.Trim();
+                        if (string.IsNullOrWhiteSpace(apiName))
+                        {
+                            continue;
+                        }
+
+                        if (token["achieved"]?.Value<int?>() != 1)
+                        {
+                            continue;
+                        }
+
+                        result.UnlockedApiNames.Add(apiName);
+
+                        var unlockTimeUnix = token["unlocktime"]?.Value<long?>();
+                        if (unlockTimeUnix.HasValue && unlockTimeUnix.Value > 0)
+                        {
+                            result.UnlockTimesUtc[apiName] = DateTimeOffset.FromUnixTimeSeconds(unlockTimeUnix.Value).UtcDateTime;
+                        }
+                    }
+
+                    result.LastUpdatedUtc = DateTime.UtcNow;
+                    return result;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"GetPlayerAchievements API request failed for appId={appId}");
+                return result;
             }
         }
 

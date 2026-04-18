@@ -513,7 +513,17 @@
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId">Steam User ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId_Help">Your 64-bit Steam ID. This is automatically detected when you authenticate.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Steam Web API authenticated. This path takes priority while the API key is valid.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiNeedsUserId">Steam Web API key is configured, but the Steam User ID is not known yet. Authenticate once to detect it, or continue with web-only mode.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active. Limited mode works without an API key; schema metadata may come from SteamHunters.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGames">Import owned Steam games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesHint">Use your logged-in Steam web session to import owned Steam games without configuring a Steam Web API key.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesNotAuthenticated">Steam web authentication is required before owned games can be imported.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesMissingLibraryPlugin">The Steam library plugin could not be resolved, so owned Steam games could not be imported.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesNoneFound">No owned Steam games were returned from the authenticated Steam session.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesAlreadyPresent">All {0} resolved owned Steam games are already present in the Playnite library.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesSummary">Imported {0} owned Steam games. Already present: {1}. Failed imports: {2}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesFailed">Owned Steam game import failed: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKey">Steam Web API Key</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Get your API key from</sys:String>
 
@@ -540,6 +550,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_RebuildNow">Rebuild Now</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">Refresh only your most recently played games with achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">Recent games to refresh</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarDefaultsHeader">Extension page defaults</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarDefaultsDescription">Choose which refresh mode and play-status filter should be selected when the Achievements page opens.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarDefaultRefreshMode">Default refresh mode</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarDefaultPlayStatus">Default play status filter</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">Remove All Tags</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">Show the first-time setup landing page again on next sidebar open.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">Reset Landing Page</sys:String>
