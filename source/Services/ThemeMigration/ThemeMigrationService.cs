@@ -24,6 +24,25 @@ namespace PlayniteAchievements.Services.ThemeMigration
         private const string ManifestFileName = "backup_manifest.txt";
 
         /// <summary>
+        /// The extension ID of this plugin as declared in extension.yaml.
+        /// Used when rewriting installation-check bindings in themes (e.g.
+        /// <c>[playnite-successstory-plugin].IsInstalled</c>) so that Playnite's
+        /// <c>ExtensionsStatusBinder</c> can match against <c>Description.Id</c>.
+        /// This is distinct from <c>ThemeSourceName</c>, which is the SourceName
+        /// registered via <c>AddCustomElementSupport</c> / <c>AddSettingsSupport</c>
+        /// and used for control-name prefixes such as <c>PlayniteAchievements_PluginButton</c>.
+        /// </summary>
+        private const string PluginExtensionId = "PlayniteAchievementsSantodan";
+
+        /// <summary>
+        /// The SourceName registered with Playnite's theme system via
+        /// <c>AddCustomElementSupport</c> and <c>AddSettingsSupport</c>.
+        /// Theme control names use this prefix (e.g. <c>PlayniteAchievements_PluginButton</c>),
+        /// and <c>PluginSettings</c> bindings reference it (e.g. <c>Plugin=PlayniteAchievements</c>).
+        /// </summary>
+        private const string ThemeSourceName = "PlayniteAchievements";
+
+        /// <summary>
         /// Binary file extensions that should never be processed.
         /// These files should not be read as text or modified.
         /// </summary>
@@ -529,20 +548,27 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             string result = content;
 
-            // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks)
-            result = result.Replace("SuccessStoryFullscreenHelper", "PlayniteAchievements");
+            // Replace SuccessStoryFullscreenHelper first (most specific - fullscreen installation checks).
+            // Uses PluginExtensionId because Playnite's ExtensionsStatusBinder resolves
+            // [id].IsInstalled by matching Description.Id from extension.yaml, not the SourceName.
+            result = result.Replace("SuccessStoryFullscreenHelper", PluginExtensionId);
             replacements += CountOccurrences(originalContent, "SuccessStoryFullscreenHelper");
 
-            // Replace playnite-successstory-plugin second (installation checks)
-            result = result.Replace("playnite-successstory-plugin", "PlayniteAchievements");
+            // Replace playnite-successstory-plugin second (desktop installation checks).
+            // Same reason: Description.Id must match for IsInstalled to return true.
+            result = result.Replace("playnite-successstory-plugin", PluginExtensionId);
             replacements += CountOccurrences(originalContent, "playnite-successstory-plugin");
 
-            // Replace SSHelper third (class references)
-            result = result.Replace("SSHelper", "PlayniteAchievements");
+            // Replace SSHelper third (class references).
+            // Uses ThemeSourceName because SSHelper appears as a control-name prefix,
+            // not as an extension ID.
+            result = result.Replace("SSHelper", ThemeSourceName);
             replacements += CountOccurrences(originalContent, "SSHelper");
 
-            // Then replace SuccessStory (most general - matches all above)
-            result = result.Replace("SuccessStory", "PlayniteAchievements");
+            // Then replace SuccessStory (most general - catches remaining control-name prefixes
+            // such as SuccessStory_PluginButton → PlayniteAchievements_PluginButton).
+            // Uses ThemeSourceName because control names are looked up via the registered SourceName.
+            result = result.Replace("SuccessStory", ThemeSourceName);
             replacements += CountOccurrences(originalContent, "SuccessStory");
 
             // Fix style key names to match plugin expectations
