@@ -41,11 +41,25 @@ namespace PlayniteAchievements.Providers.Local
         public string DisplayName { get; }
     }
 
+    public sealed class LocalSteamAppCacheUserOption
+    {
+        public LocalSteamAppCacheUserOption(string userId, string displayName)
+        {
+            UserId = userId ?? string.Empty;
+            DisplayName = displayName ?? string.Empty;
+        }
+
+        public string UserId { get; }
+
+        public string DisplayName { get; }
+    }
+
     public class LocalSettings : ProviderSettingsBase
     {
         public const int MinActiveGameMonitoringIntervalSeconds = 2;
         public const int MaxActiveGameMonitoringIntervalSeconds = 60;
         public const string DefaultBundledUnlockSoundPath = @"Resources\Sounds\Steam.wav";
+        public const string SteamAppCacheUserNone = "<none>";
 
         private Dictionary<Guid, int> _steamAppIdOverrides = new Dictionary<Guid, int>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
@@ -59,6 +73,7 @@ namespace PlayniteAchievements.Providers.Local
         private string _importedGameCustomSourceName = string.Empty;
         private string _importedGameMetadataSourceId = string.Empty;
         private LocalExistingGameImportBehavior _existingGameImportBehavior = LocalExistingGameImportBehavior.OverwriteExisting;
+        private string _steamAppCacheUserId = string.Empty;
 
         public override string ProviderKey => "Local";
 
@@ -169,6 +184,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _existingGameImportBehavior;
             set => SetValue(ref _existingGameImportBehavior, value);
+        }
+
+        public string SteamAppCacheUserId
+        {
+            get => _steamAppCacheUserId;
+            set => SetValue(ref _steamAppCacheUserId, value ?? string.Empty);
         }
 
         public Dictionary<Guid, int> SteamAppIdOverrides

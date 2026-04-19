@@ -214,6 +214,31 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        public string PluginIconPath
+        {
+            get
+            {
+                try
+                {
+                    var assemblyPath = typeof(FirstTimeLandingPage).Assembly.Location;
+                    var assemblyDirectory = System.IO.Path.GetDirectoryName(assemblyPath);
+                    if (string.IsNullOrWhiteSpace(assemblyDirectory))
+                    {
+                        return null;
+                    }
+
+                    var iconPath = System.IO.Path.Combine(assemblyDirectory, "icon.png");
+                    return System.IO.File.Exists(iconPath)
+                        ? iconPath
+                        : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
+
         /// <summary>
         /// Event raised when setup is complete and the sidebar should be shown.
         /// </summary>

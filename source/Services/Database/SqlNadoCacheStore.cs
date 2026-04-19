@@ -2171,9 +2171,10 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         private string MakeRelativePath(string absolutePath)
         {
-            if (string.IsNullOrWhiteSpace(absolutePath))
+            absolutePath = NormalizeDbText(absolutePath);
+            if (absolutePath == null)
             {
-                return absolutePath;
+                return null;
             }
 
             // Already relative or URL - pass through unchanged
@@ -2216,9 +2217,10 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         private string MakeAbsolutePath(string relativeOrAbsolutePath)
         {
-            if (string.IsNullOrWhiteSpace(relativeOrAbsolutePath))
+            relativeOrAbsolutePath = NormalizeDbText(relativeOrAbsolutePath);
+            if (relativeOrAbsolutePath == null)
             {
-                return relativeOrAbsolutePath;
+                return null;
             }
 
             // Already absolute - pass through unchanged

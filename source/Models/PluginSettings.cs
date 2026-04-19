@@ -1040,14 +1040,36 @@ namespace PlayniteAchievements.Models
         /// Themes can bind to this property to get the cover image path.
         /// </summary>
         [DontSerialize]
-        public string SelectedGameCoverPath => _selectedGame?.Game != null && !string.IsNullOrWhiteSpace(_selectedGame.Game.CoverImage)
-            ? _plugin?.PlayniteApi?.Database?.GetFullFilePath(_selectedGame.Game.CoverImage)
-            : null;
+        public string SelectedGameCoverPath => ResolveSelectedGameImagePath(_selectedGame?.Game?.CoverImage);
 
         [DontSerialize]
-        public string SelectedGameBackgroundPath => _selectedGame?.Game != null && !string.IsNullOrWhiteSpace(_selectedGame.Game.BackgroundImage)
-            ? _plugin?.PlayniteApi?.Database?.GetFullFilePath(_selectedGame.Game.BackgroundImage)
-            : null;
+        public string SelectedGameBackgroundPath => ResolveSelectedGameImagePath(_selectedGame?.Game?.BackgroundImage);
+
+        private string ResolveSelectedGameImagePath(string imageId)
+        {
+            if (string.IsNullOrWhiteSpace(imageId))
+            {
+                return null;
+            }
+
+            var resolvedPath = _plugin?.PlayniteApi?.Database?.GetFullFilePath(imageId);
+            if (string.IsNullOrWhiteSpace(resolvedPath))
+            {
+                return null;
+            }
+
+            resolvedPath = resolvedPath.Trim();
+            if (resolvedPath.StartsWith("pack://", StringComparison.OrdinalIgnoreCase) ||
+                resolvedPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                resolvedPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return resolvedPath;
+            }
+
+            return System.IO.File.Exists(resolvedPath)
+                ? resolvedPath
+                : null;
+        }
 
         #endregion
     }

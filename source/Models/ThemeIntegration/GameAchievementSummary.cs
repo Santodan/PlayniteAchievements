@@ -212,7 +212,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             Platform = platform ?? "Unknown";
             ProviderKey = providerKey ?? string.Empty;
             ProviderName = providerName ?? string.Empty;
-            CoverImagePath = coverImagePath ?? string.Empty;
+            CoverImagePath = string.IsNullOrWhiteSpace(coverImagePath)
+                ? null
+                : coverImagePath.Trim();
             _progress = Math.Max(0, Math.Min(100, progress));
             _goldCount = Math.Max(0, goldCount);
             _silverCount = Math.Max(0, silverCount);

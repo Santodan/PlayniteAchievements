@@ -851,7 +851,10 @@ namespace PlayniteAchievements.Services.Sidebar
                 return null;
             }
 
-            return _playniteApi?.Database?.GetFullFilePath(path) ?? path;
+            var resolvedPath = _playniteApi?.Database?.GetFullFilePath(path) ?? path;
+            return string.IsNullOrWhiteSpace(resolvedPath)
+                ? null
+                : resolvedPath.Trim();
         }
 
         private static Dictionary<DateTime, int> CloneCounts(IDictionary<DateTime, int> source)

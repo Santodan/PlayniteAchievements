@@ -64,6 +64,16 @@ namespace PlayniteAchievements.Models.Achievements
                 : normalized;
         }
 
+        public static string GetLegacyCompatibleLockedIcon(string unlockedIconPath, string lockedIconPath)
+        {
+            if (HasExplicitLockedIcon(lockedIconPath, unlockedIconPath))
+            {
+                return GetLegacyCompatibleIcon(lockedIconPath);
+            }
+
+            return GetLegacyCompatibleIcon(unlockedIconPath);
+        }
+
         public static string GetUnlockedDisplayIcon(string unlockedIconPath) =>
             string.IsNullOrWhiteSpace(unlockedIconPath)
                 ? DefaultIconPackUri

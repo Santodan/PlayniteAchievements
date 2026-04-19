@@ -382,7 +382,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             if (game == null || api?.Database == null)
             {
-                return string.Empty;
+                return null;
             }
 
             if (!string.IsNullOrWhiteSpace(game.CoverImage))
@@ -390,7 +390,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var coverPath = api.Database.GetFullFilePath(game.CoverImage);
                 if (!string.IsNullOrWhiteSpace(coverPath))
                 {
-                    return coverPath;
+                    return coverPath.Trim();
                 }
             }
 
@@ -399,11 +399,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var iconPath = api.Database.GetFullFilePath(game.Icon);
                 if (!string.IsNullOrWhiteSpace(iconPath))
                 {
-                    return iconPath;
+                    return iconPath.Trim();
                 }
             }
 
-            return string.Empty;
+            return null;
         }
 
         private static void AccumulateGameRarityStats(

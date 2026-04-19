@@ -31,6 +31,7 @@ using PlayniteAchievements.Services.Local;
 using PlayniteAchievements.Services.ThemeMigration;
 using PlayniteAchievements.Services.Tagging;
 using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.Providers.Local;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Windows.Shell;
@@ -503,6 +504,15 @@ namespace PlayniteAchievements
             {
                 _applicationStarted = true;
 
+                try
+                {
+                    ScrubInvalidLocalImportedGameMedia();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "Failed to scrub invalid media from local imported games during startup.");
+                }
+
                 var dispatcher = PlayniteApi?.MainView?.UIDispatcher
                     ?? System.Windows.Application.Current?.Dispatcher;
 
@@ -582,6 +592,91 @@ namespace PlayniteAchievements
             {
                 _logger?.Error(ex, "Failed to restart background updater.");
             }
+        }
+
+        private void ScrubInvalidLocalImportedGameMedia()
+        {
+            var games = PlayniteApi?.Database?.Games;
+            if (games == null)
+            {
+                return;
+            }
+
+            var updatedGames = 0;
+            foreach (var game in games)
+            {
+                if (game == null || game.Id == Guid.Empty)
+                {
+                    continue;
+                }
+
+                if (!LocalSavesProvider.TryGetAppIdOverride(game.Id, out _) &&
+                    !LocalSavesProvider.TryGetFolderOverride(game.Id, out _))
+                {
+                    continue;
+                }
+
+                var changed = false;
+
+                var sanitizedIcon = SanitizeLocalImportedGameImageField(game, game.Icon, "Icon", ref changed);
+                if (!string.Equals(game.Icon, sanitizedIcon, StringComparison.Ordinal))
+                {
+                    game.Icon = sanitizedIcon;
+                }
+
+                var sanitizedCover = SanitizeLocalImportedGameImageField(game, game.CoverImage, "CoverImage", ref changed);
+                if (!string.Equals(game.CoverImage, sanitizedCover, StringComparison.Ordinal))
+                {
+                    game.CoverImage = sanitizedCover;
+                }
+
+                var sanitizedBackground = SanitizeLocalImportedGameImageField(game, game.BackgroundImage, "BackgroundImage", ref changed);
+                if (!string.Equals(game.BackgroundImage, sanitizedBackground, StringComparison.Ordinal))
+                {
+                    game.BackgroundImage = sanitizedBackground;
+                }
+
+                if (!changed)
+                {
+                    continue;
+                }
+
+                PlayniteApi.Database.Games.Update(game);
+                updatedGames++;
+            }
+
+            if (updatedGames > 0)
+            {
+                _logger?.Info($"Scrubbed invalid media references from {updatedGames} local imported game(s).");
+            }
+        }
+
+        private string SanitizeLocalImportedGameImageField(Game game, string imageId, string fieldName, ref bool changed)
+        {
+            if (string.IsNullOrWhiteSpace(imageId))
+            {
+                if (imageId != null)
+                {
+                    changed = true;
+                }
+
+                return null;
+            }
+
+            var trimmedImageId = imageId.Trim();
+            var resolvedPath = PlayniteApi?.Database?.GetFullFilePath(trimmedImageId)?.Trim();
+            if (string.IsNullOrWhiteSpace(resolvedPath) ||
+                resolvedPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                resolvedPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                resolvedPath.StartsWith("pack://", StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(resolvedPath))
+            {
+                changed = true;
+                _logger?.Warn($"Clearing invalid {fieldName} for locally imported game '{game?.Name}' ({game?.Id}). Raw='{trimmedImageId}', Resolved='{resolvedPath}'.");
+                return null;
+            }
+
+            return trimmedImageId;
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)

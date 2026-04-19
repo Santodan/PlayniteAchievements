@@ -32,15 +32,35 @@ namespace PlayniteAchievements.Models
 
         public string DisplayName => _game?.Name;
 
-        public string CoverImage => _game?.CoverImage;
+        public string CoverImage => NormalizeResolvedImagePath(_coverImagePathProvider?.Invoke());
 
-        public string BackgroundImage => _game?.BackgroundImage;
+        public string BackgroundImage => NormalizeResolvedImagePath(_backgroundImagePathProvider?.Invoke());
 
-        public string CoverImageObjectCached => _coverImagePathProvider?.Invoke();
+        public string CoverImageObjectCached => NormalizeResolvedImagePath(_coverImagePathProvider?.Invoke());
 
         // Legacy alias used by several fullscreen themes.
-        public string CoverImageObject => _coverImagePathProvider?.Invoke();
+        public string CoverImageObject => NormalizeResolvedImagePath(_coverImagePathProvider?.Invoke());
 
-        public string DisplayBackgroundImageObject => _backgroundImagePathProvider?.Invoke();
+        public string DisplayBackgroundImageObject => NormalizeResolvedImagePath(_backgroundImagePathProvider?.Invoke());
+
+        private static string NormalizeResolvedImagePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            var normalized = path.Trim();
+            if (normalized.StartsWith("pack://", StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalized;
+            }
+
+            return System.IO.File.Exists(normalized)
+                ? normalized
+                : null;
+        }
     }
 }

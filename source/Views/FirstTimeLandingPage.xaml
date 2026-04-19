@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="700"
              d:DesignWidth="360">
@@ -14,12 +15,13 @@
 
             <!-- Plugin Icon -->
             <Image x:Name="PluginIcon"
-                   Source="pack://application:,,,/icon.png"
                    Width="56"
                    Height="56"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,12"
-                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                     RenderOptions.BitmapScalingMode="HighQuality"
+                     helpers:AsyncImage.Uri="{Binding PluginIconPath}"
+                     helpers:AsyncImage.DecodePixel="112"/>
 
             <!-- Main Title -->
             <TextBlock Text="{DynamicResource LOCPlayAch_Landing_Title}"

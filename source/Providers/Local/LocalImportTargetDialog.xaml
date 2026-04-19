@@ -17,6 +17,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
@@ -108,7 +109,25 @@
             </ComboBox>
         </Grid>
 
-        <StackPanel Grid.Row="5"
+        <Grid Grid.Row="5" Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="Steam appcache user"
+                       Foreground="{DynamicResource TextBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding SteamAppCacheUserOptions}"
+                      DisplayMemberPath="DisplayName"
+                      SelectedValuePath="UserId"
+                      SelectedValue="{Binding SteamAppCacheUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      MinHeight="30" />
+        </Grid>
+
+        <StackPanel Grid.Row="6"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,14,0,0">

@@ -76,6 +76,15 @@ namespace PlayniteAchievements.Providers.Local
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly LocalSettings _localSettings;
+        private readonly Dictionary<int, SteamAppImportabilityInfo> _steamAppImportabilityCache = new Dictionary<int, SteamAppImportabilityInfo>();
+        private string _steamAppCacheUserIdOverride;
+
+        private sealed class SteamAppImportabilityInfo
+        {
+            public bool IsImportable { get; set; }
+            public string Name { get; set; }
+            public string Type { get; set; }
+        }
 
         public LocalFolderGamesImporter(
             IPlayniteAPI api,
@@ -95,8 +104,10 @@ namespace PlayniteAchievements.Providers.Local
             string metadataSourceIdOverride = null,
             LocalExistingGameImportBehavior? existingGameBehaviorOverride = null,
             CancellationToken cancellationToken = default(CancellationToken),
-            IProgress<LocalImportProgressInfo> progress = null)
+            IProgress<LocalImportProgressInfo> progress = null,
+            string steamAppCacheUserIdOverride = null)
         {
+            _steamAppCacheUserIdOverride = steamAppCacheUserIdOverride;
             var normalizedRoots = GetImportRoots(roots)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Select(path => Environment.ExpandEnvironmentVariables(path.Trim()))
@@ -156,7 +167,7 @@ namespace PlayniteAchievements.Providers.Local
                         ReportProgress(
                             progress,
                             40d + (processedCandidates / (double)Math.Max(1, totalCandidates) * 60d),
-                            $"Importing {gameLabel}...",
+                            $"Importing {gameLabel} ({processedCandidates}/{Math.Max(1, totalCandidates)})...",
                             BuildCandidateDetail(chosenCandidate, processedCandidates, totalCandidates));
 
                         if (candidate.Value.Count > 1)
@@ -164,10 +175,28 @@ namespace PlayniteAchievements.Providers.Local
                             _logger?.Info($"[LocalImport] appId={appId} has {candidate.Value.Count} candidate folders/files. Using {DescribeCandidate(chosenCandidate)}. All candidates: {string.Join(" | ", candidate.Value.Select(DescribeCandidate))}");
                         }
 
+                        if (!ShouldImportCandidate(appId, chosenCandidate, out var skipReason))
+                        {
+                            result.SkippedCount++;
+                            _logger?.Info($"[LocalImport] Skipping appId={appId}: {skipReason}");
+                            continue;
+                        }
+
                         var game = FindExistingGame(appId, importTarget, customSourceName);
+                        GameMetadata pendingMetadata = null;
                         if (game == null)
                         {
-                            game = ImportGame(appId, importTarget, customSourceName, selectedMetadataPlugin);
+                            pendingMetadata = BuildMetadata(appId, importTarget, customSourceName, selectedMetadataPlugin);
+                            game = FindExistingGameByName(pendingMetadata?.Name, importTarget, customSourceName);
+                            if (game != null)
+                            {
+                                _logger?.Info($"[LocalImport] Reusing existing game by title match for appId={appId}: {DescribeGame(game)}.");
+                            }
+                        }
+
+                        if (game == null)
+                        {
+                            game = ImportGame(appId, importTarget, customSourceName, selectedMetadataPlugin, pendingMetadata);
                             if (game == null)
                             {
                                 result.FailedCount++;
@@ -175,15 +204,7 @@ namespace PlayniteAchievements.Providers.Local
                             }
 
                             ApplyImportTarget(game, importTarget, customSourceName);
-                            if (selectedMetadataPlugin == null)
-                            {
-                                ApplyDownloadedMetadata(game, appId, selectedMetadataPlugin);
-                            }
-                            else
-                            {
-                                NormalizeImportedGameMetadata(game, appId);
-                                _api.Database.Games.Update(game);
-                            }
+                            ApplyDownloadedMetadata(game, appId, selectedMetadataPlugin);
                             _logger?.Info($"[LocalImport] Imported new game for appId={appId}: {DescribeGame(game)}.");
                             result.ImportedCount++;
                         }
@@ -258,6 +279,7 @@ namespace PlayniteAchievements.Providers.Local
             var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
             var publicFolder = Environment.GetEnvironmentVariable("PUBLIC") ?? string.Empty;
+            var includeSteamRoots = !IsSteamAutomaticRootScanningDisabled();
 
             resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\Goldberg SteamEmu Saves"));
             resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%APPDATA%\GSE Saves"));
@@ -279,16 +301,19 @@ namespace PlayniteAchievements.Providers.Local
                 resolvedRoots.Add(Path.Combine(documents, "SkidRow"));
             }
 
-            if (!string.IsNullOrWhiteSpace(commonAppData))
+            if (includeSteamRoots && !string.IsNullOrWhiteSpace(commonAppData))
             {
                 resolvedRoots.Add(Path.Combine(commonAppData, "Steam"));
             }
 
-            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Steam"));
-            resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Steam"));
+            if (includeSteamRoots)
+            {
+                resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles(x86)%\Steam"));
+                resolvedRoots.Add(Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Steam"));
+            }
 
             var steamPath = Environment.GetEnvironmentVariable("SteamPath");
-            if (!string.IsNullOrWhiteSpace(steamPath))
+            if (includeSteamRoots && !string.IsNullOrWhiteSpace(steamPath))
             {
                 resolvedRoots.Add(steamPath);
                 resolvedRoots.Add(Path.Combine(steamPath, "userdata"));
@@ -297,6 +322,11 @@ namespace PlayniteAchievements.Providers.Local
             if (!string.IsNullOrWhiteSpace(localAppData))
             {
                 resolvedRoots.Add(Path.Combine(localAppData, "SKIDROW"));
+            }
+
+            foreach (var configuredSteamRoot in includeSteamRoots ? GetConfiguredSteamImportRoots() : Enumerable.Empty<string>())
+            {
+                resolvedRoots.Add(configuredSteamRoot);
             }
 
             foreach (var configuredPath in LocalSettings.SplitExtraLocalPaths(_settings?.Persisted?.ExtraLocalPaths ?? _localSettings?.ExtraLocalPaths))
@@ -312,13 +342,93 @@ namespace PlayniteAchievements.Providers.Local
             return resolvedRoots;
         }
 
+        private bool IsSteamAutomaticRootScanningDisabled()
+        {
+            var selectedSteamAppCacheUserId = (_steamAppCacheUserIdOverride ?? _localSettings?.SteamAppCacheUserId ?? string.Empty).Trim();
+            return string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private IEnumerable<string> GetConfiguredSteamImportRoots()
+        {
+            var configuredPath = (_localSettings?.SteamUserdataPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                yield break;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(configuredPath);
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                yield break;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var path in ResolveConfiguredSteamImportRootCandidates(expanded))
+            {
+                if (!string.IsNullOrWhiteSpace(path) && seen.Add(path))
+                {
+                    yield return path;
+                }
+            }
+        }
+
+        private static IEnumerable<string> ResolveConfiguredSteamImportRootCandidates(string configuredPath)
+        {
+            if (string.IsNullOrWhiteSpace(configuredPath))
+            {
+                yield break;
+            }
+
+            yield return configuredPath;
+
+            var trimmedPath = configuredPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var leafName = Path.GetFileName(trimmedPath);
+
+            if (string.Equals(leafName, "userdata", StringComparison.OrdinalIgnoreCase))
+            {
+                var baseDirectory = Directory.GetParent(trimmedPath)?.FullName;
+                if (!string.IsNullOrWhiteSpace(baseDirectory))
+                {
+                    yield return baseDirectory;
+                }
+
+                yield break;
+            }
+
+            if (string.Equals(leafName, "stats", StringComparison.OrdinalIgnoreCase))
+            {
+                var appCacheDirectory = Directory.GetParent(trimmedPath);
+                var baseDirectory = appCacheDirectory?.Parent?.FullName;
+                if (!string.IsNullOrWhiteSpace(baseDirectory))
+                {
+                    yield return baseDirectory;
+                }
+
+                yield break;
+            }
+
+            var nestedUserdata = Path.Combine(trimmedPath, "userdata");
+            if (Directory.Exists(nestedUserdata))
+            {
+                yield return nestedUserdata;
+            }
+
+            var nestedStats = Path.Combine(trimmedPath, "appcache", "stats");
+            if (Directory.Exists(nestedStats))
+            {
+                yield return nestedStats;
+            }
+        }
+
         private Game ImportGame(
             int appId,
             LocalImportedGameLibraryTarget importTarget,
             string customSourceName,
-            MetadataPlugin selectedMetadataPlugin)
+            MetadataPlugin selectedMetadataPlugin,
+            GameMetadata metadata = null)
         {
-            var metadata = BuildMetadata(appId, importTarget, customSourceName, selectedMetadataPlugin);
+            metadata ??= BuildMetadata(appId, importTarget, customSourceName, selectedMetadataPlugin);
 
             if (importTarget == LocalImportedGameLibraryTarget.Steam)
             {
@@ -376,16 +486,19 @@ namespace PlayniteAchievements.Providers.Local
                         AddCandidate(candidates, candidate);
                     }
 
-                    foreach (var steamStatsRoot in GetSteamAppCacheStatsRoots(root))
+                    if (!IsSteamAutomaticRootScanningDisabled())
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        DiscoverSteamAppCacheCandidates(candidates, steamStatsRoot, cancellationToken);
-                    }
+                        foreach (var steamStatsRoot in GetSteamAppCacheStatsRoots(root))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            DiscoverSteamAppCacheCandidates(candidates, steamStatsRoot, cancellationToken);
+                        }
 
-                    foreach (var steamUserdataRoot in GetSteamUserdataRoots(root))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        DiscoverSteamLibraryCacheCandidates(candidates, steamUserdataRoot, cancellationToken);
+                        foreach (var steamUserdataRoot in GetSteamUserdataRoots(root))
+                        {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            DiscoverSteamLibraryCacheCandidates(candidates, steamUserdataRoot, cancellationToken);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -455,6 +568,45 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
+            var selectedSteamAppCacheUserId = (_steamAppCacheUserIdOverride ?? _localSettings?.SteamAppCacheUserId ?? string.Empty).Trim();
+            if (string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var allowedAppIdsFromSelectedUser = new HashSet<int>();
+
+            foreach (var userStatsPath in Directory.EnumerateFiles(statsRoot, "UserGameStats_*_*.bin", SearchOption.TopDirectoryOnly))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var parts = Path.GetFileNameWithoutExtension(userStatsPath)?.Split('_');
+                if (parts == null || parts.Length < 3)
+                {
+                    continue;
+                }
+
+                var userId = parts[1]?.Trim();
+                if (!string.IsNullOrWhiteSpace(selectedSteamAppCacheUserId) &&
+                    !string.Equals(userId, selectedSteamAppCacheUserId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                {
+                    continue;
+                }
+
+                allowedAppIdsFromSelectedUser.Add(appId);
+                AddCandidate(candidates, new ImportCandidate
+                {
+                    AppId = appId,
+                    HasSteamAppCacheUserStats = true,
+                    LastWriteUtc = File.GetLastWriteTimeUtc(userStatsPath)
+                });
+            }
+
             foreach (var schemaPath in Directory.EnumerateFiles(statsRoot, "UserGameStatsSchema_*.bin", SearchOption.TopDirectoryOnly))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -466,20 +618,7 @@ namespace PlayniteAchievements.Providers.Local
                     continue;
                 }
 
-                AddCandidate(candidates, new ImportCandidate
-                {
-                    AppId = appId,
-                    HasSteamAppCacheSchema = true,
-                    LastWriteUtc = File.GetLastWriteTimeUtc(schemaPath)
-                });
-            }
-
-            foreach (var userStatsPath in Directory.EnumerateFiles(statsRoot, "UserGameStats_*_*.bin", SearchOption.TopDirectoryOnly))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var parts = Path.GetFileNameWithoutExtension(userStatsPath)?.Split('_');
-                if (parts == null || parts.Length < 3 || !int.TryParse(parts[parts.Length - 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
+                if (!string.IsNullOrWhiteSpace(selectedSteamAppCacheUserId) && !allowedAppIdsFromSelectedUser.Contains(appId))
                 {
                     continue;
                 }
@@ -487,8 +626,8 @@ namespace PlayniteAchievements.Providers.Local
                 AddCandidate(candidates, new ImportCandidate
                 {
                     AppId = appId,
-                    HasSteamAppCacheUserStats = true,
-                    LastWriteUtc = File.GetLastWriteTimeUtc(userStatsPath)
+                    HasSteamAppCacheSchema = true,
+                    LastWriteUtc = File.GetLastWriteTimeUtc(schemaPath)
                 });
             }
         }
@@ -646,6 +785,29 @@ namespace PlayniteAchievements.Providers.Local
                 ?? matchingGames.FirstOrDefault();
         }
 
+        private Game FindExistingGameByName(string resolvedName, LocalImportedGameLibraryTarget importTarget, string customSourceName)
+        {
+            var normalizedName = NormalizeGameTitleForDuplicateMatch(resolvedName);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return null;
+            }
+
+            var matchingGames = _api.Database.Games
+                .Where(game => MatchesNormalizedGameTitle(game, normalizedName))
+                .ToList();
+
+            if (matchingGames.Count == 0)
+            {
+                return null;
+            }
+
+            return matchingGames.FirstOrDefault(game => MatchesRequestedImportTarget(game, importTarget, customSourceName))
+                ?? matchingGames.FirstOrDefault(game => game.PluginId == Guid.Empty)
+                ?? matchingGames.FirstOrDefault(game => IsExistingLocalBinding(game))
+                ?? matchingGames.FirstOrDefault();
+        }
+
         private bool MatchesResolvedAppId(Game game, int appId)
         {
             if (game == null || game.Id == Guid.Empty || appId <= 0)
@@ -656,6 +818,31 @@ namespace PlayniteAchievements.Providers.Local
             var appIdText = appId.ToString(CultureInfo.InvariantCulture);
             return string.Equals(game.GameId, appIdText, StringComparison.OrdinalIgnoreCase) ||
                 (LocalSavesProvider.TryResolveAppId(game, out var resolvedAppId, out _) && resolvedAppId == appId);
+        }
+
+        private static bool MatchesNormalizedGameTitle(Game game, string normalizedName)
+        {
+            if (game == null || string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return false;
+            }
+
+            return string.Equals(NormalizeGameTitleForDuplicateMatch(game.Name), normalizedName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(NormalizeGameTitleForDuplicateMatch(game.SortingName), normalizedName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeGameTitleForDuplicateMatch(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = WebUtility.HtmlDecode(value).Trim().ToLowerInvariant();
+            normalized = normalized.Replace('’', '\'').Replace('`', '\'');
+            normalized = Regex.Replace(normalized, @"[^\p{L}\p{N}]+", " ");
+            normalized = Regex.Replace(normalized, @"\s+", " ");
+            return normalized.Trim();
         }
 
         private bool MatchesRequestedImportTarget(Game game, LocalImportedGameLibraryTarget importTarget, string customSourceName)
@@ -1326,6 +1513,118 @@ namespace PlayniteAchievements.Providers.Local
             };
         }
 
+
+                    private bool ShouldImportCandidate(int appId, ImportCandidate candidate, out string reason)
+                    {
+                        reason = null;
+                        if (appId <= 0 || candidate == null)
+                        {
+                            return false;
+                        }
+
+                        var isSteamCacheCandidate = candidate.HasSteamAppCacheSchema ||
+                            candidate.HasSteamAppCacheUserStats ||
+                            candidate.HasSteamLibraryCache;
+                        if (!isSteamCacheCandidate)
+                        {
+                            return true;
+                        }
+
+                        var importability = GetSteamAppImportability(appId);
+                        if (importability == null || importability.IsImportable)
+                        {
+                            return true;
+                        }
+
+                        var namePart = string.IsNullOrWhiteSpace(importability.Name)
+                            ? string.Empty
+                            : $" '{importability.Name}'";
+                        var typePart = string.IsNullOrWhiteSpace(importability.Type)
+                            ? string.Empty
+                            : $" (type '{importability.Type}')";
+                        reason = $"Steam app{namePart} is not an importable game{typePart}.";
+                        return false;
+                    }
+
+                    private SteamAppImportabilityInfo GetSteamAppImportability(int appId)
+                    {
+                        if (appId <= 0)
+                        {
+                            return null;
+                        }
+
+                        if (_steamAppImportabilityCache.TryGetValue(appId, out var cachedInfo))
+                        {
+                            return cachedInfo;
+                        }
+
+                        var info = new SteamAppImportabilityInfo
+                        {
+                            IsImportable = !IsExcludedSteamAppId(appId)
+                        };
+
+                        try
+                        {
+                            var requestUrl = $"https://store.steampowered.com/api/appdetails?appids={appId}&filters=basic";
+                            using (var webClient = new WebClient())
+                            {
+                                webClient.Headers[HttpRequestHeader.UserAgent] =
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+                                webClient.Headers[HttpRequestHeader.Accept] = "application/json";
+                                webClient.Encoding = Encoding.UTF8;
+
+                                var json = webClient.DownloadString(requestUrl);
+                                if (!string.IsNullOrWhiteSpace(json))
+                                {
+                                    var root = JObject.Parse(json);
+                                    var envelope = root[appId.ToString(CultureInfo.InvariantCulture)] as JObject;
+                                    if (envelope?["success"]?.Value<bool>() == true)
+                                    {
+                                        var data = envelope["data"] as JObject;
+                                        if (data != null)
+                                        {
+                                            info.Name = data["name"]?.Value<string>()?.Trim();
+                                            info.Type = data["type"]?.Value<string>()?.Trim();
+                                            info.IsImportable = !IsExcludedSteamAppId(appId) &&
+                                                IsImportableSteamAppType(info.Type) &&
+                                                !IsExcludedSteamAppName(info.Name);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, $"[LocalImport] Failed checking Steam app type for appId={appId}. Allowing import.");
+                        }
+
+                        _steamAppImportabilityCache[appId] = info;
+                        return info;
+                    }
+
+                    private static bool IsImportableSteamAppType(string type)
+                    {
+                        if (string.IsNullOrWhiteSpace(type))
+                        {
+                            return true;
+                        }
+
+                        return string.Equals(type, "game", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "demo", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "mod", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(type, "episode", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    private static bool IsExcludedSteamAppName(string name)
+                    {
+                        return string.Equals(name?.Trim(), "Steam Game Notes", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    private static bool IsExcludedSteamAppId(int appId)
+                    {
+                        return appId == 228980 || appId == 2371090;
+                    }
+
         private static string BuildUniversalSteamMetadataLookupName(string currentName, int appId)
         {
             var trimmedName = (currentName ?? string.Empty).Trim();
@@ -1661,27 +1960,6 @@ namespace PlayniteAchievements.Providers.Local
                     if (!string.IsNullOrWhiteSpace(description))
                     {
                         metadata.Description = PrepareProviderMetadataDescription(description);
-                        applied = true;
-                    }
-
-                    var icon = provider.GetIcon(args);
-                    if (icon != null)
-                    {
-                        metadata.Icon = icon;
-                        applied = true;
-                    }
-
-                    var cover = provider.GetCoverImage(args);
-                    if (cover != null)
-                    {
-                        metadata.CoverImage = cover;
-                        applied = true;
-                    }
-
-                    var background = provider.GetBackgroundImage(args);
-                    if (background != null)
-                    {
-                        metadata.BackgroundImage = background;
                         applied = true;
                     }
 

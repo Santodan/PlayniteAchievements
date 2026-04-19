@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Media;
+using System.Text.RegularExpressions;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +36,7 @@ namespace PlayniteAchievements.Providers.Local
         public ObservableCollection<BundledSoundOption> BundledUnlockSounds { get; } = new ObservableCollection<BundledSoundOption>();
         public ObservableCollection<string> AvailableSourceNames { get; } = new ObservableCollection<string>();
         public ObservableCollection<LocalMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<LocalMetadataSourceOption>();
+        public ObservableCollection<LocalSteamAppCacheUserOption> AvailableSteamAppCacheUsers { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
 
         public new LocalSettings Settings => _localSettings;
 
@@ -66,6 +68,7 @@ namespace PlayniteAchievements.Providers.Local
 
             RefreshAvailableSourceNames();
             RefreshAvailableMetadataSources();
+            RefreshAvailableSteamAppCacheUsers();
             RefreshBundledUnlockSounds();
             RefreshRealtimeMonitoringControls();
             RefreshExtraLocalPathEntries();
@@ -88,6 +91,11 @@ namespace PlayniteAchievements.Providers.Local
                 e.PropertyName == nameof(LocalSettings.ActiveGameMonitoringIntervalSeconds))
             {
                 RefreshRealtimeMonitoringControls();
+            }
+
+            if (e.PropertyName == nameof(LocalSettings.SteamUserdataPath))
+            {
+                RefreshAvailableSteamAppCacheUsers();
             }
         }
 
@@ -112,6 +120,7 @@ namespace PlayniteAchievements.Providers.Local
             if (!string.IsNullOrWhiteSpace(selectedPath))
             {
                 _localSettings.SteamUserdataPath = selectedPath;
+                RefreshAvailableSteamAppCacheUsers();
             }
         }
 
@@ -285,7 +294,7 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
-            if (!TryShowImportTargetDialog(out var selectedTarget, out var customSourceName, out var metadataSourceId, out var existingGameBehavior))
+            if (!TryShowImportTargetDialog(out var selectedTarget, out var customSourceName, out var metadataSourceId, out var steamAppCacheUserId, out var existingGameBehavior))
             {
                 return;
             }
@@ -295,6 +304,7 @@ namespace PlayniteAchievements.Providers.Local
                 _localSettings.ImportedGameLibraryTarget = selectedTarget;
                 _localSettings.ImportedGameCustomSourceName = customSourceName ?? string.Empty;
                 _localSettings.ImportedGameMetadataSourceId = metadataSourceId ?? string.Empty;
+                _localSettings.SteamAppCacheUserId = steamAppCacheUserId ?? string.Empty;
                 _localSettings.ExistingGameImportBehavior = existingGameBehavior;
                 RefreshImportedGameTargetControls();
             }
@@ -304,7 +314,7 @@ namespace PlayniteAchievements.Providers.Local
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            StartLocalImport(roots, selectedTarget, customSourceName, metadataSourceId, existingGameBehavior);
+            StartLocalImport(roots, selectedTarget, customSourceName, metadataSourceId, existingGameBehavior, steamAppCacheUserId);
         }
 
         private void PendingExtraLocalPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -432,6 +442,253 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
+        private void RefreshAvailableSteamAppCacheUsers()
+        {
+            AvailableSteamAppCacheUsers.Clear();
+            AvailableSteamAppCacheUsers.Add(new LocalSteamAppCacheUserOption(LocalSettings.SteamAppCacheUserNone, "None (skip Steam appcache imports)"));
+            AvailableSteamAppCacheUsers.Add(new LocalSteamAppCacheUserOption(string.Empty, "Automatic (all detected users)"));
+
+            var discoveredUsers = DiscoverSteamAppCacheUsers().ToList();
+            foreach (var user in discoveredUsers)
+            {
+                AvailableSteamAppCacheUsers.Add(user);
+            }
+
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            var selectedUserId = (_localSettings.SteamAppCacheUserId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(selectedUserId))
+            {
+                return;
+            }
+
+            if (!AvailableSteamAppCacheUsers.Any(option => string.Equals(option.UserId, selectedUserId, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableSteamAppCacheUsers.Add(new LocalSteamAppCacheUserOption(selectedUserId, selectedUserId));
+            }
+        }
+
+        private IReadOnlyList<LocalSteamAppCacheUserOption> DiscoverSteamAppCacheUsers()
+        {
+            var personaNamesById = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var discoveredIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var steamBasePath in GetSteamBaseCandidatePaths())
+            {
+                TryReadSteamLoginUsers(steamBasePath, personaNamesById);
+
+                var userdataRoot = GetSteamUserdataRoot(steamBasePath);
+                if (!string.IsNullOrWhiteSpace(userdataRoot) && Directory.Exists(userdataRoot))
+                {
+                    try
+                    {
+                        foreach (var userDir in Directory.EnumerateDirectories(userdataRoot))
+                        {
+                            var userId = Path.GetFileName(userDir)?.Trim();
+                            if (!string.IsNullOrWhiteSpace(userId) && Regex.IsMatch(userId, @"^\d+$"))
+                            {
+                                discoveredIds.Add(userId);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed discovering Steam userdata users from '{userdataRoot}'.");
+                    }
+                }
+
+                var statsRoot = GetSteamAppCacheStatsRoot(steamBasePath);
+                if (!string.IsNullOrWhiteSpace(statsRoot) && Directory.Exists(statsRoot))
+                {
+                    try
+                    {
+                        foreach (var statsPath in Directory.EnumerateFiles(statsRoot, "UserGameStats_*_*.bin", SearchOption.TopDirectoryOnly))
+                        {
+                            var parts = Path.GetFileNameWithoutExtension(statsPath)?.Split('_');
+                            if (parts == null || parts.Length < 3)
+                            {
+                                continue;
+                            }
+
+                            var userId = parts[1]?.Trim();
+                            if (!string.IsNullOrWhiteSpace(userId) && Regex.IsMatch(userId, @"^\d+$"))
+                            {
+                                discoveredIds.Add(userId);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"Failed discovering Steam appcache users from '{statsRoot}'.");
+                    }
+                }
+            }
+
+            return discoveredIds
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .Select(id => new LocalSteamAppCacheUserOption(id, BuildSteamAppCacheUserDisplayName(id, personaNamesById)))
+                .ToList();
+        }
+
+        private IEnumerable<string> GetSteamBaseCandidatePaths()
+        {
+            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddCandidate(string path)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    return;
+                }
+
+                var expanded = Environment.ExpandEnvironmentVariables(path.Trim());
+                if (string.IsNullOrWhiteSpace(expanded))
+                {
+                    return;
+                }
+
+                if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase))
+                {
+                    expanded = Directory.GetParent(expanded)?.FullName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(expanded) && Directory.Exists(expanded))
+                {
+                    candidates.Add(expanded);
+                }
+            }
+
+            AddCandidate(_localSettings?.SteamUserdataPath);
+            AddCandidate(Environment.GetEnvironmentVariable("SteamPath"));
+            AddCandidate(@"%ProgramFiles(x86)%\Steam");
+            AddCandidate(@"%ProgramFiles%\Steam");
+
+            foreach (var drive in Environment.GetLogicalDrives())
+            {
+                AddCandidate(Path.Combine(drive, "Program Files (x86)", "Steam"));
+                AddCandidate(Path.Combine(drive, "Program Files", "Steam"));
+                AddCandidate(Path.Combine(drive, "Programs", "Steam"));
+                AddCandidate(Path.Combine(drive, "Steam"));
+            }
+
+            return candidates;
+        }
+
+        private static string GetSteamUserdataRoot(string steamBasePath)
+        {
+            if (string.IsNullOrWhiteSpace(steamBasePath))
+            {
+                return null;
+            }
+
+            var userdataRoot = Path.Combine(steamBasePath, "userdata");
+            return Directory.Exists(userdataRoot) ? userdataRoot : null;
+        }
+
+        private static string GetSteamAppCacheStatsRoot(string steamBasePath)
+        {
+            if (string.IsNullOrWhiteSpace(steamBasePath))
+            {
+                return null;
+            }
+
+            var statsRoot = Path.Combine(steamBasePath, "appcache", "stats");
+            return Directory.Exists(statsRoot) ? statsRoot : null;
+        }
+
+        private void TryReadSteamLoginUsers(string steamBasePath, IDictionary<string, string> personaNamesById)
+        {
+            if (string.IsNullOrWhiteSpace(steamBasePath) || personaNamesById == null)
+            {
+                return;
+            }
+
+            var loginUsersPath = Path.Combine(steamBasePath, "config", "loginusers.vdf");
+            if (!File.Exists(loginUsersPath))
+            {
+                return;
+            }
+
+            try
+            {
+                var lines = File.ReadAllLines(loginUsersPath);
+                string currentSteamId = null;
+
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine?.Trim();
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+
+                    var steamIdMatch = Regex.Match(line, "^\"(?<id>\\d{5,})\"$");
+                    if (steamIdMatch.Success)
+                    {
+                        currentSteamId = steamIdMatch.Groups["id"].Value;
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(currentSteamId))
+                    {
+                        continue;
+                    }
+
+                    var personaMatch = Regex.Match(line, @"^""PersonaName""\s+""(?<name>.*)""$");
+                    if (!personaMatch.Success)
+                    {
+                        continue;
+                    }
+
+                    var accountId = TryConvertSteamId64ToAccountId(currentSteamId);
+                    if (!string.IsNullOrWhiteSpace(accountId) && !personaNamesById.ContainsKey(accountId))
+                    {
+                        personaNamesById[accountId] = personaMatch.Groups["name"].Value.Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed reading Steam login users from '{loginUsersPath}'.");
+            }
+        }
+
+        private static string TryConvertSteamId64ToAccountId(string steamId)
+        {
+            if (string.IsNullOrWhiteSpace(steamId))
+            {
+                return null;
+            }
+
+            if (!ulong.TryParse(steamId.Trim(), out var steamIdValue) || steamIdValue < 76561197960265728UL)
+            {
+                return null;
+            }
+
+            var accountId = steamIdValue - 76561197960265728UL;
+            return accountId <= uint.MaxValue
+                ? accountId.ToString()
+                : null;
+        }
+
+        private static string BuildSteamAppCacheUserDisplayName(string userId, IReadOnlyDictionary<string, string> personaNamesById)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return string.Empty;
+            }
+
+            if (personaNamesById != null && personaNamesById.TryGetValue(userId, out var personaName) && !string.IsNullOrWhiteSpace(personaName))
+            {
+                return $"{personaName} ({userId})";
+            }
+
+            return userId;
+        }
+
         private IReadOnlyList<LocalMetadataSourceOption> GetInstalledMetadataProviderOptions()
         {
             var options = new List<LocalMetadataSourceOption>();
@@ -520,21 +777,23 @@ namespace PlayniteAchievements.Providers.Local
             out LocalImportedGameLibraryTarget selectedTarget,
             out string customSourceName,
             out string metadataSourceId,
+            out string steamAppCacheUserId,
             out LocalExistingGameImportBehavior existingGameBehavior)
         {
             selectedTarget = _localSettings?.ImportedGameLibraryTarget ?? LocalImportedGameLibraryTarget.None;
             customSourceName = _localSettings?.ImportedGameCustomSourceName ?? string.Empty;
             metadataSourceId = _localSettings?.ImportedGameMetadataSourceId ?? string.Empty;
+            steamAppCacheUserId = _localSettings?.SteamAppCacheUserId ?? string.Empty;
             existingGameBehavior = _localSettings?.ExistingGameImportBehavior ?? LocalExistingGameImportBehavior.OverwriteExisting;
 
-            var dialog = new LocalImportTargetDialog(selectedTarget, customSourceName, metadataSourceId, existingGameBehavior, AvailableSourceNames, AvailableMetadataSources);
+            var dialog = new LocalImportTargetDialog(selectedTarget, customSourceName, metadataSourceId, steamAppCacheUserId, existingGameBehavior, AvailableSourceNames, AvailableMetadataSources, AvailableSteamAppCacheUsers);
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 "Import Local Games",
                 dialog,
                 new WindowOptions
                 {
                     Width = 560,
-                    Height = 360,
+                    Height = 400,
                     CanBeResizable = false,
                     ShowCloseButton = true,
                     ShowMinimizeButton = false,
@@ -552,6 +811,7 @@ namespace PlayniteAchievements.Providers.Local
             selectedTarget = dialog.SelectedTarget;
             customSourceName = dialog.CustomSourceName?.Trim() ?? string.Empty;
             metadataSourceId = dialog.MetadataSourceId?.Trim() ?? string.Empty;
+            steamAppCacheUserId = dialog.SteamAppCacheUserId?.Trim() ?? string.Empty;
             existingGameBehavior = dialog.ExistingGameBehavior;
             return true;
         }
@@ -561,7 +821,8 @@ namespace PlayniteAchievements.Providers.Local
             LocalImportedGameLibraryTarget selectedTarget,
             string customSourceName,
             string metadataSourceId,
-            LocalExistingGameImportBehavior existingGameBehavior)
+            LocalExistingGameImportBehavior existingGameBehavior,
+            string steamAppCacheUserId = null)
         {
             _localImportCts?.Dispose();
             _localImportCts = new CancellationTokenSource();
@@ -612,7 +873,8 @@ namespace PlayniteAchievements.Providers.Local
                         metadataSourceId,
                         existingGameBehavior,
                         _localImportCts.Token,
-                        progress).ConfigureAwait(false);
+                        progress,
+                        steamAppCacheUserIdOverride: steamAppCacheUserId).ConfigureAwait(false);
 
                     var targetLabel = selectedTarget == LocalImportedGameLibraryTarget.CustomSource
                         ? $"custom source '{customSourceName?.Trim()}'"

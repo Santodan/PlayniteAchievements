@@ -151,9 +151,9 @@ namespace PlayniteAchievements.Views.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             // If value is a non-empty string, return it (AsyncImage will handle async loading)
-            if (value is string str && !string.IsNullOrEmpty(str))
+            if (value is string str && !string.IsNullOrWhiteSpace(str))
             {
-                return value;
+                return str.Trim();
             }
 
             // If null/empty, return the appropriate default resource from the theme

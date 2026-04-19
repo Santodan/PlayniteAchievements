@@ -924,6 +924,17 @@ namespace PlayniteAchievements.Providers.Local
             return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{iconHash}";
         }
 
+        private string GetSelectedSteamAppCacheUserId()
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            return (settings?.SteamAppCacheUserId ?? string.Empty).Trim();
+        }
+
+        private bool IsSteamAppCacheDisabled()
+        {
+            return string.Equals(GetSelectedSteamAppCacheUserId(), LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase);
+        }
+
         private IEnumerable<string> GetSteamAppCacheSchemaFilePaths(int appId)
         {
             lock (_discoveryCacheLock)
@@ -932,6 +943,17 @@ namespace PlayniteAchievements.Providers.Local
                 {
                     return cachedPaths;
                 }
+            }
+
+            if (IsSteamAppCacheDisabled())
+            {
+                var empty = Array.Empty<string>();
+                lock (_discoveryCacheLock)
+                {
+                    _steamAppCacheSchemaFilePathsCache[appId] = empty;
+                }
+
+                return empty;
             }
 
             var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -965,9 +987,21 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
+            if (IsSteamAppCacheDisabled())
+            {
+                var empty = Array.Empty<string>();
+                lock (_discoveryCacheLock)
+                {
+                    _steamAppCacheUserStatsFilePathsCache[appId] = empty;
+                }
+
+                return empty;
+            }
+
             var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var suffix = "_" + appId.ToString(CultureInfo.InvariantCulture) + ".bin";
-            var preferredAccountIds = GetPreferredSteamAccountIds();
+            var preferredAccountIds = GetPreferredSteamAccountIds().ToList();
+            var hasPreferredAccountIds = preferredAccountIds.Count > 0;
 
             foreach (var statsRoot in GetSteamAppCacheStatsRoots())
             {
@@ -990,9 +1024,12 @@ namespace PlayniteAchievements.Providers.Local
                         }
                     }
 
-                    foreach (var path in Directory.EnumerateFiles(statsRoot, "UserGameStats_*" + suffix, SearchOption.TopDirectoryOnly))
+                    if (!hasPreferredAccountIds)
                     {
-                        candidates.Add(path);
+                        foreach (var path in Directory.EnumerateFiles(statsRoot, "UserGameStats_*" + suffix, SearchOption.TopDirectoryOnly))
+                        {
+                            candidates.Add(path);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1013,6 +1050,22 @@ namespace PlayniteAchievements.Providers.Local
         private IEnumerable<string> GetPreferredSteamAccountIds()
         {
             var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var selectedSteamAppCacheUserId = GetSelectedSteamAppCacheUserId();
+            if (string.Equals(selectedSteamAppCacheUserId, LocalSettings.SteamAppCacheUserNone, StringComparison.OrdinalIgnoreCase))
+            {
+                return ids;
+            }
+
+            if (!string.IsNullOrWhiteSpace(selectedSteamAppCacheUserId))
+            {
+                foreach (var candidate in ExpandSteamAccountIdCandidates(selectedSteamAppCacheUserId))
+                {
+                    ids.Add(candidate);
+                }
+
+                return ids;
+            }
 
             var steamSettings = ProviderRegistry.Settings<SteamSettings>();
             var configuredSteamUserId = steamSettings?.SteamUserId?.Trim();

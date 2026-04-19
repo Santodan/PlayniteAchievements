@@ -145,8 +145,24 @@
                         </DockPanel>
                         <TextBlock Text="Point this to your Steam install folder or userdata folder if auto-detection misses it. Examples: E:\Programs\Steam or E:\Programs\Steam\userdata"
                                Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,12"
+                               Margin="0,0,0,8"
                                TextWrapping="Wrap"/>
+
+                           <TextBlock Text="Steam appcache stats user:"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4"/>
+                           <ComboBox x:Name="SteamAppCacheUserComboBox"
+                                  ItemsSource="{Binding AvailableSteamAppCacheUsers, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="UserId"
+                                  SelectedValue="{Binding Settings.SteamAppCacheUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Margin="0,0,0,6"
+                                  MinHeight="28" />
+                           <TextBlock Text="Use this to limit Steam appcache imports to one specific Steam user. When available, names are read from Steam's local loginusers.vdf; otherwise only the numeric user ID is shown. Leaving this on automatic scans all detected users."
+                                Style="{StaticResource MutedTextStyle}"
+                                Margin="0,0,0,12"
+                                TextWrapping="Wrap"/>
 
                            <TextBlock Text="Anonymous metadata source priority:"
                                Foreground="{DynamicResource TextBrush}"
@@ -173,6 +189,11 @@
                                Margin="0,0,0,4"/>
 
                            <TextBlock Text="The following folders are scanned automatically for local achievement and Steam cache files:"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,10"
+                               TextWrapping="Wrap"/>
+
+                           <TextBlock Text="Steam-related folders below are skipped when Steam appcache user is set to None."
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,10"
                                TextWrapping="Wrap"/>
@@ -216,15 +237,6 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,4"/>
                     <TextBlock Text="%APPDATA%\Steam\CODEX"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,4"/>
-                    <TextBlock Text="%ProgramData%\Steam"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,4"/>
-                    <TextBlock Text="%ProgramFiles(x86)%\Steam"
-                               Style="{StaticResource MutedTextStyle}"
-                               Margin="0,0,0,4"/>
-                    <TextBlock Text="%ProgramFiles%\Steam"
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,4"/>
                     <TextBlock Text="%LOCALAPPDATA%\SKIDROW"

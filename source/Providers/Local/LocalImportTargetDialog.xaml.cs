@@ -11,6 +11,7 @@ namespace PlayniteAchievements.Providers.Local
     {
         public ObservableCollection<string> SourceOptions { get; } = new ObservableCollection<string>();
         public ObservableCollection<LocalMetadataSourceOption> MetadataSourceOptions { get; } = new ObservableCollection<LocalMetadataSourceOption>();
+        public ObservableCollection<LocalSteamAppCacheUserOption> SteamAppCacheUserOptions { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
 
         public LocalImportedGameLibraryTarget SelectedTarget
         {
@@ -64,6 +65,19 @@ namespace PlayniteAchievements.Providers.Local
                 typeof(LocalImportTargetDialog),
                 new PropertyMetadata(LocalExistingGameImportBehavior.OverwriteExisting));
 
+        public string SteamAppCacheUserId
+        {
+            get => (string)GetValue(SteamAppCacheUserIdProperty);
+            set => SetValue(SteamAppCacheUserIdProperty, value);
+        }
+
+        public static readonly DependencyProperty SteamAppCacheUserIdProperty =
+            DependencyProperty.Register(
+                nameof(SteamAppCacheUserId),
+                typeof(string),
+                typeof(LocalImportTargetDialog),
+                new PropertyMetadata(string.Empty));
+
         public bool? DialogResult { get; private set; }
 
         public event EventHandler RequestClose;
@@ -72,9 +86,11 @@ namespace PlayniteAchievements.Providers.Local
             LocalImportedGameLibraryTarget selectedTarget,
             string customSourceName,
             string metadataSourceId,
+            string steamAppCacheUserId,
             LocalExistingGameImportBehavior existingGameBehavior,
             IEnumerable<string> sourceOptions,
-            IEnumerable<LocalMetadataSourceOption> metadataSourceOptions)
+            IEnumerable<LocalMetadataSourceOption> metadataSourceOptions,
+            IEnumerable<LocalSteamAppCacheUserOption> steamAppCacheUserOptions)
         {
             InitializeComponent();
 
@@ -96,9 +112,20 @@ namespace PlayniteAchievements.Providers.Local
                 MetadataSourceOptions.Add(option);
             }
 
+            foreach (var option in steamAppCacheUserOptions ?? Enumerable.Empty<LocalSteamAppCacheUserOption>())
+            {
+                if (option == null)
+                {
+                    continue;
+                }
+
+                SteamAppCacheUserOptions.Add(option);
+            }
+
             SelectedTarget = selectedTarget;
             CustomSourceName = ResolveSelectedSource(customSourceName);
             MetadataSourceId = ResolveSelectedMetadataSourceId(metadataSourceId);
+            SteamAppCacheUserId = ResolveSelectedSteamAppCacheUserId(steamAppCacheUserId);
             ExistingGameBehavior = existingGameBehavior;
             DataContext = this;
             RefreshControlState();
@@ -167,6 +194,17 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return MetadataSourceOptions.FirstOrDefault()?.Id ?? string.Empty;
+        }
+
+        private string ResolveSelectedSteamAppCacheUserId(string preferredSteamAppCacheUserId)
+        {
+            var normalizedId = preferredSteamAppCacheUserId?.Trim() ?? string.Empty;
+            if (SteamAppCacheUserOptions.Any(option => string.Equals(option.UserId, normalizedId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return normalizedId;
+            }
+
+            return SteamAppCacheUserOptions.FirstOrDefault()?.UserId ?? string.Empty;
         }
     }
 }
