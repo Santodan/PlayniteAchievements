@@ -1,6 +1,23 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 2.1.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-04-14
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v2.1.2/PlayniteAchievements_2_1_2.pext
+    Changelog:
+    - "Exophase - Added Apple support."
+    - "Steam - removed need for Web API key."
+    - "ShadPS4 - Improved path handling again"
+    - "PSN - Removed extraneous authentication checks."
+    - "Display - Added new default grid sorting options to Sidebar/Single Game/Theme grids."
+    - "Settings - Hidden games can now be automatically excluded from tracking and refreshes. This reeplaces existing logic tied to Tags."
+    - "Game Options - Added new Ignored category type, which hides achievements from all displays and tracking."
+    - "Fullscreen themes can now implement customized achievement orders."
+    - "Refreshes in fullscreen mode now consistently use Playnite progress bar instead of custom progress bars."
+    - "Another legacy manual import bug fix."
+    - "Additional bug fixes and optimizations throughout."
+
   - Version: 2.1.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-04-14
