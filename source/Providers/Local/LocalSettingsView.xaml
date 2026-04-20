@@ -26,6 +26,70 @@
                 </StackPanel>
             </Border>
 
+            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,16" IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <TextBlock Text="Local provider icon"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="0,0,0,12"/>
+
+                    <DockPanel Margin="0,0,0,12">
+                        <Border Width="48"
+                                Height="48"
+                                CornerRadius="6"
+                                BorderBrush="{DynamicResource NormalBorderBrush}"
+                                BorderThickness="1"
+                                Background="{DynamicResource ControlBackgroundBrush}">
+                            <Image x:Name="LocalProviderIconPreviewImage"
+                                   Margin="6"
+                                   Stretch="Uniform"
+                                   SnapsToDevicePixels="True"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </Border>
+
+                        <StackPanel Margin="12,0,0,0"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="Set a custom icon for the Local provider badge and charts."
+                                       Foreground="{DynamicResource TextBrush}"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="Images are cropped to square and stored as PNG up to 64x64 pixels. Larger files are reduced automatically."
+                                       Style="{StaticResource MutedTextStyle}"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="520"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="LocalProviderIconPathTextBox"
+                                 Grid.Column="0"
+                                 IsReadOnly="True"
+                                 VerticalContentAlignment="Center"
+                                 ToolTip="Managed Local provider icon path"/>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Width="90"
+                                Margin="8,0,0,0"
+                                Click="BrowseLocalProviderIcon_Click"/>
+                        <Button x:Name="ClearLocalProviderIconButton"
+                                Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                                Width="90"
+                                Margin="8,0,0,0"
+                                Click="ClearLocalProviderIcon_Click"/>
+                    </Grid>
+
+                    <TextBlock x:Name="LocalProviderIconStatusTextBlock"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
                     <TextBlock Text="Local Achievement Folders"

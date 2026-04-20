@@ -1,8 +1,10 @@
+using HtmlAgilityPack;
 using Playnite.SDK;
 using Playnite.SDK.Data;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers.ImportedGameMetadata;
 using PlayniteAchievements.Providers.Steam;
 using System;
 using System.Collections.Generic;
@@ -72,6 +74,15 @@ namespace PlayniteAchievements.Providers.Local
             public string AssemblyDirectory { get; set; }
         }
 
+        private sealed class ImportedProviderPageMetadata
+        {
+            public string Name { get; set; }
+            public string Description { get; set; }
+            public string IconUrl { get; set; }
+            public string Url { get; set; }
+            public string UrlName { get; set; }
+        }
+
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
@@ -135,8 +146,11 @@ namespace PlayniteAchievements.Providers.Local
             var customSourceName = (customSourceNameOverride ?? _localSettings?.ImportedGameCustomSourceName ?? string.Empty).Trim();
             var metadataSourceId = (metadataSourceIdOverride ?? _localSettings?.ImportedGameMetadataSourceId ?? string.Empty).Trim();
             var existingGameBehavior = existingGameBehaviorOverride ?? (_localSettings?.ExistingGameImportBehavior ?? LocalExistingGameImportBehavior.OverwriteExisting);
-            var selectedMetadataPlugin = ResolveMetadataPlugin(metadataSourceId) ?? ResolveAutomaticMetadataPlugin();
-            _logger?.Info($"[LocalImport] Selected metadata provider id='{metadataSourceId}', resolved='{selectedMetadataPlugin?.Name ?? "<none>"}'.");
+            var usesBuiltInMetadata = ImportedGameMetadataSourceCatalog.IsBuiltInSource(metadataSourceId);
+            var selectedMetadataPlugin = usesBuiltInMetadata
+                ? null
+                : ResolveMetadataPlugin(metadataSourceId) ?? ResolveAutomaticMetadataPlugin();
+            _logger?.Info($"[LocalImport] Selected metadata provider id='{metadataSourceId}', resolved='{selectedMetadataPlugin?.Name ?? (usesBuiltInMetadata ? metadataSourceId : "<none>")}'.");
             var orderedCandidates = candidates.OrderBy(pair => pair.Key).ToList();
             var totalCandidates = orderedCandidates.Count;
             var processedCandidates = 0;
@@ -204,7 +218,7 @@ namespace PlayniteAchievements.Providers.Local
                             }
 
                             ApplyImportTarget(game, importTarget, customSourceName);
-                            ApplyDownloadedMetadata(game, appId, selectedMetadataPlugin);
+                            ApplyDownloadedMetadata(game, appId, metadataSourceId, selectedMetadataPlugin);
                             _logger?.Info($"[LocalImport] Imported new game for appId={appId}: {DescribeGame(game)}.");
                             result.ImportedCount++;
                         }
@@ -218,7 +232,7 @@ namespace PlayniteAchievements.Providers.Local
                             }
 
                             ApplyImportTarget(game, importTarget, customSourceName);
-                            ApplyDownloadedMetadata(game, appId, selectedMetadataPlugin);
+                            ApplyDownloadedMetadata(game, appId, metadataSourceId, selectedMetadataPlugin);
                             _logger?.Info($"[LocalImport] Linked existing game for appId={appId}: {DescribeGame(game)}.");
                             result.LinkedExistingCount++;
                         }
@@ -1084,6 +1098,7 @@ namespace PlayniteAchievements.Providers.Local
         private void ApplyDownloadedMetadata(
             Game importedGame,
             int appId,
+            string metadataSourceId,
             MetadataPlugin selectedMetadataPlugin)
         {
             if (importedGame == null)
@@ -1093,6 +1108,14 @@ namespace PlayniteAchievements.Providers.Local
 
             try
             {
+                if (ImportedGameMetadataSourceCatalog.IsBuiltInSource(metadataSourceId))
+                {
+                    ApplyBuiltInMetadata(importedGame, appId, metadataSourceId);
+                    NormalizeImportedGameMetadata(importedGame, appId);
+                    _api.Database.Games.Update(importedGame);
+                    return;
+                }
+
                 if (selectedMetadataPlugin != null)
                 {
                     ApplyMetadataPlugin(importedGame, appId, selectedMetadataPlugin);
@@ -1108,6 +1131,152 @@ namespace PlayniteAchievements.Providers.Local
             {
                 _logger?.Debug(ex, $"[LocalAch] Failed applying downloaded Steam metadata for imported game '{importedGame?.Name}'.");
             }
+        }
+
+        private void ApplyBuiltInMetadata(Game importedGame, int appId, string metadataSourceId)
+        {
+            if (importedGame == null || appId <= 0)
+            {
+                return;
+            }
+
+            var applied = false;
+            if (string.Equals(metadataSourceId, ImportedGameMetadataSourceCatalog.SteamHuntersId, StringComparison.OrdinalIgnoreCase))
+            {
+                applied = ApplySteamHuntersMetadata(importedGame, appId);
+            }
+            else if (string.Equals(metadataSourceId, ImportedGameMetadataSourceCatalog.CompletionistId, StringComparison.OrdinalIgnoreCase))
+            {
+                applied = ApplyCompletionistMetadata(importedGame, appId);
+            }
+
+            if (applied || ShouldApplySteamStoreFallback(importedGame, appId))
+            {
+                ApplySteamStoreFallbackMetadata(importedGame, appId);
+            }
+        }
+
+        private bool ApplySteamHuntersMetadata(Game importedGame, int appId)
+        {
+            var url = $"https://steamhunters.com/apps/{appId}/achievements";
+            return ApplyImportedProviderPageMetadata(
+                importedGame,
+                TryFetchImportedMetadataPage(
+                    url,
+                    document => new ImportedProviderPageMetadata
+                    {
+                        Name = FirstNonEmpty(
+                            ExtractMetaContent(document, "og:title"),
+                            TryExtractPageTitle(document),
+                            ExtractHeadingText(document)),
+                        Description = FirstNonEmpty(
+                            FindTextAfterHeading(document, "Description"),
+                            ExtractMetaContent(document, "description")),
+                        IconUrl = ExtractImageUrl(document, url, "//img[contains(concat(' ', normalize-space(@class), ' '), ' image-rounded ') and contains(concat(' ', normalize-space(@class), ' '), ' image-1em ')]"),
+                        Url = url,
+                        UrlName = "SteamHunters"
+                    }));
+        }
+
+        private bool ApplyCompletionistMetadata(Game importedGame, int appId)
+        {
+            var url = $"https://completionist.me/steam/app/{appId}/achievements";
+            return ApplyImportedProviderPageMetadata(
+                importedGame,
+                TryFetchImportedMetadataPage(
+                    url,
+                    document => new ImportedProviderPageMetadata
+                    {
+                        Name = FirstNonEmpty(
+                            ExtractMetaContent(document, "og:title"),
+                            TryExtractPageTitle(document),
+                            ExtractHeadingText(document)),
+                        Description = FirstNonEmpty(
+                            ExtractMetaContent(document, "description"),
+                            FindTextAfterHeading(document, "Description")),
+                        IconUrl = ExtractImageUrl(document, url, "//*[contains(concat(' ', normalize-space(@class), ' '), ' dropdown-toggle ')]//img[@src]"),
+                        Url = url,
+                        UrlName = "Completionist.me"
+                    }));
+        }
+
+        private ImportedProviderPageMetadata TryFetchImportedMetadataPage(string url, Func<HtmlDocument, ImportedProviderPageMetadata> extractor)
+        {
+            if (string.IsNullOrWhiteSpace(url) || extractor == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = "GET";
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+                request.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+                request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+                request.Referer = BuildRequestReferer(url);
+                request.Headers[HttpRequestHeader.AcceptLanguage] = "en-US,en;q=0.9";
+
+                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var stream = response.GetResponseStream())
+                using (var reader = new StreamReader(stream ?? Stream.Null, Encoding.UTF8))
+                {
+                    var html = reader.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
+
+                    var document = new HtmlDocument();
+                    document.LoadHtml(html);
+                    return extractor(document);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalImport] Failed downloading imported metadata page '{url}'.");
+                return null;
+            }
+        }
+
+        private bool ApplyImportedProviderPageMetadata(Game importedGame, ImportedProviderPageMetadata metadata)
+        {
+            if (importedGame == null || metadata == null)
+            {
+                return false;
+            }
+
+            var applied = false;
+
+            if (!string.IsNullOrWhiteSpace(metadata.Name))
+            {
+                importedGame.Name = metadata.Name.Trim();
+                importedGame.SortingName = importedGame.Name;
+                applied = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(metadata.Description))
+            {
+                importedGame.Description = PrepareProviderMetadataDescription(metadata.Description);
+                applied = true;
+            }
+
+            var iconId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(metadata.IconUrl) ? null : new MetadataFile(metadata.IconUrl));
+            if (!string.IsNullOrWhiteSpace(iconId))
+            {
+                importedGame.Icon = iconId;
+                applied = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(metadata.Url))
+            {
+                var links = importedGame.Links?.ToList() ?? new List<Link>();
+                AddLinkIfMissing(links, metadata.UrlName ?? "Source", metadata.Url);
+                ReplaceCollection(importedGame.Links, links);
+                applied = true;
+            }
+
+            return applied;
         }
 
         private bool ApplyMetadataPlugin(Game importedGame, int appId, MetadataPlugin metadataPlugin)
@@ -1400,19 +1569,19 @@ namespace PlayniteAchievements.Providers.Local
                         backgroundUrl = data["background"]?.Value<string>()?.Trim();
                     }
 
-                    var iconId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(iconUrl) ? null : new MetadataFile(iconUrl));
+                    var iconId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(iconUrl) || !string.IsNullOrWhiteSpace(importedGame.Icon) ? null : new MetadataFile(iconUrl));
                     if (!string.IsNullOrWhiteSpace(iconId))
                     {
                         importedGame.Icon = iconId;
                     }
 
-                    var coverId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(coverUrl) ? null : new MetadataFile(coverUrl));
+                    var coverId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(coverUrl) || !string.IsNullOrWhiteSpace(importedGame.CoverImage) ? null : new MetadataFile(coverUrl));
                     if (!string.IsNullOrWhiteSpace(coverId))
                     {
                         importedGame.CoverImage = coverId;
                     }
 
-                    var backgroundId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(backgroundUrl) ? null : new MetadataFile(backgroundUrl));
+                    var backgroundId = PersistMetadataFile(importedGame.Id, string.IsNullOrWhiteSpace(backgroundUrl) || !string.IsNullOrWhiteSpace(importedGame.BackgroundImage) ? null : new MetadataFile(backgroundUrl));
                     if (!string.IsNullOrWhiteSpace(backgroundId))
                     {
                         importedGame.BackgroundImage = backgroundId;
@@ -1736,6 +1905,131 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             links.Add(new Link(name, url));
+        }
+
+        private static string ExtractImageUrl(HtmlDocument document, string pageUrl, string xpath)
+        {
+            var source = document?.DocumentNode.SelectSingleNode(xpath)?.GetAttributeValue("src", null)?.Trim();
+            return ResolveAbsoluteUrl(pageUrl, source);
+        }
+
+        private static string ResolveAbsoluteUrl(string pageUrl, string candidateUrl)
+        {
+            if (string.IsNullOrWhiteSpace(candidateUrl))
+            {
+                return null;
+            }
+
+            if (Uri.TryCreate(candidateUrl.Trim(), UriKind.Absolute, out var absoluteUri))
+            {
+                return absoluteUri.AbsoluteUri;
+            }
+
+            if (Uri.TryCreate(pageUrl, UriKind.Absolute, out var pageUri)
+                && Uri.TryCreate(pageUri, candidateUrl.Trim(), out var resolvedUri))
+            {
+                return resolvedUri.AbsoluteUri;
+            }
+
+            return candidateUrl.Trim();
+        }
+
+        private static string BuildRequestReferer(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                return null;
+            }
+
+            return $"{uri.Scheme}://{uri.Host}/";
+        }
+
+        private static string ExtractMetaContent(HtmlDocument document, string propertyOrName)
+        {
+            if (document?.DocumentNode == null || string.IsNullOrWhiteSpace(propertyOrName))
+            {
+                return null;
+            }
+
+            var xpath = $"//meta[translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{propertyOrName.ToLowerInvariant()}' or translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='{propertyOrName.ToLowerInvariant()}']";
+            return document.DocumentNode.SelectSingleNode(xpath)?.GetAttributeValue("content", null)?.Trim();
+        }
+
+        private static string ExtractHeadingText(HtmlDocument document)
+        {
+            if (document?.DocumentNode == null)
+            {
+                return null;
+            }
+
+            return NormalizeMetadataDescription(document.DocumentNode.SelectSingleNode("//h1")?.InnerText);
+        }
+
+        private static string TryExtractPageTitle(HtmlDocument document)
+        {
+            var rawTitle = document?.DocumentNode.SelectSingleNode("//title")?.InnerText;
+            if (string.IsNullOrWhiteSpace(rawTitle))
+            {
+                return null;
+            }
+
+            var normalizedTitle = NormalizeMetadataDescription(rawTitle);
+            var separators = new[] { " - ", " | ", " / " };
+            foreach (var separator in separators)
+            {
+                var separatorIndex = normalizedTitle.IndexOf(separator, StringComparison.Ordinal);
+                if (separatorIndex > 0)
+                {
+                    normalizedTitle = normalizedTitle.Substring(0, separatorIndex).Trim();
+                    break;
+                }
+            }
+
+            return normalizedTitle;
+        }
+
+        private static string FindTextAfterHeading(HtmlDocument document, string headingText)
+        {
+            if (document?.DocumentNode == null || string.IsNullOrWhiteSpace(headingText))
+            {
+                return null;
+            }
+
+            var headingNodes = document.DocumentNode.SelectNodes("//h1|//h2|//h3|//h4|//strong");
+            if (headingNodes == null)
+            {
+                return null;
+            }
+
+            foreach (var heading in headingNodes)
+            {
+                var text = NormalizeMetadataDescription(heading.InnerText);
+                if (!string.Equals(text, headingText, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                for (var sibling = heading.NextSibling; sibling != null; sibling = sibling.NextSibling)
+                {
+                    if (sibling.NodeType != HtmlNodeType.Element)
+                    {
+                        continue;
+                    }
+
+                    var value = NormalizeMetadataDescription(sibling.InnerText);
+                    if (!string.IsNullOrWhiteSpace(value) && !string.Equals(value, headingText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
         }
 
         private static string NormalizeMetadataDescription(string value)

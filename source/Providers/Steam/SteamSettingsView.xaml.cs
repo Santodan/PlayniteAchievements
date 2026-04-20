@@ -1,7 +1,7 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -11,6 +11,10 @@ using Playnite.SDK;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Providers.ImportedGameMetadata;
+using PlayniteAchievements.Views.Helpers;
+using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Steam
 {
@@ -25,6 +29,9 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly SteamSessionManager _sessionManager;
         private readonly SteamOwnedGamesImporter _ownedGamesImporter;
         private SteamSettings _steamSettings;
+        private CancellationTokenSource _steamImportCts;
+
+        public ObservableCollection<ImportedGameMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<ImportedGameMetadataSourceOption>();
 
         #region DependencyProperties
 
@@ -126,6 +133,8 @@ namespace PlayniteAchievements.Providers.Steam
         {
             _steamSettings = settings as SteamSettings;
             base.Initialize(settings);
+            ImportedGameMetadataSourceComboBox.ItemsSource = AvailableMetadataSources;
+            RefreshAvailableMetadataSources();
 
             if (_steamSettings is INotifyPropertyChanged notify)
             {
@@ -134,6 +143,16 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             _ = RefreshAuthStatusAsync();
+        }
+
+        private void RefreshAvailableMetadataSources()
+        {
+            AvailableMetadataSources.Clear();
+
+            foreach (var option in ImportedGameMetadataSourceCatalog.GetAvailableOptions(_api, Logger))
+            {
+                AvailableMetadataSources.Add(option);
+            }
         }
 
         public async Task RefreshAuthStatusAsync()
@@ -315,14 +334,16 @@ namespace PlayniteAchievements.Providers.Steam
 
         private async Task ImportOwnedGamesAsync(bool showDialog, CancellationToken ct)
         {
+            if (showDialog)
+            {
+                StartOwnedGamesImportWithProgressWindow();
+                return;
+            }
+
             try
             {
                 SetAuthBusy(true);
-                var result = await _ownedGamesImporter.ImportOwnedGamesAsync(ct).ConfigureAwait(true);
-                if (showDialog)
-                {
-                    ShowOwnedGamesImportSummary(result);
-                }
+                await _ownedGamesImporter.ImportOwnedGamesAsync(ct, null, _steamSettings).ConfigureAwait(true);
             }
             catch (OperationCanceledException)
             {
@@ -347,48 +368,157 @@ namespace PlayniteAchievements.Providers.Steam
             }
         }
 
-        private void ShowOwnedGamesImportSummary(SteamOwnedGamesImporter.ImportResult result)
+        private void StartOwnedGamesImportWithProgressWindow()
         {
-            string message;
-            MessageBoxImage image;
+            SetAuthBusy(true);
+            _steamImportCts?.Dispose();
+            _steamImportCts = new CancellationTokenSource();
 
+            var progressControl = new LocalImportProgressControl
+            {
+                DialogTitle = "Importing Steam Games"
+            };
+
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                "Import Steam Games",
+                progressControl,
+                new WindowOptions
+                {
+                    Width = 430,
+                    Height = 250,
+                    CanBeResizable = false,
+                    ShowCloseButton = true,
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false
+                });
+
+            var settingsWindow = Window.GetWindow(this);
+            if (settingsWindow != null)
+            {
+                window.Owner = settingsWindow;
+                window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            }
+
+            progressControl.RequestClose += (s, e) => window.Close();
+            progressControl.CancelRequested += (s, e) => _steamImportCts?.Cancel();
+            window.Closed += (s, e) =>
+            {
+                if (_steamImportCts != null && !_steamImportCts.IsCancellationRequested && progressControl.ShowCancelButton)
+                {
+                    _steamImportCts.Cancel();
+                }
+            };
+
+            window.Show();
+
+            var progress = new Progress<SteamOwnedGamesImporter.ImportProgressInfo>(info =>
+            {
+                if (info == null)
+                {
+                    return;
+                }
+
+                var percent = 0d;
+                if (info.Current.HasValue && info.Max.HasValue && info.Max.Value > 0)
+                {
+                    percent = Math.Max(0d, Math.Min(100d, (info.Current.Value * 100d) / info.Max.Value));
+                }
+
+                progressControl.Update(percent, info.Text, info.IsIndeterminate ? "Working..." : string.Empty);
+            });
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var result = await _ownedGamesImporter
+                        .ImportOwnedGamesAsync(_steamImportCts.Token, progress, _steamSettings)
+                        .ConfigureAwait(false);
+
+                    var summary = BuildOwnedGamesImportSummaryText(result);
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (result?.WasCanceled == true)
+                        {
+                            progressControl.MarkCancelled(summary);
+                        }
+                        else
+                        {
+                            progressControl.MarkCompleted(summary);
+                        }
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    Dispatcher.Invoke(() => progressControl.MarkCancelled("Steam import cancelled."));
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "Steam owned-games import failed");
+                    Dispatcher.Invoke(() =>
+                    {
+                        progressControl.MarkFailed(
+                            string.Format(
+                                ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesFailed"),
+                                ex.Message));
+                    });
+                }
+                finally
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _steamImportCts?.Dispose();
+                        _steamImportCts = null;
+                        SetAuthBusy(false);
+                    });
+                }
+            });
+        }
+
+        private static string BuildOwnedGamesImportSummaryText(SteamOwnedGamesImporter.ImportResult result)
+        {
             if (result == null || !result.IsAuthenticated)
             {
-                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNotAuthenticated");
-                image = MessageBoxImage.Warning;
+                return ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNotAuthenticated");
             }
-            else if (!result.HasSteamLibraryPlugin)
+
+            if (!result.HasSteamLibraryPlugin)
             {
-                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesMissingLibraryPlugin");
-                image = MessageBoxImage.Warning;
+                return ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesMissingLibraryPlugin");
             }
-            else if (result.OwnedCount <= 0)
+
+            if (result.OwnedCount <= 0)
             {
-                message = ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNoneFound");
-                image = MessageBoxImage.Information;
+                return ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesNoneFound");
             }
-            else if (result.ImportedCount <= 0)
+
+            if (result.ImportedCount <= 0)
             {
-                message = string.Format(
+                if (result.UpdatedCount > 0)
+                {
+                    return string.Format(
+                        ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesUpdatedOnlySummary"),
+                        result.UpdatedCount,
+                        result.FailedCount);
+                }
+
+                return string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesAlreadyPresent"),
                     result.OwnedCount);
-                image = MessageBoxImage.Information;
             }
-            else
-            {
-                message = string.Format(
+
+            return result.UpdatedCount > 0
+                ? string.Format(
+                    ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesSummaryWithUpdates"),
+                    result.ImportedCount,
+                    result.UpdatedCount,
+                    result.ExistingCount,
+                    result.FailedCount)
+                : string.Format(
                     ResourceProvider.GetString("LOCPlayAch_Settings_Steam_ImportOwnedGamesSummary"),
                     result.ImportedCount,
                     result.ExistingCount,
                     result.FailedCount);
-                image = MessageBoxImage.Information;
-            }
-
-            _api.Dialogs.ShowMessage(
-                message,
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.OK,
-                image);
         }
 
         private static void MoveFocusFrom(TextBox textBox)

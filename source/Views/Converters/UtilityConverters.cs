@@ -1,8 +1,10 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Views.Converters
 {
@@ -98,14 +100,21 @@ namespace PlayniteAchievements.Views.Converters
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            if (values.Length >= 2 &&
-                values[0] is string iconKey &&
-                values[1] is string colorHex &&
-                !string.IsNullOrEmpty(iconKey) &&
-                !string.IsNullOrEmpty(colorHex))
+            if (values.Length >= 1 && values[0] is string iconKey && !string.IsNullOrEmpty(iconKey))
             {
                 try
                 {
+                    var customImage = TryLoadCustomProviderImage(iconKey);
+                    if (customImage != null)
+                    {
+                        return customImage;
+                    }
+
+                    if (!(values.Length >= 2 && values[1] is string colorHex && !string.IsNullOrEmpty(colorHex)))
+                    {
+                        return null;
+                    }
+
                     // Try to find a "Geo" + iconName resource (e.g., GeoSteam for ProviderIconSteam)
                     string geoKey = "Geo" + iconKey.Replace("ProviderIcon", "");
 
@@ -138,6 +147,51 @@ namespace PlayniteAchievements.Views.Converters
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
+        }
+
+        private static ImageSource TryLoadCustomProviderImage(string iconKey)
+        {
+            if (string.IsNullOrWhiteSpace(iconKey))
+            {
+                return null;
+            }
+
+            Uri uri = null;
+            if (Path.IsPathRooted(iconKey))
+            {
+                if (!File.Exists(iconKey))
+                {
+                    return null;
+                }
+
+                uri = new Uri(iconKey, UriKind.Absolute);
+            }
+            else if (Uri.TryCreate(iconKey, UriKind.Absolute, out var parsedUri) &&
+                     (parsedUri.Scheme == Uri.UriSchemeFile ||
+                      parsedUri.Scheme == Uri.UriSchemeHttp ||
+                      parsedUri.Scheme == Uri.UriSchemeHttps))
+            {
+                if (parsedUri.IsFile && !File.Exists(parsedUri.LocalPath))
+                {
+                    return null;
+                }
+
+                uri = parsedUri;
+            }
+
+            if (uri == null)
+            {
+                return null;
+            }
+
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bitmap.UriSource = uri;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
         }
     }
 

@@ -35,6 +35,8 @@ namespace PlayniteAchievements.Providers.Steam.Models
 
         [DataMember(Name = "rtime_last_played")]
         public long? RTimeLastPlayed { get; set; }
+
+        public string LibrarySourceName { get; set; }
     }
 
     [DataContract]

@@ -37,7 +37,8 @@ namespace PlayniteAchievements.Providers.Steam
                       $"?key={Uri.EscapeDataString(apiKey)}" +
                       $"&steamid={Uri.EscapeDataString(steamId64)}" +
                       $"&include_appinfo=0" +
-                      $"&include_played_free_games={(includePlayedFreeGames ? "1" : "0")}";
+                      $"&include_played_free_games={(includePlayedFreeGames ? "1" : "0")}" +
+                      "&skip_unvetted_apps=false";
             try
             {
                 var json = await _apiHttp.GetStringAsync(url).ConfigureAwait(false);
@@ -188,7 +189,8 @@ namespace PlayniteAchievements.Providers.Steam
                           $"?key={Uri.EscapeDataString(apiKey)}" +
                           $"&steamid={Uri.EscapeDataString(steamId64)}" +
                           $"&include_appinfo=1" +
-                          $"&include_played_free_games={(includePlayedFreeGames ? "1" : "0")}";
+                          $"&include_played_free_games={(includePlayedFreeGames ? "1" : "0")}" +
+                          "&skip_unvetted_apps=false";
 
                 using (var resp = await _apiHttp.GetAsync(url, ct).ConfigureAwait(false))
                 {
@@ -214,6 +216,179 @@ namespace PlayniteAchievements.Providers.Steam
                 _logger?.Debug(ex, "GetOwnedGamesDetailed API request failed steamId={steamId64}");
                 return new List<OwnedGame>();
             }
+        }
+
+        public async Task<HashSet<int>> GetFamilySharedAppIdsAsync(string apiKey, string steamId64, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamId64))
+            {
+                return new HashSet<int>();
+            }
+
+            try
+            {
+                var familyGroupId = await GetFamilyGroupIdAsync(apiKey, steamId64, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(familyGroupId))
+                {
+                    return new HashSet<int>();
+                }
+
+                var url = "https://api.steampowered.com/IFamilyGroupsService/GetSharedLibraryApps/v1/"
+                    + $"?key={Uri.EscapeDataString(apiKey)}"
+                    + $"&family_groupid={Uri.EscapeDataString(familyGroupId)}"
+                    + $"&steamid={Uri.EscapeDataString(steamId64)}"
+                    + "&include_own=0"
+                    + "&include_excluded=1"
+                    + "&include_free=1"
+                    + "&include_non_games=1"
+                    + "&language=english";
+
+                using (var resp = await _apiHttp.GetAsync(url, ct).ConfigureAwait(false))
+                {
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        _logger?.Debug($"Steam Family Groups shared-library API non-success: {(int)resp.StatusCode} {resp.ReasonPhrase}");
+                        return new HashSet<int>();
+                    }
+
+                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return ExtractFamilySharedAppIds(json);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Steam Family Groups shared-library API request failed.");
+                return new HashSet<int>();
+            }
+        }
+
+        private async Task<string> GetFamilyGroupIdAsync(string apiKey, string steamId64, CancellationToken ct)
+        {
+            var requestUrls = new[]
+            {
+                "https://api.steampowered.com/IFamilyGroupsService/GetFamilyGroupForUser/v1/"
+                    + $"?key={Uri.EscapeDataString(apiKey)}"
+                    + "&include_family_group_response=1",
+                "https://api.steampowered.com/IFamilyGroupsService/GetFamilyGroupForUser/v1/"
+                    + $"?key={Uri.EscapeDataString(apiKey)}"
+                    + $"&steamid={Uri.EscapeDataString(steamId64)}"
+                    + "&include_family_group_response=1"
+            };
+
+            foreach (var url in requestUrls)
+            {
+                using (var resp = await _apiHttp.GetAsync(url, ct).ConfigureAwait(false))
+                {
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        continue;
+                    }
+
+                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    var familyGroupId = ExtractFamilyGroupId(json);
+                    if (!string.IsNullOrWhiteSpace(familyGroupId))
+                    {
+                        return familyGroupId;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static string ExtractFamilyGroupId(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                var root = JObject.Parse(json);
+                var token = root.SelectTokens("$..family_groupid").FirstOrDefault();
+                if (token == null)
+                {
+                    return null;
+                }
+
+                var value = token.Value<string>()?.Trim();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static HashSet<int> ExtractFamilySharedAppIds(string json)
+        {
+            var result = new HashSet<int>();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return result;
+            }
+
+            try
+            {
+                var root = JObject.Parse(json);
+                var appTokens = root.SelectTokens("$..apps[*]")
+                    .Concat(root.SelectTokens("$..shared_library_apps[*]"));
+
+                foreach (var token in appTokens)
+                {
+                    var appId = TryExtractAppId(token);
+                    if (appId > 0)
+                    {
+                        result.Add(appId);
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return result;
+        }
+
+        private static int TryExtractAppId(JToken token)
+        {
+            if (token == null)
+            {
+                return 0;
+            }
+
+            if (token.Type == JTokenType.Integer)
+            {
+                var rawValue = token.Value<long>();
+                return rawValue > 0 && rawValue <= int.MaxValue ? (int)rawValue : 0;
+            }
+
+            if (token.Type == JTokenType.Object)
+            {
+                var appIdToken = token["appid"] ?? token["app_id"] ?? token["steam_appid"] ?? token["id"];
+                if (appIdToken == null)
+                {
+                    return 0;
+                }
+
+                if (appIdToken.Type == JTokenType.Integer)
+                {
+                    var rawValue = appIdToken.Value<long>();
+                    return rawValue > 0 && rawValue <= int.MaxValue ? (int)rawValue : 0;
+                }
+
+                if (int.TryParse(appIdToken.Value<string>(), out var parsedAppId) && parsedAppId > 0)
+                {
+                    return parsedAppId;
+                }
+            }
+
+            return 0;
         }
 
         /// <summary>

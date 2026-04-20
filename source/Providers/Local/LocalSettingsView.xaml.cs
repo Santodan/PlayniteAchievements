@@ -12,10 +12,12 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers.ImportedGameMetadata;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Views.Helpers;
@@ -24,6 +26,7 @@ namespace PlayniteAchievements.Providers.Local
 {
     public partial class LocalSettingsView : ProviderSettingsViewBase
     {
+        private const string LocalProviderIconFileName = "local.png";
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _pluginSettings;
         private readonly ILogger _logger;
@@ -35,7 +38,7 @@ namespace PlayniteAchievements.Providers.Local
         public ObservableCollection<string> ExtraLocalPathEntries { get; } = new ObservableCollection<string>();
         public ObservableCollection<BundledSoundOption> BundledUnlockSounds { get; } = new ObservableCollection<BundledSoundOption>();
         public ObservableCollection<string> AvailableSourceNames { get; } = new ObservableCollection<string>();
-        public ObservableCollection<LocalMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<LocalMetadataSourceOption>();
+        public ObservableCollection<ImportedGameMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<ImportedGameMetadataSourceOption>();
         public ObservableCollection<LocalSteamAppCacheUserOption> AvailableSteamAppCacheUsers { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
 
         public new LocalSettings Settings => _localSettings;
@@ -71,6 +74,7 @@ namespace PlayniteAchievements.Providers.Local
             RefreshAvailableSteamAppCacheUsers();
             RefreshBundledUnlockSounds();
             RefreshRealtimeMonitoringControls();
+            RefreshLocalProviderIconControls();
             RefreshExtraLocalPathEntries();
             RefreshImportedGameTargetControls();
             UpdateExtraLocalPathButtonStates();
@@ -91,6 +95,11 @@ namespace PlayniteAchievements.Providers.Local
                 e.PropertyName == nameof(LocalSettings.ActiveGameMonitoringIntervalSeconds))
             {
                 RefreshRealtimeMonitoringControls();
+            }
+
+            if (e.PropertyName == nameof(LocalSettings.CustomProviderIconPath))
+            {
+                RefreshLocalProviderIconControls();
             }
 
             if (e.PropertyName == nameof(LocalSettings.SteamUserdataPath))
@@ -147,6 +156,45 @@ namespace PlayniteAchievements.Providers.Local
             RefreshRealtimeMonitoringControls();
         }
 
+        private async void BrowseLocalProviderIcon_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _playniteApi?.Dialogs?.SelectFile("Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|All Files|*.*");
+            if (string.IsNullOrWhiteSpace(selectedPath) || _localSettings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var storedPath = await SaveLocalProviderIconAsync(selectedPath).ConfigureAwait(true);
+                if (string.IsNullOrWhiteSpace(storedPath))
+                {
+                    RefreshLocalProviderIconControls("Failed to import the selected Local provider icon.");
+                    return;
+                }
+
+                _localSettings.CustomProviderIconPath = storedPath;
+                RefreshLocalProviderIconControls("Custom Local provider icon saved.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed importing custom Local provider icon.");
+                RefreshLocalProviderIconControls($"Failed to import the selected icon: {ex.Message}");
+            }
+        }
+
+        private void ClearLocalProviderIcon_Click(object sender, RoutedEventArgs e)
+        {
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            TryDeleteManagedLocalProviderIcon(_localSettings.CustomProviderIconPath);
+            _localSettings.CustomProviderIconPath = string.Empty;
+            RefreshLocalProviderIconControls("Using the built-in Local provider icon.");
+        }
+
         private void BundledUnlockSoundComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isRefreshingBundledSoundSelection || _localSettings == null)
@@ -192,6 +240,110 @@ namespace PlayniteAchievements.Providers.Local
         private void RealtimeMonitoringSettingChanged(object sender, RoutedEventArgs e)
         {
             RefreshRealtimeMonitoringControls();
+        }
+
+        private void RefreshLocalProviderIconControls(string statusMessage = null)
+        {
+            if (LocalProviderIconPathTextBox == null)
+            {
+                return;
+            }
+
+            var customPath = _localSettings?.CustomProviderIconPath?.Trim() ?? string.Empty;
+            var hasCustomIcon = !string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath);
+
+            LocalProviderIconPathTextBox.Text = hasCustomIcon ? customPath : string.Empty;
+            if (ClearLocalProviderIconButton != null)
+            {
+                ClearLocalProviderIconButton.IsEnabled = hasCustomIcon;
+            }
+
+            if (LocalProviderIconPreviewImage != null)
+            {
+                LocalProviderIconPreviewImage.Source = CreatePreviewImageSource(customPath);
+            }
+
+            if (LocalProviderIconStatusTextBlock != null)
+            {
+                LocalProviderIconStatusTextBlock.Text = statusMessage ??
+                    (hasCustomIcon
+                        ? "Custom icon is active for the Local provider."
+                        : "No custom Local icon is set. The built-in Local icon will be used.");
+            }
+        }
+
+        private async Task<string> SaveLocalProviderIconAsync(string sourcePath)
+        {
+            var diskImageService = _pluginSettings?._plugin?.DiskImageService;
+            if (diskImageService == null || string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            var targetPath = Path.Combine(
+                diskImageService.GetCacheDirectoryPath(),
+                "provider_icons",
+                LocalProviderIconFileName);
+
+            return await diskImageService
+                .GetOrCopyLocalIconToPathAsync(
+                    sourcePath,
+                    targetPath,
+                    LocalSettings.ProviderIconMaxPixelSize,
+                    CancellationToken.None,
+                    overwriteExistingTarget: true)
+                .ConfigureAwait(false);
+        }
+
+        private static BitmapImage CreatePreviewImageSource(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return null;
+            }
+
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bitmap.DecodePixelWidth = 48;
+            bitmap.UriSource = new Uri(path, UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+
+        private void TryDeleteManagedLocalProviderIcon(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                var targetDirectory = Path.GetDirectoryName(GetManagedLocalProviderIconPath());
+                var normalizedPath = Path.GetFullPath(path);
+                var normalizedDirectory = Path.GetFullPath(targetDirectory ?? string.Empty)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                if (normalizedPath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(normalizedPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed deleting managed Local provider icon.");
+            }
+        }
+
+        private string GetManagedLocalProviderIconPath()
+        {
+            return Path.Combine(
+                _pluginSettings?._plugin?.DiskImageService?.GetCacheDirectoryPath() ?? string.Empty,
+                "provider_icons",
+                LocalProviderIconFileName);
         }
 
         private async void TestUnlockSoundButton_Click(object sender, RoutedEventArgs e)
@@ -414,11 +566,10 @@ namespace PlayniteAchievements.Providers.Local
         private void RefreshAvailableMetadataSources()
         {
             AvailableMetadataSources.Clear();
-            AvailableMetadataSources.Add(new LocalMetadataSourceOption(string.Empty, "Automatic"));
 
             try
             {
-                foreach (var option in GetInstalledMetadataProviderOptions())
+                foreach (var option in ImportedGameMetadataSourceCatalog.GetAvailableOptions(_playniteApi, _logger))
                 {
                     AvailableMetadataSources.Add(option);
                 }
@@ -689,90 +840,6 @@ namespace PlayniteAchievements.Providers.Local
             return userId;
         }
 
-        private IReadOnlyList<LocalMetadataSourceOption> GetInstalledMetadataProviderOptions()
-        {
-            var options = new List<LocalMetadataSourceOption>();
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            try
-            {
-                foreach (var extensionsDirectory in GetCandidateExtensionsDirectories())
-                {
-                    foreach (var manifestPath in Directory.EnumerateFiles(extensionsDirectory, "extension.yaml", SearchOption.AllDirectories))
-                    {
-                        string type = null;
-                        string name = null;
-                        foreach (var line in File.ReadLines(manifestPath))
-                        {
-                            if (line.StartsWith("Type:", StringComparison.OrdinalIgnoreCase))
-                            {
-                                type = line.Substring(5).Trim();
-                            }
-                            else if (line.StartsWith("Name:", StringComparison.OrdinalIgnoreCase))
-                            {
-                                name = line.Substring(5).Trim();
-                            }
-                        }
-
-                        if (string.Equals(type, "MetadataProvider", StringComparison.OrdinalIgnoreCase) &&
-                            !string.IsNullOrWhiteSpace(name) &&
-                            names.Add(name.Trim()))
-                        {
-                            options.Add(new LocalMetadataSourceOption($"name:{name.Trim()}", name.Trim()));
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed reading installed metadata provider manifests for Local import settings.");
-            }
-
-            return options
-                .OrderBy(option => option.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
-        private IEnumerable<string> GetCandidateExtensionsDirectories()
-        {
-            var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            void AddCandidate(string path)
-            {
-                if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
-                {
-                    candidates.Add(path);
-                }
-            }
-
-            var applicationPath = _playniteApi?.Paths?.ApplicationPath?.Trim();
-            if (!string.IsNullOrWhiteSpace(applicationPath))
-            {
-                if (Directory.Exists(applicationPath))
-                {
-                    AddCandidate(Path.Combine(applicationPath, "Extensions"));
-                }
-
-                var applicationDirectory = Directory.Exists(applicationPath)
-                    ? applicationPath
-                    : Path.GetDirectoryName(applicationPath);
-                AddCandidate(Path.Combine(applicationDirectory ?? string.Empty, "Extensions"));
-            }
-
-            AddCandidate(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Extensions"));
-
-            var assemblyDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            if (!string.IsNullOrWhiteSpace(assemblyDirectory))
-            {
-                var parentDirectory = Directory.GetParent(assemblyDirectory);
-                AddCandidate(parentDirectory?.FullName);
-                AddCandidate(Path.Combine(parentDirectory?.Parent?.FullName ?? string.Empty, "Extensions"));
-            }
-
-            _logger?.Info($"[LocalImport] Metadata provider manifest search paths: {string.Join(", ", candidates)}");
-            return candidates;
-        }
-
         private bool TryShowImportTargetDialog(
             out LocalImportedGameLibraryTarget selectedTarget,
             out string customSourceName,
@@ -828,7 +895,10 @@ namespace PlayniteAchievements.Providers.Local
             _localImportCts = new CancellationTokenSource();
             UpdateExtraLocalPathButtonStates();
 
-            var progressControl = new LocalImportProgressControl();
+            var progressControl = new LocalImportProgressControl
+            {
+                DialogTitle = "Importing Local Games"
+            };
             var window = PlayniteUiProvider.CreateExtensionWindow(
                 "Import Local Games",
                 progressControl,

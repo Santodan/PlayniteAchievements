@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             xmlns:steam="clr-namespace:PlayniteAchievements.Providers.Steam"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -171,6 +172,61 @@
                                     <TextBlock Style="{StaticResource MutedTextStyle}"
                                                Margin="0,10,0,0"
                                                Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGamesHint}"
+                                               TextWrapping="Wrap"/>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="180"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_ImportedGameMetadataSource}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,8,12,0"/>
+
+                                            <StackPanel Grid.Column="1">
+                                                <ComboBox x:Name="ImportedGameMetadataSourceComboBox"
+                                                          DisplayMemberPath="DisplayName"
+                                                          SelectedValuePath="Id"
+                                                          SelectedValue="{Binding Settings.ImportedGameMetadataSourceId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          Padding="4"/>
+                                                <TextBlock Style="{StaticResource MutedTextStyle}"
+                                                           Margin="0,6,0,0"
+                                                           Text="{DynamicResource LOCPlayAch_Settings_ImportedGameMetadataSourceHint}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="180"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{DynamicResource LOCPlayAch_Settings_Steam_ExistingGameHandling}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,8,12,0"/>
+
+                                            <ComboBox Grid.Column="1"
+                                                      SelectedValue="{Binding Settings.ExistingGameImportBehavior, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedValuePath="Tag"
+                                                      Padding="4">
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Steam_OverwriteExistingGame}"
+                                                        Tag="{x:Static steam:SteamExistingGameImportBehavior.OverwriteExisting}" />
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Steam_SkipExistingGame}"
+                                                        Tag="{x:Static steam:SteamExistingGameImportBehavior.SkipExisting}" />
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Steam_IncludeFamilySharedGames}"
+                                              IsChecked="{Binding Settings.IncludeFamilySharedGames, Mode=TwoWay}"
+                                              Margin="0,10,0,0"/>
+
+                                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                               Margin="0,6,0,0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_Steam_IncludeFamilySharedGamesHint}"
                                                TextWrapping="Wrap"/>
 
                                     <Button Content="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGames}"

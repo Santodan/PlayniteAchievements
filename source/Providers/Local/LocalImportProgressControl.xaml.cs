@@ -8,6 +8,7 @@ namespace PlayniteAchievements.Providers.Local
 {
     public partial class LocalImportProgressControl : UserControl, INotifyPropertyChanged
     {
+        private string _dialogTitle = "Importing Games";
         private string _progressMessage = "Preparing Local import...";
         private string _detailMessage = "";
         private double _progressPercent;
@@ -17,6 +18,21 @@ namespace PlayniteAchievements.Providers.Local
         public event PropertyChangedEventHandler PropertyChanged;
         public event EventHandler CancelRequested;
         public event EventHandler RequestClose;
+
+        public string DialogTitle
+        {
+            get => _dialogTitle;
+            set
+            {
+                if (string.Equals(_dialogTitle, value, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _dialogTitle = value ?? string.Empty;
+                OnPropertyChanged();
+            }
+        }
 
         public string ProgressMessage
         {

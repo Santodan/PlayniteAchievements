@@ -70,10 +70,21 @@ namespace PlayniteAchievements.Providers.Local
         private IReadOnlyList<string> _steamInstallRootsCache;
         private HashSet<int> _steamLocalProgressAppIdsCache;
 
+        private string ResolvedProviderIconKey
+        {
+            get
+            {
+                var customIconPath = ProviderRegistry.Settings<LocalSettings>()?.CustomProviderIconPath;
+                return !string.IsNullOrWhiteSpace(customIconPath) && File.Exists(customIconPath)
+                    ? customIconPath
+                    : "ProviderIconLocal";
+            }
+        }
+
         public string ProviderKey => "Local";
         public string ProviderName => "Local"; 
-        public string ProviderIconKey => null;
-        public string ProviderColorHex => "#FFD700";
+        public string ProviderIconKey => ResolvedProviderIconKey;
+        public string ProviderColorHex => "#FF8A00";
 
         public bool IsAuthenticated => true;
         public ISessionManager AuthSession => null;
@@ -124,7 +135,12 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            return HasSteamAchievementProgressForApp(appId);
+            if (HasSteamAchievementProgressForApp(appId))
+            {
+                return true;
+            }
+
+            return SupportsSchemaOnlyManualFallback(game);
         }
 
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
@@ -188,7 +204,10 @@ namespace PlayniteAchievements.Providers.Local
                 steamLibraryCacheEntries = TryGetSteamLibraryCacheEntries(appIdInt);
             }
 
+            var hasSchemaAchievements = steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0;
+
             if (!hasResolvedLocalFolder &&
+                !hasSchemaAchievements &&
                 steamLocalProgress == null &&
                 (steamAppCacheEntries == null || steamAppCacheEntries.Count == 0) &&
                 (steamLibraryCacheEntries == null || steamLibraryCacheEntries.Count == 0))
@@ -539,6 +558,49 @@ namespace PlayniteAchievements.Providers.Local
                 if (match.Success) return match.Groups[1].Value;
             }
             return null;
+        }
+
+        private bool SupportsSchemaOnlyManualFallback(Game game)
+        {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (TryGetAppIdOverride(game.Id, out _) || TryGetFolderOverride(game.Id, out _))
+            {
+                return true;
+            }
+
+            if (_pluginSettings?.Persisted?.PreferredProviderOverrides != null &&
+                _pluginSettings.Persisted.PreferredProviderOverrides.TryGetValue(game.Id, out var preferredProvider) &&
+                string.Equals(preferredProvider?.Trim(), ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (game.PluginId != Guid.Empty)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(game.GameId) && Regex.IsMatch(game.GameId, @"^\d+$"))
+            {
+                return true;
+            }
+
+            if (game.Links != null && game.Links.Any(link => Regex.IsMatch(link?.Url ?? string.Empty, @"/app/(\d+)")))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(game.Notes) &&
+                Regex.IsMatch(game.Notes, @"SteamID[:\s]+(\d+)", RegexOptions.IgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private Dictionary<string, LocalEntry> TryGetSteamAppCacheEntries(int appId)

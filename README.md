@@ -69,6 +69,14 @@ This is a way of adding all of those achievements that are in the folders ina  w
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
+## 2026- - v2.1.1.4
+
+- Corrected the compatability with Anaki themes
+- Corrected the steam import without API key
+- Added the possibility to import Steam family-shared games
+- Added an icon for the local provider and a way of changing to your own icon
+- Import achievements metadata even when there is no achievements file locally
+
 ### 2026-04-17 - v2.1.1.3
 
 - Added anonymous Steam metadata lookup for the Local provider without requiring Steam API access, including selectable SteamHunters and Completionist.me source priority in Local settings.

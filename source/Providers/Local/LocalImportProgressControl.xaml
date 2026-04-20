@@ -27,7 +27,7 @@
                 BorderBrush="{DynamicResource NormalBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16,12">
-            <TextBlock Text="Importing Local Games"
+            <TextBlock Text="{Binding DialogTitle}"
                        Style="{DynamicResource BaseTextBlockStyle}"
                        FontWeight="Bold"
                        Foreground="{DynamicResource TextBrush}"/>

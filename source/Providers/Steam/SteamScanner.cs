@@ -168,6 +168,7 @@ namespace PlayniteAchievements.Providers.Steam
             HashSet<int> ownedAppIds;
             var steamUserId = ResolveSteamId64(null);
             var apiKey = _providerSettings.SteamApiKey?.Trim();
+            var usingApiOwnership = false;
             try
             {
                 if (!string.IsNullOrWhiteSpace(apiKey)
@@ -176,6 +177,7 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     var ownedGames = await _steamApiClient.GetOwnedGamesAsync(apiKey, steamUserId, includePlayedFreeGames: true).ConfigureAwait(false);
                     ownedAppIds = new HashSet<int>(ownedGames.Keys);
+                    usingApiOwnership = true;
                 }
                 else
                 {
@@ -194,8 +196,20 @@ namespace PlayniteAchievements.Providers.Steam
 
             if (ownedAppIds.Count == 0)
             {
-                _logger?.Info("[SteamAch] Authenticated Steam session reported zero owned app IDs.");
-                return Array.Empty<Game>();
+                if (usingApiOwnership)
+                {
+                    _logger?.Info("[SteamAch] Steam Web API reported zero owned app IDs.");
+                    return Array.Empty<Game>();
+                }
+
+                _logger?.Info("[SteamAch] Authenticated Steam session reported zero owned app IDs. Continuing without ownership filtering.");
+                return gamesToRefresh ?? Array.Empty<Game>();
+            }
+
+            if (!usingApiOwnership)
+            {
+                _logger?.Info($"[SteamAch] Steam web session returned {ownedAppIds.Count} owned app IDs. Skipping strict ownership filtering because session ownership may not include family-shared titles.");
+                return gamesToRefresh ?? Array.Empty<Game>();
             }
 
             var filteredGames = new List<Game>();
@@ -204,6 +218,12 @@ namespace PlayniteAchievements.Providers.Steam
             foreach (var game in gamesToRefresh ?? Array.Empty<Game>())
             {
                 cancel.ThrowIfCancellationRequested();
+
+                if (IsFamilySharedSteamGame(game))
+                {
+                    filteredGames.Add(game);
+                    continue;
+                }
 
                 if (!TryGetPlatformAppId(game, out var appId))
                 {
@@ -227,6 +247,13 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return filteredGames;
+        }
+
+        private static bool IsFamilySharedSteamGame(Game game)
+        {
+            var sourceName = game?.Source?.Name?.Trim();
+            return !string.IsNullOrWhiteSpace(sourceName)
+                && sourceName.IndexOf("Family Sharing", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         /// <summary>

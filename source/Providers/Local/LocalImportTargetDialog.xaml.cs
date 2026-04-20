@@ -4,13 +4,14 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using PlayniteAchievements.Providers.ImportedGameMetadata;
 
 namespace PlayniteAchievements.Providers.Local
 {
     public partial class LocalImportTargetDialog : UserControl
     {
         public ObservableCollection<string> SourceOptions { get; } = new ObservableCollection<string>();
-        public ObservableCollection<LocalMetadataSourceOption> MetadataSourceOptions { get; } = new ObservableCollection<LocalMetadataSourceOption>();
+        public ObservableCollection<ImportedGameMetadataSourceOption> MetadataSourceOptions { get; } = new ObservableCollection<ImportedGameMetadataSourceOption>();
         public ObservableCollection<LocalSteamAppCacheUserOption> SteamAppCacheUserOptions { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
 
         public LocalImportedGameLibraryTarget SelectedTarget
@@ -89,7 +90,7 @@ namespace PlayniteAchievements.Providers.Local
             string steamAppCacheUserId,
             LocalExistingGameImportBehavior existingGameBehavior,
             IEnumerable<string> sourceOptions,
-            IEnumerable<LocalMetadataSourceOption> metadataSourceOptions,
+            IEnumerable<ImportedGameMetadataSourceOption> metadataSourceOptions,
             IEnumerable<LocalSteamAppCacheUserOption> steamAppCacheUserOptions)
         {
             InitializeComponent();
@@ -102,7 +103,7 @@ namespace PlayniteAchievements.Providers.Local
                 SourceOptions.Add(sourceName);
             }
 
-            foreach (var option in metadataSourceOptions ?? Enumerable.Empty<LocalMetadataSourceOption>())
+            foreach (var option in metadataSourceOptions ?? Enumerable.Empty<ImportedGameMetadataSourceOption>())
             {
                 if (option == null)
                 {
