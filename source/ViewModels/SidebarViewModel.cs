@@ -683,6 +683,8 @@ namespace PlayniteAchievements.ViewModels
 
         public bool EnableCompactGridMode => _settings?.Persisted?.EnableCompactGridMode ?? false;
 
+        public bool EnableGridTextWrapping => _settings?.Persisted?.EnableGridTextWrapping ?? false;
+
         public bool ShowSidebarPieCharts =>
             ShowSidebarGamesPieChart ||
             ShowSidebarProviderPieChart ||
@@ -1849,6 +1851,7 @@ namespace PlayniteAchievements.ViewModels
                 RebuildRefreshModes();
                 OnPropertyChanged(nameof(UseCoverImages));
                 OnPropertyChanged(nameof(EnableCompactGridMode));
+                OnPropertyChanged(nameof(EnableGridTextWrapping));
                 OnPropertyChanged(nameof(IncludeUnplayedGames));
                 ApplySidebarPieSmallSliceMode();
                 RaiseSidebarPieChartVisibilityChanged();
@@ -1869,6 +1872,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.EnableCompactGridMode))
             {
                 OnPropertyChanged(nameof(EnableCompactGridMode));
+            }
+            else if (propertyName == nameof(PersistedSettings.EnableGridTextWrapping))
+            {
+                OnPropertyChanged(nameof(EnableGridTextWrapping));
             }
             else if (propertyName == nameof(PersistedSettings.IncludeUnplayedGames))
             {

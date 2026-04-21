@@ -607,18 +607,23 @@
                 </Style>
             </StackPanel.Style>
             <TextBlock FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextBrush}"
-                       TextWrapping="Wrap">
+                       Foreground="{DynamicResource TextBrush}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
                         <Setter Property="Opacity" Value="0.7"/>
+                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Unlocked}" Value="True">
                                 <Setter Property="Opacity" Value="1"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Setter Property="TextTrimming" Value="None"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -632,21 +637,33 @@
             <TextBlock Text="{Binding DescriptionResolved}"
                        FontSize="{DynamicResource FontSizeSmall}"
                        Foreground="{DynamicResource TextBrush}"
-                       Opacity="0.7"
-                       TextWrapping="Wrap"
-                       TextTrimming="CharacterEllipsis">
+                       Opacity="0.7">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Margin" Value="0,3,0,0"/>
-                        <Setter Property="MaxHeight" Value="44"/>
+                        <Setter Property="MaxHeight" Value="22"/>
+                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
                                 <Setter Property="Margin" Value="0,1,0,0"/>
-                                <Setter Property="MaxHeight" Value="32"/>
+                                <Setter Property="MaxHeight" Value="16"/>
                             </DataTrigger>
+                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Setter Property="TextTrimming" Value="None"/>
+                                <Setter Property="MaxHeight" Value="44"/>
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="MaxHeight" Value="32"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
@@ -660,10 +677,22 @@
             <TextBlock Text="{Binding UnlockTimeText}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Style="{DynamicResource BaseTextBlockStyle}"
                        Foreground="{DynamicResource TextBrush}"
                        Opacity="0.7"
-                       Visibility="{Binding Unlocked, Converter={StaticResource BoolToVis}}"/>
+                       Visibility="{Binding Unlocked, Converter={StaticResource BoolToVis}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                <Setter Property="TextTrimming" Value="None"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <Grid Visibility="{Binding Unlocked, Converter={StaticResource InverseBoolToVis}}" Margin="4,0">
                 <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}"
                              Minimum="0" Maximum="100"

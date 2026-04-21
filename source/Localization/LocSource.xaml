@@ -430,6 +430,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Display_SidebarSection">Sidebar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableArchiveScanning">Enable archive scanning (.zip/.7z/.rar/.rvz/.cso/.ciso)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableCompactGridMode">Enable Compact Grid Mode</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableGridTextWrapping">Wrap text inside grids</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">Enable disc hashing (for disc-based consoles)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">Enable Plugin Notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Enable parallel platform refresh</sys:String>

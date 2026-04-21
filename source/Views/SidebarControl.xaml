@@ -293,13 +293,23 @@
                 <Setter Property="BorderThickness" Value="0,0,0,1"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Height" Value="112"/>
+                <Setter Property="MinHeight" Value="112"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="DataGridRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="DataGridRow_PreviewMouseRightButtonUp"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
-                        <Setter Property="Height" Value="80"/>
+                        <Setter Property="MinHeight" Value="80"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="MinHeight" Value="132"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                            <Condition Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="MinHeight" Value="96"/>
+                    </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -307,9 +317,15 @@
                 <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
                         <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="TextWrapping" Value="Wrap"/>
+                        <Setter Property="TextTrimming" Value="None"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -319,9 +335,15 @@
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                 <Setter Property="Opacity" Value="0.6"/>
                 <Setter Property="Margin" Value="0,4,0,0"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
                         <Setter Property="Margin" Value="0,2,0,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="TextWrapping" Value="Wrap"/>
+                        <Setter Property="TextTrimming" Value="None"/>
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -873,11 +895,9 @@
                                                         Margin="0,0,8,0">
                                                 <TextBlock Text="{Binding GameName}"
                                                            HorizontalAlignment="Left"
-                                                           TextTrimming="CharacterEllipsis"
                                                            Style="{StaticResource OverviewGameNameTextStyle}"/>
                                                 <TextBlock Text="{Binding SecondaryMetadataText}"
                                                            HorizontalAlignment="Left"
-                                                           TextTrimming="CharacterEllipsis"
                                                            Style="{StaticResource OverviewGameMetadataTextStyle}"
                                                            Visibility="{Binding DataContext.ShowSidebarGameMetadata, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}"/>
                                             </StackPanel>
@@ -954,9 +974,21 @@
                                             <TextBlock Text="{Binding LastPlayedText}"
                                                     VerticalAlignment="Center"
                                                     HorizontalAlignment="Center"
-                                                    Style="{DynamicResource BaseTextBlockStyle}"
                                                     Foreground="{DynamicResource TextBrush}"
-                                                    Opacity="0.7"/>
+                                                    Opacity="0.7">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                <Setter Property="TextTrimming" Value="None"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -986,9 +1018,21 @@
                                             <TextBlock Text="{Binding PlaytimeText}"
                                                        VerticalAlignment="Center"
                                                        HorizontalAlignment="Center"
-                                                       Style="{DynamicResource BaseTextBlockStyle}"
                                                        Foreground="{DynamicResource TextBrush}"
-                                                       Opacity="0.7"/>
+                                                       Opacity="0.7">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                <Setter Property="TextTrimming" Value="None"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -1244,6 +1288,7 @@
                                                                  Grid.Row="0"
                                                                  ItemsSource="{Binding RecentAchievements}"
                                                                  ColumnSettingsKey="Sidebar"
+                                                                 IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
                                                                  ShowGameColumn="True"
                                                                  HideStatusColumn="True"
                                                                  UseCoverImages="{Binding UseCoverImages}"
@@ -1265,6 +1310,7 @@
                                                                  Grid.Row="0"
                                                                  ItemsSource="{Binding SelectedGameAchievements}"
                                                                  ColumnSettingsKey="SidebarGame"
+                                                                 IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
                                                                  RevealCommand="{Binding DataContext.RevealAchievementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                  UseExternalSorting="True"
                                                                  Sorting="GameAchievementsGrid_Sorting"

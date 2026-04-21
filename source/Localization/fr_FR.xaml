@@ -52,6 +52,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Display_GeneralSection">Général</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Afficher le bouton de la barre de menu supérieure</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableCompactGridMode">Activer le mode compact de la grille</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableGridTextWrapping">Retour à la ligne du texte dans les grilles</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_AchievementsSection">Succès</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Afficher la lueur de rareté sur les icônes débloquées</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Display_SidebarSection">Barre latérale</sys:String>

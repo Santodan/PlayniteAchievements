@@ -877,6 +877,9 @@
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableCompactGridMode}"
                                                   IsChecked="{Binding Persisted.EnableCompactGridMode}"
                                                   Margin="0,0,0,8"/>
+                                        <CheckBox Content="{DynamicResource LOCPlayAch_Settings_EnableGridTextWrapping}"
+                                                  IsChecked="{Binding Persisted.EnableGridTextWrapping}"
+                                                  Margin="0,0,0,8"/>
                                         <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
                                                   IsChecked="{Binding Persisted.ShowTopMenuBarButton}"/>
                                     </StackPanel>

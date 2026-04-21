@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Models.Settings
             target.ShowTopMenuBarButton = source.ShowTopMenuBarButton;
             target.ShowCompactListRarityBar = source.ShowCompactListRarityBar;
             target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.EnableGridTextWrapping = source.EnableGridTextWrapping;
             target.CompactListSortMode = source.CompactListSortMode;
             target.CompactListSortDescending = source.CompactListSortDescending;
             target.CompactUnlockedListSortMode = source.CompactUnlockedListSortMode;

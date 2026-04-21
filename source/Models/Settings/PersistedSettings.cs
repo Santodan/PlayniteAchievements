@@ -72,6 +72,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableAchievementPieChartControl = true;
         private bool _enableAchievementBarChartControl = true;
         private bool _enableCompactGridMode = false;
+        private bool _enableGridTextWrapping = false;
         private double? _achievementDataGridMaxHeight = null;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
@@ -632,6 +633,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _enableCompactGridMode;
             set => SetValue(ref _enableCompactGridMode, value);
+        }
+
+        /// <summary>
+        /// When true, grid text wraps instead of truncating.
+        /// </summary>
+        public bool EnableGridTextWrapping
+        {
+            get => _enableGridTextWrapping;
+            set => SetValue(ref _enableGridTextWrapping, value);
         }
 
         /// <summary>
@@ -1223,6 +1233,7 @@ namespace PlayniteAchievements.Models.Settings
                 EnableAchievementPieChartControl = this.EnableAchievementPieChartControl,
                 EnableAchievementBarChartControl = this.EnableAchievementBarChartControl,
                 EnableCompactGridMode = this.EnableCompactGridMode,
+                EnableGridTextWrapping = this.EnableGridTextWrapping,
                 CompactListSortMode = this.CompactListSortMode,
                 CompactListSortDescending = this.CompactListSortDescending,
                 CompactUnlockedListSortMode = this.CompactUnlockedListSortMode,

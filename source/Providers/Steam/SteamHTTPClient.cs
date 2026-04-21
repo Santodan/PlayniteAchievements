@@ -39,6 +39,9 @@ namespace PlayniteAchievements.Providers.Steam
 
         private static readonly Uri CommunityBase = new Uri("https://steamcommunity.com/");
         private static readonly Uri StoreBase = new Uri("https://store.steampowered.com/");
+        private static readonly Regex NonBaseOwnedGameNameRegex = new Regex(
+            @"\b(dlc|demo|soundtrack|art\s*book|artbook|ost|test\s*server|dedicated\s*server|server|season\s*pass|expansion\s*pack|booster\s*pack|weapon\s*pack|skin\s*pack|cosmetic\s*pack)\b",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private const string DefaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
         private const int MaxAttempts = 3;
         private const int OwnedGameAppDetailsDelayMs = 500;
@@ -460,10 +463,24 @@ namespace PlayniteAchievements.Providers.Steam
                         continue;
                     }
 
+                    var appType = data?["type"]?.Value<string>()?.Trim();
+                    if (!IsImportableOwnedGameType(appType))
+                    {
+                        _logger?.Info($"[SteamAch] Skipping Steam owned appId={appId} name='{name}' type='{appType ?? "unknown"}' because it is not a base-game import candidate.");
+                        continue;
+                    }
+
+                    if (LooksLikeNonBaseOwnedGameName(name))
+                    {
+                        _logger?.Info($"[SteamAch] Skipping Steam owned appId={appId} name='{name}' because its store name looks like DLC or supplemental content.");
+                        continue;
+                    }
+
                     result.Games.Add(new OwnedGame
                     {
                         AppId = appId,
                         Name = name,
+                        AppType = appType,
                         LibrarySourceName = "Steam"
                     });
                 }
@@ -479,6 +496,26 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return result;
+        }
+
+        private static bool IsImportableOwnedGameType(string appType)
+        {
+            if (string.IsNullOrWhiteSpace(appType))
+            {
+                return true;
+            }
+
+            return string.Equals(appType, "game", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool LooksLikeNonBaseOwnedGameName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            return NonBaseOwnedGameNameRegex.IsMatch(name);
         }
 
         private async Task<HashSet<int>> GetFamilySharedAppIdsFromAccessTokenAsync(string accessToken, string steamUserId, CancellationToken ct)

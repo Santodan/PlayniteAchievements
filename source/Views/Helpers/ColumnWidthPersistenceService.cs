@@ -144,6 +144,11 @@ namespace PlayniteAchievements.Views.Helpers
             ApplyPersistedWidths();
         }
 
+        public void FlushPendingChanges()
+        {
+            FlushPendingUpdates();
+        }
+
         /// <summary>
         /// Normalizes columns to fill the container width.
         /// </summary>

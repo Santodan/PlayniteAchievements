@@ -26,6 +26,9 @@ namespace PlayniteAchievements.Providers.Steam.Models
         [DataMember(Name = "name")]
         public string Name { get; set; }
 
+        [DataMember(Name = "type")]
+        public string AppType { get; set; }
+
         [DataMember(Name = "playtime_forever")]
         public int? PlaytimeForever { get; set; }
 

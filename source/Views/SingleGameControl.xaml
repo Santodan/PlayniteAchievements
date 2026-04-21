@@ -483,6 +483,7 @@
                                              Grid.Row="3"
                                              Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
                                              ItemsSource="{Binding Achievements}"
+                                             IsTextWrapEnabled="{Binding Settings.Persisted.EnableGridTextWrapping}"
                                              RevealCommand="{Binding RevealAchievementCommand}"
                                              ColumnSettingsKey="SingleGame"
                                              UseExternalSorting="True"

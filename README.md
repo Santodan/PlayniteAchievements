@@ -68,11 +68,14 @@ This is a way of adding all of those achievements that are in the folders ina  w
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
-## 2026-04-21 - v2.1.2.2
+## TBD - v2.1.2.2
 
 - Fixed the local steam achievements not having rarity
 - Added the option to change the steam user for local steam achivements detection
 - Added the option to do take a screenshot when a new achievemnt is unlocked with the `Real-time Local unlock checks`
+- The grid's column width will now maintain their size when moving out and then in the extension's page
+- Added a setting in the `Display` tab to have the text in the grid as wrap
+- Correct the Steam game import importing DLCs to the library addiitonally to the main game
 
 ## 2026-04-21 - v2.1.2.1
 

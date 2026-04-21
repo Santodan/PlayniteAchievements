@@ -195,6 +195,23 @@ namespace PlayniteAchievements.Views.Controls
         }
 
         /// <summary>
+        /// Identifies the IsTextWrapEnabled dependency property.
+        /// When true, text columns wrap instead of truncating.
+        /// </summary>
+        public static readonly DependencyProperty IsTextWrapEnabledProperty =
+            DependencyProperty.Register(nameof(IsTextWrapEnabled), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        /// <summary>
+        /// Gets or sets whether text columns wrap instead of truncating.
+        /// </summary>
+        public bool IsTextWrapEnabled
+        {
+            get => (bool)GetValue(IsTextWrapEnabledProperty);
+            set => SetValue(IsTextWrapEnabledProperty, value);
+        }
+
+        /// <summary>
         /// Identifies the AllowLayoutPersistence dependency property.
         /// When false, the control reads persisted layout state but never writes changes back.
         /// </summary>
@@ -306,7 +323,7 @@ namespace PlayniteAchievements.Views.Controls
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             AttachSettingsSubscriptions();
-            UpdateCompactMode();
+            UpdateDisplayPreferences();
 
             if (_isAttached)
             {
@@ -321,12 +338,18 @@ namespace PlayniteAchievements.Views.Controls
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             AttachSettingsSubscriptions();
-            UpdateCompactMode();
+            UpdateDisplayPreferences();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
             DetachSettingsSubscriptions();
+
+            if (_isAttached)
+            {
+                _columnPersistence?.Detach();
+                _isAttached = false;
+            }
         }
 
         private void AttachSettingsSubscriptions()
@@ -393,22 +416,24 @@ namespace PlayniteAchievements.Views.Controls
                 e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
             {
                 AttachSettingsSubscriptions();
-                UpdateCompactMode();
+                UpdateDisplayPreferences();
             }
         }
 
         private void PersistedSettingsSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (string.IsNullOrEmpty(e?.PropertyName) ||
-                e.PropertyName == nameof(PersistedSettings.EnableCompactGridMode))
+                e.PropertyName == nameof(PersistedSettings.EnableCompactGridMode) ||
+                e.PropertyName == nameof(PersistedSettings.EnableGridTextWrapping))
             {
-                UpdateCompactMode();
+                UpdateDisplayPreferences();
             }
         }
 
-        private void UpdateCompactMode()
+        private void UpdateDisplayPreferences()
         {
             IsCompactMode = _persistedSettingsSource?.EnableCompactGridMode ?? false;
+            IsTextWrapEnabled = _persistedSettingsSource?.EnableGridTextWrapping ?? false;
         }
 
         private void AttachColumnPersistence()
@@ -731,6 +756,11 @@ namespace PlayniteAchievements.Views.Controls
         public void Refresh()
         {
             _columnPersistence?.Refresh();
+        }
+
+        public void FlushLayoutPersistence()
+        {
+            _columnPersistence?.FlushPendingChanges();
         }
 
         public void Dispose()

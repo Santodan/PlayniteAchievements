@@ -62,6 +62,16 @@
                     <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
                         <Setter Property="MinHeight" Value="56"/>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                        <Setter Property="MinHeight" Value="108"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                            <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="MinHeight" Value="72"/>
+                    </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
@@ -104,10 +114,21 @@
                         <TextBlock Text="{Binding CategoryTypeDisplay}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
-                                   Style="{DynamicResource BaseTextBlockStyle}"
                                    Foreground="{DynamicResource TextBrush}"
-                                   Opacity="0.7"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   Opacity="0.7">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                    <Setter Property="TextWrapping" Value="NoWrap"/>
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                            <Setter Property="TextTrimming" Value="None"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -118,10 +139,21 @@
                         <TextBlock Text="{Binding CategoryLabel}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
-                                   Style="{DynamicResource BaseTextBlockStyle}"
                                    Foreground="{DynamicResource TextBrush}"
-                                   Opacity="0.7"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   Opacity="0.7">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                    <Setter Property="TextWrapping" Value="NoWrap"/>
+                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                            <Setter Property="TextTrimming" Value="None"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>

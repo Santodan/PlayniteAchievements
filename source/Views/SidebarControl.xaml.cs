@@ -117,11 +117,21 @@ namespace PlayniteAchievements.Views
             if (_isActive) return;
             _isActive = true;
             _viewModel?.SetActive(true);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                ApplyWidthsToGrids();
+                RecentAchievementsDataGrid?.Refresh();
+                GameAchievementsGrid?.Refresh();
+            }), DispatcherPriority.Loaded);
         }
 
         public void Deactivate()
         {
             if (!_isActive) return;
+            RecentAchievementsDataGrid?.FlushLayoutPersistence();
+            GameAchievementsGrid?.FlushLayoutPersistence();
+            FlushPendingUpdates();
             _isActive = false;
             _viewModel?.SetActive(false);
         }
