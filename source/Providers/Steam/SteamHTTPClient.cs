@@ -424,7 +424,15 @@ namespace PlayniteAchievements.Providers.Steam
 
                 if (index > 0)
                 {
-                    await Task.Delay(OwnedGameAppDetailsDelayMs, ct).ConfigureAwait(false);
+                    try
+                    {
+                        await Task.Delay(OwnedGameAppDetailsDelayMs, ct).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result.WasCanceled = true;
+                        break;
+                    }
                 }
 
                 var appId = appIds[index];
@@ -461,7 +469,8 @@ namespace PlayniteAchievements.Providers.Steam
                 }
                 catch (OperationCanceledException)
                 {
-                    throw;
+                    result.WasCanceled = true;
+                    break;
                 }
                 catch (Exception ex)
                 {

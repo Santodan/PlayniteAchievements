@@ -325,6 +325,7 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_LibrarySelected">Sélection de la bibliothèque</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Missing">Manquants</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Explicit">Explicite uniquement</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Provider_SteamFamilySharing">Steam Family Sharing</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">Préréglages</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">Charger</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Save">Enregistrer</sys:String>

@@ -11,6 +11,8 @@ Packages:
     - "Added the possibility to import Steam family-shared games"
     - "Added an icon for the local provider and a way of changing to your own icon"
     - "Import achievements metadata even when there is no achievements file locally"
+    - "Added a list of target games in the custom refresh"
+    - "Added Steam Family Sharing as a separate entry in the custom refresh platform list"
 
   - Version: 2.1.1.3
     RequiredApiVersion: 6.14.0

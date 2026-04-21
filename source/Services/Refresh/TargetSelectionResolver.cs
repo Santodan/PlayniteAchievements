@@ -78,6 +78,13 @@ namespace PlayniteAchievements.Services
                 return null;
             }
 
+            if (GameCustomDataLookup.TryGetPreferredProviderOverride(game.Id, out var preferredProviderKey))
+            {
+                return providers.FirstOrDefault(provider =>
+                    provider != null &&
+                    string.Equals(provider.ProviderKey, preferredProviderKey, StringComparison.OrdinalIgnoreCase));
+            }
+
             if (GameCustomDataLookup.TryGetXeniaTitleIdOverride(game.Id, out _))
             {
                 return providers.FirstOrDefault(provider =>
@@ -97,7 +104,8 @@ namespace PlayniteAchievements.Services
 
         private static bool HasForcedProviderOverride(Guid gameId)
         {
-            return GameCustomDataLookup.TryGetXeniaTitleIdOverride(gameId, out _) ||
+             return GameCustomDataLookup.TryGetPreferredProviderOverride(gameId, out _) ||
+                 GameCustomDataLookup.TryGetXeniaTitleIdOverride(gameId, out _) ||
                    GameCustomDataLookup.TryGetShadPS4MatchIdOverride(gameId, out _);
         }
 

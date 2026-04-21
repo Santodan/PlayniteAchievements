@@ -95,6 +95,11 @@ namespace PlayniteAchievements.Services
         /// </summary>
         public IReadOnlyList<IDataProvider> Providers => _providers;
 
+        internal IDataProvider ResolveProviderForGame(Game game, IReadOnlyList<IDataProvider> providers)
+        {
+            return _targetSelectionResolver.ResolveProviderForGame(game, providers);
+        }
+
         /// <summary>
         /// Gets the list of available refresh modes with localized display names.
         /// </summary>

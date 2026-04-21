@@ -32,6 +32,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <GroupBox Grid.Row="0"
@@ -127,7 +128,7 @@
                     </ItemsControl>
                 </GroupBox>
 
-                <GroupBox Grid.Row="2"
+                    <GroupBox Grid.Row="2"
                           Header="{DynamicResource LOCPlayAch_CustomRefresh_ScopeHeader}"
                           Foreground="{DynamicResource TextBrush}"
                           BorderBrush="{DynamicResource NormalBorderBrush}"
@@ -269,6 +270,26 @@
                                Style="{DynamicResource BaseTextBlockStyle}"
                                TextWrapping="Wrap" />
                 </Border>
+
+                <GroupBox Grid.Row="6"
+                          Header="Games to refresh"
+                          Foreground="{DynamicResource TextBrush}"
+                          BorderBrush="{DynamicResource NormalBorderBrush}"
+                          Margin="0,10,0,0">
+                    <ListBox ItemsSource="{Binding TargetPreviewGameNames}"
+                             Foreground="{DynamicResource TextBrush}"
+                             Background="{DynamicResource ControlBackgroundBrush}"
+                             BorderBrush="{DynamicResource NormalBorderBrush}"
+                             Height="180">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextBrush}" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </GroupBox>
             </Grid>
         </ScrollViewer>
 

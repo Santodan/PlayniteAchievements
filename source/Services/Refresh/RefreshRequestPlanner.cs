@@ -265,8 +265,18 @@ namespace PlayniteAchievements.Services
                 .ToList();
 
             var targetGameIds = resolvedGames
-                .Where(game => _targetSelectionResolver.ResolveProviderForGame(game, providers) != null)
-                .Select(game => game.Id)
+                .Select(game => new
+                {
+                    Game = game,
+                    Provider = _targetSelectionResolver.ResolveProviderForGame(game, providers)
+                })
+                .Where(entry => entry.Provider != null)
+                .Where(entry => CustomRefreshGameMatcher.MatchesProviderSelection(
+                    entry.Game,
+                    entry.Provider,
+                    providers,
+                    resolvedOptions.SteamTargetMode))
+                .Select(entry => entry.Game.Id)
                 .ToList();
 
             if (targetGameIds.Count == 0)

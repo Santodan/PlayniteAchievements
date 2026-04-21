@@ -69,14 +69,18 @@ This is a way of adding all of those achievements that are in the folders ina  w
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
-## 2026- - v2.1.2.4
+## 2026- - v2.1.2.1
 
 - Merge from original v2.1.2 - https://github.com/justin-delano/PlayniteAchievements/releases/tag/v2.1.2
 - Corrected the compatability with Anaki themes
 - Corrected the steam import without API key
-- Added the possibility to import Steam family-shared games
+- Added the possibility to import Steam family-shared games and achievements
+- Corrected the steam import not going through the Universal Steam Metadata when selected
 - Added an icon for the local provider and a way of changing to your own icon
 - Import achievements metadata even when there is no achievements file locally
+- Added a list of target games in the custom refresh
+- Added Steam Family Sharing as a separate entry in the custom refresh platform list
+- `Local` in the Custom refresh menu will only show games that aren't part of the other selectabled options in the list
 
 ### 2026-04-17 - v2.1.1.3
 

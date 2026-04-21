@@ -435,6 +435,35 @@ namespace PlayniteAchievements.Services
             return false;
         }
 
+        public static bool TryGetPreferredProviderOverride(
+            Guid gameId,
+            out string providerKey,
+            PersistedSettings fallbackSettings = null)
+        {
+            providerKey = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            fallbackSettings ??= PlayniteAchievementsPlugin.Instance?.Settings?.Persisted;
+            if (fallbackSettings?.PreferredProviderOverrides == null ||
+                !fallbackSettings.PreferredProviderOverrides.TryGetValue(gameId, out providerKey))
+            {
+                providerKey = null;
+                return false;
+            }
+
+            providerKey = NormalizeValue(providerKey);
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                providerKey = null;
+                return false;
+            }
+
+            return true;
+        }
+
         private static bool TryLoad(Guid gameId, out GameCustomDataFile customData, GameCustomDataStore store = null)
         {
             customData = null;

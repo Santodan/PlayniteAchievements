@@ -15,6 +15,13 @@ namespace PlayniteAchievements.Models
         Explicit
     }
 
+    public enum SteamRefreshTargetMode
+    {
+        All,
+        OwnedOnly,
+        FamilySharedOnly
+    }
+
     /// <summary>
     /// Persisted custom refresh preset.
     /// </summary>
@@ -137,6 +144,7 @@ namespace PlayniteAchievements.Models
     {
         public IReadOnlyCollection<string> ProviderKeys { get; set; }
         public CustomGameScope Scope { get; set; } = CustomGameScope.All;
+        public SteamRefreshTargetMode SteamTargetMode { get; set; } = SteamRefreshTargetMode.All;
         public IReadOnlyCollection<Guid> IncludeGameIds { get; set; }
         public IReadOnlyCollection<Guid> ExcludeGameIds { get; set; }
         public int? RecentLimitOverride { get; set; }
@@ -155,6 +163,7 @@ namespace PlayniteAchievements.Models
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList(),
                 Scope = Scope,
+                SteamTargetMode = SteamTargetMode,
                 IncludeGameIds = IncludeGameIds?
                     .Where(id => id != Guid.Empty)
                     .Distinct()

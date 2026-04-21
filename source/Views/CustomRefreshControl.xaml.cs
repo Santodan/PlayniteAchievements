@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 
 namespace PlayniteAchievements.Views
 {
@@ -150,6 +151,7 @@ namespace PlayniteAchievements.Views
         private readonly Action _persistSettingsForUi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
+        private const string SteamFamilySharingProviderKey = "SteamFamilySharing";
         private readonly Dictionary<string, IDataProvider> _providersByKey = new Dictionary<string, IDataProvider>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<Guid, Game> _gamesById = new Dictionary<Guid, Game>();
         private readonly HashSet<string> _cachedGameIds;
@@ -169,6 +171,8 @@ namespace PlayniteAchievements.Views
         private bool _canRun;
         private CustomRefreshPreset _selectedPreset;
         private CustomRefreshPreset _placeholderPreset;
+        private bool _suppressSummaryRefresh;
+        private bool _initialLoadStarted;
 
         public event EventHandler RequestClose;
         public event PropertyChangedEventHandler PropertyChanged;
@@ -180,6 +184,7 @@ namespace PlayniteAchievements.Views
         public ObservableCollection<ScopeOptionItem> ScopeOptions { get; } = new ObservableCollection<ScopeOptionItem>();
         public ObservableCollection<GameOptionItem> GameOptions { get; } = new ObservableCollection<GameOptionItem>();
         public ObservableCollection<CustomRefreshPreset> PresetOptions { get; } = new ObservableCollection<CustomRefreshPreset>();
+        public ObservableCollection<string> TargetPreviewGameNames { get; } = new ObservableCollection<string>();
 
         public ICollectionView IncludeGameView { get; }
         public ICollectionView ExcludeGameView { get; }
@@ -444,9 +449,31 @@ namespace PlayniteAchievements.Views
 
             InitializeScopeOptions();
             InitializeProviders();
-            _ = RefreshProviderOptionsAsync();
             InitializeGames();
             InitializePresets();
+
+            SummaryText = L("LOCPlayAch_Common_Loading", "Loading...");
+            CanRun = false;
+            Loaded += CustomRefreshControl_Loaded;
+        }
+
+        private void CustomRefreshControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (_initialLoadStarted)
+            {
+                return;
+            }
+
+            _initialLoadStarted = true;
+            Loaded -= CustomRefreshControl_Loaded;
+            Dispatcher.BeginInvoke(
+                new Action(() => _ = InitializeAfterShownAsync()),
+                DispatcherPriority.ContextIdle);
+        }
+
+        private async Task InitializeAfterShownAsync()
+        {
+            await RefreshProviderOptionsAsync().ConfigureAwait(true);
             RecalculateSummary();
         }
 
@@ -533,25 +560,79 @@ namespace PlayniteAchievements.Views
                 item.PropertyChanged += OnProviderOptionChanged;
                 ProviderOptions.Add(item);
                 _providersByKey[provider.ProviderKey] = provider;
+
+                if (string.Equals(provider.ProviderKey, SteamRefreshTargeting.SteamProviderKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    var familySharingItem = new ProviderOptionItem(
+                        SteamFamilySharingProviderKey,
+                        L("LOCPlayAch_CustomRefresh_Provider_SteamFamilySharing", "Steam Family Sharing"),
+                        isEnabled,
+                        isAuthenticated,
+                        readyText,
+                        disabledText,
+                        noAuthText)
+                    {
+                        IsSelected = isEnabled && isAuthenticated
+                    };
+
+                    familySharingItem.PropertyChanged += OnProviderOptionChanged;
+                    ProviderOptions.Add(familySharingItem);
+                }
             }
         }
 
         private async Task RefreshProviderOptionsAsync()
         {
-            foreach (var option in ProviderOptions)
+            var providerStates = await Task.WhenAll(
+                ProviderOptions
+                    .Select(async option =>
+                    {
+                        var providerKey = string.Equals(option.ProviderKey, SteamFamilySharingProviderKey, StringComparison.OrdinalIgnoreCase)
+                            ? SteamRefreshTargeting.SteamProviderKey
+                            : option.ProviderKey;
+                        if (!_providersByKey.TryGetValue(providerKey, out var provider) || provider == null)
+                        {
+                            return new
+                            {
+                                Option = option,
+                                HasProvider = false,
+                                IsEnabled = false,
+                                IsAuthenticated = false
+                            };
+                        }
+
+                        var isEnabled = _refreshService.ProviderRegistry.IsProviderEnabled(provider.ProviderKey);
+                        var isAuthenticated = isEnabled &&
+                            await _refreshService.IsProviderAuthenticatedAsync(provider, CancellationToken.None).ConfigureAwait(false);
+
+                        return new
+                        {
+                            Option = option,
+                            HasProvider = true,
+                            IsEnabled = isEnabled,
+                            IsAuthenticated = isAuthenticated
+                        };
+                    }))
+                .ConfigureAwait(true);
+
+            _suppressSummaryRefresh = true;
+            try
             {
-                if (!_providersByKey.TryGetValue(option.ProviderKey, out var provider) || provider == null)
+                foreach (var state in providerStates)
                 {
-                    continue;
+                    if (!state.HasProvider)
+                    {
+                        continue;
+                    }
+
+                    state.Option.IsEnabled = state.IsEnabled;
+                    state.Option.IsAuthenticated = state.IsAuthenticated;
                 }
-
-                var isEnabled = _refreshService.ProviderRegistry.IsProviderEnabled(provider.ProviderKey);
-                option.IsEnabled = isEnabled;
-                option.IsAuthenticated = isEnabled &&
-                    await _refreshService.IsProviderAuthenticatedAsync(provider, CancellationToken.None).ConfigureAwait(true);
             }
-
-            RecalculateSummary();
+            finally
+            {
+                _suppressSummaryRefresh = false;
+            }
         }
 
         private void InitializeGames()
@@ -755,6 +836,11 @@ namespace PlayniteAchievements.Views
 
         private void OnProviderOptionChanged(object sender, PropertyChangedEventArgs e)
         {
+            if (_suppressSummaryRefresh)
+            {
+                return;
+            }
+
             if (e?.PropertyName == nameof(ProviderOptionItem.IsSelected) ||
                 e?.PropertyName == nameof(ProviderOptionItem.IsAuthenticated) ||
                 e?.PropertyName == nameof(ProviderOptionItem.IsEnabled))
@@ -778,14 +864,65 @@ namespace PlayniteAchievements.Views
                 .Where(option => option.IsSelected && option.IsSelectable)
                 .Select(option =>
                 {
-                    _providersByKey.TryGetValue(option.ProviderKey, out var provider);
+                    var providerKey = string.Equals(option.ProviderKey, SteamFamilySharingProviderKey, StringComparison.OrdinalIgnoreCase)
+                        ? SteamRefreshTargeting.SteamProviderKey
+                        : option.ProviderKey;
+                    _providersByKey.TryGetValue(providerKey, out var provider);
                     return provider;
                 })
                 .Where(provider => provider != null)
+                .GroupBy(provider => provider.ProviderKey, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
                 .ToList();
         }
 
-        private List<Guid> ResolveEstimatedTargets(IReadOnlyList<IDataProvider> providers)
+            private IReadOnlyList<ProviderOptionItem> GetSelectedProviderOptions()
+            {
+                return ProviderOptions
+                .Where(option => option.IsSelected && option.IsSelectable)
+                .ToList();
+            }
+
+        private bool IsSteamOwnedSelected()
+        {
+            return ProviderOptions.Any(option =>
+                option.IsSelected &&
+                option.IsSelectable &&
+                string.Equals(option.ProviderKey, SteamRefreshTargeting.SteamProviderKey, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool IsSteamFamilySharingSelected()
+        {
+            return ProviderOptions.Any(option =>
+                option.IsSelected &&
+                option.IsSelectable &&
+                string.Equals(option.ProviderKey, SteamFamilySharingProviderKey, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private SteamRefreshTargetMode GetSelectedSteamTargetMode()
+        {
+            var steamOwnedSelected = IsSteamOwnedSelected();
+            var steamFamilySharingSelected = IsSteamFamilySharingSelected();
+
+            if (steamOwnedSelected && steamFamilySharingSelected)
+            {
+                return SteamRefreshTargetMode.All;
+            }
+
+            if (steamFamilySharingSelected)
+            {
+                return SteamRefreshTargetMode.FamilySharedOnly;
+            }
+
+            if (steamOwnedSelected)
+            {
+                return SteamRefreshTargetMode.OwnedOnly;
+            }
+
+            return SteamRefreshTargetMode.All;
+        }
+
+        private List<Guid> ResolveEstimatedTargets(IReadOnlyList<IDataProvider> providers, CustomGameScope? scopeOverride = null)
         {
             if (providers == null || providers.Count == 0)
             {
@@ -798,7 +935,8 @@ namespace PlayniteAchievements.Views
             var recentLimit = ResolveRecentLimitForEstimate();
 
             IEnumerable<Game> scopedGames;
-            switch (SelectedScope)
+            var effectiveScope = scopeOverride ?? SelectedScope;
+            switch (effectiveScope)
             {
                 case CustomGameScope.All:
                     scopedGames = _gamesById.Values;
@@ -843,7 +981,7 @@ namespace PlayniteAchievements.Views
                 case CustomGameScope.Missing:
                     scopedGames = _gamesById.Values.Where(game =>
                         !_cachedGameIds.Contains(game.Id.ToString()) &&
-                        IsCapableForAnyProvider(game, providers));
+                        ResolveProviderForSelection(game, providers) != null);
                     break;
 
                 case CustomGameScope.Explicit:
@@ -855,7 +993,7 @@ namespace PlayniteAchievements.Views
                     break;
             }
 
-            if (ShouldApplyHiddenFilter(SelectedScope))
+            if (ShouldApplyHiddenFilter(effectiveScope))
             {
                 scopedGames = BulkRefreshGameFilter.ApplyHiddenFilter(scopedGames, _settings?.Persisted);
             }
@@ -921,8 +1059,24 @@ namespace PlayniteAchievements.Views
                 }
             }
 
+            var selectedOptions = GetSelectedProviderOptions();
+
             return orderedIds
-                .Where(id => _gamesById.TryGetValue(id, out var game) && IsCapableForAnyProvider(game, providers))
+                .Select(id => _gamesById.TryGetValue(id, out var game) ? game : null)
+                .Where(game => game != null)
+                .Select(game => new
+                {
+                    Game = game,
+                    Provider = ResolveProviderForSelection(game, providers)
+                })
+                .Where(entry => entry.Provider != null)
+                .Where(entry => selectedOptions.Any(option =>
+                    CustomRefreshGameMatcher.MatchesSelectionOption(
+                        entry.Game,
+                        entry.Provider,
+                        option.ProviderKey,
+                        option.ProviderName)))
+                .Select(entry => entry.Game.Id)
                 .ToList();
         }
 
@@ -938,34 +1092,22 @@ namespace PlayniteAchievements.Views
             return Math.Max(1, _settings?.Persisted?.RecentRefreshGamesCount ?? 10);
         }
 
-        private bool IsCapableForAnyProvider(Game game, IReadOnlyList<IDataProvider> providers)
+        private IDataProvider ResolveProviderForSelection(Game game, IReadOnlyList<IDataProvider> providers)
         {
             if (game == null || providers == null || providers.Count == 0)
             {
-                return false;
+                return null;
             }
 
-            foreach (var provider in providers)
+            try
             {
-                if (provider == null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (provider.IsCapable(game))
-                    {
-                        return true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"Provider capability check failed for game '{game?.Name}'.");
-                }
+                return _refreshService.ResolveProviderForGame(game, providers);
             }
-
-            return false;
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Provider resolution failed for game '{game?.Name}'.");
+                return null;
+            }
         }
 
         private static bool ShouldApplyHiddenFilter(CustomGameScope scope)
@@ -994,8 +1136,10 @@ namespace PlayniteAchievements.Views
         private void RecalculateSummary()
         {
             var selectedProviders = GetSelectedProviders();
-            var selectedProviderNames = selectedProviders
-                .Select(provider => provider.ProviderName)
+
+            var selectedProviderNames = ProviderOptions
+                .Where(option => option.IsSelected && option.IsSelectable)
+                .Select(option => option.ProviderName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
 
@@ -1003,13 +1147,26 @@ namespace PlayniteAchievements.Views
                 ? L("LOCPlayAch_CustomRefresh_None", "None")
                 : string.Join(", ", selectedProviderNames);
 
-            var estimatedTargets = ResolveEstimatedTargets(selectedProviders).Count;
+            var estimatedTargetIds = ResolveEstimatedTargets(selectedProviders);
+            var estimatedTargets = estimatedTargetIds.Count;
             SummaryText = string.Format(
                 L("LOCPlayAch_CustomRefresh_SummaryFormat", "Providers: {0} | Estimated targets: {1}"),
                 providerDisplay,
                 estimatedTargets);
+            UpdateTargetPreview(estimatedTargetIds);
 
             CanRun = selectedProviders.Count > 0 && estimatedTargets > 0;
+        }
+
+        private void UpdateTargetPreview(IEnumerable<Guid> targetIds)
+        {
+            var displayNames = (targetIds ?? Enumerable.Empty<Guid>())
+                .Where(gameId => gameId != Guid.Empty)
+                .Select(gameId => _gamesById.TryGetValue(gameId, out var game) ? BuildGameDisplayName(game) : null)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToList();
+
+            CollectionHelper.SynchronizeCollection(TargetPreviewGameNames, displayNames);
         }
 
         private string BuildGameDisplayName(Game game)
@@ -1051,8 +1208,14 @@ namespace PlayniteAchievements.Views
 
             var selectedProviderKeys = ProviderOptions
                 .Where(option => option.IsSelected && option.IsSelectable)
+                .Where(option => !string.Equals(option.ProviderKey, SteamFamilySharingProviderKey, StringComparison.OrdinalIgnoreCase))
                 .Select(option => option.ProviderKey)
                 .ToList();
+            if (IsSteamFamilySharingSelected() &&
+                !selectedProviderKeys.Contains(SteamRefreshTargeting.SteamProviderKey, StringComparer.OrdinalIgnoreCase))
+            {
+                selectedProviderKeys.Add(SteamRefreshTargeting.SteamProviderKey);
+            }
             var includeIds = GameOptions
                 .Where(option => option.IsIncluded)
                 .Select(option => option.GameId)
@@ -1068,6 +1231,7 @@ namespace PlayniteAchievements.Views
             {
                 ProviderKeys = selectedProviderKeys,
                 Scope = SelectedScope,
+                SteamTargetMode = GetSelectedSteamTargetMode(),
                 IncludeGameIds = includeIds,
                 ExcludeGameIds = excludeIds,
                 RecentLimitOverride = UseRecentLimitOverride && hasRecentLimit ? (int?)recentLimit : null,
@@ -1091,8 +1255,21 @@ namespace PlayniteAchievements.Views
                 StringComparer.OrdinalIgnoreCase);
             foreach (var providerOption in ProviderOptions)
             {
-                providerOption.IsSelected = providerOption.IsSelectable &&
-                    providerKeys.Contains(providerOption.ProviderKey);
+                var isSelected = providerOption.IsSelectable && providerKeys.Contains(providerOption.ProviderKey);
+                if (string.Equals(providerOption.ProviderKey, SteamRefreshTargeting.SteamProviderKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    isSelected = providerOption.IsSelectable &&
+                        providerKeys.Contains(SteamRefreshTargeting.SteamProviderKey) &&
+                        resolved.SteamTargetMode != SteamRefreshTargetMode.FamilySharedOnly;
+                }
+                else if (string.Equals(providerOption.ProviderKey, SteamFamilySharingProviderKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    isSelected = providerOption.IsSelectable &&
+                        providerKeys.Contains(SteamRefreshTargeting.SteamProviderKey) &&
+                        resolved.SteamTargetMode != SteamRefreshTargetMode.OwnedOnly;
+                }
+
+                providerOption.IsSelected = isSelected;
             }
 
             SelectedScope = resolved.Scope;
