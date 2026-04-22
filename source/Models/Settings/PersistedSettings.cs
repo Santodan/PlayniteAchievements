@@ -32,6 +32,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableNotifications = true;
         private bool _notifyPeriodicUpdates = true;
         private bool _notifyOnRebuild = true;
+        private string _defaultUnlockNotificationStyle = "Steam";
+        private Dictionary<string, string> _providerUnlockNotificationStyles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private string _lastUpstreamReleaseNotificationVersion = string.Empty;
         private string _lastForkReleaseNotificationVersion = string.Empty;
         private int _recentRefreshGamesCount = 10;
@@ -90,6 +92,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
         private HashSet<Guid> _excludedFromSummariesGameIds = new HashSet<Guid>();
+        private HashSet<Guid> _disabledRealtimeNotificationGameIds = new HashSet<Guid>();
         private Dictionary<Guid, string> _preferredProviderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _manualCapstones = new Dictionary<Guid, string>();
         private Dictionary<Guid, List<string>> _achievementOrderOverrides = new Dictionary<Guid, List<string>>();
@@ -235,6 +238,26 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _notifyOnRebuild;
             set => SetValue(ref _notifyOnRebuild, value);
+        }
+
+        /// <summary>
+        /// Global default style used for unlock notifications when no provider override is configured.
+        /// Supported values: Steam, PlayStation, Xbox, Minimal.
+        /// </summary>
+        public string DefaultUnlockNotificationStyle
+        {
+            get => _defaultUnlockNotificationStyle;
+            set => SetValue(ref _defaultUnlockNotificationStyle, string.IsNullOrWhiteSpace(value) ? "Steam" : value.Trim());
+        }
+
+        /// <summary>
+        /// Per-provider style overrides for unlock notifications.
+        /// Key = provider key (e.g., Local, Steam, PSN), Value = style key.
+        /// </summary>
+        public Dictionary<string, string> ProviderUnlockNotificationStyles
+        {
+            get => _providerUnlockNotificationStyles;
+            set => SetValue(ref _providerUnlockNotificationStyles, NormalizeProviderUnlockNotificationStyles(value));
         }
 
         /// <summary>
@@ -1078,6 +1101,15 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Game IDs for which real-time Local unlock notifications are disabled.
+        /// </summary>
+        public HashSet<Guid> DisabledRealtimeNotificationGameIds
+        {
+            get => _disabledRealtimeNotificationGameIds;
+            set => SetValue(ref _disabledRealtimeNotificationGameIds, value ?? new HashSet<Guid>());
+        }
+
+        /// <summary>
         /// Preferred provider override per game.
         /// Key = Playnite Game ID, Value = ProviderKey.
         /// These overrides persist across cache clears.
@@ -1194,6 +1226,10 @@ namespace PlayniteAchievements.Models.Settings
                 EnableNotifications = this.EnableNotifications,
                 NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
                 NotifyOnRebuild = this.NotifyOnRebuild,
+                DefaultUnlockNotificationStyle = this.DefaultUnlockNotificationStyle,
+                ProviderUnlockNotificationStyles = this.ProviderUnlockNotificationStyles != null
+                    ? new Dictionary<string, string>(this.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 LastUpstreamReleaseNotificationVersion = this.LastUpstreamReleaseNotificationVersion,
                 LastForkReleaseNotificationVersion = this.LastForkReleaseNotificationVersion,
 
@@ -1302,6 +1338,9 @@ namespace PlayniteAchievements.Models.Settings
                 ExcludedFromSummariesGameIds = this.ExcludedFromSummariesGameIds != null
                     ? new HashSet<Guid>(this.ExcludedFromSummariesGameIds)
                     : new HashSet<Guid>(),
+                DisabledRealtimeNotificationGameIds = this.DisabledRealtimeNotificationGameIds != null
+                    ? new HashSet<Guid>(this.DisabledRealtimeNotificationGameIds)
+                    : new HashSet<Guid>(),
                 PreferredProviderOverrides = this.PreferredProviderOverrides != null
                     ? new Dictionary<Guid, string>(this.PreferredProviderOverrides)
                     : new Dictionary<Guid, string>(),
@@ -1336,6 +1375,29 @@ namespace PlayniteAchievements.Models.Settings
                 // Tagging Settings
                 TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
             };
+        }
+
+        private static Dictionary<string, string> NormalizeProviderUnlockNotificationStyles(Dictionary<string, string> value)
+        {
+            var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (value == null)
+            {
+                return normalized;
+            }
+
+            foreach (var pair in value)
+            {
+                var key = pair.Key?.Trim();
+                var style = pair.Value?.Trim();
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(style))
+                {
+                    continue;
+                }
+
+                normalized[key] = style;
+            }
+
+            return normalized;
         }
 
         private static string NormalizePath(string value)

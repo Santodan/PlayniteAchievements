@@ -34,6 +34,7 @@
 - Faster access to saved refresh presets from the main sidebar refresh selector
 - Local-only realtime monitoring and notification improvements
 - Add all the local achievements' games with the corresponding metadata
+- Local Achievement Notification
 
 ### Local Provider Folder List And Browse Flow
 
@@ -64,21 +65,36 @@ This is a way of adding all of those achievements that are in the folders ina  w
 
 <img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
 
+### Local Achievement Notification
+
+A notification for when the game that is been played has a new achievment unlocked.
+You can customize the overlay or use one of the provided themes.
+You can senable / disable the `Achievement Notification` in the right click  menu for each game
+
+<img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
+
+<img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
+
 ## Fork Changelog
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
-## TBD - v2.1.2.2
+## 2026-04-22 - v2.1.2.2
 
 - Fixed the local steam achievements not having rarity
 - Added the option to change the steam user for local steam achivements detection
 - Added the option to do take a screenshot when a new achievemnt is unlocked with the `Real-time Local unlock checks`
+- Moved `Real-time Local unlock checks` settings to its own setting tab called `Achievements Notification`
+- Changed the sound notification settings for the achievement notification
+- Added a windows notification for new achievements when using the `Achievement Notification`, this can be a Overlay or Windows notification
+  - The overlay notification is fully customizable
+- Added the option to disable the `Achivement Notification` for that specific game
 - The grid's column width will now maintain their size when moving out and then in the extension's page
 - Added a setting in the `Display` tab to have the text in the grid as wrap
-- Correct the Steam game import importing DLCs to the library addiitonally to the main game
-- Changed the method to import steam games to be quicker
-- Stop detecting all the achievements with the description `Local achievement from Local`
 - Added an `All Achievements` tab
+- Correct the Steam game import importing DLCs to the library addiitonally to the main game
+- Changed the method to import steam games to be quicker ( I recommend to use the integrated Playnite Steam extension to get the games )
+- Stop detecting all the achievements with the description `Local achievement from Local`
 
 ## 2026-04-21 - v2.1.2.1
 

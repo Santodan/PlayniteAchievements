@@ -1,5 +1,25 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.1.2.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-04-22
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.1.2.2/PlayniteAchievementsSantodan_2_1_2_2.pext
+    Changelog:
+    - "Fixed the local steam achievements not having rarity"
+    - "Added the option to change the steam user for local steam achivements detection"
+    - "Added the option to do take a screenshot when a new achievemnt is unlocked with the `Real-time Local unlock checks`"
+    - "Moved `Real-time Local unlock checks` settings to its own setting tab called `Achievements Notification`"
+    - "Changed the sound notification settings for the achievement notification"
+    - "Added a windows notification for new achievements when using the `Achievement Notification`, this can be a Overlay or Windows notification"
+      - "The overlay notification is fully customizable"
+    - "Added the option to disable the `Achivement Notification` for that specific game"
+    - "The grid's column width will now maintain their size when moving out and then in the extension's page"
+    - "Added a setting in the `Display` tab to have the text in the grid as wrap"
+    - "Added an `All Achievements` tab"
+    - "Correct the Steam game import importing DLCs to the library addiitonally to the main game"
+    - "Changed the method to import steam games to be quicker ( I recommend to use the integrated Playnite Steam extension to get the games )"
+    - "Stop detecting all the achievements with the description `Local achievement from Local`"
+
   - Version: 2.1.2.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-04-21

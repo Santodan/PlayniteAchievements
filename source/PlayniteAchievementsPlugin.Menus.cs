@@ -257,6 +257,19 @@ namespace PlayniteAchievements
                     }
                 };
 
+                var allRealtimeNotificationsDisabled = selectedGames.All(g => IsRealtimeNotificationDisabledForGame(g.Id));
+                yield return new GameMenuItem
+                {
+                    Description = allRealtimeNotificationsDisabled
+                        ? ResourceProvider.GetString("LOCPlayAch_Menu_EnableRealtimeNotification")
+                        : ResourceProvider.GetString("LOCPlayAch_Menu_DisableRealtimeNotification"),
+                    MenuSection = PluginGameMenuSection,
+                    Action = (a) =>
+                    {
+                        ToggleRealtimeNotificationsForGames(selectedGames);
+                    }
+                };
+
                 var allExcludedFromRefreshes = selectedGames.All(g => IsGameExcluded(g.Id));
                 yield return new GameMenuItem
                 {
@@ -495,6 +508,19 @@ namespace PlayniteAchievements
                 }
             };
 
+            var realtimeNotificationDisabled = IsRealtimeNotificationDisabledForGame(game.Id);
+            yield return new GameMenuItem
+            {
+                Description = realtimeNotificationDisabled
+                    ? ResourceProvider.GetString("LOCPlayAch_Menu_EnableRealtimeNotification")
+                    : ResourceProvider.GetString("LOCPlayAch_Menu_DisableRealtimeNotification"),
+                MenuSection = PluginGameMenuSection,
+                Action = (a) =>
+                {
+                    ToggleRealtimeNotificationsForGames(new[] { game });
+                }
+            };
+
             var excludedFromRefreshes = IsGameExcluded(game.Id);
             yield return new GameMenuItem
             {
@@ -677,6 +703,35 @@ namespace PlayniteAchievements
             {
                 _ = StartMenuRefreshAsync(new RefreshRequest { GameIds = gameIdsToRefresh });
             }
+        }
+
+        private void ToggleRealtimeNotificationsForGames(IEnumerable<Game> games)
+        {
+            var targets = GetDistinctValidGames(games);
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var disabledSet = _settingsViewModel?.Settings?.Persisted?.DisabledRealtimeNotificationGameIds;
+            if (disabledSet == null)
+            {
+                return;
+            }
+
+            foreach (var game in targets)
+            {
+                if (disabledSet.Contains(game.Id))
+                {
+                    disabledSet.Remove(game.Id);
+                }
+                else
+                {
+                    disabledSet.Add(game.Id);
+                }
+            }
+
+            PersistSettingsForUi();
         }
 
         private void ClearSingleGameData(Game game)
@@ -1176,6 +1231,11 @@ namespace PlayniteAchievements
                 gameId,
                 _settingsViewModel?.Settings?.Persisted,
                 _gameCustomDataStore);
+        }
+
+        public bool IsRealtimeNotificationDisabledForGame(Guid gameId)
+        {
+            return _settingsViewModel?.Settings?.Persisted?.DisabledRealtimeNotificationGameIds?.Contains(gameId) == true;
         }
 
         public void ToggleGameExclusion(Guid gameId)

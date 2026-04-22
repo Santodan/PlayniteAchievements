@@ -133,6 +133,8 @@
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">Exclude from Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">Exclude from Refreshes and Clear Data</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeGame">Exclude this Game and Clear Data</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_DisableRealtimeNotification">Disable real-time notifications</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_EnableRealtimeNotification">Enable real-time notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">Please enter an Exophase game ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_GameOptions">Game Options</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">Include this Game</sys:String>

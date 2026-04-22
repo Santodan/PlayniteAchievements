@@ -338,6 +338,7 @@ namespace PlayniteAchievements
                         _providerRegistry,
                         _notifications,
                         localAchievementScreenshotService,
+                        IsRealtimeNotificationDisabledForGame,
                         _logger);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
@@ -505,6 +506,7 @@ namespace PlayniteAchievements
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
             _activeGameAchievementMonitor?.Stop();
+            _ = _activeGameAchievementMonitor?.TryDetectMissedUnlocksAfterStopAsync(args.Game);
             _logger.Info($"Game stopped: {args.Game.Name}. Triggering refresh.");
             _ = _refreshCoordinator.ExecuteAsync(new RefreshRequest
             {

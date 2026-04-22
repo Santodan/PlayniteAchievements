@@ -17,11 +17,16 @@ using PlayniteAchievements.Views.Helpers;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
 using System.Diagnostics;
 using System.Windows.Navigation;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using WinForms = System.Windows.Forms;
 
 namespace PlayniteAchievements.Views
 {
@@ -397,14 +402,59 @@ namespace PlayniteAchievements.Views
         private readonly ThemeMigrationService _themeMigration;
         private readonly ProviderRegistry _providerRegistry;
         private readonly Dictionary<string, ProviderSettingsViewBase> _providerViewsByKey = new Dictionary<string, ProviderSettingsViewBase>(StringComparer.OrdinalIgnoreCase);
+        private readonly ObservableCollection<NotificationSoundOption> _notificationSoundOptions = new ObservableCollection<NotificationSoundOption>();
+        private readonly ObservableCollection<NotificationStyleOption> _notificationStyleOptions = new ObservableCollection<NotificationStyleOption>();
+        private readonly ObservableCollection<NotificationProviderOption> _notificationProviderOptions = new ObservableCollection<NotificationProviderOption>();
+        private readonly ObservableCollection<CustomStyleSlotOption> _customStyleSlotOptions = new ObservableCollection<CustomStyleSlotOption>();
+        private readonly DispatcherTimer _notificationAutoPopupPreviewTimer;
+        private Providers.Local.LocalSettings _notificationPreviewSettings;
+        private bool _isRefreshingNotificationSoundSelection;
+        private bool _isRefreshingNotificationStyleSelection;
+        private bool _isRefreshingOverlayPresetControls;
+        private bool _isRefreshingCustomStyleSlotSelection;
+        private bool _isUpdatingSlotNameTextBox;
         private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
         private const string SuccessStoryFolderName = "SuccessStory";
+        private const string DefaultSteamSoundPath = @"Resources\Sounds\Steam.wav";
+
+        private sealed class NotificationSoundOption
+        {
+            public string DisplayName { get; set; }
+
+            public string SoundPath { get; set; }
+
+            public bool IsDefault { get; set; }
+        }
+
+        private sealed class NotificationStyleOption
+        {
+            public string DisplayName { get; set; }
+
+            public string StyleKey { get; set; }
+        }
+
+        private sealed class NotificationProviderOption
+        {
+            public string DisplayName { get; set; }
+
+            public string ProviderKey { get; set; }
+        }
+
+        private sealed class CustomStyleSlotOption
+        {
+            public string DisplayName { get; set; }
+
+            public int SlotNumber { get; set; }
+        }
 
         /// <summary>
         /// Set before opening settings to navigate directly to a provider tab.
         /// Cleared after use.
         /// </summary>
         public static string PendingNavigationProviderKey { get; set; }
+        public static string PendingNavigationTabName { get; set; }
+        public static string CurrentSelectedTabName { get; private set; }
+        public static string CurrentSelectedProviderKey { get; private set; }
 
         public SettingsControl(
             PlayniteAchievementsSettingsViewModel settingsViewModel,
@@ -422,6 +472,12 @@ namespace PlayniteAchievements.Views
                 _logger,
                 _settingsViewModel.Settings,
                 () => _plugin.SavePluginSettings(_settingsViewModel.Settings));
+
+            _notificationAutoPopupPreviewTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(250)
+            };
+            _notificationAutoPopupPreviewTimer.Tick += NotificationAutoPopupPreviewTimer_Tick;
 
             InitializeComponent();
 
@@ -461,14 +517,1657 @@ namespace PlayniteAchievements.Views
                 // Load themes on initial load
                 LoadThemes();
 
+                // Initialize Achievement Notifications tab with Local provider settings
+                InitializeAchievementNotificationsTab();
+
                 // Navigate to a specific provider tab if requested (e.g., from auth notification click).
                 NavigateToPendingProvider();
             };
         }
 
-        // -----------------------------
+        private void InitializeAchievementNotificationsTab()
+        {
+            try
+            {
+                var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+                if (localSettings == null)
+                {
+                    _logger?.Warn("Could not get Local provider settings for Achievement Notifications tab.");
+                    return;
+                }
+
+                var achievementNotificationsTab = SettingsTabControl?.Items?.Cast<TabItem>()
+                    ?.FirstOrDefault(t => string.Equals(t.Name, "AchievementNotificationsTab", StringComparison.OrdinalIgnoreCase));
+
+                if (achievementNotificationsTab != null)
+                {
+                    achievementNotificationsTab.DataContext = localSettings;
+
+                    if (!ReferenceEquals(_notificationPreviewSettings, localSettings))
+                    {
+                        if (_notificationPreviewSettings != null)
+                        {
+                            _notificationPreviewSettings.PropertyChanged -= LocalNotificationSettings_PropertyChanged;
+                        }
+
+                        _notificationPreviewSettings = localSettings;
+                        _notificationPreviewSettings.PropertyChanged += LocalNotificationSettings_PropertyChanged;
+                    }
+
+                    RefreshAchievementNotificationControls(localSettings);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to initialize Achievement Notifications tab.");
+            }
+        }
+
+        private void RefreshAchievementNotificationControls(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null)
+                return;
+
+            MigrateLegacyCustomSoundPath(localSettings);
+
+            var soundOptions = BuildNotificationSoundOptions(localSettings);
+
+            if (NotificationsBundledUnlockSoundComboBox != null)
+            {
+                _isRefreshingNotificationSoundSelection = true;
+                try
+                {
+                    _notificationSoundOptions.Clear();
+                    foreach (var option in soundOptions)
+                    {
+                        _notificationSoundOptions.Add(option);
+                    }
+
+                    NotificationsBundledUnlockSoundComboBox.ItemsSource = _notificationSoundOptions;
+
+                    var selectedPath = localSettings.EffectiveBundledUnlockSoundPath;
+                    var selectedOption = _notificationSoundOptions.FirstOrDefault(option =>
+                        string.Equals(option.SoundPath, selectedPath, StringComparison.OrdinalIgnoreCase));
+
+                    if (selectedOption == null)
+                    {
+                        selectedOption = _notificationSoundOptions.FirstOrDefault();
+                    }
+
+                    NotificationsBundledUnlockSoundComboBox.SelectedItem = selectedOption;
+                    if (selectedOption != null)
+                    {
+                        localSettings.BundledUnlockSoundPath = selectedOption.SoundPath;
+                    }
+                }
+                finally
+                {
+                    _isRefreshingNotificationSoundSelection = false;
+                }
+            }
+
+            UpdateNotificationSoundButtons();
+            RefreshNotificationStyleControls();
+            RefreshOverlayRuntimeControls(localSettings);
+
+            if (NotificationsPollingIntervalSecondsTextBox != null)
+            {
+                NotificationsPollingIntervalSecondsTextBox.Text = localSettings.ActiveGameMonitoringIntervalSeconds.ToString();
+            }
+
+            if (NotificationsOverlayFadeInMillisecondsTextBox != null)
+            {
+                NotificationsOverlayFadeInMillisecondsTextBox.Text = localSettings.UnlockOverlayFadeInMilliseconds.ToString();
+            }
+
+            if (NotificationsOverlayFadeOutMillisecondsTextBox != null)
+            {
+                NotificationsOverlayFadeOutMillisecondsTextBox.Text = localSettings.UnlockOverlayFadeOutMilliseconds.ToString();
+            }
+
+            if (NotificationsUnlockSoundLeadMillisecondsTextBox != null)
+            {
+                NotificationsUnlockSoundLeadMillisecondsTextBox.Text = localSettings.UnlockSoundLeadMilliseconds.ToString();
+            }
+
+            if (NotificationsScreenshotDelayMillisecondsTextBox != null)
+            {
+                NotificationsScreenshotDelayMillisecondsTextBox.Text = localSettings.ScreenshotDelayMilliseconds.ToString();
+            }
+
+            RefreshCustomStyleSlotControls(localSettings);
+            UpdateCustomStyleInlinePreview(localSettings);
+        }
+
+        private void LocalNotificationSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (!(sender is Providers.Local.LocalSettings localSettings))
+            {
+                return;
+            }
+
+            if (IsCustomInlinePreviewProperty(e.PropertyName))
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (ShouldRefreshCustomStyleSlotControls(e.PropertyName))
+                    {
+                        RefreshCustomStyleSlotControls(localSettings);
+                    }
+
+                    UpdateCustomStyleInlinePreview(localSettings);
+                }));
+            }
+
+            if (NotificationsAutoPopupPreviewCheckBox?.IsChecked == true && IsCustomPopupPreviewProperty(e.PropertyName))
+            {
+                Dispatcher.BeginInvoke(new Action(ScheduleAutoPopupPreview));
+            }
+        }
+
+        private static bool ShouldRefreshCustomStyleSlotControls(string propertyName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                return true;
+            }
+
+            return string.Equals(propertyName, nameof(Providers.Local.LocalSettings.SelectedCustomStyleSlot), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.CustomOverlayStyleSlots), StringComparison.Ordinal);
+        }
+
+        private static bool IsCustomInlinePreviewProperty(string propertyName)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+            {
+                return true;
+            }
+
+            switch (propertyName)
+            {
+                case nameof(Providers.Local.LocalSettings.OverlayCustomWidth):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomHeight):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomCornerRadius):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomIconSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleFontSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailFontSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaFontSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomAutoResizeToContent):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomWrapAllText):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomBorderColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomAccentColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaColor):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundImagePath):
+                case nameof(Providers.Local.LocalSettings.SelectedCustomStyleSlot):
+                case nameof(Providers.Local.LocalSettings.CustomOverlayStyleSlots):
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsCustomPopupPreviewProperty(string propertyName)
+        {
+            return IsCustomInlinePreviewProperty(propertyName)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayDurationMilliseconds), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayFadeInMilliseconds), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayFadeOutMilliseconds), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayPosition), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.OverlayCustomOpacity), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.OverlayCustomScale), StringComparison.Ordinal);
+        }
+
+        private void NotificationAutoPopupPreviewTimer_Tick(object sender, EventArgs e)
+        {
+            _notificationAutoPopupPreviewTimer.Stop();
+            ShowCustomPopupPreview(forceStatusMessage: false);
+        }
+
+        private void ScheduleAutoPopupPreview()
+        {
+            _notificationAutoPopupPreviewTimer.Stop();
+            _notificationAutoPopupPreviewTimer.Start();
+        }
+
+        private void NotificationsOverlayFadeInMillisecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyNotificationsOverlayFadeInFromTextBox(updateTextBox: false);
+        }
+
+        private void NotificationsOverlayFadeInMillisecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyNotificationsOverlayFadeInFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyNotificationsOverlayFadeInFromTextBox(bool updateTextBox)
+        {
+            if (NotificationsOverlayFadeInMillisecondsTextBox == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            if (int.TryParse(NotificationsOverlayFadeInMillisecondsTextBox.Text, out var value))
+            {
+                localSettings.UnlockOverlayFadeInMilliseconds = value;
+            }
+
+            if (updateTextBox)
+            {
+                NotificationsOverlayFadeInMillisecondsTextBox.Text = localSettings.UnlockOverlayFadeInMilliseconds.ToString();
+            }
+        }
+
+        private void NotificationsOverlayFadeOutMillisecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyNotificationsOverlayFadeOutFromTextBox(updateTextBox: false);
+        }
+
+        private void NotificationsOverlayFadeOutMillisecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyNotificationsOverlayFadeOutFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyNotificationsOverlayFadeOutFromTextBox(bool updateTextBox)
+        {
+            if (NotificationsOverlayFadeOutMillisecondsTextBox == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            if (int.TryParse(NotificationsOverlayFadeOutMillisecondsTextBox.Text, out var value))
+            {
+                localSettings.UnlockOverlayFadeOutMilliseconds = value;
+            }
+
+            if (updateTextBox)
+            {
+                NotificationsOverlayFadeOutMillisecondsTextBox.Text = localSettings.UnlockOverlayFadeOutMilliseconds.ToString();
+            }
+        }
+
+        private void NotificationsUnlockSoundLeadMillisecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyNotificationsUnlockSoundLeadFromTextBox(updateTextBox: false);
+        }
+
+        private void NotificationsUnlockSoundLeadMillisecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyNotificationsUnlockSoundLeadFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyNotificationsUnlockSoundLeadFromTextBox(bool updateTextBox)
+        {
+            if (NotificationsUnlockSoundLeadMillisecondsTextBox == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            if (int.TryParse(NotificationsUnlockSoundLeadMillisecondsTextBox.Text, out var value))
+            {
+                localSettings.UnlockSoundLeadMilliseconds = value;
+            }
+
+            if (updateTextBox)
+            {
+                NotificationsUnlockSoundLeadMillisecondsTextBox.Text = localSettings.UnlockSoundLeadMilliseconds.ToString();
+            }
+        }
+
+        private void NotificationsPollingIntervalSecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyNotificationsPollingIntervalFromTextBox(updateTextBox: false);
+        }
+
+        private void NotificationsPollingIntervalSecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyNotificationsPollingIntervalFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyNotificationsPollingIntervalFromTextBox(bool updateTextBox)
+        {
+            if (NotificationsPollingIntervalSecondsTextBox == null)
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            if (int.TryParse(NotificationsPollingIntervalSecondsTextBox.Text, out var interval))
+            {
+                localSettings.ActiveGameMonitoringIntervalSeconds = interval;
+            }
+
+            if (updateTextBox)
+            {
+                NotificationsPollingIntervalSecondsTextBox.Text = localSettings.ActiveGameMonitoringIntervalSeconds.ToString();
+            }
+        }
+
+        private void NotificationsScreenshotDelayMillisecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyNotificationsScreenshotDelayFromTextBox(updateTextBox: false);
+        }
+
+        private void NotificationsScreenshotDelayMillisecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyNotificationsScreenshotDelayFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyNotificationsScreenshotDelayFromTextBox(bool updateTextBox)
+        {
+            if (NotificationsScreenshotDelayMillisecondsTextBox == null)
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            if (int.TryParse(NotificationsScreenshotDelayMillisecondsTextBox.Text, out var delay))
+            {
+                localSettings.ScreenshotDelayMilliseconds = delay;
+            }
+
+            if (updateTextBox)
+            {
+                NotificationsScreenshotDelayMillisecondsTextBox.Text = localSettings.ScreenshotDelayMilliseconds.ToString();
+            }
+        }
+
+        private void NotificationsBundledUnlockSoundComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isRefreshingNotificationSoundSelection)
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null || NotificationsBundledUnlockSoundComboBox.SelectedItem == null)
+                return;
+
+            if (NotificationsBundledUnlockSoundComboBox.SelectedItem is NotificationSoundOption option)
+            {
+                localSettings.CustomUnlockSoundPath = string.Empty;
+                localSettings.BundledUnlockSoundPath = option.SoundPath ?? string.Empty;
+            }
+
+            UpdateNotificationSoundButtons();
+        }
+
+        private void NotificationsAddSoundFile_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("Wave files|*.wav|All files|*.*");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            AddNotificationSoundEntries(localSettings, new[] { selectedPath }, autoSelectFirstAdded: true);
+        }
+
+        private void NotificationsGlobalStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isRefreshingNotificationStyleSelection)
+            {
+                return;
+            }
+
+            if (!(NotificationsGlobalStyleComboBox?.SelectedItem is NotificationStyleOption styleOption))
+            {
+                return;
+            }
+
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.DefaultUnlockNotificationStyle = styleOption.StyleKey;
+            SyncSelectedProviderStyleSelection();
+        }
+
+        private void NotificationsProviderStyleProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isRefreshingNotificationStyleSelection)
+            {
+                return;
+            }
+
+            SyncSelectedProviderStyleSelection();
+        }
+
+        private void NotificationsSaveProviderStyleOverride_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            if (!(NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption) ||
+                !(NotificationsProviderStyleComboBox?.SelectedItem is NotificationStyleOption styleOption))
+            {
+                return;
+            }
+
+            var updated = persisted.ProviderUnlockNotificationStyles != null
+                ? new Dictionary<string, string>(persisted.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            updated[providerOption.ProviderKey] = styleOption.StyleKey;
+            persisted.ProviderUnlockNotificationStyles = updated;
+
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Saved style override for {providerOption.DisplayName}.";
+        }
+
+        private void NotificationsClearProviderStyleOverride_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            if (!(NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption))
+            {
+                return;
+            }
+
+            var updated = persisted.ProviderUnlockNotificationStyles != null
+                ? new Dictionary<string, string>(persisted.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            if (updated.Remove(providerOption.ProviderKey))
+            {
+                persisted.ProviderUnlockNotificationStyles = updated;
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Cleared style override for {providerOption.DisplayName}.";
+            }
+
+            SyncSelectedProviderStyleSelection();
+        }
+
+        private void NotificationsPreviewSelectedStyle_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption) ||
+                !(NotificationsProviderStyleComboBox?.SelectedItem is NotificationStyleOption styleOption))
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
+            publisher.SendUnlockPopup(
+                "Current Game",
+                $"Preview ({styleOption.DisplayName})",
+                providerKey: providerOption.ProviderKey,
+                forcedStyle: styleOption.StyleKey,
+                overrideLocalSettings: localSettings);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed {styleOption.DisplayName} style for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
+        }
+
+        private void NotificationsPreviewAllStyles_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption))
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
+            foreach (var style in _notificationStyleOptions)
+            {
+                publisher.SendUnlockPopup(
+                    "Current Game",
+                    $"Preview ({style.DisplayName})",
+                    providerKey: providerOption.ProviderKey,
+                    forcedStyle: style.StyleKey,
+                    overrideLocalSettings: localSettings);
+            }
+
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed all styles for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
+        }
+
+        private void NotificationsAddSoundFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedFolder = _plugin?.PlayniteApi?.Dialogs?.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedFolder))
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            var folderEntries = Directory.EnumerateFiles(selectedFolder, "*.wav", SearchOption.TopDirectoryOnly)
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .ToList();
+
+            if (folderEntries.Count == 0)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = "No .wav files found in selected folder.";
+                return;
+            }
+
+            AddNotificationSoundEntries(localSettings, folderEntries, autoSelectFirstAdded: true);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Added {folderEntries.Count} sound(s) from folder.";
+        }
+
+        private void NotificationsRemoveSound_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            if (!(NotificationsBundledUnlockSoundComboBox?.SelectedItem is NotificationSoundOption selected))
+                return;
+
+            if (selected.IsDefault)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = "Steam default sound cannot be removed.";
+                return;
+            }
+
+            var updatedPaths = localSettings.GetExtraUnlockSoundPathEntries()
+                .Where(path => !string.Equals(path, selected.SoundPath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            localSettings.SetExtraUnlockSoundPathEntries(updatedPaths);
+
+            if (string.Equals(localSettings.BundledUnlockSoundPath, selected.SoundPath, StringComparison.OrdinalIgnoreCase))
+            {
+                localSettings.BundledUnlockSoundPath = DefaultSteamSoundPath;
+            }
+
+            RefreshAchievementNotificationControls(localSettings);
+            NotificationsUnlockSoundStatusTextBlock.Text = "Removed selected sound.";
+        }
+
+        private void NotificationsScreenshotSaveFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+                return;
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            localSettings.ScreenshotSaveFolder = selectedPath;
+        }
+
+        private async void NotificationsTestUnlockSoundButton_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+                return;
+
+            var soundPath = localSettings.UnlockSoundPath?.Trim();
+            if (string.IsNullOrWhiteSpace(soundPath))
+                return;
+
+            soundPath = Services.NotificationPublisher.ResolveSoundPath(soundPath);
+
+            try
+            {
+                NotificationsTestUnlockSoundButton.IsEnabled = false;
+                NotificationsUnlockSoundStatusTextBlock.Text = "Sending test notification...";
+
+                if (localSettings.EnableInAppUnlockNotifications)
+                {
+                    _plugin?.PlayniteApi?.Notifications?.Add(new NotificationMessage(
+                        $"PlayniteAchievements-LocalUnlock-Test-{Guid.NewGuid()}",
+                        "Local Achievement Unlocked\nCurrent Game\nUnlocked: Test Achievement",
+                        NotificationType.Info));
+                }
+
+                var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
+                publisher.SendUnlockPopup("Current Game", "Test Achievement", providerKey: "Local", overrideLocalSettings: localSettings);
+
+                await Task.Run(() =>
+                {
+                    using (var player = new System.Media.SoundPlayer(soundPath))
+                    {
+                        player.PlaySync();
+                    }
+                });
+
+                NotificationsUnlockSoundStatusTextBlock.Text = "Test notification sent and sound played successfully.";
+                if (NotificationsTestUnlockSoundButton != null)
+                    NotificationsTestUnlockSoundButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Failed to send test notification: {ex.Message}";
+                if (NotificationsTestUnlockSoundButton != null)
+                    NotificationsTestUnlockSoundButton.IsEnabled = true;
+            }
+        }
+
+        private void MigrateLegacyCustomSoundPath(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null || string.IsNullOrWhiteSpace(localSettings.CustomUnlockSoundPath))
+            {
+                return;
+            }
+
+            var soundPath = localSettings.CustomUnlockSoundPath.Trim();
+            var updatedPaths = localSettings.GetExtraUnlockSoundPathEntries().ToList();
+            if (!updatedPaths.Any(path => string.Equals(path, soundPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                updatedPaths.Add(soundPath);
+                localSettings.SetExtraUnlockSoundPathEntries(updatedPaths);
+            }
+
+            localSettings.BundledUnlockSoundPath = soundPath;
+            localSettings.CustomUnlockSoundPath = string.Empty;
+        }
+
+        private List<NotificationSoundOption> BuildNotificationSoundOptions(Providers.Local.LocalSettings localSettings)
+        {
+            var options = new List<NotificationSoundOption>
+            {
+                new NotificationSoundOption
+                {
+                    DisplayName = "Steam (Default)",
+                    SoundPath = DefaultSteamSoundPath,
+                    IsDefault = true
+                }
+            };
+
+            foreach (var soundPath in localSettings.GetExtraUnlockSoundPathEntries())
+            {
+                if (string.Equals(soundPath, DefaultSteamSoundPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                options.Add(new NotificationSoundOption
+                {
+                    DisplayName = GetSoundDisplayName(soundPath),
+                    SoundPath = soundPath,
+                    IsDefault = false
+                });
+            }
+
+            var selectedPath = localSettings.EffectiveBundledUnlockSoundPath;
+            if (!string.IsNullOrWhiteSpace(selectedPath) &&
+                !options.Any(option => string.Equals(option.SoundPath, selectedPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                options.Add(new NotificationSoundOption
+                {
+                    DisplayName = GetSoundDisplayName(selectedPath),
+                    SoundPath = selectedPath,
+                    IsDefault = string.Equals(selectedPath, DefaultSteamSoundPath, StringComparison.OrdinalIgnoreCase)
+                });
+            }
+
+            return options;
+        }
+
+        private static string GetSoundDisplayName(string soundPath)
+        {
+            if (string.IsNullOrWhiteSpace(soundPath))
+            {
+                return "Unnamed Sound";
+            }
+
+            if (string.Equals(soundPath, DefaultSteamSoundPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Steam (Default)";
+            }
+
+            var fileName = Path.GetFileNameWithoutExtension(soundPath);
+            return string.IsNullOrWhiteSpace(fileName)
+                ? soundPath
+                : fileName;
+        }
+
+        private void AddNotificationSoundEntries(
+            Providers.Local.LocalSettings localSettings,
+            IEnumerable<string> soundPaths,
+            bool autoSelectFirstAdded)
+        {
+            if (localSettings == null || soundPaths == null)
+            {
+                return;
+            }
+
+            var updatedPaths = localSettings.GetExtraUnlockSoundPathEntries().ToList();
+            string firstAdded = null;
+            foreach (var rawPath in soundPaths)
+            {
+                var soundPath = rawPath?.Trim();
+                if (string.IsNullOrWhiteSpace(soundPath))
+                {
+                    continue;
+                }
+
+                if (!updatedPaths.Any(path => string.Equals(path, soundPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    updatedPaths.Add(soundPath);
+                    if (firstAdded == null)
+                    {
+                        firstAdded = soundPath;
+                    }
+                }
+            }
+
+            localSettings.SetExtraUnlockSoundPathEntries(updatedPaths);
+            if (autoSelectFirstAdded && !string.IsNullOrWhiteSpace(firstAdded))
+            {
+                localSettings.BundledUnlockSoundPath = firstAdded;
+            }
+
+            RefreshAchievementNotificationControls(localSettings);
+        }
+
+        private void UpdateNotificationSoundButtons()
+        {
+            if (NotificationsRemoveSoundButton == null)
+            {
+                return;
+            }
+
+            var selected = NotificationsBundledUnlockSoundComboBox?.SelectedItem as NotificationSoundOption;
+            NotificationsRemoveSoundButton.IsEnabled = selected != null && !selected.IsDefault;
+        }
+
+        private void RefreshNotificationStyleControls()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            _isRefreshingNotificationStyleSelection = true;
+            try
+            {
+                if (_notificationStyleOptions.Count == 0)
+                {
+                    _notificationStyleOptions.Add(new NotificationStyleOption
+                    {
+                        DisplayName = "Steam",
+                        StyleKey = NotificationPublisher.NotificationStyleSteam
+                    });
+                    _notificationStyleOptions.Add(new NotificationStyleOption
+                    {
+                        DisplayName = "PlayStation",
+                        StyleKey = NotificationPublisher.NotificationStylePlayStation
+                    });
+                    _notificationStyleOptions.Add(new NotificationStyleOption
+                    {
+                        DisplayName = "Xbox",
+                        StyleKey = NotificationPublisher.NotificationStyleXbox
+                    });
+                    _notificationStyleOptions.Add(new NotificationStyleOption
+                    {
+                        DisplayName = "Minimal",
+                        StyleKey = NotificationPublisher.NotificationStyleMinimal
+                    });
+                    _notificationStyleOptions.Add(new NotificationStyleOption
+                    {
+                        DisplayName = "Custom",
+                        StyleKey = NotificationPublisher.NotificationStyleCustom
+                    });
+                }
+
+                if (_notificationProviderOptions.Count == 0)
+                {
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "Local", ProviderKey = "Local" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "Steam", ProviderKey = "Steam" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "Epic", ProviderKey = "Epic" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "GOG", ProviderKey = "GOG" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "PlayStation", ProviderKey = "PSN" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "Xbox", ProviderKey = "Xbox" });
+                    _notificationProviderOptions.Add(new NotificationProviderOption { DisplayName = "RetroAchievements", ProviderKey = "RetroAchievements" });
+                }
+
+                if (NotificationsGlobalStyleComboBox != null)
+                {
+                    NotificationsGlobalStyleComboBox.ItemsSource = _notificationStyleOptions;
+                    var selectedGlobal = _notificationStyleOptions.FirstOrDefault(option =>
+                        string.Equals(option.StyleKey, persisted.DefaultUnlockNotificationStyle, StringComparison.OrdinalIgnoreCase))
+                        ?? _notificationStyleOptions.FirstOrDefault(option =>
+                            string.Equals(option.StyleKey, NotificationPublisher.NotificationStyleSteam, StringComparison.OrdinalIgnoreCase));
+                    NotificationsGlobalStyleComboBox.SelectedItem = selectedGlobal;
+                }
+
+                if (NotificationsProviderStyleProviderComboBox != null)
+                {
+                    NotificationsProviderStyleProviderComboBox.ItemsSource = _notificationProviderOptions;
+                    if (NotificationsProviderStyleProviderComboBox.SelectedItem == null)
+                    {
+                        NotificationsProviderStyleProviderComboBox.SelectedItem = _notificationProviderOptions.FirstOrDefault();
+                    }
+                }
+
+                if (NotificationsProviderStyleComboBox != null)
+                {
+                    NotificationsProviderStyleComboBox.ItemsSource = _notificationStyleOptions;
+                }
+
+                if (NotificationsOverlayPresetStyleComboBox != null)
+                {
+                    NotificationsOverlayPresetStyleComboBox.ItemsSource = _notificationStyleOptions;
+                    if (NotificationsOverlayPresetStyleComboBox.SelectedItem == null)
+                    {
+                        NotificationsOverlayPresetStyleComboBox.SelectedItem = _notificationStyleOptions.FirstOrDefault(option =>
+                            string.Equals(option.StyleKey, persisted.DefaultUnlockNotificationStyle, StringComparison.OrdinalIgnoreCase))
+                            ?? _notificationStyleOptions.FirstOrDefault();
+                    }
+                }
+
+                SyncSelectedProviderStyleSelection();
+                SyncOverlayPresetControlsFromSelectedStyle();
+            }
+            finally
+            {
+                _isRefreshingNotificationStyleSelection = false;
+            }
+        }
+
+        private void SyncSelectedProviderStyleSelection()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null ||
+                NotificationsProviderStyleComboBox == null ||
+                !(NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption))
+            {
+                return;
+            }
+
+            _isRefreshingNotificationStyleSelection = true;
+            try
+            {
+                string style = null;
+                if (persisted.ProviderUnlockNotificationStyles != null)
+                {
+                    persisted.ProviderUnlockNotificationStyles.TryGetValue(providerOption.ProviderKey, out style);
+                }
+
+                if (string.IsNullOrWhiteSpace(style))
+                {
+                    style = persisted.DefaultUnlockNotificationStyle;
+                }
+
+                var selectedStyle = _notificationStyleOptions.FirstOrDefault(option =>
+                    string.Equals(option.StyleKey, style, StringComparison.OrdinalIgnoreCase))
+                    ?? _notificationStyleOptions.FirstOrDefault();
+                NotificationsProviderStyleComboBox.SelectedItem = selectedStyle;
+            }
+            finally
+            {
+                _isRefreshingNotificationStyleSelection = false;
+            }
+        }
+
+        private void RefreshOverlayRuntimeControls(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            if (NotificationsOverlayDurationSlider != null)
+            {
+                NotificationsOverlayDurationSlider.Value = localSettings.UnlockOverlayDurationMilliseconds;
+                if (NotificationsOverlayDurationValueTextBlock != null)
+                {
+                    NotificationsOverlayDurationValueTextBlock.Text = $"{localSettings.UnlockOverlayDurationMilliseconds} ms";
+                }
+            }
+        }
+
+        private void NotificationsOverlayDurationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null || NotificationsOverlayDurationSlider == null)
+            {
+                return;
+            }
+
+            localSettings.UnlockOverlayDurationMilliseconds = (int)Math.Round(NotificationsOverlayDurationSlider.Value);
+            if (NotificationsOverlayDurationValueTextBlock != null)
+            {
+                NotificationsOverlayDurationValueTextBlock.Text = $"{localSettings.UnlockOverlayDurationMilliseconds} ms";
+            }
+        }
+
+        private void NotificationsOverlayPresetStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isRefreshingOverlayPresetControls)
+            {
+                return;
+            }
+
+            SyncOverlayPresetControlsFromSelectedStyle();
+        }
+
+        private void NotificationsOverlayOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isRefreshingOverlayPresetControls)
+            {
+                return;
+            }
+
+            if (!(NotificationsOverlayPresetStyleComboBox?.SelectedItem is NotificationStyleOption styleOption) ||
+                NotificationsOverlayOpacitySlider == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var value = Math.Round(NotificationsOverlayOpacitySlider.Value, 2);
+            ApplyOverlayOpacityForStyle(localSettings, styleOption.StyleKey, value);
+            if (NotificationsOverlayOpacityValueTextBlock != null)
+            {
+                NotificationsOverlayOpacityValueTextBlock.Text = value.ToString("0.00");
+            }
+        }
+
+        private void NotificationsOverlayScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isRefreshingOverlayPresetControls)
+            {
+                return;
+            }
+
+            if (!(NotificationsOverlayPresetStyleComboBox?.SelectedItem is NotificationStyleOption styleOption) ||
+                NotificationsOverlayScaleSlider == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var value = Math.Round(NotificationsOverlayScaleSlider.Value, 2);
+            ApplyOverlayScaleForStyle(localSettings, styleOption.StyleKey, value);
+            if (NotificationsOverlayScaleValueTextBlock != null)
+            {
+                NotificationsOverlayScaleValueTextBlock.Text = value.ToString("0.00") + "x";
+            }
+        }
+
+        private void SyncOverlayPresetControlsFromSelectedStyle()
+        {
+            if (!(NotificationsOverlayPresetStyleComboBox?.SelectedItem is NotificationStyleOption styleOption))
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            _isRefreshingOverlayPresetControls = true;
+            try
+            {
+                var opacity = GetOverlayOpacityForStyle(localSettings, styleOption.StyleKey);
+                var scale = GetOverlayScaleForStyle(localSettings, styleOption.StyleKey);
+
+                if (NotificationsOverlayOpacitySlider != null)
+                {
+                    NotificationsOverlayOpacitySlider.Value = opacity;
+                }
+
+                if (NotificationsOverlayScaleSlider != null)
+                {
+                    NotificationsOverlayScaleSlider.Value = scale;
+                }
+
+                if (NotificationsOverlayOpacityValueTextBlock != null)
+                {
+                    NotificationsOverlayOpacityValueTextBlock.Text = opacity.ToString("0.00");
+                }
+
+                if (NotificationsOverlayScaleValueTextBlock != null)
+                {
+                    NotificationsOverlayScaleValueTextBlock.Text = scale.ToString("0.00") + "x";
+                }
+            }
+            finally
+            {
+                _isRefreshingOverlayPresetControls = false;
+            }
+        }
+
+        private static double GetOverlayOpacityForStyle(Providers.Local.LocalSettings settings, string styleKey)
+        {
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStylePlayStation, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayPlayStationOpacity;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleXbox, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayXboxOpacity;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleMinimal, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayMinimalOpacity;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayCustomOpacity;
+            }
+
+            return settings.OverlaySteamOpacity;
+        }
+
+        private static double GetOverlayScaleForStyle(Providers.Local.LocalSettings settings, string styleKey)
+        {
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStylePlayStation, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayPlayStationScale;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleXbox, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayXboxScale;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleMinimal, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayMinimalScale;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                return settings.OverlayCustomScale;
+            }
+
+            return settings.OverlaySteamScale;
+        }
+
+        private static void ApplyOverlayOpacityForStyle(Providers.Local.LocalSettings settings, string styleKey, double value)
+        {
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStylePlayStation, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayPlayStationOpacity = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleXbox, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayXboxOpacity = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleMinimal, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayMinimalOpacity = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayCustomOpacity = value;
+                return;
+            }
+
+            settings.OverlaySteamOpacity = value;
+        }
+
+        private static void ApplyOverlayScaleForStyle(Providers.Local.LocalSettings settings, string styleKey, double value)
+        {
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStylePlayStation, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayPlayStationScale = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleXbox, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayXboxScale = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleMinimal, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayMinimalScale = value;
+                return;
+            }
+
+            if (string.Equals(styleKey, NotificationPublisher.NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.OverlayCustomScale = value;
+                return;
+            }
+
+            settings.OverlaySteamScale = value;
+        }
+
+        private void NotificationsCustomBackgroundImageBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("Image files|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files|*.*");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomBackgroundImagePath = selectedPath;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom background image selected.";
+        }
+
+        private void NotificationsCustomBackgroundImageClear_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomBackgroundImagePath = string.Empty;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom background image cleared.";
+        }
+
+        private void NotificationsShowCustomPopupPreview_Click(object sender, RoutedEventArgs e)
+        {
+            ShowCustomPopupPreview(forceStatusMessage: true);
+        }
+
+        private void ShowCustomPopupPreview(bool forceStatusMessage)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
+            publisher.SendUnlockPopup(
+                "Current Game",
+                "Sample Achievement",
+                providerKey: "Local",
+                forcedStyle: NotificationPublisher.NotificationStyleCustom,
+                forcedDeliveryMode: LocalUnlockNotificationDeliveryMode.Overlay,
+                overrideLocalSettings: localSettings);
+
+            if (forceStatusMessage)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = "Displayed silent Custom overlay preview.";
+            }
+        }
+
+        private void RefreshCustomStyleSlotControls(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null || NotificationsCustomStyleSlotComboBox == null)
+            {
+                return;
+            }
+
+            _isRefreshingCustomStyleSlotSelection = true;
+            try
+            {
+                var slots = EnsureCustomStyleSlots(localSettings);
+                _customStyleSlotOptions.Clear();
+                for (var index = 0; index < 10; index++)
+                {
+                    var slot = slots[index];
+                    var displayName = string.IsNullOrWhiteSpace(slot?.Name)
+                        ? $"Slot {index + 1}"
+                        : slot.Name.Trim();
+
+                    _customStyleSlotOptions.Add(new CustomStyleSlotOption
+                    {
+                        SlotNumber = index + 1,
+                        DisplayName = displayName
+                    });
+                }
+
+                NotificationsCustomStyleSlotComboBox.ItemsSource = _customStyleSlotOptions;
+                NotificationsCustomStyleSlotComboBox.SelectedItem = _customStyleSlotOptions
+                    .FirstOrDefault(option => option.SlotNumber == localSettings.SelectedCustomStyleSlot)
+                    ?? _customStyleSlotOptions.FirstOrDefault();
+
+                if (NotificationsCustomStyleSlotComboBox.SelectedItem is CustomStyleSlotOption selected)
+                {
+                    var selectedSlot = slots[Math.Max(0, Math.Min(9, selected.SlotNumber - 1))];
+                    _isUpdatingSlotNameTextBox = true;
+                    try
+                    {
+                        if (NotificationsCustomStyleSlotNameTextBox != null)
+                        {
+                            NotificationsCustomStyleSlotNameTextBox.Text = string.IsNullOrWhiteSpace(selectedSlot?.Name)
+                                ? $"Slot {selected.SlotNumber}"
+                                : selectedSlot.Name;
+                        }
+                    }
+                    finally
+                    {
+                        _isUpdatingSlotNameTextBox = false;
+                    }
+                }
+            }
+            finally
+            {
+                _isRefreshingCustomStyleSlotSelection = false;
+            }
+        }
+
+        private static List<LocalCustomOverlayStyleSlot> EnsureCustomStyleSlots(Providers.Local.LocalSettings localSettings)
+        {
+            var slots = localSettings.CustomOverlayStyleSlots;
+            var changed = false;
+
+            if (slots == null)
+            {
+                slots = new List<LocalCustomOverlayStyleSlot>();
+                changed = true;
+            }
+
+            while (slots.Count < 10)
+            {
+                slots.Add(new LocalCustomOverlayStyleSlot { Name = $"Slot {slots.Count + 1}" });
+                changed = true;
+            }
+
+            if (changed)
+            {
+                localSettings.CustomOverlayStyleSlots = slots;
+            }
+
+            return localSettings.CustomOverlayStyleSlots;
+        }
+
+        private void NotificationsCustomStyleSlotComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isRefreshingCustomStyleSlotSelection)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null || !(NotificationsCustomStyleSlotComboBox?.SelectedItem is CustomStyleSlotOption selectedSlot))
+            {
+                return;
+            }
+
+            localSettings.SelectedCustomStyleSlot = selectedSlot.SlotNumber;
+            RefreshCustomStyleSlotControls(localSettings);
+        }
+
+        private void NotificationsCustomStyleSlotNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplySelectedCustomStyleSlotName(updateTextBox: false);
+        }
+
+        private void NotificationsCustomStyleSlotNameTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplySelectedCustomStyleSlotName(updateTextBox: true);
+        }
+
+        private void ApplySelectedCustomStyleSlotName(bool updateTextBox)
+        {
+            if (_isUpdatingSlotNameTextBox || NotificationsCustomStyleSlotNameTextBox == null)
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var slots = EnsureCustomStyleSlots(localSettings);
+            var slotIndex = Math.Max(0, Math.Min(9, localSettings.SelectedCustomStyleSlot - 1));
+            var rawName = NotificationsCustomStyleSlotNameTextBox.Text;
+            slots[slotIndex].Name = string.IsNullOrWhiteSpace(rawName) ? $"Slot {slotIndex + 1}" : rawName.Trim();
+            localSettings.CustomOverlayStyleSlots = slots;
+
+            if (updateTextBox)
+            {
+                _isUpdatingSlotNameTextBox = true;
+                try
+                {
+                    NotificationsCustomStyleSlotNameTextBox.Text = slots[slotIndex].Name;
+                }
+                finally
+                {
+                    _isUpdatingSlotNameTextBox = false;
+                }
+            }
+
+            RefreshCustomStyleSlotControls(localSettings);
+        }
+
+        private void NotificationsSaveCustomStyleSlot_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var slots = EnsureCustomStyleSlots(localSettings);
+
+            var slotIndex = Math.Max(0, Math.Min(9, localSettings.SelectedCustomStyleSlot - 1));
+            slots[slotIndex] = new LocalCustomOverlayStyleSlot
+            {
+                Name = string.IsNullOrWhiteSpace(NotificationsCustomStyleSlotNameTextBox?.Text)
+                    ? (string.IsNullOrWhiteSpace(slots[slotIndex]?.Name) ? $"Slot {slotIndex + 1}" : slots[slotIndex].Name)
+                    : NotificationsCustomStyleSlotNameTextBox.Text.Trim(),
+                AutoResizeToContent = localSettings.OverlayCustomAutoResizeToContent,
+                WrapAllText = localSettings.OverlayCustomWrapAllText,
+                IconSize = localSettings.OverlayCustomIconSize,
+                Width = localSettings.OverlayCustomWidth,
+                Height = localSettings.OverlayCustomHeight,
+                CornerRadius = localSettings.OverlayCustomCornerRadius,
+                TitleFontSize = localSettings.OverlayCustomTitleFontSize,
+                DetailFontSize = localSettings.OverlayCustomDetailFontSize,
+                MetaFontSize = localSettings.OverlayCustomMetaFontSize,
+                BackgroundColor = localSettings.OverlayCustomBackgroundColor,
+                BorderColor = localSettings.OverlayCustomBorderColor,
+                AccentColor = localSettings.OverlayCustomAccentColor,
+                TitleColor = localSettings.OverlayCustomTitleColor,
+                DetailColor = localSettings.OverlayCustomDetailColor,
+                MetaColor = localSettings.OverlayCustomMetaColor,
+                BackgroundImagePath = localSettings.OverlayCustomBackgroundImagePath
+            };
+
+            localSettings.CustomOverlayStyleSlots = slots;
+            RefreshCustomStyleSlotControls(localSettings);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Saved current custom style to Slot {slotIndex + 1}.";
+        }
+
+        private void NotificationsLoadCustomStyleSlot_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var slots = localSettings.CustomOverlayStyleSlots;
+            if (slots == null || slots.Count == 0)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = "No custom style slots saved yet.";
+                return;
+            }
+
+            var slotIndex = Math.Max(0, Math.Min(slots.Count - 1, localSettings.SelectedCustomStyleSlot - 1));
+            var slot = slots[slotIndex];
+            if (slot == null)
+            {
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Slot {slotIndex + 1} is empty.";
+                return;
+            }
+
+            localSettings.OverlayCustomWidth = slot.Width;
+            localSettings.OverlayCustomHeight = slot.Height;
+            localSettings.OverlayCustomCornerRadius = slot.CornerRadius;
+            localSettings.OverlayCustomIconSize = slot.IconSize;
+            localSettings.OverlayCustomTitleFontSize = slot.TitleFontSize;
+            localSettings.OverlayCustomDetailFontSize = slot.DetailFontSize;
+            localSettings.OverlayCustomMetaFontSize = slot.MetaFontSize;
+            localSettings.OverlayCustomAutoResizeToContent = slot.AutoResizeToContent;
+            localSettings.OverlayCustomWrapAllText = slot.WrapAllText;
+            localSettings.OverlayCustomBackgroundColor = slot.BackgroundColor;
+            localSettings.OverlayCustomBorderColor = slot.BorderColor;
+            localSettings.OverlayCustomAccentColor = slot.AccentColor;
+            localSettings.OverlayCustomTitleColor = slot.TitleColor;
+            localSettings.OverlayCustomDetailColor = slot.DetailColor;
+            localSettings.OverlayCustomMetaColor = slot.MetaColor;
+            localSettings.OverlayCustomBackgroundImagePath = slot.BackgroundImagePath;
+
+            RefreshCustomStyleSlotControls(localSettings);
+            UpdateCustomStyleInlinePreview(localSettings);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Loaded custom style from Slot {slotIndex + 1}.";
+        }
+
+        private void NotificationsPickCustomColor_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(sender is Button button))
+            {
+                return;
+            }
+
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var colorKey = button.Tag as string;
+            var currentHex = ResolveCustomColorHex(localSettings, colorKey);
+            var initialColor = System.Drawing.Color.White;
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(currentHex))
+                {
+                    initialColor = System.Drawing.ColorTranslator.FromHtml(currentHex);
+                }
+            }
+            catch
+            {
+            }
+
+            using (var dialog = new WinForms.ColorDialog
+            {
+                AllowFullOpen = true,
+                AnyColor = true,
+                FullOpen = true,
+                Color = initialColor
+            })
+            {
+                if (dialog.ShowDialog() != WinForms.DialogResult.OK)
+                {
+                    return;
+                }
+
+                var selectedHex = $"#{dialog.Color.R:X2}{dialog.Color.G:X2}{dialog.Color.B:X2}";
+                ApplyCustomColorHex(localSettings, colorKey, selectedHex);
+                UpdateCustomStyleInlinePreview(localSettings);
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Selected color {selectedHex} for {colorKey}.";
+            }
+        }
+
+        private void UpdateCustomStyleInlinePreview(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null || NotificationsCustomInlinePreviewBorder == null)
+            {
+                return;
+            }
+
+            NotificationsCustomInlinePreviewBorder.Width = localSettings.OverlayCustomWidth;
+            NotificationsCustomInlinePreviewBorder.Height = localSettings.OverlayCustomHeight;
+            NotificationsCustomInlinePreviewBorder.CornerRadius = new CornerRadius(localSettings.OverlayCustomCornerRadius);
+            NotificationsCustomInlinePreviewBorder.BorderBrush = ParseColorBrush(localSettings.OverlayCustomBorderColor, Colors.SteelBlue);
+            NotificationsCustomInlinePreviewBorder.Background = ResolveInlinePreviewBackground(localSettings);
+
+            NotificationsCustomInlinePreviewIconHost.Width = localSettings.OverlayCustomIconSize;
+            NotificationsCustomInlinePreviewIconHost.Height = localSettings.OverlayCustomIconSize;
+            NotificationsCustomInlinePreviewIconHost.CornerRadius = new CornerRadius(Math.Max(6, localSettings.OverlayCustomCornerRadius / 2.5));
+            NotificationsCustomInlinePreviewIconGlyph.Foreground = ParseColorBrush(localSettings.OverlayCustomTitleColor, Colors.White);
+
+            NotificationsCustomInlinePreviewTitle.FontSize = localSettings.OverlayCustomTitleFontSize;
+            NotificationsCustomInlinePreviewTitle.Foreground = ParseColorBrush(localSettings.OverlayCustomTitleColor, Colors.White);
+
+            NotificationsCustomInlinePreviewGame.FontSize = localSettings.OverlayCustomDetailFontSize;
+            NotificationsCustomInlinePreviewGame.Foreground = ParseColorBrush(localSettings.OverlayCustomDetailColor, Color.FromRgb(231, 238, 247));
+
+            NotificationsCustomInlinePreviewAchievement.FontSize = localSettings.OverlayCustomDetailFontSize;
+            NotificationsCustomInlinePreviewAchievement.Foreground = ParseColorBrush(localSettings.OverlayCustomAccentColor, Color.FromRgb(167, 224, 255));
+
+            NotificationsCustomInlinePreviewMeta.FontSize = localSettings.OverlayCustomMetaFontSize;
+            NotificationsCustomInlinePreviewMeta.Foreground = ParseColorBrush(localSettings.OverlayCustomMetaColor, Color.FromRgb(188, 208, 229));
+
+            var wrapAllText = localSettings.OverlayCustomWrapAllText;
+            var wrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap;
+            var trimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+
+            NotificationsCustomInlinePreviewTitle.TextWrapping = wrapping;
+            NotificationsCustomInlinePreviewTitle.TextTrimming = trimming;
+            NotificationsCustomInlinePreviewGame.TextWrapping = wrapping;
+            NotificationsCustomInlinePreviewGame.TextTrimming = trimming;
+            NotificationsCustomInlinePreviewAchievement.TextWrapping = wrapping;
+            NotificationsCustomInlinePreviewAchievement.TextTrimming = trimming;
+            NotificationsCustomInlinePreviewMeta.TextWrapping = wrapping;
+            NotificationsCustomInlinePreviewMeta.TextTrimming = trimming;
+
+            if (localSettings.OverlayCustomAutoResizeToContent)
+            {
+                NotificationsCustomInlinePreviewBorder.Height = double.NaN;
+                NotificationsCustomInlinePreviewBorder.MinHeight = localSettings.OverlayCustomHeight;
+            }
+            else
+            {
+                NotificationsCustomInlinePreviewBorder.MinHeight = 0;
+                NotificationsCustomInlinePreviewBorder.Height = localSettings.OverlayCustomHeight;
+            }
+        }
+
+        private static Brush ResolveInlinePreviewBackground(Providers.Local.LocalSettings localSettings)
+        {
+            var imagePath = localSettings?.OverlayCustomBackgroundImagePath?.Trim();
+            if (!string.IsNullOrWhiteSpace(imagePath) && File.Exists(imagePath))
+            {
+                try
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    var brush = new ImageBrush(bitmap)
+                    {
+                        Stretch = Stretch.UniformToFill,
+                        Opacity = 0.92
+                    };
+                    brush.Freeze();
+                    return brush;
+                }
+                catch
+                {
+                }
+            }
+
+            return ParseColorBrush(localSettings?.OverlayCustomBackgroundColor, Color.FromRgb(30, 36, 48));
+        }
+
+        private static Brush ParseColorBrush(string colorValue, Color fallback)
+        {
+            if (!string.IsNullOrWhiteSpace(colorValue))
+            {
+                try
+                {
+                    var converted = (Color)ColorConverter.ConvertFromString(colorValue.Trim());
+                    var brush = new SolidColorBrush(converted);
+                    brush.Freeze();
+                    return brush;
+                }
+                catch
+                {
+                }
+            }
+
+            var fallbackBrush = new SolidColorBrush(fallback);
+            fallbackBrush.Freeze();
+            return fallbackBrush;
+        }
+
+        private static string ResolveCustomColorHex(Providers.Local.LocalSettings localSettings, string colorKey)
+        {
+            switch (colorKey)
+            {
+                case "Background":
+                    return localSettings.OverlayCustomBackgroundColor;
+                case "Border":
+                    return localSettings.OverlayCustomBorderColor;
+                case "Accent":
+                    return localSettings.OverlayCustomAccentColor;
+                case "Title":
+                    return localSettings.OverlayCustomTitleColor;
+                case "Detail":
+                    return localSettings.OverlayCustomDetailColor;
+                case "Meta":
+                    return localSettings.OverlayCustomMetaColor;
+                default:
+                    return "#FFFFFF";
+            }
+        }
+
+        private static void ApplyCustomColorHex(Providers.Local.LocalSettings localSettings, string colorKey, string colorHex)
+        {
+            switch (colorKey)
+            {
+                case "Background":
+                    localSettings.OverlayCustomBackgroundColor = colorHex;
+                    break;
+                case "Border":
+                    localSettings.OverlayCustomBorderColor = colorHex;
+                    break;
+                case "Accent":
+                    localSettings.OverlayCustomAccentColor = colorHex;
+                    break;
+                case "Title":
+                    localSettings.OverlayCustomTitleColor = colorHex;
+                    break;
+                case "Detail":
+                    localSettings.OverlayCustomDetailColor = colorHex;
+                    break;
+                case "Meta":
+                    localSettings.OverlayCustomMetaColor = colorHex;
+                    break;
+            }
+        }
+
+        // -----
+
         // Theme migration
-        // -----------------------------
+        // -----
 
         private void LoadThemes()
         {
@@ -1427,14 +3126,30 @@ namespace PlayniteAchievements.Views
         private void NavigateToPendingProvider()
         {
             var targetKey = PendingNavigationProviderKey;
-            if (string.IsNullOrWhiteSpace(targetKey))
-                return;
-
             PendingNavigationProviderKey = null;
+
+            if (!string.IsNullOrWhiteSpace(targetKey))
+            {
+                foreach (TabItem tab in SettingsTabControl.Items)
+                {
+                    if (string.Equals(tab.Tag as string, targetKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SettingsTabControl.SelectedItem = tab;
+                        return;
+                    }
+                }
+            }
+
+            var targetTabName = PendingNavigationTabName;
+            PendingNavigationTabName = null;
+            if (string.IsNullOrWhiteSpace(targetTabName))
+            {
+                return;
+            }
 
             foreach (TabItem tab in SettingsTabControl.Items)
             {
-                if (string.Equals(tab.Tag as string, targetKey, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(tab.Name, targetTabName, StringComparison.OrdinalIgnoreCase))
                 {
                     SettingsTabControl.SelectedItem = tab;
                     break;
@@ -1453,6 +3168,8 @@ namespace PlayniteAchievements.Views
 
             var name = selected.Name ?? string.Empty;
             var tag = selected.Tag as string ?? string.Empty;
+            CurrentSelectedTabName = name;
+            CurrentSelectedProviderKey = string.IsNullOrWhiteSpace(tag) ? null : tag;
 
             // Handle dynamic provider tabs (they have Tag set to provider key)
             if (!string.IsNullOrEmpty(tag) && _providerViewsByKey.TryGetValue(tag, out var providerView))
@@ -1503,6 +3220,12 @@ namespace PlayniteAchievements.Views
 
         public void Dispose()
         {
+            _notificationAutoPopupPreviewTimer?.Stop();
+            if (_notificationPreviewSettings != null)
+            {
+                _notificationPreviewSettings.PropertyChanged -= LocalNotificationSettings_PropertyChanged;
+                _notificationPreviewSettings = null;
+            }
         }
 
         private static string L(string key, string fallback)

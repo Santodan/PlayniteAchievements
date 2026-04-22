@@ -10,6 +10,7 @@
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
              xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             xmlns:local="clr-namespace:PlayniteAchievements.Providers.Local"
              mc:Ignorable="d"
              d:DesignHeight="600"
              d:DesignWidth="700">
@@ -1623,6 +1624,796 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+
+            <!-- ================== TAB: ACHIEVEMENT NOTIFICATIONS ================== -->
+            <TabItem x:Name="AchievementNotificationsTab" Header="Achievement Notifications">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20">
+
+                        <!-- ================== LOCAL ACHIEVEMENT NOTIFICATIONS SECTION ================== -->
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Real-time Local Achievement Notifications"
+                                           Style="{StaticResource SectionHeaderStyle}"
+                                           Margin="0,0,0,12"/>
+
+                                <TextBlock Text="Configure notifications when achievements are detected in real-time for the currently running game."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"
+                                           TextWrapping="Wrap"/>
+
+                                <!-- Enable Monitoring -->
+                                <CheckBox Content="Enable real-time monitoring for running game"
+                                          IsChecked="{Binding EnableActiveGameMonitoring, Mode=TwoWay}"
+                                          Margin="0,0,0,12"/>
+
+                                <!-- Polling Interval -->
+                                <Grid Style="{StaticResource SettingRowStyle}"
+                                      IsEnabled="{Binding EnableActiveGameMonitoring}"
+                                      Margin="18,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               Text="Polling interval (seconds):"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               FontWeight="SemiBold"/>
+                                    <TextBox Grid.Column="1"
+                                             Width="70"
+                                             VerticalContentAlignment="Center"
+                                             x:Name="NotificationsPollingIntervalSecondsTextBox"
+                                             TextChanged="NotificationsPollingIntervalSecondsTextBox_TextChanged"
+                                             LostFocus="NotificationsPollingIntervalSecondsTextBox_LostFocus"/>
+                                </Grid>
+
+                                <TextBlock Text="Choose a value between 1 and 60 seconds. Lower values react faster but increase disk polling."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="18,0,0,10"
+                                           TextWrapping="Wrap"
+                                           IsEnabled="{Binding EnableActiveGameMonitoring}"/>
+
+                                <!-- Notification Options -->
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,8">
+                                            <TextBlock Text="Delivery mode:"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <ComboBox SelectedValue="{Binding UnlockNotificationDeliveryMode, Mode=TwoWay}"
+                                                      SelectedValuePath="Tag"
+                                                      MinWidth="200">
+                                                <ComboBoxItem Content="Windows toast only"
+                                                              Tag="{x:Static local:LocalUnlockNotificationDeliveryMode.WindowsToast}"/>
+                                                <ComboBoxItem Content="Overlay only"
+                                                              Tag="{x:Static local:LocalUnlockNotificationDeliveryMode.Overlay}"/>
+                                                <ComboBoxItem Content="Hybrid (Overlay + Toast)"
+                                                              Tag="{x:Static local:LocalUnlockNotificationDeliveryMode.Hybrid}"/>
+                                            </ComboBox>
+                                        </DockPanel>
+
+                                        <DockPanel Margin="0,0,0,8">
+                                            <TextBlock Text="Overlay position:"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <ComboBox SelectedValue="{Binding UnlockOverlayPosition, Mode=TwoWay}"
+                                                      SelectedValuePath="Tag"
+                                                      MinWidth="200">
+                                                <ComboBoxItem Content="Top-right"
+                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.TopRight}"/>
+                                                <ComboBoxItem Content="Top-left"
+                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.TopLeft}"/>
+                                                <ComboBoxItem Content="Bottom-right"
+                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.BottomRight}"/>
+                                                <ComboBoxItem Content="Bottom-left"
+                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.BottomLeft}"/>
+                                            </ComboBox>
+                                        </DockPanel>
+
+                                        <DockPanel Margin="0,0,0,4">
+                                            <TextBlock Text="Overlay duration (ms):"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <Slider x:Name="NotificationsOverlayDurationSlider"
+                                                    Minimum="1000"
+                                                    Maximum="10000"
+                                                    TickFrequency="500"
+                                                    IsSnapToTickEnabled="True"
+                                                    Width="220"
+                                                    ValueChanged="NotificationsOverlayDurationSlider_ValueChanged"/>
+                                            <TextBlock x:Name="NotificationsOverlayDurationValueTextBlock"
+                                                       Margin="8,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Style="{StaticResource MutedTextStyle}"/>
+                                        </DockPanel>
+
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="120"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Fade in (ms):"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBox Grid.Column="1"
+                                                     x:Name="NotificationsOverlayFadeInMillisecondsTextBox"
+                                                     TextChanged="NotificationsOverlayFadeInMillisecondsTextBox_TextChanged"
+                                                     LostFocus="NotificationsOverlayFadeInMillisecondsTextBox_LostFocus"/>
+                                            <TextBlock Grid.Column="3"
+                                                       Text="Fade out (ms):"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBox Grid.Column="4"
+                                                     x:Name="NotificationsOverlayFadeOutMillisecondsTextBox"
+                                                     TextChanged="NotificationsOverlayFadeOutMillisecondsTextBox_TextChanged"
+                                                     LostFocus="NotificationsOverlayFadeOutMillisecondsTextBox_LostFocus"/>
+                                            <TextBlock Grid.Column="6"
+                                                       Text="Sound lead (ms):"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBox Grid.Column="7"
+                                                     x:Name="NotificationsUnlockSoundLeadMillisecondsTextBox"
+                                                     TextChanged="NotificationsUnlockSoundLeadMillisecondsTextBox_TextChanged"
+                                                     LostFocus="NotificationsUnlockSoundLeadMillisecondsTextBox_LostFocus"/>
+                                        </Grid>
+
+                                        <CheckBox Content="Show in-app notification when achievement is unlocked"
+                                                  IsChecked="{Binding EnableInAppUnlockNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Margin="0,0,0,12"/>
+
+                                        <CheckBox Content="Send Windows native toast notification"
+                                                  IsChecked="{Binding EnableWindowsToastNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Margin="0,0,0,0"/>
+                                        <TextBlock Text="Sends a system notification that appears in Windows notification center even if Playnite is minimized."
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="18,4,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="Overlay mode shows a top-right popup over the desktop/game without taking focus and without blocking mouse/keyboard input."
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="18,4,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Separator Margin="0,16,0,16"/>
+
+                                <!-- Notification Style -->
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                    IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                    <StackPanel>
+                                    <TextBlock Text="Notification Style"
+                                           Style="{StaticResource SubSectionHeaderStyle}"
+                                           Margin="0,0,0,8"/>
+
+                                    <DockPanel Margin="0,0,0,6">
+                                        <TextBlock Text="Default style:"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="NotificationsGlobalStyleComboBox"
+                                              MinWidth="220"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectionChanged="NotificationsGlobalStyleComboBox_SelectionChanged"/>
+                                    </DockPanel>
+
+                                    <DockPanel Margin="0,0,0,6">
+                                        <TextBlock Text="Provider override:"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="NotificationsProviderStyleProviderComboBox"
+                                              MinWidth="140"
+                                              DisplayMemberPath="DisplayName"
+                                              SelectionChanged="NotificationsProviderStyleProviderComboBox_SelectionChanged"/>
+                                        <ComboBox x:Name="NotificationsProviderStyleComboBox"
+                                              MinWidth="140"
+                                              Margin="8,0,0,0"
+                                              DisplayMemberPath="DisplayName"/>
+                                        <Button Content="Save"
+                                            Width="70"
+                                            Margin="8,0,0,0"
+                                            Click="NotificationsSaveProviderStyleOverride_Click"/>
+                                        <Button Content="Clear"
+                                            Width="70"
+                                            Margin="8,0,0,0"
+                                            Click="NotificationsClearProviderStyleOverride_Click"/>
+                                    </DockPanel>
+
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="170"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Content="Preview Selected Style"
+                                                Click="NotificationsPreviewSelectedStyle_Click"/>
+                                        <Button Grid.Column="2"
+                                                Content="Preview All Styles"
+                                                Click="NotificationsPreviewAllStyles_Click"/>
+                                    </Grid>
+
+                                         <DockPanel Margin="0,0,0,6">
+                                             <TextBlock Text="Overlay preset style:"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource TextBrush}"
+                                                 FontWeight="SemiBold"/>
+                                             <ComboBox x:Name="NotificationsOverlayPresetStyleComboBox"
+                                                 MinWidth="180"
+                                                 DisplayMemberPath="DisplayName"
+                                                 SelectionChanged="NotificationsOverlayPresetStyleComboBox_SelectionChanged"/>
+                                         </DockPanel>
+
+                                         <DockPanel Margin="0,0,0,4">
+                                             <TextBlock Text="Overlay opacity:"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource TextBrush}"
+                                                 FontWeight="SemiBold"/>
+                                             <Slider x:Name="NotificationsOverlayOpacitySlider"
+                                                  Minimum="0.35"
+                                                  Maximum="1.00"
+                                                  TickFrequency="0.05"
+                                                  IsSnapToTickEnabled="True"
+                                                  Width="220"
+                                                  ValueChanged="NotificationsOverlayOpacitySlider_ValueChanged"/>
+                                             <TextBlock x:Name="NotificationsOverlayOpacityValueTextBlock"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource MutedTextStyle}"/>
+                                         </DockPanel>
+
+                                         <DockPanel Margin="0,0,0,6">
+                                             <TextBlock Text="Overlay size:"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{DynamicResource TextBrush}"
+                                                 FontWeight="SemiBold"/>
+                                             <Slider x:Name="NotificationsOverlayScaleSlider"
+                                                  Minimum="0.70"
+                                                  Maximum="1.60"
+                                                  TickFrequency="0.05"
+                                                  IsSnapToTickEnabled="True"
+                                                  Width="220"
+                                                  ValueChanged="NotificationsOverlayScaleSlider_ValueChanged"/>
+                                             <TextBlock x:Name="NotificationsOverlayScaleValueTextBlock"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource MutedTextStyle}"/>
+                                         </DockPanel>
+
+                                         <Border Style="{StaticResource SectionBorderStyle}" Margin="0,8,0,8">
+                                             <StackPanel>
+                                                 <TextBlock Text="Custom style editor"
+                                                            Style="{StaticResource SectionHeaderStyle}"
+                                                            Margin="0,0,0,6"/>
+                                                 <TextBlock Text="Used when the selected style is Custom. These settings affect the overlay rendering path."
+                                                            Style="{StaticResource MutedTextStyle}"
+                                                            TextWrapping="Wrap"
+                                                            Margin="0,0,0,10"/>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="140"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="90"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="90"/>
+                                                         <ColumnDefinition Width="12"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="220"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Custom style slot:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <ComboBox Grid.Column="1"
+                                                               x:Name="NotificationsCustomStyleSlotComboBox"
+                                                               DisplayMemberPath="DisplayName"
+                                                               SelectionChanged="NotificationsCustomStyleSlotComboBox_SelectionChanged"/>
+                                                     <Button Grid.Column="3"
+                                                             Content="Save Slot"
+                                                             Click="NotificationsSaveCustomStyleSlot_Click"/>
+                                                     <Button Grid.Column="5"
+                                                             Content="Load Slot"
+                                                             Click="NotificationsLoadCustomStyleSlot_Click"/>
+                                                     <TextBlock Grid.Column="7"
+                                                                Text="Slot name:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="8"
+                                                              x:Name="NotificationsCustomStyleSlotNameTextBox"
+                                                              TextChanged="NotificationsCustomStyleSlotNameTextBox_TextChanged"
+                                                              LostFocus="NotificationsCustomStyleSlotNameTextBox_LostFocus"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Width:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding OverlayCustomWidth, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Height:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="4"
+                                                              Text="{Binding OverlayCustomHeight, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Corners:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding OverlayCustomCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Title size:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="4"
+                                                              Text="{Binding OverlayCustomTitleFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="6"
+                                                                Text="Text size:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="7"
+                                                              Text="{Binding OverlayCustomDetailFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="110"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Meta size:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding OverlayCustomMetaFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Icon size:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <TextBox Grid.Column="4"
+                                                              Text="{Binding OverlayCustomIconSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="6"
+                                                                Text="Background image:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="7" LastChildFill="True">
+                                                         <Button Content="Browse"
+                                                                 Width="70"
+                                                                 Click="NotificationsCustomBackgroundImageBrowse_Click"/>
+                                                         <Button Content="Clear"
+                                                                 Width="85"
+                                                                 Margin="8,0,0,0"
+                                                                 Click="NotificationsCustomBackgroundImageClear_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomBackgroundImagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  IsReadOnly="True"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="220"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="220"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <CheckBox Content="Auto resize window to fit text"
+                                                               IsChecked="{Binding OverlayCustomAutoResizeToContent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     <CheckBox Grid.Column="3"
+                                                               Content="Wrap all text lines"
+                                                               IsChecked="{Binding OverlayCustomWrapAllText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="150"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="16"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <Button Grid.Column="0"
+                                                             Content="Show Notification"
+                                                             Click="NotificationsShowCustomPopupPreview_Click"/>
+                                                     <CheckBox Grid.Column="2"
+                                                               x:Name="NotificationsAutoPopupPreviewCheckBox"
+                                                               Content="Auto-refresh popup while editing"
+                                                               VerticalAlignment="Center"/>
+                                                     <TextBlock Grid.Column="4"
+                                                                Text="Popup preview is silent and uses current Custom settings."
+                                                                VerticalAlignment="Center"
+                                                                Style="{StaticResource MutedTextStyle}"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Background:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="1" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Background"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomBackgroundColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Border:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="4" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Border"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomBorderColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                     <TextBlock Grid.Column="6"
+                                                                Text="Accent:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="7" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Accent"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomAccentColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                 </Grid>
+
+                                                 <Grid>
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Title color:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="1" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Title"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomTitleColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Text color:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="4" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Detail"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomDetailColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                     <TextBlock Grid.Column="6"
+                                                                Text="Meta color:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <DockPanel Grid.Column="7" LastChildFill="True">
+                                                         <Button Content="Pick"
+                                                                 Width="52"
+                                                                 Tag="Meta"
+                                                                 Click="NotificationsPickCustomColor_Click"/>
+                                                         <TextBox Text="{Binding OverlayCustomMetaColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  Margin="8,0,0,0"/>
+                                                     </DockPanel>
+                                                 </Grid>
+
+                                                 <Border Style="{StaticResource SectionBorderStyle}" Margin="0,10,0,0">
+                                                     <StackPanel>
+                                                         <TextBlock Text="Inline real-time preview"
+                                                                    Style="{StaticResource SectionHeaderStyle}"
+                                                                    Margin="0,0,0,6"/>
+                                                         <Border x:Name="NotificationsCustomInlinePreviewBorder"
+                                                                 Width="460"
+                                                                 Height="128"
+                                                                 BorderThickness="1.5"
+                                                                 CornerRadius="18"
+                                                                 Padding="16"
+                                                                 HorizontalAlignment="Left">
+                                                             <Border.Effect>
+                                                                 <DropShadowEffect BlurRadius="16" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+                                                             </Border.Effect>
+                                                             <Grid>
+                                                                 <Grid.ColumnDefinitions>
+                                                                     <ColumnDefinition Width="Auto"/>
+                                                                     <ColumnDefinition Width="*"/>
+                                                                 </Grid.ColumnDefinitions>
+                                                                 <Border x:Name="NotificationsCustomInlinePreviewIconHost"
+                                                                         Width="58"
+                                                                         Height="58"
+                                                                         Margin="0,0,14,0"
+                                                                         CornerRadius="8"
+                                                                         Background="#40FFFFFF">
+                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewIconGlyph"
+                                                                                Text="*"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Center"
+                                                                                FontWeight="Bold"
+                                                                                Foreground="White"
+                                                                                FontSize="18"/>
+                                                                 </Border>
+                                                                 <StackPanel Grid.Column="1"
+                                                                             VerticalAlignment="Center">
+                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewTitle"
+                                                                                Text="Local Achievement Unlocked"
+                                                                                FontSize="17"
+                                                                                FontWeight="SemiBold"/>
+                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewGame"
+                                                                                Text="Current Game"
+                                                                                Margin="0,3,0,0"
+                                                                                FontSize="13"/>
+                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewAchievement"
+                                                                                Text="Unlocked: Sample Achievement"
+                                                                                Margin="0,3,0,0"
+                                                                                FontSize="13"
+                                                                                FontWeight="SemiBold"/>
+                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewMeta"
+                                                                                Text="Local / Custom"
+                                                                                Margin="0,5,0,0"
+                                                                                FontSize="11"/>
+                                                                 </StackPanel>
+                                                             </Grid>
+                                                         </Border>
+                                                     </StackPanel>
+                                                 </Border>
+                                             </StackPanel>
+                                         </Border>
+
+                                    <TextBlock Text="Styles emulate provider-like unlock toasts. You can set a global default and optional per-provider overrides."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Separator Margin="0,16,0,16"/>
+
+                                <!-- Sound Notifications -->
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                    <StackPanel>
+                                        <TextBlock Text="Sound Notification"
+                                                   Style="{StaticResource SubSectionHeaderStyle}"
+                                                   Margin="0,0,0,8"/>
+
+                                        <DockPanel Margin="0,0,0,6">
+                                            <TextBlock Text="Sound:"
+                                                     VerticalAlignment="Center"
+                                                     Margin="0,0,8,0"
+                                                     Foreground="{DynamicResource TextBrush}"
+                                                     FontWeight="SemiBold"/>
+                                            <ComboBox x:Name="NotificationsBundledUnlockSoundComboBox"
+                                                    MinWidth="240"
+                                                    SelectionChanged="NotificationsBundledUnlockSoundComboBox_SelectionChanged"
+                                                    DisplayMemberPath="DisplayName"/>
+                                        </DockPanel>
+
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Button Content="Add File"
+                                                Width="90"
+                                                Click="NotificationsAddSoundFile_Click"/>
+                                            <Button Content="Add Folder"
+                                                Width="100"
+                                                Margin="8,0,0,0"
+                                                Click="NotificationsAddSoundFolder_Click"/>
+                                            <Button x:Name="NotificationsRemoveSoundButton"
+                                                Content="Remove"
+                                                Width="90"
+                                                Margin="8,0,0,0"
+                                                Click="NotificationsRemoveSound_Click"/>
+                                        </DockPanel>
+
+                                        <DockPanel Margin="0,0,0,4">
+                                            <Button x:Name="NotificationsTestUnlockSoundButton"
+                                                Content="Test Notification"
+                                                Width="130"
+                                                    Padding="12,6"
+                                                    Click="NotificationsTestUnlockSoundButton_Click"/>
+                                            <TextBlock x:Name="NotificationsUnlockSoundStatusTextBlock"
+                                                       Margin="10,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       Style="{StaticResource MutedTextStyle}"/>
+                                        </DockPanel>
+
+                                        <TextBlock Text="Steam is the default sound and cannot be removed. Use Add File or Add Folder to include more .wav sounds, then pick one from the Sound list."
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Separator Margin="0,16,0,16"/>
+
+                                <!-- Screenshots -->
+                                <Border Style="{StaticResource SettingGroupCardStyle}"
+                                        IsEnabled="{Binding EnableActiveGameMonitoring}">
+                                    <StackPanel>
+                                        <CheckBox Content="Save a screenshot when a new Local achievement is detected"
+                                                  IsChecked="{Binding EnableUnlockScreenshots, Mode=TwoWay}"
+                                                  Margin="0,0,0,12"/>
+
+                                        <StackPanel Margin="18,0,0,0"
+                                                    IsEnabled="{Binding EnableUnlockScreenshots}">
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Capture mode:"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontWeight="SemiBold"/>
+                                                <ComboBox SelectedValue="{Binding ScreenshotCaptureMode, Mode=TwoWay}"
+                                                          SelectedValuePath="Tag"
+                                                          MinWidth="180">
+                                                    <ComboBoxItem Content="Full desktop"
+                                                                  Tag="{x:Static local:LocalUnlockScreenshotCaptureMode.FullDesktop}"/>
+                                                    <ComboBoxItem Content="Active window"
+                                                                  Tag="{x:Static local:LocalUnlockScreenshotCaptureMode.ActiveWindow}"/>
+                                                </ComboBox>
+                                            </DockPanel>
+
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Image format:"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontWeight="SemiBold"/>
+                                                <ComboBox SelectedValue="{Binding ScreenshotImageFormat, Mode=TwoWay}"
+                                                          SelectedValuePath="Tag"
+                                                          MinWidth="180">
+                                                    <ComboBoxItem Content="PNG"
+                                                                  Tag="{x:Static local:LocalUnlockScreenshotImageFormat.Png}"/>
+                                                    <ComboBoxItem Content="JPEG"
+                                                                  Tag="{x:Static local:LocalUnlockScreenshotImageFormat.Jpeg}"/>
+                                                </ComboBox>
+                                            </DockPanel>
+
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Save folder:"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontWeight="SemiBold"/>
+                                                <Button Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                                        Width="90"
+                                                        DockPanel.Dock="Right"
+                                                        Margin="8,0,0,0"
+                                                        Click="NotificationsScreenshotSaveFolder_Click"/>
+                                                <TextBox Text="{Binding ScreenshotSaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         VerticalContentAlignment="Center"
+                                                         ToolTip="Leave empty to use the default Pictures\PlayniteAchievements\UnlockScreenshots folder."/>
+                                            </DockPanel>
+
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Filename template:"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBox Text="{Binding ScreenshotFilenameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         VerticalContentAlignment="Center"
+                                                         ToolTip="Supported tokens: &lt;gameName&gt; &lt;achievementName&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;provider&gt; &lt;gameId&gt; &lt;unlockIndex&gt; &lt;unlockCount&gt;. PNG is added automatically."/>
+                                            </DockPanel>
+
+                                            <DockPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Capture delay (ms):"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBox x:Name="NotificationsScreenshotDelayMillisecondsTextBox"
+                                                         Width="90"
+                                                         VerticalContentAlignment="Center"
+                                                         TextChanged="NotificationsScreenshotDelayMillisecondsTextBox_TextChanged"
+                                                         LostFocus="NotificationsScreenshotDelayMillisecondsTextBox_LostFocus"/>
+                                            </DockPanel>
+
+                                            <TextBlock Text="Full desktop captures every monitor in the virtual desktop. Active window captures the current foreground window only. A short delay helps catch in-game unlock toasts that appear slightly after the achievement is detected."
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       Margin="0,0,0,6"
+                                                       TextWrapping="Wrap"/>
+
+                                            <TextBlock Text="If the save folder is empty, screenshots go to Pictures\PlayniteAchievements\UnlockScreenshots. Invalid filename characters are cleaned automatically. PNG is lossless. JPEG is smaller but lossy."
+                                                       Style="{StaticResource MutedTextStyle}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <TabItem x:Name="ThemeMigrationTab" Header="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
