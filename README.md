@@ -69,7 +69,7 @@ This is a way of adding all of those achievements that are in the folders ina  w
 
 A notification for when the game that is been played has a new achievment unlocked.
 You can customize the overlay or use one of the provided themes.
-You can senable / disable the `Achievement Notification` in the right click  menu for each game
+You can senable / disable the `Achievement Notification` in the right click  menu for each game.
 
 <img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 
