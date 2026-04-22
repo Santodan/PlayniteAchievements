@@ -734,7 +734,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
                                 Margin="8,0,0,0"
-                                Visibility="{Binding IsGameSelected, Converter={StaticResource BoolToVis}}">
+                            Visibility="{Binding ShowRightAchievementFilters, Converter={StaticResource BoolToVis}}">
                             <Button x:Name="SelectedGameTypeFilterSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"
                                     Content="{Binding SelectedGameTypeFilterText}"
@@ -1214,12 +1214,14 @@
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,0,0,1"
                                 Visibility="{Binding IsGameSelected, Converter={StaticResource InverseBoolToVis}}">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
-                                       Style="{DynamicResource BaseTextBlockStyle}"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="16,0"/>
+                            <TabControl SelectedIndex="{Binding SelectedRightTabIndex, Mode=TwoWay}"
+                                        Margin="8,0,8,0"
+                                        VerticalAlignment="Stretch"
+                                        BorderThickness="0"
+                                        Background="Transparent">
+                                <TabItem Header="{DynamicResource LOCPlayAch_RecentAchievements}"/>
+                                <TabItem Header="All Achievements"/>
+                            </TabControl>
                         </Border>
 
                         <!-- Header for when a game IS selected -->
@@ -1284,18 +1286,52 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                            <controls:AchievementDataGridControl x:Name="RecentAchievementsDataGrid"
-                                                                 Grid.Row="0"
-                                                                 ItemsSource="{Binding RecentAchievements}"
-                                                                 ColumnSettingsKey="Sidebar"
-                                                                 IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
-                                                                 ShowGameColumn="True"
-                                                                 HideStatusColumn="True"
-                                                                 UseCoverImages="{Binding UseCoverImages}"
-                                                                 UseExternalSorting="True"
-                                                                 Sorting="AchievementDataGrid_Sorting"
-                                                                 RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
-                                                                 RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp"/>
+                                <controls:AchievementDataGridControl x:Name="RecentAchievementsDataGrid"
+                                                                     Grid.Row="0"
+                                                                     ItemsSource="{Binding RecentAchievements}"
+                                                                     ColumnSettingsKey="Sidebar"
+                                                                     IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
+                                                                     ShowGameColumn="True"
+                                                                     HideStatusColumn="True"
+                                                                     UseCoverImages="{Binding UseCoverImages}"
+                                                                     UseExternalSorting="True"
+                                                                     Sorting="AchievementDataGrid_Sorting"
+                                                                     RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
+                                                                     RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp">
+                                    <controls:AchievementDataGridControl.Style>
+                                        <Style TargetType="controls:AchievementDataGridControl">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRightTabIndex}" Value="1">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </controls:AchievementDataGridControl.Style>
+                                </controls:AchievementDataGridControl>
+
+                                <controls:AchievementDataGridControl x:Name="SidebarAllAchievementsDataGrid"
+                                                                     Grid.Row="0"
+                                                                     ItemsSource="{Binding SidebarAllAchievements}"
+                                                                     ColumnSettingsKey="SidebarAll"
+                                                                     IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
+                                                                     ShowGameColumn="True"
+                                                                     UseCoverImages="{Binding UseCoverImages}"
+                                                                     UseExternalSorting="True"
+                                                                     Sorting="AchievementDataGrid_Sorting"
+                                                                     RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
+                                                                     RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp">
+                                    <controls:AchievementDataGridControl.Style>
+                                        <Style TargetType="controls:AchievementDataGridControl">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRightTabIndex}" Value="1">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </controls:AchievementDataGridControl.Style>
+                                </controls:AchievementDataGridControl>
                         </Grid>
 
                         <!-- Game Detail Panel: When a game is selected -->

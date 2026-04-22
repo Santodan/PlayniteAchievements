@@ -122,6 +122,7 @@ namespace PlayniteAchievements.Views
             {
                 ApplyWidthsToGrids();
                 RecentAchievementsDataGrid?.Refresh();
+                SidebarAllAchievementsDataGrid?.Refresh();
                 GameAchievementsGrid?.Refresh();
             }), DispatcherPriority.Loaded);
         }
@@ -130,6 +131,7 @@ namespace PlayniteAchievements.Views
         {
             if (!_isActive) return;
             RecentAchievementsDataGrid?.FlushLayoutPersistence();
+            SidebarAllAchievementsDataGrid?.FlushLayoutPersistence();
             GameAchievementsGrid?.FlushLayoutPersistence();
             FlushPendingUpdates();
             _isActive = false;
@@ -1217,6 +1219,11 @@ namespace PlayniteAchievements.Views
             {
                 PersistVisibility(_settings?.Persisted?.DataGridColumnVisibility, key, isVisible);
                 // GameAchievementsGrid handles its own visibility via AchievementDataGridControl
+                NormalizeRecentAchievementColumns(grid);
+            }
+            else if (grid == SidebarAllAchievementsDataGrid?.InternalDataGrid)
+            {
+                PersistVisibility(_settings?.Persisted?.DataGridColumnVisibility, key, isVisible);
                 NormalizeRecentAchievementColumns(grid);
             }
         }

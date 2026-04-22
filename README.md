@@ -78,6 +78,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Correct the Steam game import importing DLCs to the library addiitonally to the main game
 - Changed the method to import steam games to be quicker
 - Stop detecting all the achievements with the description `Local achievement from Local`
+- Added an `All Achievements` tab
 
 ## 2026-04-21 - v2.1.2.1
 

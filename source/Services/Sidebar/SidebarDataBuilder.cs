@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Services.Sidebar
             var queryData = _achievementDataService.GetCachedSummaryDataForSidebar(InitialRecentAchievementMaterializationLimit);
             if (queryData != null)
             {
-                return BuildFromCachedSummaryData(settings, queryData, providerLookup, cancel);
+                return BuildFromCachedSummaryData(settings, revealedKeys, queryData, providerLookup, cancel);
             }
 
             return BuildFromHydratedData(settings, revealedKeys, providerLookup, cancel);
@@ -77,6 +77,7 @@ namespace PlayniteAchievements.Services.Sidebar
             CancellationToken cancel)
         {
             var snapshot = new SidebarDataSnapshot();
+            var allAchievements = new List<AchievementDisplayItem>();
             var gamesOverview = new List<GameOverviewItem>();
             var recentAchievements = new List<AchievementDisplayItem>();
 
@@ -109,10 +110,15 @@ namespace PlayniteAchievements.Services.Sidebar
                     revealedKeys,
                     allGameData[i],
                     providerLookup,
-                    includeAchievementItems: false);
+                    includeAchievementItems: true);
                 if (fragment == null)
                 {
                     continue;
+                }
+
+                if (fragment.Achievements != null && fragment.Achievements.Count > 0)
+                {
+                    allAchievements.AddRange(fragment.Achievements);
                 }
 
                 if (fragment.GameOverview != null)
@@ -176,7 +182,7 @@ namespace PlayniteAchievements.Services.Sidebar
                 recentAchievements,
                 AchievementSortScope.RecentAchievements);
 
-            snapshot.Achievements = new List<AchievementDisplayItem>();
+            snapshot.Achievements = allAchievements;
             snapshot.GamesOverview = gamesOverview;
             snapshot.RecentAchievements = recentAchievements;
             snapshot.GlobalUnlockCountsByDate = globalCounts;
@@ -206,11 +212,13 @@ namespace PlayniteAchievements.Services.Sidebar
 
         private SidebarDataSnapshot BuildFromCachedSummaryData(
             PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
             CachedSummaryData queryData,
             IReadOnlyDictionary<string, (string iconKey, string colorHex)> providerLookup,
             CancellationToken cancel)
         {
             settings ??= new PlayniteAchievementsSettings();
+            revealedKeys ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             queryData ??= new CachedSummaryData();
             providerLookup ??= BuildProviderLookup();
 
@@ -338,7 +346,38 @@ namespace PlayniteAchievements.Services.Sidebar
                 ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
                 : 0;
 
+            snapshot.Achievements = BuildAllAchievementItems(settings, revealedKeys, providerLookup, cancel);
+
             return snapshot;
+        }
+
+        private List<AchievementDisplayItem> BuildAllAchievementItems(
+            PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
+            IReadOnlyDictionary<string, (string iconKey, string colorHex)> providerLookup,
+            CancellationToken cancel)
+        {
+            var items = new List<AchievementDisplayItem>();
+            var allGameData = _achievementDataService.GetAllVisibleGameAchievementDataForSidebar() ?? new List<GameAchievementData>();
+
+            for (var i = 0; i < allGameData.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+
+                var fragment = BuildGameFragment(
+                    settings,
+                    revealedKeys,
+                    allGameData[i],
+                    providerLookup,
+                    includeAchievementItems: true);
+
+                if (fragment?.Achievements != null && fragment.Achievements.Count > 0)
+                {
+                    items.AddRange(fragment.Achievements);
+                }
+            }
+
+            return items;
         }
 
         public List<AchievementDisplayItem> BuildDeferredRecentAchievements(
