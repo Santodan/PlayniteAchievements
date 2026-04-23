@@ -1781,14 +1781,10 @@
                                                   IsChecked="{Binding EnableInAppUnlockNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Margin="0,0,0,12"/>
 
-                                        <CheckBox Content="Send Windows native toast notification"
+                                        <CheckBox Content="Send System notification"
                                                   IsChecked="{Binding EnableWindowsToastNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Margin="0,0,0,0"/>
-                                        <TextBlock Text="Sends a system notification that appears in Windows notification center even if Playnite is minimized."
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="18,4,0,0"
-                                                   TextWrapping="Wrap"/>
-                                        <TextBlock Text="Overlay mode shows a top-right popup over the desktop/game without taking focus and without blocking mouse/keyboard input."
+                                        <TextBlock Text="Sends a system notification that appears in selected delivery mode."
                                                    Style="{StaticResource MutedTextStyle}"
                                                    Margin="18,4,0,0"
                                                    TextWrapping="Wrap"/>
@@ -1817,7 +1813,7 @@
                                               SelectionChanged="NotificationsGlobalStyleComboBox_SelectionChanged"/>
                                     </DockPanel>
 
-                                    <DockPanel Margin="0,0,0,6">
+                                    <DockPanel Margin="0,0,0,6" LastChildFill="False">
                                         <TextBlock Text="Provider override:"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"
@@ -2017,7 +2013,7 @@
                                                          <ColumnDefinition Width="110"/>
                                                          <ColumnDefinition Width="20"/>
                                                          <ColumnDefinition Width="Auto"/>
-                                                         <ColumnDefinition Width="110"/>
+                                                         <ColumnDefinition Width="Auto"/>
                                                      </Grid.ColumnDefinitions>
                                                      <TextBlock Text="Meta size:"
                                                                 VerticalAlignment="Center"
@@ -2045,19 +2041,19 @@
                                                                  Width="85"
                                                                  Margin="8,0,0,0"
                                                                  Click="NotificationsCustomBackgroundImageClear_Click"/>
-                                                         <TextBox Text="{Binding OverlayCustomBackgroundImagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         <!--<TextBox Text="{Binding OverlayCustomBackgroundImagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                   IsReadOnly="True"
-                                                                  Margin="8,0,0,0"/>
+                                                                  Margin="8,0,0,0"/>-->
                                                      </DockPanel>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>
-                                                         <ColumnDefinition Width="Auto"/>
                                                          <ColumnDefinition Width="220"/>
-                                                         <ColumnDefinition Width="20"/>
-                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="10"/>
+                                                         <ColumnDefinition Width="5"/>
                                                          <ColumnDefinition Width="220"/>
+                                                         <ColumnDefinition Width="80"/>
                                                      </Grid.ColumnDefinitions>
                                                      <CheckBox Content="Auto resize window to fit text"
                                                                IsChecked="{Binding OverlayCustomAutoResizeToContent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
@@ -2068,10 +2064,10 @@
 
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>
-                                                         <ColumnDefinition Width="150"/>
+                                                         <ColumnDefinition Width="Auto"/>
                                                          <ColumnDefinition Width="8"/>
-                                                         <ColumnDefinition Width="180"/>
-                                                         <ColumnDefinition Width="16"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="5"/>
                                                          <ColumnDefinition Width="Auto"/>
                                                      </Grid.ColumnDefinitions>
                                                      <Button Grid.Column="0"
@@ -2278,7 +2274,7 @@
                                                     DisplayMemberPath="DisplayName"/>
                                         </DockPanel>
 
-                                        <DockPanel Margin="0,0,0,4">
+                                        <DockPanel Margin="0,0,0,4" LastChildFill="False">
                                             <Button Content="Add File"
                                                 Width="90"
                                                 Click="NotificationsAddSoundFile_Click"/>
@@ -2383,7 +2379,7 @@
                                                          ToolTip="Supported tokens: &lt;gameName&gt; &lt;achievementName&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;provider&gt; &lt;gameId&gt; &lt;unlockIndex&gt; &lt;unlockCount&gt;. PNG is added automatically."/>
                                             </DockPanel>
 
-                                            <DockPanel Margin="0,0,0,6">
+                                            <DockPanel Margin="0,0,0,6" LastChildFill="False">
                                                 <TextBlock Text="Capture delay (ms):"
                                                            VerticalAlignment="Center"
                                                            Margin="0,0,8,0"

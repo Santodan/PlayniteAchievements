@@ -79,6 +79,10 @@ You can enable / disable the `Achievement Notification` in the right click  menu
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
+## Next Version Planned changes
+
+- Corrected some sentence and button sizes in the `Achievement Notification` tab
+
 ## 2026-04-22 - v2.1.2.2
 
 - Fixed the local steam achievements not having rarity
