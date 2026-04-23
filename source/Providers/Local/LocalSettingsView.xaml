@@ -47,14 +47,17 @@
                         </Border>
 
                         <StackPanel Margin="12,0,0,0"
-                                    VerticalAlignment="Center">
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Left">
                             <TextBlock Text="Set a custom icon for the Local provider badge and charts."
                                        Foreground="{DynamicResource TextBrush}"
                                        FontWeight="SemiBold"
+                                       HorizontalAlignment="Left"
                                        Margin="0,0,0,4"/>
                             <TextBlock Text="Images are cropped to square and stored as PNG up to 64x64 pixels. Larger files are reduced automatically."
                                        Style="{StaticResource MutedTextStyle}"
                                        TextWrapping="Wrap"
+                                       HorizontalAlignment="Left"
                                        MaxWidth="520"/>
                         </StackPanel>
                     </DockPanel>
@@ -92,12 +95,12 @@
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
-                    <TextBlock Text="Local Achievement Folders"
+                    <TextBlock Text="Local Achievement Folders and Settings"
                                Style="{StaticResource SectionHeaderStyle}"
-                               Margin="0,0,0,12"/>
+                               Margin="0,0,0,6"/>
 
                     <!-- REAL-TIME UNLOCK CHECKS MOVED TO ACHIEVEMENT NOTIFICATIONS TAB -->
-                    <TextBlock Text="Achievement notification and monitoring settings have been moved to the Achievement Notifications tab in the main settings."
+                    <!--<TextBlock Text="Achievement notification and monitoring settings have been moved to the Achievement Notifications tab in the main settings."
                                Style="{StaticResource MutedTextStyle}"
                                Margin="12,12,12,12"
                                TextWrapping="Wrap"/>
@@ -105,7 +108,7 @@
             </Border>
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
-                <StackPanel>
+                <StackPanel>-->
                     <TextBlock Text="Steam path (optional):"
                                Foreground="{DynamicResource TextBrush}"
                                FontWeight="SemiBold"

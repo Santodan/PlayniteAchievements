@@ -82,6 +82,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next Version Planned changes
 
 - Corrected some sentence and button sizes in the `Achievement Notification` tab
+- When renaming a slot in the `Achievement Notification` custom style, it is going back to the default name after restarting playnite
+- Try to make the local Steam achievements with a better mechanic
+- Correct some UI aligments in the `Local` tab
+- The default icon will now appear in the `Local` under the `Local provider Icon` when no custom icon was selected
 
 ## 2026-04-22 - v2.1.2.2
 

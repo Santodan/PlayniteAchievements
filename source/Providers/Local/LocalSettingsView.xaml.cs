@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -26,6 +27,8 @@ namespace PlayniteAchievements.Providers.Local
     public partial class LocalSettingsView : ProviderSettingsViewBase
     {
         private const string LocalProviderIconFileName = "local.png";
+        private const string LocalProviderIconResourceKey = "GeoLocal";
+        private const string LocalProviderColorHex = "#FF8A00";
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _pluginSettings;
         private readonly ILogger _logger;
@@ -223,22 +226,54 @@ namespace PlayniteAchievements.Providers.Local
                 .ConfigureAwait(false);
         }
 
-        private static BitmapImage CreatePreviewImageSource(string path)
+        private static ImageSource CreatePreviewImageSource(string path)
         {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                bitmap.DecodePixelWidth = 48;
+                bitmap.UriSource = new Uri(path, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+                return bitmap;
+            }
+
+            return CreateDefaultLocalProviderImageSource();
+        }
+
+        private static ImageSource CreateDefaultLocalProviderImageSource()
+        {
+            try
+            {
+                var geometry = Application.Current?.TryFindResource(LocalProviderIconResourceKey) as Geometry;
+                if (geometry == null)
+                {
+                    return null;
+                }
+
+                if (!(ColorConverter.ConvertFromString(LocalProviderColorHex) is Color color))
+                {
+                    return null;
+                }
+
+                var drawing = new GeometryDrawing
+                {
+                    Geometry = geometry,
+                    Brush = new SolidColorBrush(color)
+                };
+                drawing.Freeze();
+
+                var drawingImage = new DrawingImage(drawing);
+                drawingImage.Freeze();
+                return drawingImage;
+            }
+            catch
             {
                 return null;
             }
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            bitmap.DecodePixelWidth = 48;
-            bitmap.UriSource = new Uri(path, UriKind.Absolute);
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
         }
 
         private void TryDeleteManagedLocalProviderIcon(string path)
