@@ -46,10 +46,10 @@ namespace PlayniteAchievements
     {
         private static readonly string[] ThemeSourceAliases =
         {
-            "PlayniteAchievementsSantodan",
             "PlayniteAchievements",
             "SuccessStory",
-            "SSHelper"
+            "SSHelper",
+            "PlayniteAchievementsSantodan"
         };
 
         private readonly ILogger _logger;

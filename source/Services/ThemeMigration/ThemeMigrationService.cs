@@ -641,18 +641,16 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 @"(?<=PluginStatus\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
                 RegexOptions.IgnoreCase).Count;
 
-            // Normalize PluginSettings source bindings from the original fork name to this fork ID.
-            // Newer Solaris versions reference PluginSettings Plugin=PlayniteAchievements.
-            // We register both names as aliases, but migrate to the fork ID to keep all identifiers
-            // consistent after migration.
+            // Normalize PluginSettings source bindings to the stable source alias.
+            // Theme source names should remain PlayniteAchievements; PluginStatus uses extension IDs.
             result = Regex.Replace(
                 result,
-                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
-                PluginExtensionId,
+                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievementsSantodan",
+                ThemeSourceName,
                 RegexOptions.IgnoreCase);
             replacements += Regex.Matches(
                 originalContent,
-                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
+                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievementsSantodan",
                 RegexOptions.IgnoreCase).Count;
 
             // Auto-repair older bad migrations that produced duplicated extension IDs.

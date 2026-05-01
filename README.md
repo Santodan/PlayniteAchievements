@@ -104,7 +104,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added a setting to stop receiving the notificaitons when is detected more than one save location for the game
 - Remove the notification for the upstream fork updates
 - Fixed the compatibility with the new Aniki-Remake theme
+- Fixed the compatibility with the new Solaris theme
+- Fixed the compatibility with the Toggle theme
 - Fixed the compatibility with the PS5Reborn theme
+- Updated the `Theme Migration` for theme that are pointing for the original fork
 
 ## 2026-04-22 - v2.1.2.2
 

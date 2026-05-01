@@ -387,15 +387,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 return true;
             }
 
-            // Some newer themes (e.g. Solaris >= 1.2.7) switched from SuccessStory to
-            // PluginSettings Plugin=PlayniteAchievements. SourceName aliases currently keep that
-            // working, but we still migrate to the fork ID for consistency with PluginStatus gates.
-            if (Regex.IsMatch(content, @"PluginSettings\s+Plugin\s*=\s*['""]?PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
+            if (content.IndexOf("PlayniteAchievementsSantodanSantodan", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return true;
             }
 
-            if (content.IndexOf("PlayniteAchievementsSantodanSantodan", StringComparison.OrdinalIgnoreCase) >= 0)
+            // Normalize historical migrations that rewrote PluginSettings source aliases
+            // to the extension ID. Theme source names should stay on PlayniteAchievements.
+            if (Regex.IsMatch(content, @"PluginSettings\s+Plugin\s*=\s*['""]?PlayniteAchievementsSantodan['""]?", RegexOptions.IgnoreCase))
             {
                 return true;
             }
