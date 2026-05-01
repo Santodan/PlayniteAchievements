@@ -81,7 +81,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next Version Planned changes
 
-- Nothing at this point
+- Try to add LumaPLay into the achievements detection
 
 ## TBD - v2.1.3.1
 
