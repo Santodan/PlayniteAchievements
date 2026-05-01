@@ -829,8 +829,9 @@ namespace PlayniteAchievements.Views
                 _availableThemes.Clear();
                 _revertableThemes.Clear();
 
-                var themesPath = _themeDiscovery.GetDefaultThemesPath();
-                if (string.IsNullOrEmpty(themesPath))
+                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
+                var themes = _themeDiscovery.DiscoverDefaultThemes(cache);
+                if (themes.Count == 0)
                 {
                     _logger.Info("No themes path found, skipping theme discovery.");
                     ShowNoThemesMessage = true;
@@ -840,9 +841,6 @@ namespace PlayniteAchievements.Views
                     UpdateThemeMigrationModeButtonState();
                     return;
                 }
-
-                var cache = _settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
 
                 // Load themes that need migration
                 var themesNeedingMigration = themes.Where(t => t.NeedsMigration).ToList();

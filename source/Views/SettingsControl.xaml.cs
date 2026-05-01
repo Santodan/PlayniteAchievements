@@ -2149,16 +2149,14 @@ namespace PlayniteAchievements.Views
                 AvailableThemes.Clear();
                 RevertableThemes.Clear();
 
-                var themesPath = _themeDiscovery.GetDefaultThemesPath();
-                if (string.IsNullOrEmpty(themesPath))
+                var cache = _settingsViewModel?.Settings?.Persisted?.ThemeMigrationVersionCache;
+                var themes = _themeDiscovery.DiscoverDefaultThemes(cache);
+                if (themes.Count == 0)
                 {
                     _logger.Info("No themes path found for theme migration.");
                     UpdateThemeMigrationState();
                     return;
                 }
-
-                var cache = _settingsViewModel?.Settings?.Persisted?.ThemeMigrationVersionCache;
-                var themes = _themeDiscovery.DiscoverThemes(themesPath, cache);
 
                 // Themes that need migration (no backup, has SuccessStory)
                 foreach (var theme in themes.Where(t => t.NeedsMigration))

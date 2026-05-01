@@ -46,6 +46,7 @@ namespace PlayniteAchievements
     {
         private static readonly string[] ThemeSourceAliases =
         {
+            "PlayniteAchievementsSantodan",
             "PlayniteAchievements",
             "SuccessStory",
             "SSHelper"

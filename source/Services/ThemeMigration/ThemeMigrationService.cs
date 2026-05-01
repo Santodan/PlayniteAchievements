@@ -104,26 +104,21 @@ namespace PlayniteAchievements.Services.ThemeMigration
             try
             {
                 var backupPath = Path.Combine(themePath, BackupFolderName);
-
-                if (Directory.Exists(backupPath))
+                var hasExistingBackup = Directory.Exists(backupPath);
+                if (hasExistingBackup)
                 {
-                    _logger.Info($"Backup already exists at: {backupPath}");
-                    return new MigrationResult
-                    {
-                        Success = false,
-                        Message = $"Backup folder '{BackupFolderName}' already exists in theme directory. Please remove it first."
-                    };
+                    _logger.Info($"Backup already exists at: {backupPath}. Reusing existing backup for re-migration.");
                 }
 
                 var result = await Task.Run(() =>
                 {
-                    return PerformMigration(themePath, backupPath, mode, customSelection);
+                    return PerformMigration(themePath, backupPath, mode, customSelection, hasExistingBackup);
                 });
 
-                // If no files needed changes, report success but note no backup was created
-                if (result.FilesBackedUp == 0)
+                // If no files needed changes, report success.
+                if (result.FilesProcessed == 0)
                 {
-                    _logger.Info($"No files contained SuccessStory references - no changes needed for: {themePath}");
+                    _logger.Info($"No files needed migration changes for: {themePath}");
 
                     // Even if no changes were required, cache the theme version so we can detect upgrades later.
                     TryUpdateThemeMigrationVersionCache(themePath);
@@ -131,7 +126,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     return new MigrationResult
                     {
                         Success = true,
-                        Message = "Theme already compatible - no SuccessStory references found. No backup created.",
+                        Message = "Theme already compatible - no migration changes were required.",
                         Mode = mode,
                         FilesProcessed = 0,
                         ReplacementsMade = 0,
@@ -249,7 +244,7 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// <summary>
         /// Performs the migration: backs up modified files and applies replacements.
         /// </summary>
-        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode, CustomMigrationSelection customSelection)
+        private MigrationResult PerformMigration(string themePath, string backupPath, MigrationMode mode, CustomMigrationSelection customSelection, bool hasExistingBackup)
         {
             var backedUpFiles = new List<string>();
             int filesProcessed = 0;
@@ -284,9 +279,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     continue;
                 }
 
-                // Back up the file
-                BackupFile(file, themePath, backupPath, backedUpFiles);
-                _logger.Info($"Backing up file with {replacementCount} references: {GetRelativePath(file.FullName, themePath)}");
+                if (!hasExistingBackup)
+                {
+                    // First migration run: create selective backup before any edits.
+                    BackupFile(file, themePath, backupPath, backedUpFiles);
+                    _logger.Info($"Backing up file with {replacementCount} references: {GetRelativePath(file.FullName, themePath)}");
+                }
 
                 // Apply replacements
                 var (processed, textCount, ctrlCount, bindCount) = ProcessFile(file, mode, customSelection);
@@ -308,13 +306,17 @@ namespace PlayniteAchievements.Services.ThemeMigration
             CreateRenamedFileCopies(themePath, backupPath);
 
             // Only create backup folder and manifest if we actually backed up files
-            if (backedUpFiles.Count > 0)
+            if (!hasExistingBackup && backedUpFiles.Count > 0)
             {
                 WriteManifest(backupPath, backedUpFiles, mode, customSelection);
             }
-            else
+            else if (!hasExistingBackup)
             {
                 _logger.Info("No files contained references requiring migration - no backup created");
+            }
+            else
+            {
+                _logger.Info("Re-migration used existing backup folder; no new backup snapshot was created.");
             }
 
             _logger.Info($"Migration complete: {filesProcessed} files modified, {filesSkipped} files skipped, {replacementsMade} text replacements, {controlReplacementsMade} control replacements, {bindingReplacementsMade} binding replacements");
@@ -624,18 +626,38 @@ namespace PlayniteAchievements.Services.ThemeMigration
             replacements += CountOccurrences(originalContent, "SuccessStory");
 
             // Fix PluginStatus install-check bindings: PluginStatus uses the extension ID, not the SourceName.
-            // Themes designed for the original PlayniteAchievements fork write "PluginStatus Plugin=PlayniteAchievements"
+            // Themes designed for the original PlayniteAchievements fork write
+            //   "PluginStatus Plugin=PlayniteAchievements" or "PluginStatus Plugin=""PlayniteAchievements"""
             // which resolves to nothing in this fork (extension ID is PlayniteAchievementsSantodan).
             // Must come after all SuccessStory→PlayniteAchievements replacements above.
+            // Handles both quoted and unquoted forms: Plugin=PlayniteAchievements and Plugin="PlayniteAchievements"
             result = Regex.Replace(
                 result,
-                @"(?<=PluginStatus\s+Plugin=)PlayniteAchievements(?!Santodan)",
+                @"(?<=PluginStatus\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
                 PluginExtensionId,
                 RegexOptions.IgnoreCase);
             replacements += Regex.Matches(
                 originalContent,
-                @"(?<=PluginStatus\s+Plugin=)PlayniteAchievements(?!Santodan)",
+                @"(?<=PluginStatus\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
                 RegexOptions.IgnoreCase).Count;
+
+            // Normalize PluginSettings source bindings from the original fork name to this fork ID.
+            // Newer Solaris versions reference PluginSettings Plugin=PlayniteAchievements.
+            // We register both names as aliases, but migrate to the fork ID to keep all identifiers
+            // consistent after migration.
+            result = Regex.Replace(
+                result,
+                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
+                PluginExtensionId,
+                RegexOptions.IgnoreCase);
+            replacements += Regex.Matches(
+                originalContent,
+                @"(?<=PluginSettings\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
+                RegexOptions.IgnoreCase).Count;
+
+            // Auto-repair older bad migrations that produced duplicated extension IDs.
+            result = result.Replace("PlayniteAchievementsSantodanSantodan", PluginExtensionId);
+            replacements += CountOccurrences(originalContent, "PlayniteAchievementsSantodanSantodan");
 
             // Fix style key names to match plugin expectations
             // Plugin looks for "GameAchievementsWindow" but themes have "GameAchievementsWindowStyle".

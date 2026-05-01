@@ -156,11 +156,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
                             Name = themeName,
                             Path = themeDir,
                             HasBackup = hasBackup,
-                            NeedsMigration = !hasBackup &&
-                                             needsMigration &&
-                                             !hasNativePlayniteAchievementsSupport,
-                            CouldNotScan = couldNotScan &&
-                                           !hasNativePlayniteAchievementsSupport,
+                            // Mixed themes exist in the wild: a theme can already reference
+                            // PlayniteAchievementsSantodan in one file and still keep legacy
+                            // SuccessStory/old-PA gates in another. Native support should not
+                            // suppress migration when any migratable reference remains.
+                            NeedsMigration = needsMigration,
+                            CouldNotScan = couldNotScan,
                             CurrentThemeVersion = currentVersion,
                             CachedMigratedThemeVersion = cachedVersion,
                             UpgradedSinceLastMigration = upgradedSinceLastMigration
@@ -214,20 +215,61 @@ namespace PlayniteAchievements.Services.ThemeMigration
         /// Gets the default Playnite themes directory path.
         /// </summary>
         /// <returns>Path to the themes directory, or null if not found.</returns>
-        public string GetDefaultThemesPath()
+        public IReadOnlyList<string> GetDefaultThemesPaths()
         {
+            var roots = new List<string>();
+
             try
             {
-                // Playnite stores themes in the configuration directory
                 var configPath = _playniteApi.Paths.ConfigurationPath;
-                var themesPath = Path.Combine(configPath, "Themes");
-                return Directory.Exists(themesPath) ? themesPath : null;
+                var configThemesPath = Path.Combine(configPath, "Themes");
+                if (Directory.Exists(configThemesPath))
+                {
+                    roots.Add(configThemesPath);
+                }
+
+                var applicationThemesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Themes");
+                if (Directory.Exists(applicationThemesPath))
+                {
+                    roots.Add(applicationThemesPath);
+                }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to get default themes path.");
-                return null;
+                _logger.Error(ex, "Failed to get default themes paths.");
             }
+
+            return roots
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        public string GetDefaultThemesPath()
+        {
+            return GetDefaultThemesPaths().FirstOrDefault();
+        }
+
+        public List<ThemeInfo> DiscoverDefaultThemes(IReadOnlyDictionary<string, ThemeMigrationCacheEntry> themeMigrationVersionCache = null)
+        {
+            var discoveredThemes = new Dictionary<string, ThemeInfo>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var themesRootPath in GetDefaultThemesPaths())
+            {
+                foreach (var theme in DiscoverThemes(themesRootPath, themeMigrationVersionCache))
+                {
+                    if (theme?.Path == null)
+                    {
+                        continue;
+                    }
+
+                    discoveredThemes[theme.Path] = theme;
+                }
+            }
+
+            return discoveredThemes.Values
+                .OrderBy(theme => theme.BestDisplayName ?? theme.Name)
+                .ToList();
         }
 
         /// <summary>
@@ -292,7 +334,6 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         if (ContainsNativePlayniteAchievementsSupport(content))
                         {
                             foundNativePlayniteAchievementsSupport = true;
-                            break;
                         }
 
                         if (ContainsMigratableReference(content))
@@ -337,7 +378,24 @@ namespace PlayniteAchievements.Services.ThemeMigration
             // "PluginStatus Plugin=PlayniteAchievements" for install checks.  PluginStatus resolves
             // against the extension ID, not the SourceName, so this always returns false in this fork
             // (ID = PlayniteAchievementsSantodan).  Detect and flag them for migration.
-            if (Regex.IsMatch(content, @"PluginStatus\s+Plugin=PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
+            // Themes built for the original PlayniteAchievements fork write
+            // "PluginStatus Plugin=PlayniteAchievements" or "PluginStatus Plugin=""PlayniteAchievements"""
+            // for install checks.  PluginStatus resolves against the extension ID, not the SourceName,
+            // so these always return false in this fork (ID = PlayniteAchievementsSantodan).
+            if (Regex.IsMatch(content, @"PluginStatus\s+Plugin\s*=\s*['""]?PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
+            {
+                return true;
+            }
+
+            // Some newer themes (e.g. Solaris >= 1.2.7) switched from SuccessStory to
+            // PluginSettings Plugin=PlayniteAchievements. SourceName aliases currently keep that
+            // working, but we still migrate to the fork ID for consistency with PluginStatus gates.
+            if (Regex.IsMatch(content, @"PluginSettings\s+Plugin\s*=\s*['""]?PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
+            {
+                return true;
+            }
+
+            if (content.IndexOf("PlayniteAchievementsSantodanSantodan", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 return true;
             }

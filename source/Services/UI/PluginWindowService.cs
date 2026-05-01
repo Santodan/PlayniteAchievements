@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Media;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
@@ -446,6 +447,10 @@ namespace PlayniteAchievements.Services.UI
             {
                 var isFullscreen = DetectFullscreenMode();
 
+                // Some themes don't define the shared base styles our controls expect.
+                // Ensure plugin resource dictionaries are loaded before constructing the view.
+                _ensureAchievementResourcesLoaded?.Invoke();
+
                 var view = new SingleGameControl(
                     gameId,
                     _refreshService,
@@ -755,6 +760,21 @@ namespace PlayniteAchievements.Services.UI
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/AchievementTemplates.xaml");
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Providers/ProviderIcons.xaml");
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/MigrationStyles.xaml");
+
+                    // Defensive fallbacks for themes missing these keys: templates depend on them.
+                    if (app.TryFindResource("BaseTextBlockStyle") == null)
+                    {
+                        var fallbackBaseTextBlockStyle = new Style(typeof(TextBlock));
+                        fallbackBaseTextBlockStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.White));
+                        app.Resources["BaseTextBlockStyle"] = fallbackBaseTextBlockStyle;
+                    }
+
+                    if (app.TryFindResource("SearchTextBoxStyle") == null)
+                    {
+                        var fallbackSearchTextBoxStyle = new Style(typeof(TextBox));
+                        fallbackSearchTextBoxStyle.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+                        app.Resources["SearchTextBoxStyle"] = fallbackSearchTextBoxStyle;
+                    }
                 }
 
                 if (app.Dispatcher.CheckAccess())

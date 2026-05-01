@@ -40,8 +40,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
                     try
                     {
                         var themesDiscovery = new ThemeDiscoveryService(_logger, _playniteApi);
-                        var themesPath = themesDiscovery.GetDefaultThemesPath();
-                        if (string.IsNullOrWhiteSpace(themesPath))
+                        var themes = themesDiscovery.DiscoverDefaultThemes(_settings?.Persisted?.ThemeMigrationVersionCache);
+                        if (themes.Count == 0)
                         {
                             return;
                         }
@@ -49,8 +49,6 @@ namespace PlayniteAchievements.Services.ThemeMigration
                         var persisted = _settings?.Persisted;
                         var wasCacheEmpty = persisted != null &&
                                             (persisted.ThemeMigrationVersionCache == null || persisted.ThemeMigrationVersionCache.Count == 0);
-
-                        var themes = themesDiscovery.DiscoverThemes(themesPath, null);
 
                         if (wasCacheEmpty)
                         {
@@ -84,7 +82,13 @@ namespace PlayniteAchievements.Services.ThemeMigration
                                         !string.Equals(cached.MigratedThemeVersion, t.CurrentThemeVersion, StringComparison.OrdinalIgnoreCase))
                             .ToList();
 
-                        if (upgraded.Count == 0)
+                        // Also migrate themes that have never been migrated (not in cache at all)
+                        var firstTime = themes
+                            .Where(t => t != null && t.NeedsMigration)
+                            .Where(t => cache == null || !cache.ContainsKey(t.Path))
+                            .ToList();
+
+                        if (upgraded.Count == 0 && firstTime.Count == 0)
                         {
                             return;
                         }
@@ -114,6 +118,27 @@ namespace PlayniteAchievements.Services.ThemeMigration
                             catch (Exception ex)
                             {
                                 _logger.Error(ex, $"Exception auto-migrating upgraded theme: {theme.Name}");
+                            }
+                        }
+
+                        foreach (var theme in firstTime)
+                        {
+                            try
+                            {
+                                var result = await migrationService.MigrateThemeAsync(theme.Path);
+                                if (result.Success)
+                                {
+                                    _logger.Info($"Auto-migrated first-time theme: {theme.Name}");
+                                    migratedThemes.Add(theme.BestDisplayName);
+                                }
+                                else
+                                {
+                                    _logger.Warn($"Failed to auto-migrate first-time theme '{theme.Name}': {result.Message}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(ex, $"Exception auto-migrating first-time theme: {theme.Name}");
                             }
                         }
 

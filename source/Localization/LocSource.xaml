@@ -606,6 +606,8 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Show Rarity Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DefaultAchievementSort">Default Achievement Sort</sys:String>
+    <sys:String x:Key="LOCPlayAch_SortMode_RetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_SortMode_Custom">Custom (remember last sort)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Show Top Menu Bar Button</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SingleGameGridSort">Single Game View Grid</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">View Achievements Window</sys:String>
