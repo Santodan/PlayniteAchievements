@@ -3047,7 +3047,7 @@ namespace PlayniteAchievements.ViewModels
 
                     if (!string.IsNullOrEmpty(_selectedGameSortPath))
                     {
-                        SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection);
+                        SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection, persistCustomSortSelection: false);
                     }
                     else
                     {
@@ -3554,7 +3554,11 @@ namespace PlayniteAchievements.ViewModels
             PersistRecentSortState();
         }
 
-        private void SortSelectedGameAchievements(string sortMemberPath, ListSortDirection direction, bool isAdditive = false)
+        private void SortSelectedGameAchievements(
+            string sortMemberPath,
+            ListSortDirection direction,
+            bool isAdditive = false,
+            bool persistCustomSortSelection = true)
         {
             string primaryPath;
             ListSortDirection primaryDirection;
@@ -3592,15 +3596,24 @@ namespace PlayniteAchievements.ViewModels
             if (selectedSortDirection.HasValue)
                 _selectedGameSortDirection = selectedSortDirection.Value;
 
-            // Persist the user's sort choice when Custom mode is active
+            // Persist custom sort only for explicit user-initiated sorting.
+            // During game load/filter re-application, persisting can trigger SettingsSaved refresh loops.
             var persisted = _settings?.Persisted;
-            if (persisted != null && (
+            if (persistCustomSortSelection && !_selectedGameLoadInProgress && persisted != null && (
                 persisted.DefaultAchievementSortMode == CompactListSortMode.Custom ||
                 persisted.SidebarSelectedGameGridSortMode == CompactListSortMode.Custom))
             {
-                persisted.CustomSortPath = _selectedGameSortPath;
-                persisted.CustomSortDescending = _selectedGameSortDirection == ListSortDirection.Descending;
-                _persistSettingsForUi?.Invoke();
+                var newPath = _selectedGameSortPath;
+                var newDescending = _selectedGameSortDirection == ListSortDirection.Descending;
+                var changed = !string.Equals(persisted.CustomSortPath, newPath, StringComparison.Ordinal) ||
+                    persisted.CustomSortDescending != newDescending;
+
+                if (changed)
+                {
+                    persisted.CustomSortPath = newPath;
+                    persisted.CustomSortDescending = newDescending;
+                    _persistSettingsForUi?.Invoke();
+                }
             }
 
             var sortedAllOrder = _allSelectedGameAchievements

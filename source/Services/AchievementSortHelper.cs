@@ -92,15 +92,18 @@ namespace PlayniteAchievements.Services
                 AchievementSortSurface.SidebarSelectedGame => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.SidebarSelectedGameGridSortMode, settings.SidebarSelectedGameGridSortDescending,
-                    settings.CustomSortPath),
+                    settings.CustomSortPath,
+                    settings.CustomSortDescending),
                 AchievementSortSurface.SingleGame => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.SingleGameGridSortMode, settings.SingleGameGridSortDescending,
-                    settings.CustomSortPath),
+                    settings.CustomSortPath,
+                    settings.CustomSortDescending),
                 AchievementSortSurface.AchievementDataGrid => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.AchievementDataGridSortMode, settings.AchievementDataGridSortDescending,
-                    settings.CustomSortPath),
+                    settings.CustomSortPath,
+                    settings.CustomSortDescending),
                 _ => new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending)
             };
         }
@@ -112,7 +115,8 @@ namespace PlayniteAchievements.Services
         private static AchievementSortSpec BuildSortSpec(
             CompactListSortMode globalMode, bool globalDesc,
             CompactListSortMode perGridMode, bool perGridDesc,
-            string customPath)
+            string customPath,
+            bool customDesc)
         {
             CompactListSortMode mode;
             bool desc;
@@ -126,6 +130,12 @@ namespace PlayniteAchievements.Services
                 mode = perGridMode;
                 desc = perGridDesc;
             }
+
+            if (mode == CompactListSortMode.Custom)
+            {
+                desc = customDesc;
+            }
+
             return new AchievementSortSpec(mode, desc ? ListSortDirection.Descending : ListSortDirection.Ascending, customPath);
         }
 
