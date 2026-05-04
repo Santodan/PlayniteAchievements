@@ -119,10 +119,16 @@ namespace PlayniteAchievements.Models.Settings
         private bool _gamesOverviewGridSortDescending = true;
         private string _gamesOverviewCustomSortPath;
         private bool _gamesOverviewCustomSortDescending = true;
+        private string _gamesOverviewCustomSecondarySorts = string.Empty;
         private string _recentAchievementsCustomSortPath;
         private bool _recentAchievementsCustomSortDescending = true;
+        private string _recentAchievementsCustomSecondarySorts = string.Empty;
         private string _sidebarAllAchievementsCustomSortPath;
         private bool _sidebarAllAchievementsCustomSortDescending = true;
+        private string _sidebarAllAchievementsCustomSecondarySorts = string.Empty;
+        private string _sidebarSelectedGameCustomSortPath;
+        private bool _sidebarSelectedGameCustomSortDescending = true;
+        private string _sidebarSelectedGameCustomSecondarySorts = string.Empty;
         private CompactListSortMode _defaultAchievementSortMode = CompactListSortMode.None;
         private bool _defaultAchievementSortDescending = true;
         private string _customSortPath;
@@ -803,6 +809,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Secondary sort definition for Games Overview manual multi-column sort.
+        /// Format: "Path:Direction|Path:Direction" where Direction is Asc or Desc.
+        /// </summary>
+        public string GamesOverviewCustomSecondarySorts
+        {
+            get => _gamesOverviewCustomSecondarySorts;
+            set => SetValue(ref _gamesOverviewCustomSecondarySorts, value ?? string.Empty);
+        }
+
+        /// <summary>
         /// The last manual sort column used in the Recent Achievements tab.
         /// </summary>
         public string RecentAchievementsCustomSortPath
@@ -821,6 +837,16 @@ namespace PlayniteAchievements.Models.Settings
         }
 
         /// <summary>
+        /// Secondary sort definition for Recent Achievements manual multi-column sort.
+        /// Format: "Path:Direction|Path:Direction" where Direction is Asc or Desc.
+        /// </summary>
+        public string RecentAchievementsCustomSecondarySorts
+        {
+            get => _recentAchievementsCustomSecondarySorts;
+            set => SetValue(ref _recentAchievementsCustomSecondarySorts, value ?? string.Empty);
+        }
+
+        /// <summary>
         /// The last manual sort column used in the All Achievements tab.
         /// </summary>
         public string SidebarAllAchievementsCustomSortPath
@@ -836,6 +862,44 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _sidebarAllAchievementsCustomSortDescending;
             set => SetValue(ref _sidebarAllAchievementsCustomSortDescending, value);
+        }
+
+        /// <summary>
+        /// Secondary sort definition for Sidebar All Achievements manual multi-column sort.
+        /// Format: "Path:Direction|Path:Direction" where Direction is Asc or Desc.
+        /// </summary>
+        public string SidebarAllAchievementsCustomSecondarySorts
+        {
+            get => _sidebarAllAchievementsCustomSecondarySorts;
+            set => SetValue(ref _sidebarAllAchievementsCustomSecondarySorts, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// The last manual sort column used in the Sidebar Selected Game grid.
+        /// </summary>
+        public string SidebarSelectedGameCustomSortPath
+        {
+            get => _sidebarSelectedGameCustomSortPath;
+            set => SetValue(ref _sidebarSelectedGameCustomSortPath, value);
+        }
+
+        /// <summary>
+        /// The last manual sort direction used in the Sidebar Selected Game grid.
+        /// </summary>
+        public bool SidebarSelectedGameCustomSortDescending
+        {
+            get => _sidebarSelectedGameCustomSortDescending;
+            set => SetValue(ref _sidebarSelectedGameCustomSortDescending, value);
+        }
+
+        /// <summary>
+        /// Secondary sort definition for Sidebar Selected Game manual multi-column sort.
+        /// Format: "Path:Direction|Path:Direction" where Direction is Asc or Desc.
+        /// </summary>
+        public string SidebarSelectedGameCustomSecondarySorts
+        {
+            get => _sidebarSelectedGameCustomSecondarySorts;
+            set => SetValue(ref _sidebarSelectedGameCustomSecondarySorts, value ?? string.Empty);
         }
 
         /// <summary>
@@ -1517,10 +1581,16 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewGridSortDescending = this.GamesOverviewGridSortDescending,
                 GamesOverviewCustomSortPath = this.GamesOverviewCustomSortPath,
                 GamesOverviewCustomSortDescending = this.GamesOverviewCustomSortDescending,
+                GamesOverviewCustomSecondarySorts = this.GamesOverviewCustomSecondarySorts,
                 RecentAchievementsCustomSortPath = this.RecentAchievementsCustomSortPath,
                 RecentAchievementsCustomSortDescending = this.RecentAchievementsCustomSortDescending,
+                RecentAchievementsCustomSecondarySorts = this.RecentAchievementsCustomSecondarySorts,
                 SidebarAllAchievementsCustomSortPath = this.SidebarAllAchievementsCustomSortPath,
                 SidebarAllAchievementsCustomSortDescending = this.SidebarAllAchievementsCustomSortDescending,
+                SidebarAllAchievementsCustomSecondarySorts = this.SidebarAllAchievementsCustomSecondarySorts,
+                SidebarSelectedGameCustomSortPath = this.SidebarSelectedGameCustomSortPath,
+                SidebarSelectedGameCustomSortDescending = this.SidebarSelectedGameCustomSortDescending,
+                SidebarSelectedGameCustomSecondarySorts = this.SidebarSelectedGameCustomSecondarySorts,
                 DefaultAchievementSortMode = this.DefaultAchievementSortMode,
                 DefaultAchievementSortDescending = this.DefaultAchievementSortDescending,
                 CustomSortPath = this.CustomSortPath,

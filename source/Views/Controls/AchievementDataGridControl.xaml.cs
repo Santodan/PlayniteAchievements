@@ -438,7 +438,7 @@ namespace PlayniteAchievements.Views.Controls
 
         private void AttachColumnPersistence()
         {
-            var settings = PlayniteAchievementsPlugin.Instance?.Settings;
+            var settings = ResolveSettingsSource();
             if (settings == null)
             {
                 return;

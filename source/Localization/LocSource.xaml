@@ -611,6 +611,10 @@
     <sys:String x:Key="LOCPlayAch_Settings_DefaultAchievementSort">Default Achievement Sort</sys:String>
     <sys:String x:Key="LOCPlayAch_SortMode_RetroAchievements">RetroAchievements</sys:String>
     <sys:String x:Key="LOCPlayAch_SortMode_Custom">Custom (remember last sort)</sys:String>
+    <sys:String x:Key="LOCPlayAch_SortMode_CustomManual">Custom (Manual)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ManualSort_AllAchievements">All Achievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ManualSort_SelectedGame">Selected Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ManualSort_Title">Custom (Manual) Sort Configuration</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Show Top Menu Bar Button</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SingleGameGridSort">Single Game View Grid</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">View Achievements Window</sys:String>

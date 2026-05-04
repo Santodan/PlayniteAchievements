@@ -1,0 +1,990 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using Playnite.SDK;
+using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services;
+using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.Views.Controls;
+using PlayniteAchievements.Views.Helpers;
+
+namespace PlayniteAchievements.Views
+{
+    public partial class ManualAchievementSortDialog : UserControl, IDisposable
+    {
+        private sealed class SortOption
+        {
+            public SortOption(string path, string label, bool isRetro = false)
+            {
+                Path = path;
+                Label = label;
+                IsRetro = isRetro;
+            }
+
+            public string Path { get; }
+
+            public string Label { get; }
+
+            public bool IsRetro { get; }
+        }
+
+        private readonly PlayniteAchievementsSettings _settings;
+        private readonly Action _saveSettings;
+        private readonly List<GameOverviewItem> _overviewSource = new List<GameOverviewItem>();
+        private readonly List<AchievementDisplayItem> _recentSource = new List<AchievementDisplayItem>();
+        private readonly List<AchievementDisplayItem> _allSource = new List<AchievementDisplayItem>();
+        private readonly List<AchievementDisplayItem> _selectedSource = new List<AchievementDisplayItem>();
+
+        private ColumnWidthPersistenceService _gamesOverviewPersistence;
+
+        private string _overviewSortPath;
+        private ListSortDirection _overviewSortDirection;
+        private readonly List<(string Path, ListSortDirection Direction)> _overviewSecondarySorts
+            = new List<(string Path, ListSortDirection Direction)>();
+
+        private string _recentSortPath;
+        private ListSortDirection _recentSortDirection;
+        private readonly List<(string Path, ListSortDirection Direction)> _recentSecondarySorts
+            = new List<(string Path, ListSortDirection Direction)>();
+
+        private string _allSortPath;
+        private ListSortDirection _allSortDirection;
+        private readonly List<(string Path, ListSortDirection Direction)> _allSecondarySorts
+            = new List<(string Path, ListSortDirection Direction)>();
+
+        private string _selectedSortPath;
+        private ListSortDirection _selectedSortDirection;
+        private readonly List<(string Path, ListSortDirection Direction)> _selectedSecondarySorts
+            = new List<(string Path, ListSortDirection Direction)>();
+
+        private readonly List<SortOption> _overviewOptions;
+        private readonly List<SortOption> _achievementOptionsWithGame;
+        private readonly List<SortOption> _achievementOptionsNoGame;
+
+        public ObservableCollection<GameOverviewItem> GamesOverviewItems { get; } = new ObservableCollection<GameOverviewItem>();
+
+        public ObservableCollection<AchievementDisplayItem> RecentItems { get; } = new ObservableCollection<AchievementDisplayItem>();
+
+        public ObservableCollection<AchievementDisplayItem> AllItems { get; } = new ObservableCollection<AchievementDisplayItem>();
+
+        public ObservableCollection<AchievementDisplayItem> SelectedItems { get; } = new ObservableCollection<AchievementDisplayItem>();
+
+        public PlayniteAchievementsSettings SettingsContext => _settings;
+
+        public bool? DialogResult { get; private set; }
+
+        public event EventHandler RequestClose;
+
+        public ManualAchievementSortDialog(PlayniteAchievementsSettings settings, Action saveSettings)
+        {
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _saveSettings = saveSettings ?? (() => { });
+
+            _overviewOptions = new List<SortOption>
+            {
+                new SortOption("SortingName", ResourceProvider.GetString("LOCPlayAch_Column_Name") ?? "Name"),
+                new SortOption("LastPlayed", ResourceProvider.GetString("LOCPlayAch_Column_LastPlayed") ?? "Last Played"),
+                new SortOption("PlaytimeSeconds", ResourceProvider.GetString("LOCPlayAch_Column_Playtime") ?? "Playtime"),
+                new SortOption("Progression", ResourceProvider.GetString("LOCPlayAch_Progress") ?? "Progress"),
+                new SortOption("TotalAchievements", ResourceProvider.GetString("LOCPlayAch_Column_Total") ?? "Total")
+            };
+
+            _achievementOptionsWithGame = CreateAchievementSortOptions(includeGameColumn: true);
+            _achievementOptionsNoGame = CreateAchievementSortOptions(includeGameColumn: false);
+
+            InitializeComponent();
+            DataContext = this;
+
+            LoadCurrentSorts();
+            InitializePreviewItems();
+            InitializeSortSelectors();
+            ApplyAllSortsToPreview();
+
+            Loaded += ManualAchievementSortDialog_Loaded;
+            Unloaded += ManualAchievementSortDialog_Unloaded;
+        }
+
+        public static bool TryShowDialog(PlayniteAchievementsSettings settings, Action saveSettings)
+        {
+            var dialog = new ManualAchievementSortDialog(settings, saveSettings);
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                ResourceProvider.GetString("LOCPlayAch_Settings_ManualSort_Title") ?? "Custom (Manual) Sort Configuration",
+                dialog,
+                new WindowOptions
+                {
+                    Width = 1160,
+                    Height = 820,
+                    CanBeResizable = true,
+                    ShowCloseButton = true,
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false
+                });
+
+            window.MinWidth = 980;
+            window.MinHeight = 700;
+            dialog.RequestClose += (_, __) => window.Close();
+            window.ShowDialog();
+            return dialog.DialogResult == true;
+        }
+
+        private static List<SortOption> CreateAchievementSortOptions(bool includeGameColumn)
+        {
+            var options = new List<SortOption>
+            {
+                new SortOption("DisplayName", ResourceProvider.GetString("LOCPlayAch_Column_Achievement") ?? "Achievement"),
+                new SortOption("UnlockTime", ResourceProvider.GetString("LOCPlayAch_Common_Unlocked") ?? "Unlocked"),
+                new SortOption("CategoryType", ResourceProvider.GetString("LOCPlayAch_Common_Label_Type") ?? "Type"),
+                new SortOption("CategoryLabel", ResourceProvider.GetString("LOCPlayAch_Common_Label_Category") ?? "Category"),
+                new SortOption("TrophyType", ResourceProvider.GetString("LOCPlayAch_Column_Trophy") ?? "Trophy"),
+                new SortOption("RaritySortValue", ResourceProvider.GetString("LOCPlayAch_Column_Rarity") ?? "Rarity"),
+                new SortOption("Points", ResourceProvider.GetString("LOCPlayAch_Column_Points") ?? "Points"),
+                new SortOption("DisplayOrder", ResourceProvider.GetString("LOCPlayAch_SortMode_RetroAchievements") ?? "RetroAchievements", isRetro: true)
+            };
+
+            if (includeGameColumn)
+            {
+                options.Insert(1, new SortOption("SortingName", ResourceProvider.GetString("LOCPlayAch_Column_Game") ?? "Game"));
+            }
+
+            return options;
+        }
+
+        private void ManualAchievementSortDialog_Loaded(object sender, RoutedEventArgs e)
+        {
+            AttachGamesOverviewPersistence();
+            UpdateDirectionButtons();
+        }
+
+        private void ManualAchievementSortDialog_Unloaded(object sender, RoutedEventArgs e)
+        {
+            Dispose();
+        }
+
+        private void AttachGamesOverviewPersistence()
+        {
+            if (_gamesOverviewPersistence != null || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            _gamesOverviewPersistence = new ColumnWidthPersistenceService(
+                GamesOverviewGrid,
+                null,
+                () => _settings.Persisted.GamesOverviewColumnWidths,
+                map => _settings.Persisted.GamesOverviewColumnWidths = map,
+                () => _settings.Persisted.GamesOverviewColumnVisibility,
+                map => _settings.Persisted.GamesOverviewColumnVisibility = map,
+                _saveSettings,
+                getColumnOrder: () => _settings.Persisted.GamesOverviewColumnOrder,
+                setColumnOrder: map => _settings.Persisted.GamesOverviewColumnOrder = map);
+
+            _gamesOverviewPersistence.Attach();
+        }
+
+        private void LoadCurrentSorts()
+        {
+            var persisted = _settings.Persisted;
+            _overviewSortPath = string.IsNullOrWhiteSpace(persisted.GamesOverviewCustomSortPath)
+                ? "SortingName"
+                : persisted.GamesOverviewCustomSortPath;
+            _overviewSortDirection = persisted.GamesOverviewCustomSortDescending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+            _overviewSecondarySorts.Clear();
+            _overviewSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.GamesOverviewCustomSecondarySorts));
+
+            _recentSortPath = string.IsNullOrWhiteSpace(persisted.RecentAchievementsCustomSortPath)
+                ? "UnlockTime"
+                : persisted.RecentAchievementsCustomSortPath;
+            _recentSortDirection = persisted.RecentAchievementsCustomSortDescending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+            _recentSecondarySorts.Clear();
+            _recentSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.RecentAchievementsCustomSecondarySorts));
+
+            _allSortPath = string.IsNullOrWhiteSpace(persisted.SidebarAllAchievementsCustomSortPath)
+                ? "UnlockTime"
+                : persisted.SidebarAllAchievementsCustomSortPath;
+            _allSortDirection = persisted.SidebarAllAchievementsCustomSortDescending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+            _allSecondarySorts.Clear();
+            _allSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.SidebarAllAchievementsCustomSecondarySorts));
+
+            _selectedSortPath = string.IsNullOrWhiteSpace(persisted.SidebarSelectedGameCustomSortPath)
+                ? (string.IsNullOrWhiteSpace(persisted.CustomSortPath) ? "UnlockTime" : persisted.CustomSortPath)
+                : persisted.SidebarSelectedGameCustomSortPath;
+            var selectedDesc = persisted.SidebarSelectedGameCustomSortPath != null
+                ? persisted.SidebarSelectedGameCustomSortDescending
+                : persisted.CustomSortDescending;
+            _selectedSortDirection = selectedDesc ? ListSortDirection.Descending : ListSortDirection.Ascending;
+            _selectedSecondarySorts.Clear();
+            _selectedSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.SidebarSelectedGameCustomSecondarySorts));
+        }
+
+        private void InitializePreviewItems()
+        {
+            _overviewSource.Clear();
+            _overviewSource.AddRange(CreateOverviewPreviewItems());
+            ReplaceCollection(GamesOverviewItems, _overviewSource);
+
+            _recentSource.Clear();
+            _recentSource.AddRange(CreateAchievementPreviewItems("Recent"));
+            ReplaceCollection(RecentItems, _recentSource);
+
+            _allSource.Clear();
+            _allSource.AddRange(CreateAchievementPreviewItems("All"));
+            ReplaceCollection(AllItems, _allSource);
+
+            _selectedSource.Clear();
+            _selectedSource.AddRange(CreateAchievementPreviewItems("Selected"));
+            ReplaceCollection(SelectedItems, _selectedSource);
+        }
+
+        private void InitializeSortSelectors()
+        {
+            OverviewSortCombo.ItemsSource = _overviewOptions;
+            OverviewSortCombo.SelectedItem = FindOption(_overviewOptions, _overviewSortPath);
+
+            RecentSortCombo.ItemsSource = _achievementOptionsWithGame;
+            RecentSortCombo.SelectedItem = FindOption(_achievementOptionsWithGame, _recentSortPath);
+
+            AllSortCombo.ItemsSource = _achievementOptionsWithGame;
+            AllSortCombo.SelectedItem = FindOption(_achievementOptionsWithGame, _allSortPath);
+
+            SelectedSortCombo.ItemsSource = _achievementOptionsNoGame;
+            SelectedSortCombo.SelectedItem = FindOption(_achievementOptionsNoGame, _selectedSortPath);
+        }
+
+        private static SortOption FindOption(IEnumerable<SortOption> options, string sortPath)
+        {
+            return options.FirstOrDefault(option => string.Equals(option.Path, sortPath, StringComparison.Ordinal))
+                ?? options.FirstOrDefault();
+        }
+
+        private void ApplyAllSortsToPreview()
+        {
+            ApplyOverviewSort(_overviewSortPath, _overviewSortDirection, _overviewSecondarySorts);
+            ApplyAchievementSort(RecentItems, _recentSortPath, _recentSortDirection, AchievementSortScope.RecentAchievements, _recentSecondarySorts);
+            ApplyAchievementSort(AllItems, _allSortPath, _allSortDirection, AchievementSortScope.GameAchievements, _allSecondarySorts);
+            ApplyAchievementSort(SelectedItems, _selectedSortPath, _selectedSortDirection, AchievementSortScope.GameAchievements, _selectedSecondarySorts);
+            RefreshSortLevelBadges();
+            UpdateDirectionButtons();
+        }
+
+        private List<GameOverviewItem> CreateOverviewPreviewItems()
+        {
+            var baseDate = DateTime.Today;
+            return new List<GameOverviewItem>
+            {
+                new GameOverviewItem { GameName = "Celeste", SortingName = "Celeste", TotalAchievements = 30, UnlockedAchievements = 28, LastPlayed = baseDate.AddDays(-1).AddHours(21).AddMinutes(10), PlaytimeSeconds = 84200 },
+                new GameOverviewItem { GameName = "Hades", SortingName = "Hades", TotalAchievements = 49, UnlockedAchievements = 36, LastPlayed = baseDate.AddDays(-1).AddHours(9).AddMinutes(40), PlaytimeSeconds = 126400 },
+                new GameOverviewItem { GameName = "Dead Cells", SortingName = "Dead Cells", TotalAchievements = 58, UnlockedAchievements = 18, LastPlayed = baseDate.AddDays(-4).AddHours(23).AddMinutes(5), PlaytimeSeconds = 40500 },
+                new GameOverviewItem { GameName = "Hollow Knight", SortingName = "Hollow Knight", TotalAchievements = 63, UnlockedAchievements = 63, LastPlayed = baseDate.AddDays(-2).AddHours(15).AddMinutes(30), PlaytimeSeconds = 152000 },
+                new GameOverviewItem { GameName = "Cuphead", SortingName = "Cuphead", TotalAchievements = 42, UnlockedAchievements = 17, LastPlayed = baseDate.AddDays(-7).AddHours(8).AddMinutes(20), PlaytimeSeconds = 29200 }
+            };
+        }
+
+        private List<AchievementDisplayItem> CreateAchievementPreviewItems(string gameName)
+        {
+            var items = MockDataHelper.CreateMockDataGridItems(
+                showRarityBar: true,
+                showRarityGlow: true,
+                showHiddenIcon: true,
+                showHiddenTitle: true,
+                showHiddenDescription: true,
+                showHiddenSuffix: true,
+                showLockedIcon: true)
+                .Select(item => item.Clone())
+                .ToList();
+
+            var baseUtcDate = DateTime.UtcNow.Date;
+            var previewUnlockTimes = new List<DateTime?>
+            {
+                baseUtcDate.AddDays(-1).AddHours(22).AddMinutes(15),
+                baseUtcDate.AddDays(-1).AddHours(8).AddMinutes(30),
+                baseUtcDate.AddDays(-3).AddHours(19).AddMinutes(5),
+                baseUtcDate.AddDays(-6).AddHours(11).AddMinutes(45),
+                null,
+            };
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                item.GameName = gameName + " Preview";
+                item.SortingName = item.GameName;
+                if (i < previewUnlockTimes.Count)
+                {
+                    item.UnlockTimeUtc = previewUnlockTimes[i];
+                }
+                if (item.Source == null)
+                {
+                    item.DisplayName = item.DisplayName;
+                }
+
+                if (item.Source != null)
+                {
+                    item.Source.DisplayOrder = i;
+                }
+            }
+
+            return items;
+        }
+
+        private void GamesOverviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            var isAdditive = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            var direction = DataGridSortingHelper.HandleSorting(sender, e, GamesOverviewGrid, clearOtherColumns: !isAdditive);
+            if (!direction.HasValue)
+            {
+                return;
+            }
+
+            if (isAdditive && !string.IsNullOrWhiteSpace(_overviewSortPath))
+            {
+                UpdateSecondarySorts(_overviewSecondarySorts, _overviewSortPath, e.Column.SortMemberPath, direction.Value, isAdditive: true);
+            }
+            else
+            {
+                UpdateSecondarySorts(_overviewSecondarySorts, _overviewSortPath, e.Column.SortMemberPath, direction.Value, isAdditive: false);
+                _overviewSortPath = e.Column.SortMemberPath;
+                _overviewSortDirection = direction.Value;
+            }
+
+            ApplyOverviewSort(_overviewSortPath, _overviewSortDirection, _overviewSecondarySorts);
+            OverviewSortCombo.SelectedItem = FindOption(_overviewOptions, _overviewSortPath);
+            RefreshSortLevelBadges();
+            UpdateDirectionButtons();
+        }
+
+        private void RecentPreviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            ApplyAchievementGridSortFromHeader(
+                e,
+                RecentPreviewGrid,
+                RecentItems,
+                AchievementSortScope.RecentAchievements,
+                ref _recentSortPath,
+                ref _recentSortDirection,
+                _recentSecondarySorts,
+                RecentSortCombo,
+                _achievementOptionsWithGame);
+
+            RefreshSortLevelBadges();
+            UpdateDirectionButtons();
+        }
+
+        private void AllPreviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            ApplyAchievementGridSortFromHeader(
+                e,
+                AllPreviewGrid,
+                AllItems,
+                AchievementSortScope.GameAchievements,
+                ref _allSortPath,
+                ref _allSortDirection,
+                _allSecondarySorts,
+                AllSortCombo,
+                _achievementOptionsWithGame);
+
+            RefreshSortLevelBadges();
+            UpdateDirectionButtons();
+        }
+
+        private void SelectedPreviewGrid_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            ApplyAchievementGridSortFromHeader(
+                e,
+                SelectedPreviewGrid,
+                SelectedItems,
+                AchievementSortScope.GameAchievements,
+                ref _selectedSortPath,
+                ref _selectedSortDirection,
+                _selectedSecondarySorts,
+                SelectedSortCombo,
+                _achievementOptionsNoGame);
+
+            RefreshSortLevelBadges();
+            UpdateDirectionButtons();
+        }
+
+        private static void ApplyAchievementGridSortFromHeader(
+            DataGridSortingEventArgs e,
+            AchievementDataGridControl gridControl,
+            ObservableCollection<AchievementDisplayItem> targetCollection,
+            AchievementSortScope scope,
+            ref string currentPath,
+            ref ListSortDirection currentDirection,
+            List<(string Path, ListSortDirection Direction)> secondaries,
+            ComboBox combo,
+            List<SortOption> options)
+        {
+            var isAdditive = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+            var direction = DataGridSortingHelper.HandleSorting(gridControl, e, gridControl.InternalDataGrid, clearOtherColumns: !isAdditive);
+            if (!direction.HasValue)
+            {
+                return;
+            }
+
+            if (isAdditive && !string.IsNullOrWhiteSpace(currentPath))
+            {
+                UpdateSecondarySorts(secondaries, currentPath, e.Column.SortMemberPath, direction.Value, isAdditive: true);
+            }
+            else
+            {
+                UpdateSecondarySorts(secondaries, currentPath, e.Column.SortMemberPath, direction.Value, isAdditive: false);
+                currentPath = e.Column.SortMemberPath;
+                currentDirection = direction.Value;
+            }
+
+            var items = targetCollection.ToList();
+            var sortPath = currentPath;
+            var sortDirection = (ListSortDirection?)currentDirection;
+            if (!AchievementSortHelper.TrySortItems(
+                    items,
+                    sortPath,
+                    currentDirection,
+                    scope,
+                    ref sortPath,
+                    ref sortDirection))
+            {
+                return;
+            }
+
+            if (sortDirection.HasValue)
+            {
+                currentDirection = sortDirection.Value;
+            }
+
+            ApplySecondarySorts(items, secondaries, scope, currentPath, currentDirection);
+            ReplaceCollection(targetCollection, items);
+            combo.SelectedItem = FindOption(options, currentPath);
+        }
+
+        private void ApplyOverviewSort(
+            string sortPath,
+            ListSortDirection direction,
+            IReadOnlyList<(string Path, ListSortDirection Direction)> secondaries)
+        {
+            var items = _overviewSource.ToList();
+            var currentPath = sortPath;
+            var currentDirection = direction;
+            if (!GamesOverviewSortHelper.TrySortItems(items, sortPath, direction, secondaries, ref currentPath, ref currentDirection))
+            {
+                return;
+            }
+
+            ReplaceCollection(GamesOverviewItems, items);
+        }
+
+        private static void ApplyAchievementSort(
+            ObservableCollection<AchievementDisplayItem> target,
+            string sortPath,
+            ListSortDirection direction,
+            AchievementSortScope scope,
+            IReadOnlyList<(string Path, ListSortDirection Direction)> secondaries)
+        {
+            var items = target.ToList();
+            var currentPath = sortPath;
+            var currentDirection = (ListSortDirection?)direction;
+            if (!AchievementSortHelper.TrySortItems(
+                    items,
+                    sortPath,
+                    direction,
+                    scope,
+                    ref currentPath,
+                    ref currentDirection))
+            {
+                return;
+            }
+
+            ApplySecondarySorts(items, secondaries, scope, sortPath, direction);
+            ReplaceCollection(target, items);
+        }
+
+        private void ApplyOverviewSortButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (OverviewSortCombo.SelectedItem is SortOption option)
+            {
+                _overviewSortPath = option.Path;
+                ApplyOverviewSort(_overviewSortPath, _overviewSortDirection, _overviewSecondarySorts);
+                RefreshSortLevelBadges();
+            }
+        }
+
+        private void ApplyRecentSortButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (RecentSortCombo.SelectedItem is SortOption option)
+            {
+                _recentSortPath = option.Path;
+                if (option.IsRetro)
+                {
+                    _recentSortDirection = ListSortDirection.Ascending;
+                }
+
+                ApplyAchievementSort(RecentItems, _recentSortPath, _recentSortDirection, AchievementSortScope.RecentAchievements, _recentSecondarySorts);
+                RefreshSortLevelBadges();
+                UpdateDirectionButtons();
+            }
+        }
+
+        private void ApplyAllSortButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (AllSortCombo.SelectedItem is SortOption option)
+            {
+                _allSortPath = option.Path;
+                if (option.IsRetro)
+                {
+                    _allSortDirection = ListSortDirection.Ascending;
+                }
+
+                ApplyAchievementSort(AllItems, _allSortPath, _allSortDirection, AchievementSortScope.GameAchievements, _allSecondarySorts);
+                RefreshSortLevelBadges();
+                UpdateDirectionButtons();
+            }
+        }
+
+        private void ApplySelectedSortButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SelectedSortCombo.SelectedItem is SortOption option)
+            {
+                _selectedSortPath = option.Path;
+                if (option.IsRetro)
+                {
+                    _selectedSortDirection = ListSortDirection.Ascending;
+                }
+
+                ApplyAchievementSort(SelectedItems, _selectedSortPath, _selectedSortDirection, AchievementSortScope.GameAchievements, _selectedSecondarySorts);
+                RefreshSortLevelBadges();
+                UpdateDirectionButtons();
+            }
+        }
+
+        private void RefreshSortLevelBadges()
+        {
+            SetSortLevels(GamesOverviewGrid, _overviewSortPath, _overviewSortDirection, _overviewSecondarySorts);
+            SetSortLevels(RecentPreviewGrid?.InternalDataGrid, _recentSortPath, _recentSortDirection, _recentSecondarySorts);
+            SetSortLevels(AllPreviewGrid?.InternalDataGrid, _allSortPath, _allSortDirection, _allSecondarySorts);
+            SetSortLevels(SelectedPreviewGrid?.InternalDataGrid, _selectedSortPath, _selectedSortDirection, _selectedSecondarySorts);
+        }
+
+        private static void SetSortLevels(
+            DataGrid grid,
+            string primaryPath,
+            ListSortDirection primaryDirection,
+            IReadOnlyList<(string Path, ListSortDirection Direction)> secondaries)
+        {
+            if (grid?.Columns == null)
+            {
+                return;
+            }
+
+            foreach (var column in grid.Columns)
+            {
+                if (column == null)
+                {
+                    continue;
+                }
+
+                column.SortDirection = null;
+                SetColumnSortLevel(grid, column, null);
+            }
+
+            if (string.IsNullOrWhiteSpace(primaryPath))
+            {
+                return;
+            }
+
+            var primaryColumn = grid.Columns.FirstOrDefault(column => string.Equals(column?.SortMemberPath, primaryPath, StringComparison.Ordinal));
+            if (primaryColumn != null)
+            {
+                primaryColumn.SortDirection = primaryDirection;
+                SetColumnSortLevel(grid, primaryColumn, "1");
+            }
+
+            if (secondaries == null)
+            {
+                return;
+            }
+
+            for (var i = 0; i < secondaries.Count; i++)
+            {
+                var (path, direction) = secondaries[i];
+                if (string.IsNullOrWhiteSpace(path) || string.Equals(path, primaryPath, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var column = grid.Columns.FirstOrDefault(c => string.Equals(c?.SortMemberPath, path, StringComparison.Ordinal));
+                if (column != null)
+                {
+                    column.SortDirection = direction;
+                    SetColumnSortLevel(grid, column, (i + 2).ToString());
+                }
+            }
+        }
+
+        private static DataGridColumnHeader GetColumnHeader(DataGrid grid, DataGridColumn column)
+        {
+            if (grid == null || column == null)
+            {
+                return null;
+            }
+
+            return FindVisualChildren<DataGridColumnHeader>(grid)
+                .FirstOrDefault(header => header.Column == column);
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null)
+            {
+                yield break;
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (var i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                {
+                    yield return typedChild;
+                }
+
+                foreach (var descendant in FindVisualChildren<T>(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+
+        private static void SetColumnSortLevel(DataGrid grid, DataGridColumn column, string level)
+        {
+            var header = GetColumnHeader(grid, column);
+            if (header != null)
+            {
+                header.Tag = level;
+            }
+        }
+
+        private void OverviewDirectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            _overviewSortDirection = Toggle(_overviewSortDirection);
+            UpdateDirectionButtons();
+        }
+
+        private void RecentDirectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsRetroSelected(RecentSortCombo))
+            {
+                return;
+            }
+
+            _recentSortDirection = Toggle(_recentSortDirection);
+            UpdateDirectionButtons();
+        }
+
+        private void AllDirectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsRetroSelected(AllSortCombo))
+            {
+                return;
+            }
+
+            _allSortDirection = Toggle(_allSortDirection);
+            UpdateDirectionButtons();
+        }
+
+        private void SelectedDirectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsRetroSelected(SelectedSortCombo))
+            {
+                return;
+            }
+
+            _selectedSortDirection = Toggle(_selectedSortDirection);
+            UpdateDirectionButtons();
+        }
+
+        private static ListSortDirection Toggle(ListSortDirection direction)
+        {
+            return direction == ListSortDirection.Descending ? ListSortDirection.Ascending : ListSortDirection.Descending;
+        }
+
+        private void UpdateDirectionButtons()
+        {
+            SetDirectionGlyph(OverviewDirectionIcon, _overviewSortDirection);
+            SetDirectionGlyph(RecentDirectionIcon, _recentSortDirection);
+            SetDirectionGlyph(AllDirectionIcon, _allSortDirection);
+            SetDirectionGlyph(SelectedDirectionIcon, _selectedSortDirection);
+
+            RecentDirectionButton.IsEnabled = !IsRetroSelected(RecentSortCombo);
+            AllDirectionButton.IsEnabled = !IsRetroSelected(AllSortCombo);
+            SelectedDirectionButton.IsEnabled = !IsRetroSelected(SelectedSortCombo);
+        }
+
+        private static bool IsRetroSelected(ComboBox combo)
+        {
+            return combo?.SelectedItem is SortOption option && option.IsRetro;
+        }
+
+        private static void SetDirectionGlyph(TextBlock icon, ListSortDirection direction)
+        {
+            if (icon != null)
+            {
+                icon.Text = direction == ListSortDirection.Descending ? "\uea66" : "\uea65";
+            }
+        }
+
+        private static void UpdateSecondarySorts(
+            List<(string Path, ListSortDirection Direction)> secondaries,
+            string currentPrimaryPath,
+            string newSortPath,
+            ListSortDirection newDirection,
+            bool isAdditive)
+        {
+            if (!isAdditive)
+            {
+                secondaries.Clear();
+                return;
+            }
+
+            var existing = secondaries.FindIndex(s => string.Equals(s.Path, newSortPath, StringComparison.Ordinal));
+            if (existing >= 0)
+            {
+                var (path, dir) = secondaries[existing];
+                secondaries[existing] = (path, dir == ListSortDirection.Descending ? ListSortDirection.Ascending : ListSortDirection.Descending);
+            }
+            else if (!string.Equals(newSortPath, currentPrimaryPath, StringComparison.Ordinal))
+            {
+                secondaries.Add((newSortPath, newDirection));
+            }
+        }
+
+        private static void ApplySecondarySorts(
+            List<AchievementDisplayItem> items,
+            IReadOnlyList<(string Path, ListSortDirection Direction)> secondaries,
+            AchievementSortScope scope,
+            string primaryPath,
+            ListSortDirection primaryDirection)
+        {
+            if (items == null || items.Count == 0 || secondaries == null || secondaries.Count == 0)
+            {
+                return;
+            }
+
+            var secondaryComparisons = secondaries
+                .Select(s => AchievementSortHelper.GetComparison(s.Path, s.Direction, scope))
+                .Where(c => c != null)
+                .ToList();
+            if (secondaryComparisons.Count == 0)
+            {
+                return;
+            }
+
+            var primaryComparison = AchievementSortHelper.GetComparison(primaryPath, primaryDirection, scope);
+            var indexed = items.Select((item, i) => (item, i)).ToList();
+            indexed.Sort((x, y) =>
+            {
+                if (primaryComparison != null)
+                {
+                    var primary = primaryComparison(x.item, y.item);
+                    if (primary != 0)
+                    {
+                        return primary;
+                    }
+                }
+
+                foreach (var secondary in secondaryComparisons)
+                {
+                    var result = secondary(x.item, y.item);
+                    if (result != 0)
+                    {
+                        return result;
+                    }
+                }
+
+                return x.i.CompareTo(y.i);
+            });
+
+            items.Clear();
+            items.AddRange(indexed.Select(entry => entry.item));
+        }
+
+        private static string SerializeSecondarySorts(IEnumerable<(string Path, ListSortDirection Direction)> secondaries)
+        {
+            if (secondaries == null)
+            {
+                return string.Empty;
+            }
+
+            return string.Join("|", secondaries
+                .Where(entry => !string.IsNullOrWhiteSpace(entry.Path))
+                .Select(entry => $"{entry.Path}:{(entry.Direction == ListSortDirection.Descending ? "Desc" : "Asc")}"));
+        }
+
+        private static List<(string Path, ListSortDirection Direction)> DeserializeSecondarySorts(string serialized)
+        {
+            var result = new List<(string Path, ListSortDirection Direction)>();
+            if (string.IsNullOrWhiteSpace(serialized))
+            {
+                return result;
+            }
+
+            var parts = serialized.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                var token = part.Trim();
+                var separator = token.LastIndexOf(':');
+                if (separator <= 0 || separator >= token.Length - 1)
+                {
+                    continue;
+                }
+
+                var path = token.Substring(0, separator).Trim();
+                var directionToken = token.Substring(separator + 1).Trim();
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+
+                var direction = string.Equals(directionToken, "Desc", StringComparison.OrdinalIgnoreCase)
+                    ? ListSortDirection.Descending
+                    : ListSortDirection.Ascending;
+                result.Add((path, direction));
+            }
+
+            return result;
+        }
+
+        private void SortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateDirectionButtons();
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyCurrentSelectionStates();
+            PersistSortSettings();
+            _gamesOverviewPersistence?.FlushPendingChanges();
+            _saveSettings?.Invoke();
+            DialogResult = true;
+            RequestClose?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            RequestClose?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void ApplyCurrentSelectionStates()
+        {
+            if (OverviewSortCombo.SelectedItem is SortOption overview)
+            {
+                _overviewSortPath = overview.Path;
+            }
+
+            if (RecentSortCombo.SelectedItem is SortOption recent)
+            {
+                _recentSortPath = recent.Path;
+                if (recent.IsRetro)
+                {
+                    _recentSortDirection = ListSortDirection.Ascending;
+                }
+            }
+
+            if (AllSortCombo.SelectedItem is SortOption all)
+            {
+                _allSortPath = all.Path;
+                if (all.IsRetro)
+                {
+                    _allSortDirection = ListSortDirection.Ascending;
+                }
+            }
+
+            if (SelectedSortCombo.SelectedItem is SortOption selected)
+            {
+                _selectedSortPath = selected.Path;
+                if (selected.IsRetro)
+                {
+                    _selectedSortDirection = ListSortDirection.Ascending;
+                }
+            }
+        }
+
+        private void PersistSortSettings()
+        {
+            var persisted = _settings.Persisted;
+            persisted.GamesOverviewCustomSortPath = _overviewSortPath;
+            persisted.GamesOverviewCustomSortDescending = _overviewSortDirection == ListSortDirection.Descending;
+            persisted.GamesOverviewCustomSecondarySorts = SerializeSecondarySorts(_overviewSecondarySorts);
+
+            persisted.RecentAchievementsCustomSortPath = _recentSortPath;
+            persisted.RecentAchievementsCustomSortDescending = _recentSortDirection == ListSortDirection.Descending;
+            persisted.RecentAchievementsCustomSecondarySorts = SerializeSecondarySorts(_recentSecondarySorts);
+
+            persisted.SidebarAllAchievementsCustomSortPath = _allSortPath;
+            persisted.SidebarAllAchievementsCustomSortDescending = _allSortDirection == ListSortDirection.Descending;
+            persisted.SidebarAllAchievementsCustomSecondarySorts = SerializeSecondarySorts(_allSecondarySorts);
+
+            persisted.SidebarSelectedGameCustomSortPath = _selectedSortPath;
+            persisted.SidebarSelectedGameCustomSortDescending = _selectedSortDirection == ListSortDirection.Descending;
+            persisted.SidebarSelectedGameCustomSecondarySorts = SerializeSecondarySorts(_selectedSecondarySorts);
+
+            // Keep legacy field aligned so older custom call-sites still get valid manual state.
+            persisted.CustomSortPath = _selectedSortPath;
+            persisted.CustomSortDescending = _selectedSortDirection == ListSortDirection.Descending;
+        }
+
+        private void GamesOverviewGrid_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!(sender is DataGrid grid))
+            {
+                return;
+            }
+
+            var row = ItemsControl.ContainerFromElement(grid, e.OriginalSource as DependencyObject) as DataGridRow;
+            if (row != null)
+            {
+                return;
+            }
+
+            e.Handled = true;
+            var menu = _gamesOverviewPersistence?.BuildColumnVisibilityMenu();
+            if (menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            menu.Placement = PlacementMode.RelativePoint;
+            menu.PlacementTarget = grid;
+            menu.HorizontalOffset = e.GetPosition(grid).X;
+            menu.VerticalOffset = e.GetPosition(grid).Y;
+            menu.IsOpen = true;
+        }
+
+        private static void ReplaceCollection<T>(ObservableCollection<T> collection, IEnumerable<T> values)
+        {
+            collection.Clear();
+            foreach (var value in values)
+            {
+                collection.Add(value);
+            }
+        }
+
+        public void Dispose()
+        {
+            _gamesOverviewPersistence?.Detach();
+            _gamesOverviewPersistence = null;
+        }
+    }
+}

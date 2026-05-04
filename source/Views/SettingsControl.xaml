@@ -971,7 +971,7 @@
                                                       MinWidth="180">
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Default}" Tag="{x:Static settings:CompactListSortMode.None}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_SortMode_RetroAchievements}" Tag="{x:Static settings:CompactListSortMode.DisplayOrder}"/>
-                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_SortMode_Custom}" Tag="{x:Static settings:CompactListSortMode.Custom}"/>
+                                                <ComboBoxItem Content="{DynamicResource LOCPlayAch_SortMode_CustomManual}" Tag="{x:Static settings:CompactListSortMode.Custom}"/>
                                             </ComboBox>
                                             <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
                                                     Margin="4,0,0,0"
@@ -981,6 +981,9 @@
                                                     <Style TargetType="Button">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -998,6 +1001,21 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
+                                            </Button>
+                                            <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Click="ConfigureManualAchievementSort_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
                                             </Button>
                                         </StackPanel>
 

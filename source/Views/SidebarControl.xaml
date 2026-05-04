@@ -818,7 +818,7 @@
                             BorderThickness="0"
                             CanUserResizeColumns="True"
                             CanUserResizeRows="False"
-                            CanUserReorderColumns="False"
+                            CanUserReorderColumns="True"
                             Background="Transparent"
                             RowBackground="Transparent"
                             CanUserSortColumns="True"

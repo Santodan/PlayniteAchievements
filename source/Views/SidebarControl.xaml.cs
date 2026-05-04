@@ -618,8 +618,8 @@ namespace PlayniteAchievements.Views
         private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
-            var isAdditive = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl)
-                          || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
             var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, clearOtherColumns: !isAdditive);
             if (sortDirection == null) return;
             _viewModel.SortDataGrid((sender as DataGrid), e.Column.SortMemberPath, sortDirection.Value, isAdditive);
@@ -633,14 +633,15 @@ namespace PlayniteAchievements.Views
             var grid = GameAchievementsGrid?.InternalDataGrid;
             if (grid == null) return;
 
-            var isAdditive = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl)
-                          || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
 
             // Use HandleSorting for uniform A-Z / Z-A first-click logic
             var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);
             if (sortDirection == null) return;
 
             _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, sortDirection.Value, isAdditive);
+            ResetAchievementsSortDirection();
         }
 
         private void AchievementDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
@@ -651,8 +652,8 @@ namespace PlayniteAchievements.Views
             var grid = control?.InternalDataGrid;
             if (grid == null) return;
 
-            var isAdditive = System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.LeftCtrl)
-                          || System.Windows.Input.Keyboard.IsKeyDown(System.Windows.Input.Key.RightCtrl);
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
 
             // Use HandleSorting for uniform A-Z / Z-A first-click logic
             var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);

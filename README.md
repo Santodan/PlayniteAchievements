@@ -98,6 +98,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
   - IGDB
 - Add more settings to the overlay notification
 - Fix the `Theme Migration`
+- Add `Custom (Manual)` option for the `Default Achievement Sort`
 
 ## 2026-05-01 - v2.1.3.1
 

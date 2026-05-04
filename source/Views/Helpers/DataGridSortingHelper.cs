@@ -9,16 +9,30 @@ namespace PlayniteAchievements.Views.Helpers
     public static class DataGridSortingHelper
     {
         /// <summary>
-        /// Sort member paths for columns that should default to Ascending (A→Z) on first click
-        /// rather than the global default of Descending.
+        /// Sort member paths for text-like columns that should default to Ascending (A→Z)
+        /// on first click.
         /// </summary>
-        private static readonly System.Collections.Generic.HashSet<string> AscendingDefaultPaths =
+        private static readonly System.Collections.Generic.HashSet<string> TextAscendingDefaultPaths =
             new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
             {
                 "SortingName",   // Game name column in GamesOverview
                 "DisplayName",   // Achievement display name
                 "Name",          // Generic name fallback
                 "ApiName",       // Achievement API name
+                "CategoryType",
+                "CategoryLabel",
+                "TrophyType",
+            };
+
+        /// <summary>
+        /// Sort member paths for date/time columns that should default to Descending
+        /// (most recent first) on first click.
+        /// </summary>
+        private static readonly System.Collections.Generic.HashSet<string> DateTimeDescendingDefaultPaths =
+            new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                "UnlockTime",
+                "LastPlayed",
             };
 
         /// <summary>
@@ -43,12 +57,18 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
-            // Name columns default Ascending on first click; all others default Descending.
-            var isNameColumn = AscendingDefaultPaths.Contains(column.SortMemberPath);
+            // First click behavior:
+            // - text-like columns: Ascending (A→Z)
+            // - date/time columns: Descending (newest → oldest)
+            // - all others: Descending
+            var isTextColumn = TextAscendingDefaultPaths.Contains(column.SortMemberPath);
+            var isDateTimeColumn = DateTimeDescendingDefaultPaths.Contains(column.SortMemberPath);
             ListSortDirection sortDirection;
             if (column.SortDirection == null)
             {
-                sortDirection = isNameColumn ? ListSortDirection.Ascending : ListSortDirection.Descending;
+                sortDirection = isTextColumn && !isDateTimeColumn
+                    ? ListSortDirection.Ascending
+                    : ListSortDirection.Descending;
             }
             else
             {

@@ -3023,6 +3023,21 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void ConfigureManualAchievementSort_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settingsViewModel?.Settings == null)
+            {
+                return;
+            }
+
+            if (ManualAchievementSortDialog.TryShowDialog(
+                _settingsViewModel.Settings,
+                () => _plugin.SavePluginSettings(_settingsViewModel.Settings)))
+            {
+                _plugin.SavePluginSettings(_settingsViewModel.Settings);
+            }
+        }
+
         private void ToggleSingleGameGridSortDescending(object sender, RoutedEventArgs e)
         {
             var persisted = _settingsViewModel?.Settings?.Persisted;

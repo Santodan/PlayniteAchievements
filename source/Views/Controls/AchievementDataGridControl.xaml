@@ -36,7 +36,7 @@
               CanUserDeleteRows="False"
               CanUserResizeRows="False"
               CanUserResizeColumns="True"
-              CanUserReorderColumns="False"
+              CanUserReorderColumns="True"
               CanUserSortColumns="True"
               EnableRowVirtualization="True"
               VirtualizingStackPanel.VirtualizationMode="Recycling"

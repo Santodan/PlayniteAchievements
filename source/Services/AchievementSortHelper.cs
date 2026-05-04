@@ -92,8 +92,8 @@ namespace PlayniteAchievements.Services
                 AchievementSortSurface.SidebarSelectedGame => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.SidebarSelectedGameGridSortMode, settings.SidebarSelectedGameGridSortDescending,
-                    settings.CustomSortPath,
-                    settings.CustomSortDescending),
+                    settings.SidebarSelectedGameCustomSortPath,
+                    settings.SidebarSelectedGameCustomSortDescending),
                 AchievementSortSurface.SingleGame => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.SingleGameGridSortMode, settings.SingleGameGridSortDescending,
@@ -310,7 +310,9 @@ namespace PlayniteAchievements.Services
                     propertyName == nameof(PersistedSettings.SidebarSelectedGameGridSortMode) ||
                     propertyName == nameof(PersistedSettings.SidebarSelectedGameGridSortDescending) ||
                     propertyName == nameof(PersistedSettings.DefaultAchievementSortMode) ||
-                    propertyName == nameof(PersistedSettings.DefaultAchievementSortDescending),
+                    propertyName == nameof(PersistedSettings.DefaultAchievementSortDescending) ||
+                    propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortPath) ||
+                    propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortDescending),
                 AchievementSortSurface.SingleGame =>
                     propertyName == nameof(PersistedSettings.SingleGameGridSortMode) ||
                     propertyName == nameof(PersistedSettings.SingleGameGridSortDescending) ||
