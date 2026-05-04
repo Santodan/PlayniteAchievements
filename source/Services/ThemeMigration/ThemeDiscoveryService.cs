@@ -379,10 +379,10 @@ namespace PlayniteAchievements.Services.ThemeMigration
             // against the extension ID, not the SourceName, so this always returns false in this fork
             // (ID = PlayniteAchievementsSantodan).  Detect and flag them for migration.
             // Themes built for the original PlayniteAchievements fork write
-            // "PluginStatus Plugin=PlayniteAchievements" or "PluginStatus Plugin=""PlayniteAchievements"""
-            // for install checks.  PluginStatus resolves against the extension ID, not the SourceName,
-            // so these always return false in this fork (ID = PlayniteAchievementsSantodan).
-            if (Regex.IsMatch(content, @"PluginStatus\s+Plugin\s*=\s*['""]?PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
+            // PluginStatus Plugin=PlayniteAchievements (or sometimes Id=PlayniteAchievements)
+            // for install checks. PluginStatus resolves against extension IDs, so these fail in this fork
+            // where the extension ID is PlayniteAchievementsSantodan.
+            if (Regex.IsMatch(content, @"PluginStatus\s+(?:Plugin|Id)\s*=\s*['""]?PlayniteAchievements(?!Santodan)", RegexOptions.IgnoreCase))
             {
                 return true;
             }

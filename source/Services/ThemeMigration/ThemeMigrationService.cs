@@ -30,6 +30,9 @@ namespace PlayniteAchievements.Services.ThemeMigration
         // SourceName registered with Playnite via AddCustomElementSupport — used for control-name prefixes
         private const string ThemeSourceName = "PlayniteAchievements";
 
+        private const string PluginStatusOriginalForkPattern = @"PluginStatus\s+(?:Plugin|Id)\s*=\s*['\""]?PlayniteAchievements(?!Santodan)";
+        private const string PluginSettingsForkIdPattern = @"PluginSettings\s+Plugin\s*=\s*['\""]?PlayniteAchievementsSantodan['\""]?";
+
         /// <summary>
         /// Binary file extensions that should never be processed.
         /// These files should not be read as text or modified.
@@ -392,7 +395,19 @@ namespace PlayniteAchievements.Services.ThemeMigration
                 int successStoryCount = CountOccurrences(content, "SuccessStory");
                 int iconCount = CountOccurrences(content, "\uE820");  // SuccessStory trophy icon (U+E820)
                 int iconEntityCount = CountOccurrences(content, "&#xE820;");
-                int totalCount = fullscreenHelperCount + pluginIdCount + helperCount + successStoryCount + iconCount + iconEntityCount;
+                int originalForkPluginStatusCount = Regex.Matches(content, PluginStatusOriginalForkPattern, RegexOptions.IgnoreCase).Count;
+                int forkIdInPluginSettingsCount = Regex.Matches(content, PluginSettingsForkIdPattern, RegexOptions.IgnoreCase).Count;
+                int duplicatedForkIdCount = CountOccurrences(content, "PlayniteAchievementsSantodanSantodan");
+
+                int totalCount = fullscreenHelperCount
+                    + pluginIdCount
+                    + helperCount
+                    + successStoryCount
+                    + iconCount
+                    + iconEntityCount
+                    + originalForkPluginStatusCount
+                    + forkIdInPluginSettingsCount
+                    + duplicatedForkIdCount;
 
                 foreach (var mapping in GetSelectedControlMappings(mode, customSelection))
                 {
@@ -633,12 +648,12 @@ namespace PlayniteAchievements.Services.ThemeMigration
             // Handles both quoted and unquoted forms: Plugin=PlayniteAchievements and Plugin="PlayniteAchievements"
             result = Regex.Replace(
                 result,
-                @"(?<=PluginStatus\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
+                @"(?<=PluginStatus\s+(?:Plugin|Id)\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
                 PluginExtensionId,
                 RegexOptions.IgnoreCase);
             replacements += Regex.Matches(
                 originalContent,
-                @"(?<=PluginStatus\s+Plugin\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
+                @"(?<=PluginStatus\s+(?:Plugin|Id)\s*=\s*['""]?)PlayniteAchievements(?!Santodan)",
                 RegexOptions.IgnoreCase).Count;
 
             // Normalize PluginSettings source bindings to the stable source alias.
