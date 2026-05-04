@@ -259,7 +259,8 @@ namespace PlayniteAchievements
                 _manualSourceRegistry = new ManualSourceRegistry(_logger, settings, PlayniteApi, pluginUserDataPath);
 
                 // Create provider registry
-                _providerRegistry = new ProviderRegistry(settings, ProviderDisplayOrder, _logger, _manualSourceRegistry);
+                var steamApiTokenService = new Providers.Steam.SteamApiTokenService(_logger);
+                _providerRegistry = new ProviderRegistry(settings, ProviderDisplayOrder, _logger, _manualSourceRegistry, steamApiTokenService);
                 _providerRegistry.SyncFromSettings(settings.Persisted);
                 _gameCustomDataStore = _settingsViewModel.GameCustomDataStore;
                 _gameCustomDataStore.AttachRuntimeSettings(settings);

@@ -48,5 +48,18 @@ namespace PlayniteAchievements.Providers.Steam
             get => _existingGameImportBehavior;
             set => SetValue(ref _existingGameImportBehavior, value);
         }
+
+        private string _steamWebApiKey = string.Empty;
+
+        /// <summary>
+        /// Optional Steam Web API developer key used to fetch localized achievement descriptions
+        /// (including hidden ones). Leave blank to use the active Steam session token automatically.
+        /// Obtain a key at https://steamcommunity.com/dev/apikey
+        /// </summary>
+        public string SteamWebApiKey
+        {
+            get => _steamWebApiKey;
+            set => SetValue(ref _steamWebApiKey, value ?? string.Empty);
+        }
     }
 }

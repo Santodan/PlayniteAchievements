@@ -97,11 +97,14 @@ namespace PlayniteAchievements.Providers.Local
             _logger?.Info($"[Local] {msg}");
         }
 
-        public LocalSavesProvider(IPlayniteAPI playniteApi, ILogger logger, PlayniteAchievementsSettings settings)
+        private readonly SteamApiTokenService _steamApiTokenService;
+
+        public LocalSavesProvider(IPlayniteAPI playniteApi, ILogger logger, PlayniteAchievementsSettings settings, SteamApiTokenService steamApiTokenService = null)
         {
             _api = playniteApi;
             _logger = logger;
             _pluginSettings = settings; // Store the full settings object
+            _steamApiTokenService = steamApiTokenService;
             Log("=== Provider Starting V9 (Discovery Mode) ===");
         }
 
@@ -3730,6 +3733,34 @@ namespace PlayniteAchievements.Providers.Local
 
             async Task<SchemaAndPercentages> TryPreferredAnonymousSchemaAsync()
             {
+                // If a Steam API token is available (session or manual key), use the official
+                // Steam Web API — it returns fully localized text for ALL achievements including
+                // hidden ones, in the requested language.
+                if (_steamApiTokenService != null)
+                {
+                    try
+                    {
+                        var token = await _steamApiTokenService.ResolveAsync(CancellationToken.None).ConfigureAwait(false);
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            using (var apiHttp = new HttpClient())
+                            {
+                                var apiClient = new SteamApiClient(apiHttp, _logger);
+                                var apiSchema = await apiClient.GetSchemaForGameDetailedAsync(token, appId, schemaLanguage, CancellationToken.None).ConfigureAwait(false);
+                                if (apiSchema?.Achievements?.Count > 0)
+                                {
+                                    Log($"SCHEMA SOURCE SELECTED: appId={appId} source=steam-web-api language={schemaLanguage}");
+                                    return apiSchema;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"[Local] Steam Web API schema fetch failed for appId={appId}; falling back to anonymous sources.");
+                    }
+                }
+
                 // Get base schema for correlation with local entries
                 SchemaAndPercentages baseSchema = null;
                 switch (schemaPreference)

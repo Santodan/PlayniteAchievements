@@ -82,12 +82,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next Version Planned changes
 
 - Try to add LumaPLay into the achievements detection
-- Fix the `Theme Migration`
 - Fix local `Steam` achievements, still with some issues
 
 ## TBD - v2.1.3.1
 
 - Fixed the `Local` achievements not respecting the language setting
+  - Added an API token fetch or manual insert for the hidden achievements
 - Fix the extension not clearing the `Steam` authentication
 - Added `SteamGridDB` as a icon fetcher for `SteamHunters` and `Completionist` metadata providers
   - If no icon found, will add the cover image as icon
@@ -97,6 +97,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
   - Completionest.me
   - IGDB
 - Add more settings to the overlay notification
+- Fix the `Theme Migration`
 
 ## 2026-05-01 - v2.1.3.1
 

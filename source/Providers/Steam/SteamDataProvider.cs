@@ -25,7 +25,8 @@ namespace PlayniteAchievements.Providers.Steam
             ILogger logger,
             PlayniteAchievementsSettings settings,
             IPlayniteAPI api,
-            string pluginUserDataPath)
+            string pluginUserDataPath,
+            SteamApiTokenService steamApiTokenService = null)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
             if (settings == null) throw new ArgumentNullException(nameof(settings));
@@ -42,6 +43,12 @@ namespace PlayniteAchievements.Providers.Steam
             var steamApiClient = new SteamApiClient(_steamClient.ApiHttpClient, logger);
             var tokenResolver = new SteamWebApiTokenResolver(_sessionManager, _steamClient.GetWebApiTokenAsync, logger);
             _scanner = new SteamScanner(settings, _steamClient, steamApiClient, tokenResolver, api, logger);
+
+            // Wire the session token delegate so LocalSavesProvider can use the authenticated token.
+            if (steamApiTokenService != null)
+            {
+                steamApiTokenService.GetSessionTokenAsync = _steamClient.GetWebApiTokenAsync;
+            }
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Steam");

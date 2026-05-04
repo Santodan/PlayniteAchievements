@@ -259,6 +259,46 @@
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
+
+                    <!-- Steam Web API Key -->
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Top"
+                                   Margin="0,8,0,0"/>
+
+                        <StackPanel Grid.Column="1">
+                            <!-- Session-active notice (shown when authenticated) -->
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey_SessionActive}"
+                                       Margin="0,4,0,8"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBox Text="{Binding Settings.SteamWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="4"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>

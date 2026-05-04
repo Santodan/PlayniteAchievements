@@ -532,6 +532,9 @@
     <!-- Provider: Steam -->
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId">Steam User ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamUserId_Help">Your 64-bit Steam ID. This is automatically detected when you authenticate.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamWebApiKey">Steam Web API Key</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamWebApiKey_Help">Optional. Used to fetch localized achievement text (including hidden achievement descriptions). When you are authenticated with Steam, the session token is used automatically — you only need to fill this in if you are not authenticated. Get a free key at steamcommunity.com/dev/apikey</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamWebApiKey_SessionActive">You are authenticated with Steam. The session token will be used automatically to fetch localized achievement metadata — no API key needed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Steam Web API authenticated. This path takes priority while the API key is valid.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiNeedsUserId">Steam Web API key is configured, but the Steam User ID is not known yet. Authenticate once to detect it, or continue with web-only mode.</sys:String>
