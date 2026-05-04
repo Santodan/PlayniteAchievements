@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using HtmlAgilityPack;
+using Microsoft.Win32;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Common;
@@ -36,6 +37,12 @@ namespace PlayniteAchievements.Providers.Local
         private static readonly Regex SteamHuntersPublicSteamIdRegex = new Regex(
             @"""privacyState"":(?<privacy>\d+).*?""steamId"":""(?<id>\d{17})""",
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex ManualAppIdInNotesRegex = new Regex(
+            @"(?:steamid|appid|gameid|uplayid|ubisoftid|lumaplayid)\s*[:=]\s*(\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex SteamSchemaAppIdInNotesRegex = new Regex(
+            @"(?:steamid|steamappid|steam[_\s]?app[_\s]?id)\s*[:=]\s*(\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly string[] InstallSchemaRelativePaths =
         {
             @"steam_settings\achievements.json",
@@ -61,6 +68,8 @@ namespace PlayniteAchievements.Providers.Local
         private readonly Dictionary<int, SchemaAndPercentages> _steamSchemaCache = new Dictionary<int, SchemaAndPercentages>();
         private readonly Dictionary<int, string> _steamSchemaSourceCache = new Dictionary<int, string>();
         private readonly Dictionary<int, string> _steamSchemaLanguageCache = new Dictionary<int, string>();
+        // Maps Playnite game name → resolved Steam App ID for LumaPlay games (0 = not found / not applicable)
+        private readonly Dictionary<string, int> _lumaPlaySteamAppIdCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly object _discoveryCacheLock = new object();
         private readonly Dictionary<string, IReadOnlyList<string>> _localFolderCandidatesCache = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, IReadOnlyList<string>> _steamAppCacheSchemaFilePathsCache = new Dictionary<int, IReadOnlyList<string>>();
@@ -141,6 +150,11 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
+            if (IsWindowsPlatform() && TryGetLumaPlayRegistryEntries(appIdText)?.Count > 0)
+            {
+                return true;
+            }
+
             return SupportsSchemaOnlyManualFallback(game);
         }
 
@@ -164,7 +178,14 @@ namespace PlayniteAchievements.Providers.Local
                 iniPath = ResolveAchievementFilePath(localFolderPath, "achievements.ini");
             }
 
+            Dictionary<string, LocalEntry> lumaRegistryEntries = null;
+            if (IsWindowsPlatform() && string.IsNullOrWhiteSpace(jsonPath) && string.IsNullOrWhiteSpace(iniPath))
+            {
+                lumaRegistryEntries = TryGetLumaPlayRegistryEntries(appId);
+            }
+
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || !string.IsNullOrWhiteSpace(iniPath);
+            var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
             var preferLocalizedSchemaText = ShouldPreferLocalizedSteamText();
 
             SchemaAndPercentages steamSchema = null;
@@ -173,10 +194,30 @@ namespace PlayniteAchievements.Providers.Local
             var schemaLookupByText = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
             var schemaLookupByTitle = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
             int appIdInt = 0;
+            int steamSchemaAppIdInt = 0;
             if (int.TryParse(appId, out appIdInt))
             {
-                steamSchema = await TryGetSteamSchemaAsync(appIdInt).ConfigureAwait(false);
-                steamSchemaSource = _steamSchemaSourceCache.TryGetValue(appIdInt, out var resolvedSource)
+                steamSchemaAppIdInt = appIdInt;
+                if (TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
+                {
+                    steamSchemaAppIdInt = resolvedSteamSchemaAppId;
+                }
+
+                // For LumaPlay (Uplay/Ubisoft Connect) games: the registry key uses a Uplay game ID,
+                // which differs from the Steam App ID. If no explicit schema override was set via Links
+                // or Notes, auto-resolve the correct Steam App ID by searching Steam Store by game name.
+                if (hasLumaRegistryEntries && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
+                {
+                    var autoSteamAppId = await TryResolveSteamAppIdByGameNameAsync(game.Name).ConfigureAwait(false);
+                    if (autoSteamAppId > 0 && autoSteamAppId != appIdInt)
+                    {
+                        steamSchemaAppIdInt = autoSteamAppId;
+                        Log($"LUMA AUTO-RESOLVE: game='{game.Name}' uplayAppId={appIdInt} steamAppId={autoSteamAppId}");
+                    }
+                }
+
+                steamSchema = await TryGetSteamSchemaAsync(steamSchemaAppIdInt).ConfigureAwait(false);
+                steamSchemaSource = _steamSchemaSourceCache.TryGetValue(steamSchemaAppIdInt, out var resolvedSource)
                     ? resolvedSource
                     : null;
                 if (steamSchema?.Achievements != null)
@@ -186,6 +227,11 @@ namespace PlayniteAchievements.Providers.Local
                         .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
                     schemaLookupByText = BuildSchemaLookupByText(steamSchema.Achievements);
                     schemaLookupByTitle = BuildSchemaLookupByTitle(steamSchema.Achievements);
+                }
+
+                if (steamSchemaAppIdInt != appIdInt)
+                {
+                    Log($"SCHEMA APPID OVERRIDE: game={game?.Name} localAppId={appIdInt} steamSchemaAppId={steamSchemaAppIdInt}");
                 }
             }
 
@@ -210,6 +256,7 @@ namespace PlayniteAchievements.Providers.Local
             var hasSchemaAchievements = steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0;
 
             if (!hasResolvedLocalFolder &&
+                !hasLumaRegistryEntries &&
                 !hasSchemaAchievements &&
                 steamLocalProgress == null &&
                 (steamAppCacheEntries == null || steamAppCacheEntries.Count == 0) &&
@@ -234,72 +281,90 @@ namespace PlayniteAchievements.Providers.Local
 
             try
             {
+                Dictionary<string, LocalEntry> raw = null;
+                var rawSource = "local save data";
+
                 if (hasAchievementsFile)
                 {
-                    var raw = await LoadLocalEntriesAsync(jsonPath, iniPath).ConfigureAwait(false);
-                    if (raw.Count > 0)
+                    raw = await LoadLocalEntriesAsync(jsonPath, iniPath).ConfigureAwait(false);
+                }
+
+                if ((raw == null || raw.Count == 0) && hasLumaRegistryEntries)
+                {
+                    raw = lumaRegistryEntries;
+                    rawSource = "LumaPlay registry";
+                }
+
+                if (raw != null && raw.Count > 0)
+                {
+                    if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                     {
-                        if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                        // For LumaPlay registry entries, normalize the key names to match the Steam
+                        // schema names before correlation. LumaPlay may store names with or without
+                        // an "ach_" prefix compared to how the same game's Steam schema names them.
+                        if (rawSource == "LumaPlay registry")
                         {
-                            raw = RemapGenericAchievementEntries(raw, steamSchema.Achievements);
+                            raw = NormalizeLumaPlayNamesAgainstSchema(raw, steamSchema.Achievements);
                         }
 
-                        var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        var shouldExpandSchemaFirst = ShouldExpandSchemaAchievementsForLocalEntries(steamSchemaSource);
-                        var correlatedCount = 0;
+                        raw = RemapGenericAchievementEntries(raw, steamSchema.Achievements);
+                    }
 
-                        if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var shouldExpandSchemaFirst = ShouldExpandSchemaAchievementsForLocalEntries(steamSchemaSource);
+                    var correlatedCount = 0;
+
+                    if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    {
+                        foreach (var schemaAch in steamSchema.Achievements)
                         {
-                            foreach (var schemaAch in steamSchema.Achievements)
+                            if (string.IsNullOrWhiteSpace(schemaAch?.Name))
                             {
-                                if (string.IsNullOrWhiteSpace(schemaAch?.Name))
-                                {
-                                    continue;
-                                }
-
-                                raw.TryGetValue(schemaAch.Name, out var entry);
-                                data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText));
-                                added.Add(schemaAch.Name);
-                            }
-                        }
-
-                        var remaining = raw.Where(kv => !added.Contains(kv.Key));
-                        if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
-                        {
-                            remaining = remaining.Where(kv => !IsGenericAchievementId(kv.Key));
-                        }
-
-                        foreach (var kv in remaining)
-                        {
-                            var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
-                            if (schemaAch != null)
-                            {
-                                correlatedCount++;
+                                continue;
                             }
 
-                            data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
+                            raw.TryGetValue(schemaAch.Name, out var entry);
+                            data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText));
+                            added.Add(schemaAch.Name);
+                        }
+                    }
+
+                    var remaining = raw.Where(kv => !added.Contains(kv.Key));
+                    if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    {
+                        remaining = remaining.Where(kv => !IsGenericAchievementId(kv.Key));
+                    }
+
+                    foreach (var kv in remaining)
+                    {
+                        var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
+                        if (schemaAch != null)
+                        {
+                            correlatedCount++;
                         }
 
-                        if (!shouldExpandSchemaFirst && steamSchema?.Achievements?.Count > 0)
-                        {
-                            Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedCount}");
-                            if (correlatedCount == 0)
-                            {
-                                Log($"SCHEMA CORRELATION LIMITATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} reason=title-only-source-no-match");
-                            }
-                        }
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
+                    }
 
-                        FilterPlaceholderLocalAchievements(data);
-                        if (data.Achievements.Count == 0)
+                    if (!shouldExpandSchemaFirst && steamSchema?.Achievements?.Count > 0)
+                    {
+                        Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedCount}");
+                        if (correlatedCount == 0)
                         {
-                            Log($"INFO: {game.Name} - Ignored local achievements with placeholder descriptions.");
+                            Log($"SCHEMA CORRELATION LIMITATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} reason=title-only-source-no-match");
                         }
-                        else
-                        {
-                            PreserveCachedLocalMetadata(data);
-                            Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from local save data. schemaSource={steamSchemaSource ?? "none"}");
-                            return data;
-                        }
+                    }
+
+                    FilterPlaceholderLocalAchievements(data);
+                    if (data.Achievements.Count == 0)
+                    {
+                        Log($"INFO: {game.Name} - Ignored local achievements with placeholder descriptions.");
+                    }
+                    else
+                    {
+                        PreserveCachedLocalMetadata(data);
+                        Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} achievements from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
+                        return data;
                     }
                 }
 
@@ -667,10 +732,227 @@ namespace PlayniteAchievements.Providers.Local
             }
             if (!string.IsNullOrEmpty(game.Notes))
             {
-                var match = Regex.Match(game.Notes, @"SteamID[:\s]+(\d+)", RegexOptions.IgnoreCase);
-                if (match.Success) return match.Groups[1].Value;
+                if (TryExtractAppIdFromNotes(game.Notes, out var notesAppId))
+                {
+                    return notesAppId.ToString(CultureInfo.InvariantCulture);
+                }
             }
             return null;
+        }
+
+        private static bool TryExtractAppIdFromNotes(string notes, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(notes))
+            {
+                return false;
+            }
+
+            var match = ManualAppIdInNotesRegex.Match(notes);
+            if (!match.Success)
+            {
+                return false;
+            }
+
+            return int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) && appId > 0;
+        }
+
+        private static bool TryResolveSteamSchemaAppId(Game game, int defaultAppId, out int schemaAppId)
+        {
+            schemaAppId = defaultAppId;
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (game.Links != null)
+            {
+                foreach (var link in game.Links)
+                {
+                    var match = Regex.Match(link?.Url ?? string.Empty, @"/app/(\d+)", RegexOptions.IgnoreCase);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appIdFromLink) && appIdFromLink > 0)
+                    {
+                        schemaAppId = appIdFromLink;
+                        return true;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(game.Notes))
+            {
+                var notesMatch = SteamSchemaAppIdInNotesRegex.Match(game.Notes);
+                if (notesMatch.Success && int.TryParse(notesMatch.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var appIdFromNotes) && appIdFromNotes > 0)
+                {
+                    schemaAppId = appIdFromNotes;
+                    return true;
+                }
+            }
+
+            return schemaAppId > 0;
+        }
+
+        /// <summary>
+        /// Queries the Steam Store search API by game name to find the Steam App ID for a LumaPlay
+        /// (Uplay/Ubisoft Connect) game. Results are cached in memory per game name.
+        /// Returns 0 if no confident match is found or the request fails.
+        /// </summary>
+        private async Task<int> TryResolveSteamAppIdByGameNameAsync(string gameName)
+        {
+            if (string.IsNullOrWhiteSpace(gameName))
+            {
+                return 0;
+            }
+
+            if (_lumaPlaySteamAppIdCache.TryGetValue(gameName, out var cachedId))
+            {
+                return cachedId;
+            }
+
+            try
+            {
+                var normalizedQuery = NormalizeGameNameForSteamSearch(gameName);
+                if (string.IsNullOrWhiteSpace(normalizedQuery))
+                {
+                    _lumaPlaySteamAppIdCache[gameName] = 0;
+                    return 0;
+                }
+
+                var encoded = Uri.EscapeDataString(normalizedQuery);
+                var url = $"https://store.steampowered.com/api/storesearch/?term={encoded}&l=english&cc=US";
+
+                using (var client = CreateAnonymousSteamHttpClient())
+                {
+                    var json = await client.GetStringAsync(url).ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        _lumaPlaySteamAppIdCache[gameName] = 0;
+                        return 0;
+                    }
+
+                    var root = JObject.Parse(json);
+                    var items = root["items"] as JArray;
+                    if (items == null || items.Count == 0)
+                    {
+                        _lumaPlaySteamAppIdCache[gameName] = 0;
+                        return 0;
+                    }
+
+                    int bestId = 0;
+                    double bestScore = 0.0;
+
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        if (!(items[i] is JObject item))
+                        {
+                            continue;
+                        }
+
+                        var type = item["type"]?.Value<string>();
+                        if (!string.Equals(type, "app", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        var itemId = item["id"]?.Value<int>() ?? 0;
+                        var itemName = item["name"]?.Value<string>();
+                        if (itemId <= 0 || string.IsNullOrWhiteSpace(itemName))
+                        {
+                            continue;
+                        }
+
+                        var normalizedItemName = NormalizeGameNameForSteamSearch(itemName);
+                        var score = ComputeNameSimilarity(normalizedQuery, normalizedItemName);
+                        if (score > bestScore)
+                        {
+                            bestScore = score;
+                            bestId = itemId;
+                        }
+
+                        // First result with very high confidence — stop early
+                        if (i == 0 && score >= 0.85)
+                        {
+                            break;
+                        }
+                    }
+
+                    // Only accept results above a confidence threshold
+                    var resolvedId = bestScore >= 0.5 ? bestId : 0;
+                    _lumaPlaySteamAppIdCache[gameName] = resolvedId;
+
+                    if (resolvedId > 0)
+                    {
+                        Log($"LUMA STEAM SEARCH: game='{gameName}' normalized='{normalizedQuery}' steamAppId={resolvedId} score={bestScore:F2}");
+                    }
+                    else
+                    {
+                        Log($"LUMA STEAM SEARCH: game='{gameName}' no confident Steam match (bestScore={bestScore:F2})");
+                    }
+
+                    return resolvedId;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[Local] Steam store search failed for game '{gameName}'.");
+                _lumaPlaySteamAppIdCache[gameName] = 0;
+                return 0;
+            }
+        }
+
+        private static string NormalizeGameNameForSteamSearch(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return name ?? string.Empty;
+            }
+
+            // Strip trademark/copyright symbols
+            name = Regex.Replace(name, @"[™®©]", string.Empty);
+            // Strip trailing parenthetical qualifiers: "(Steam Version)", "(RU)", etc.
+            name = Regex.Replace(name, @"\s*\([^)]{1,30}\)\s*$", string.Empty);
+            // Normalize whitespace
+            name = Regex.Replace(name, @"\s+", " ").Trim();
+            return name;
+        }
+
+        private static double ComputeNameSimilarity(string a, string b)
+        {
+            if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+            {
+                return 0.0;
+            }
+
+            a = a.ToLowerInvariant();
+            b = b.ToLowerInvariant();
+
+            if (string.Equals(a, b, StringComparison.Ordinal))
+            {
+                return 1.0;
+            }
+
+            var sep = new char[] { ' ', '-', '_', ':', '.', '\'', '"' };
+            var tokensA = new HashSet<string>(
+                a.Split(sep, StringSplitOptions.RemoveEmptyEntries),
+                StringComparer.Ordinal);
+            var tokensB = new HashSet<string>(
+                b.Split(sep, StringSplitOptions.RemoveEmptyEntries),
+                StringComparer.Ordinal);
+
+            if (tokensA.Count == 0 || tokensB.Count == 0)
+            {
+                return 0.0;
+            }
+
+            int matches = 0;
+            foreach (var token in tokensA)
+            {
+                if (tokensB.Contains(token))
+                {
+                    matches++;
+                }
+            }
+
+            return (double)matches / Math.Max(tokensA.Count, tokensB.Count);
         }
 
         private bool SupportsSchemaOnlyManualFallback(Game game)
@@ -707,8 +989,7 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            if (!string.IsNullOrWhiteSpace(game.Notes) &&
-                Regex.IsMatch(game.Notes, @"SteamID[:\s]+(\d+)", RegexOptions.IgnoreCase))
+            if (TryExtractAppIdFromNotes(game.Notes, out _))
             {
                 return true;
             }
@@ -2464,6 +2745,456 @@ namespace PlayniteAchievements.Providers.Local
             return string.Equals(iconPath, legacyDefaultIcon, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(normalizedIconPath, defaultIcon, StringComparison.OrdinalIgnoreCase);
         }
+
+        private static bool IsWindowsPlatform()
+        {
+            return Environment.OSVersion.Platform == PlatformID.Win32NT;
+        }
+
+#pragma warning disable CA1416
+        private Dictionary<string, LocalEntry> TryGetLumaPlayRegistryEntries(string appId)
+        {
+            if (string.IsNullOrWhiteSpace(appId))
+            {
+                return null;
+            }
+
+            foreach (var candidateAppId in BuildLumaPlayAppIdCandidates(appId))
+            {
+                if (!TryResolveLumaPlayAchievementsRegistryPath(candidateAppId, out var registryPath, out var userSegment))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    using (var key = Registry.CurrentUser.OpenSubKey(registryPath, false))
+                    {
+                        if (key == null)
+                        {
+                            continue;
+                        }
+
+                        var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var valueName in key.GetValueNames())
+                        {
+                            var normalizedName = valueName?.Trim();
+                            if (string.IsNullOrWhiteSpace(normalizedName))
+                            {
+                                continue;
+                            }
+
+                            var rawValue = key.GetValue(valueName, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
+                            RegistryValueKind valueKind;
+                            try
+                            {
+                                valueKind = key.GetValueKind(valueName);
+                            }
+                            catch
+                            {
+                                valueKind = RegistryValueKind.Unknown;
+                            }
+
+                            var unlocked = false;
+                            if (!TryReadLumaPlayRegistryUnlockedValue(valueKind, rawValue, out unlocked))
+                            {
+                                unlocked = false;
+                            }
+
+                            entries[normalizedName] = new LocalEntry
+                            {
+                                earned = unlocked,
+                                earned_time = 0,
+                                displayName = normalizedName,
+                                description = "LumaPlay registry achievement"
+                            };
+                        }
+
+                        if (entries.Count > 0)
+                        {
+                            Log($"LUMAPLAY REGISTRY: appId={candidateAppId} user={userSegment} values={entries.Count} path=HKCU\\{registryPath}");
+                            // Apply canonical name resolution using the local Ubisoft Connect
+                            // game config (achievements.json). This is the same operation the
+                            // reference JS performs via getNameIndexFromConfigPath + resolveCanonicalName.
+                            var ubisoftNameIndex = TryBuildUbisoftConnectNameIndex(candidateAppId);
+                            if (ubisoftNameIndex != null && ubisoftNameIndex.Count > 0)
+                            {
+                                var resolved = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+                                foreach (var kv in entries)
+                                {
+                                    var canonical = ResolveUbisoftCanonicalName(kv.Key, ubisoftNameIndex);
+                                    resolved[canonical] = kv.Value;
+                                }
+                                entries = resolved;
+                                Log($"LUMAPLAY UBISOFT CONFIG: appId={candidateAppId} resolved={entries.Count} names from local achievements.json");
+                            }
+                            return entries;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"LUMAPLAY REGISTRY ERROR: appId={candidateAppId} path=HKCU\\{registryPath} msg={ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Remaps LumaPlay registry entry names to match Steam schema names when there is an
+        /// "ach_" prefix mismatch. LumaPlay may store achievements as "ACH_FOO" while the Steam
+        /// schema (and Ubisoft's own config) uses "FOO" as the canonical name, or vice versa.
+        /// Any entry whose raw name is not found in the schema is left unchanged.
+        /// </summary>
+        private static Dictionary<string, LocalEntry> NormalizeLumaPlayNamesAgainstSchema(
+            Dictionary<string, LocalEntry> entries,
+            IReadOnlyList<SchemaAchievement> schemaAchievements)
+        {
+            if (entries == null || entries.Count == 0 || schemaAchievements == null || schemaAchievements.Count == 0)
+            {
+                return entries;
+            }
+
+            var schemaNames = new HashSet<string>(
+                schemaAchievements
+                    .Where(a => !string.IsNullOrWhiteSpace(a?.Name))
+                    .Select(a => a.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            var remapped = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var kv in entries)
+            {
+                var rawName = kv.Key;
+
+                // 1. Already matches a schema name → keep as-is
+                if (schemaNames.Contains(rawName))
+                {
+                    remapped[rawName] = kv.Value;
+                    continue;
+                }
+
+                string resolvedName = null;
+
+                // 2. Strip "ach_" prefix and try again (LumaPlay stores ACH_FOO, schema has FOO)
+                if (rawName.StartsWith("ach_", StringComparison.OrdinalIgnoreCase) && rawName.Length > 4)
+                {
+                    var stripped = rawName.Substring(4);
+                    if (schemaNames.Contains(stripped))
+                    {
+                        resolvedName = stripped;
+                    }
+                }
+
+                // 3. Add "ACH_" prefix and try (LumaPlay stores FOO, schema has ACH_FOO)
+                if (resolvedName == null && !rawName.StartsWith("ach_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var prefixed = "ACH_" + rawName;
+                    if (schemaNames.Contains(prefixed))
+                    {
+                        resolvedName = prefixed;
+                    }
+                }
+
+                remapped[resolvedName ?? rawName] = kv.Value;
+            }
+
+            return remapped;
+        }
+
+        /// <summary>
+        /// Tries to load the Ubisoft Connect / Uplay local game config (achievements.json) for the
+        /// given Uplay app ID. The config lives in the Ubisoft Game Launcher data directory and maps
+        /// internal achievement names (canonical) to their display data.
+        /// Returns a case-insensitive dictionary mapping every known name variant to the canonical name.
+        /// </summary>
+        private static Dictionary<string, string> TryBuildUbisoftConnectNameIndex(string uplayAppId)
+        {
+            if (string.IsNullOrWhiteSpace(uplayAppId))
+            {
+                return null;
+            }
+
+            // Typical Ubisoft Connect / Uplay installation locations
+            var baseCandidates = new[]
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Ubisoft", "Ubisoft Game Launcher"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Ubisoft", "Ubisoft Connect"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Ubisoft", "Ubisoft Game Launcher"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Ubisoft", "Ubisoft Connect"),
+            };
+
+            foreach (var base_ in baseCandidates)
+            {
+                if (!Directory.Exists(base_))
+                {
+                    continue;
+                }
+
+                var configPaths = new[]
+                {
+                    Path.Combine(base_, "data", uplayAppId, "achievements.json"),
+                    Path.Combine(base_, "data", uplayAppId, "GameConfig.json"),
+                };
+
+                foreach (var configPath in configPaths)
+                {
+                    if (!File.Exists(configPath))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        var json = File.ReadAllText(configPath, System.Text.Encoding.UTF8);
+                        var arr = JArray.Parse(json);
+                        return BuildUbisoftAchievementNameIndex(arr);
+                    }
+                    catch
+                    {
+                        // Config file format unexpected or unreadable — skip
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Builds a name lookup dictionary from a parsed Ubisoft achievements.json array.
+        /// Maps each name variant (with/without "ach_" prefix, normalized) to the canonical name.
+        /// Mirrors what the reference JS does in buildNameOnlyIndex + buildDisplayToNameIndex.
+        /// </summary>
+        private static Dictionary<string, string> BuildUbisoftAchievementNameIndex(JArray configArray)
+        {
+            var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in configArray)
+            {
+                if (!(item is JObject entry))
+                {
+                    continue;
+                }
+
+                var canonical = entry["name"]?.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(canonical))
+                {
+                    continue;
+                }
+
+                // Map the canonical name itself
+                index[canonical] = canonical;
+
+                // If canonical does NOT start with "ach_", also register the "ach_"-prefixed variant
+                if (!canonical.StartsWith("ach_", StringComparison.OrdinalIgnoreCase))
+                {
+                    var alias = "ACH_" + canonical;
+                    if (!index.ContainsKey(alias))
+                    {
+                        index[alias] = canonical;
+                    }
+                }
+                else
+                {
+                    // Canonical starts with "ach_" — also register the stripped variant
+                    var stripped = canonical.Substring(4);
+                    if (!string.IsNullOrWhiteSpace(stripped) && !index.ContainsKey(stripped))
+                    {
+                        index[stripped] = canonical;
+                    }
+                }
+
+                // Also map display names (localized) so achievement.ini section title lookups work
+                var displayName = entry["displayName"];
+                if (displayName is JObject localizedMap)
+                {
+                    foreach (var prop in localizedMap.Properties())
+                    {
+                        var dn = prop.Value?.Value<string>()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(dn) && !index.ContainsKey(dn))
+                        {
+                            index[dn] = canonical;
+                        }
+                    }
+                }
+                else if (displayName != null)
+                {
+                    var dn = displayName.Value<string>()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(dn) && !index.ContainsKey(dn))
+                    {
+                        index[dn] = canonical;
+                    }
+                }
+            }
+
+            return index;
+        }
+
+        /// <summary>
+        /// Resolves a raw registry value name to its canonical form using the Ubisoft name index.
+        /// Falls back to the raw name if no match is found (same as JS resolveCanonicalName fallback).
+        /// </summary>
+        private static string ResolveUbisoftCanonicalName(string rawName, Dictionary<string, string> nameIndex)
+        {
+            if (string.IsNullOrWhiteSpace(rawName) || nameIndex == null)
+            {
+                return rawName ?? string.Empty;
+            }
+
+            if (nameIndex.TryGetValue(rawName, out var canonical))
+            {
+                return canonical;
+            }
+
+            // Try stripped "ach_" prefix
+            if (rawName.StartsWith("ach_", StringComparison.OrdinalIgnoreCase) && rawName.Length > 4)
+            {
+                var stripped = rawName.Substring(4);
+                if (nameIndex.TryGetValue(stripped, out canonical))
+                {
+                    return canonical;
+                }
+            }
+
+            // Fall back to raw name (same as JS "return candidates[candidates.length - 1] || """)
+            return rawName;
+        }
+
+        private static IEnumerable<string> BuildLumaPlayAppIdCandidates(string appId)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var normalized = appId?.Trim();
+            if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
+            {
+                yield return normalized;
+            }
+
+            if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numericAppId) && numericAppId > 0)
+            {
+                var hexLower = numericAppId.ToString("x", CultureInfo.InvariantCulture);
+                if (seen.Add(hexLower))
+                {
+                    yield return hexLower;
+                }
+
+                var hexUpper = numericAppId.ToString("X", CultureInfo.InvariantCulture);
+                if (seen.Add(hexUpper))
+                {
+                    yield return hexUpper;
+                }
+            }
+        }
+
+        private static bool TryResolveLumaPlayAchievementsRegistryPath(string appId, out string registryPath, out string userSegment)
+        {
+            registryPath = null;
+            userSegment = null;
+
+            if (string.IsNullOrWhiteSpace(appId))
+            {
+                return false;
+            }
+
+            using (var root = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\LumaPlay", false))
+            {
+                if (root == null)
+                {
+                    return false;
+                }
+
+                foreach (var userName in root.GetSubKeyNames().Where(name => !string.IsNullOrWhiteSpace(name)).OrderBy(name => name, StringComparer.OrdinalIgnoreCase))
+                {
+                    var candidatePath = $@"SOFTWARE\LumaPlay\{userName}\{appId}\Achievements";
+                    using (var achievementKey = Registry.CurrentUser.OpenSubKey(candidatePath, false))
+                    {
+                        if (achievementKey == null)
+                        {
+                            continue;
+                        }
+
+                        registryPath = candidatePath;
+                        userSegment = userName;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryReadLumaPlayRegistryUnlockedValue(RegistryValueKind valueKind, object value, out bool unlocked)
+        {
+            unlocked = false;
+            if (value == null)
+            {
+                return false;
+            }
+
+            switch (value)
+            {
+                case bool boolValue:
+                    unlocked = boolValue;
+                    return true;
+                case byte byteValue:
+                    unlocked = byteValue > 0;
+                    return true;
+                case short shortValue:
+                    unlocked = shortValue > 0;
+                    return true;
+                case int intValue:
+                    unlocked = intValue > 0;
+                    return true;
+                case long longValue:
+                    unlocked = longValue > 0;
+                    return true;
+                case ushort ushortValue:
+                    unlocked = ushortValue > 0;
+                    return true;
+                case uint uintValue:
+                    unlocked = uintValue > 0;
+                    return true;
+                case ulong ulongValue:
+                    unlocked = ulongValue > 0;
+                    return true;
+                case byte[] bytes:
+                    unlocked = bytes.Any(b => b != 0);
+                    return true;
+            }
+
+            var text = Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            if (TryParseUnlockedValue(text, out unlocked))
+            {
+                return true;
+            }
+
+            if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(text.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var hexNumber))
+            {
+                unlocked = hexNumber > 0;
+                return true;
+            }
+
+            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var decimalNumber))
+            {
+                unlocked = decimalNumber > 0;
+                return true;
+            }
+
+            if (valueKind == RegistryValueKind.MultiString && value is string[] values)
+            {
+                unlocked = values.Any(part => TryParseUnlockedValue(part, out var parsed) && parsed);
+                return true;
+            }
+
+            return false;
+        }
+#pragma warning restore CA1416
 
         private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, string iniPath)
         {
