@@ -9,13 +9,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using HtmlAgilityPack;
 
 namespace PlayniteAchievements.Providers.Steam
 {
     internal sealed class SteamScanner
     {
+        private static readonly Regex GenericAchievementNamePattern = new Regex(
+            @"^(ach(ieve(ment)?)?|stat|unlock|trophy|badge)[_\-\s]?\d+$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private sealed class SteamTransientException : Exception
         {
             public SteamTransientException(string message)
@@ -325,12 +332,47 @@ namespace PlayniteAchievements.Providers.Steam
 
         private Task<SchemaAndPercentages> FetchSchemaAsync(string accessToken, int appId, CancellationToken cancel)
         {
-            var language = string.IsNullOrWhiteSpace(_settings.Persisted.GlobalLanguage) ? "english" : _settings.Persisted.GlobalLanguage.Trim();
-            return _steamApiClient.GetSchemaForGameDetailedAsync(
+            var language = SteamApiClient.NormalizeSteamLanguage(_settings.Persisted.GlobalLanguage);
+            return FetchSchemaWithLocalizedHiddenTextAsync(
                 accessToken,
                 appId,
                 language,
                 cancel);
+        }
+
+        private async Task<SchemaAndPercentages> FetchSchemaWithLocalizedHiddenTextAsync(string accessToken, int appId, string language, CancellationToken cancel)
+        {
+            var schema = await _steamApiClient.GetSchemaForGameDetailedAsync(
+                accessToken,
+                appId,
+                language,
+                cancel).ConfigureAwait(false);
+
+            if (schema?.Achievements == null || schema.Achievements.Count == 0 ||
+                string.IsNullOrWhiteSpace(language) ||
+                string.Equals(language.Trim(), "english", StringComparison.OrdinalIgnoreCase))
+            {
+                return schema;
+            }
+
+            try
+            {
+                using (var httpClient = CreateSteamCommunityHttpClient())
+                {
+                    var localizedCommunitySchema = await TryGetSteamCommunityStatsSchemaAsync(httpClient, appId, language, cancel).ConfigureAwait(false);
+                    var englishCommunitySchema = await TryGetSteamCommunityStatsSchemaAsync(httpClient, appId, "english", cancel).ConfigureAwait(false);
+                    var localizedBridge = BuildCommunityLocalizedBridge(
+                        englishCommunitySchema?.Achievements,
+                        localizedCommunitySchema?.Achievements);
+                    ApplyLocalizedCommunityTextToSchema(schema.Achievements, localizedBridge);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[SteamAch] Failed applying localized hidden achievement text bridge for appId={appId}.");
+            }
+
+            return schema;
         }
 
         private async Task<UserUnlockedAchievements> FetchUnlockedAsync(
@@ -531,7 +573,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return res;
             }
 
-            var language = string.IsNullOrWhiteSpace(_settings.Persisted.GlobalLanguage) ? "english" : _settings.Persisted.GlobalLanguage.Trim();
+            var language = SteamApiClient.NormalizeSteamLanguage(_settings.Persisted.GlobalLanguage);
             var requested = BuildAchievementsUrl(resolved, appId, language);
             res.RequestedUrl = requested;
 
@@ -751,6 +793,439 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return false;
+        }
+
+        private static HttpClient CreateSteamCommunityHttpClient()
+        {
+            var client = new HttpClient();
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
+            return client;
+        }
+
+        private async Task<SchemaAndPercentages> TryGetSteamCommunityStatsSchemaAsync(HttpClient httpClient, int appId, string language, CancellationToken cancel)
+        {
+            if (httpClient == null || appId <= 0)
+            {
+                return null;
+            }
+
+            try
+            {
+                var resolvedLanguage = SteamApiClient.NormalizeSteamLanguage(language);
+                var url = $"https://steamcommunity.com/stats/{appId}/achievements?l={resolvedLanguage}";
+                using (var response = await httpClient.GetAsync(url, cancel).ConfigureAwait(false))
+                {
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        return null;
+                    }
+
+                    var html = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(html))
+                    {
+                        return null;
+                    }
+
+                    var doc = new HtmlDocument();
+                    doc.LoadHtml(html);
+
+                    var rows = doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveRow')]") ??
+                               doc.DocumentNode.SelectNodes("//div[contains(@class,'achieveTxtHolder')]");
+                    if (rows == null || rows.Count == 0)
+                    {
+                        return null;
+                    }
+
+                    var achievements = new List<SchemaAchievement>();
+                    var titleCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var row in rows)
+                    {
+                        var title = WebUtility.HtmlDecode(row.SelectSingleNode(".//h3")?.InnerText ?? string.Empty).Trim();
+                        if (string.IsNullOrWhiteSpace(title))
+                        {
+                            continue;
+                        }
+
+                        titleCounts[title] = titleCounts.TryGetValue(title, out var currentCount)
+                            ? currentCount + 1
+                            : 1;
+
+                        var description = WebUtility.HtmlDecode(row.SelectSingleNode(".//h5")?.InnerText ?? string.Empty).Trim();
+                        var hidden = row.SelectSingleNode(".//div[contains(@class,'achieveHiddenBox')]") != null || string.IsNullOrWhiteSpace(description);
+                        var iconUrl = row.SelectSingleNode(".//img")?.GetAttributeValue("src", string.Empty)?.Trim();
+
+                        achievements.Add(new SchemaAchievement
+                        {
+                            Name = title,
+                            DisplayName = title,
+                            Description = description,
+                            Icon = string.IsNullOrWhiteSpace(iconUrl) ? null : iconUrl,
+                            IconGray = string.IsNullOrWhiteSpace(iconUrl) ? null : iconUrl,
+                            Hidden = hidden ? 1 : 0
+                        });
+                    }
+
+                    achievements = achievements
+                        .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.DisplayName))
+                        .Where(achievement => titleCounts.TryGetValue(achievement.DisplayName, out var count) && count == 1)
+                        .ToList();
+
+                    if (achievements.Count == 0)
+                    {
+                        return null;
+                    }
+
+                    return new SchemaAndPercentages
+                    {
+                        Achievements = achievements,
+                        GlobalPercentages = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                    };
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Dictionary<string, SchemaAchievement> BuildSchemaLookupByText(IReadOnlyList<SchemaAchievement> achievements)
+        {
+            var result = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
+            if (achievements == null || achievements.Count == 0)
+            {
+                return result;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                var lookupKey = BuildAchievementLookupKey(achievement.DisplayName, achievement.Description);
+                if (!string.IsNullOrWhiteSpace(lookupKey) && !result.ContainsKey(lookupKey))
+                {
+                    result[lookupKey] = achievement;
+                }
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, SchemaAchievement> BuildSchemaLookupByTitle(IReadOnlyList<SchemaAchievement> achievements)
+        {
+            var titleGroups = new Dictionary<string, List<SchemaAchievement>>(StringComparer.OrdinalIgnoreCase);
+            if (achievements == null || achievements.Count == 0)
+            {
+                return new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                var lookupKey = BuildAchievementTitleLookupKey(achievement.DisplayName);
+                if (string.IsNullOrWhiteSpace(lookupKey))
+                {
+                    continue;
+                }
+
+                if (!titleGroups.TryGetValue(lookupKey, out var bucket))
+                {
+                    bucket = new List<SchemaAchievement>();
+                    titleGroups[lookupKey] = bucket;
+                }
+
+                bucket.Add(achievement);
+            }
+
+            return titleGroups
+                .Where(group => group.Value.Count == 1)
+                .ToDictionary(group => group.Key, group => group.Value[0], StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, SchemaAchievement> BuildSchemaLookupByIcon(IReadOnlyList<SchemaAchievement> achievements, bool useLockedIcon)
+        {
+            var lookup = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
+            if (achievements == null || achievements.Count == 0)
+            {
+                return lookup;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                var iconValue = useLockedIcon ? achievement?.IconGray : achievement?.Icon;
+                var iconHash = ExtractAchievementIconHash(iconValue);
+                if (string.IsNullOrWhiteSpace(iconHash))
+                {
+                    continue;
+                }
+
+                if (!lookup.TryGetValue(iconHash, out var existing))
+                {
+                    lookup[iconHash] = achievement;
+                    continue;
+                }
+
+                if (existing != null && !ReferenceEquals(existing, achievement))
+                {
+                    lookup[iconHash] = null;
+                }
+            }
+
+            return lookup;
+        }
+
+        private static string ExtractAchievementIconHash(string iconValue)
+        {
+            iconValue = iconValue?.Trim();
+            if (string.IsNullOrWhiteSpace(iconValue))
+            {
+                return null;
+            }
+
+            if (Uri.TryCreate(iconValue, UriKind.Absolute, out var absoluteUri))
+            {
+                iconValue = absoluteUri.AbsolutePath;
+            }
+
+            var querySeparator = iconValue.IndexOf('?');
+            if (querySeparator >= 0)
+            {
+                iconValue = iconValue.Substring(0, querySeparator);
+            }
+
+            var fragmentSeparator = iconValue.IndexOf('#');
+            if (fragmentSeparator >= 0)
+            {
+                iconValue = iconValue.Substring(0, fragmentSeparator);
+            }
+
+            var lastSlash = iconValue.LastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash < iconValue.Length - 1)
+            {
+                iconValue = iconValue.Substring(lastSlash + 1);
+            }
+
+            iconValue = iconValue.Trim();
+            return string.IsNullOrWhiteSpace(iconValue)
+                ? null
+                : iconValue.ToLowerInvariant();
+        }
+
+        private static bool ShouldPreferSchemaDisplayName(string existingDisplayName, string incomingDisplayName, string apiName, bool preferSourceText)
+        {
+            incomingDisplayName = incomingDisplayName?.Trim();
+            if (string.IsNullOrWhiteSpace(incomingDisplayName) || IsLowQualityDisplayName(incomingDisplayName, apiName))
+            {
+                return false;
+            }
+
+            if (preferSourceText)
+            {
+                return !string.Equals(existingDisplayName?.Trim(), incomingDisplayName, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return IsLowQualityDisplayName(existingDisplayName, apiName);
+        }
+
+        private static bool ShouldPreferSchemaDescription(string existingDescription, string incomingDescription, bool preferSourceText)
+        {
+            incomingDescription = incomingDescription?.Trim();
+            if (string.IsNullOrWhiteSpace(incomingDescription) || IsLowQualityDescription(incomingDescription))
+            {
+                return false;
+            }
+
+            if (preferSourceText)
+            {
+                return !string.Equals(existingDescription?.Trim(), incomingDescription, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return IsLowQualityDescription(existingDescription);
+        }
+
+        private static string BuildAchievementLookupKey(string displayName, string description)
+        {
+            var normalizedName = NormalizeAchievementLookupPart(displayName);
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return null;
+            }
+
+            return normalizedName + "|" + NormalizeAchievementLookupPart(description);
+        }
+
+        private static string BuildAchievementTitleLookupKey(string displayName)
+        {
+            var normalizedName = NormalizeAchievementLookupPart(displayName);
+            return string.IsNullOrWhiteSpace(normalizedName)
+                ? null
+                : "title:" + normalizedName;
+        }
+
+        private static string NormalizeAchievementLookupPart(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            value = WebUtility.HtmlDecode(value).Trim().ToLowerInvariant();
+            value = Regex.Replace(value, @"\s+", " ");
+            return value;
+        }
+
+        private static bool IsLowQualityDisplayName(string displayName, string apiName)
+        {
+            displayName = displayName?.Trim();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                return true;
+            }
+
+            apiName = apiName?.Trim();
+            if (!string.IsNullOrWhiteSpace(apiName) && string.Equals(displayName, apiName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return GenericAchievementNamePattern.IsMatch(displayName);
+        }
+
+        private static bool IsLowQualityDescription(string description)
+        {
+            description = description?.Trim();
+            return string.IsNullOrWhiteSpace(description);
+        }
+
+        private static IReadOnlyList<SchemaAchievement> BuildCommunityLocalizedBridge(
+            IReadOnlyList<SchemaAchievement> englishAchievements,
+            IReadOnlyList<SchemaAchievement> localizedAchievements)
+        {
+            if (englishAchievements == null || localizedAchievements == null ||
+                englishAchievements.Count == 0 || localizedAchievements.Count == 0)
+            {
+                return Array.Empty<SchemaAchievement>();
+            }
+
+            var localizedByIcon = BuildSchemaLookupByIcon(localizedAchievements, useLockedIcon: false);
+            var localizedByLockedIcon = BuildSchemaLookupByIcon(localizedAchievements, useLockedIcon: true);
+            var bridge = new List<SchemaAchievement>();
+
+            foreach (var englishAchievement in englishAchievements)
+            {
+                if (englishAchievement == null || string.IsNullOrWhiteSpace(englishAchievement.DisplayName))
+                {
+                    continue;
+                }
+
+                SchemaAchievement localizedAchievement = null;
+
+                var iconHash = ExtractAchievementIconHash(englishAchievement.Icon);
+                if (!string.IsNullOrWhiteSpace(iconHash) &&
+                    localizedByIcon.TryGetValue(iconHash, out var byIcon) &&
+                    byIcon != null)
+                {
+                    localizedAchievement = byIcon;
+                }
+
+                if (localizedAchievement == null)
+                {
+                    var lockedIconHash = ExtractAchievementIconHash(englishAchievement.IconGray);
+                    if (!string.IsNullOrWhiteSpace(lockedIconHash) &&
+                        localizedByLockedIcon.TryGetValue(lockedIconHash, out var byLockedIcon) &&
+                        byLockedIcon != null)
+                    {
+                        localizedAchievement = byLockedIcon;
+                    }
+                }
+
+                if (localizedAchievement == null)
+                {
+                    continue;
+                }
+
+                bridge.Add(new SchemaAchievement
+                {
+                    Name = englishAchievement.Name,
+                    DisplayName = englishAchievement.DisplayName,
+                    Description = englishAchievement.Description,
+                    LocalizedDisplayName = localizedAchievement.DisplayName,
+                    LocalizedDescription = localizedAchievement.Description,
+                    Icon = localizedAchievement.Icon,
+                    IconGray = localizedAchievement.IconGray,
+                    Hidden = localizedAchievement.Hidden,
+                    GlobalPercent = localizedAchievement.GlobalPercent
+                });
+            }
+
+            return bridge;
+        }
+
+        private static void ApplyLocalizedCommunityTextToSchema(
+            IReadOnlyList<SchemaAchievement> targetAchievements,
+            IReadOnlyList<SchemaAchievement> localizedBridge)
+        {
+            if (targetAchievements == null || localizedBridge == null ||
+                targetAchievements.Count == 0 || localizedBridge.Count == 0)
+            {
+                return;
+            }
+
+            var bridgeByText = BuildSchemaLookupByText(localizedBridge);
+            var bridgeByTitle = BuildSchemaLookupByTitle(localizedBridge);
+
+            foreach (var target in targetAchievements)
+            {
+                if (target == null)
+                {
+                    continue;
+                }
+
+                SchemaAchievement bridgeMatch = null;
+                var textLookupKey = BuildAchievementLookupKey(target.DisplayName, target.Description);
+                if (!string.IsNullOrWhiteSpace(textLookupKey) &&
+                    bridgeByText.TryGetValue(textLookupKey, out var byText))
+                {
+                    bridgeMatch = byText;
+                }
+
+                if (bridgeMatch == null)
+                {
+                    var titleLookupKey = BuildAchievementTitleLookupKey(target.DisplayName);
+                    if (!string.IsNullOrWhiteSpace(titleLookupKey) &&
+                        bridgeByTitle.TryGetValue(titleLookupKey, out var byTitle))
+                    {
+                        bridgeMatch = byTitle;
+                    }
+                }
+
+                if (bridgeMatch == null)
+                {
+                    continue;
+                }
+
+                if (ShouldPreferSchemaDisplayName(target.DisplayName, bridgeMatch.LocalizedDisplayName, target.Name, preferSourceText: true))
+                {
+                    target.DisplayName = bridgeMatch.LocalizedDisplayName;
+                }
+
+                if (ShouldPreferSchemaDescription(target.Description, bridgeMatch.LocalizedDescription, preferSourceText: true))
+                {
+                    target.Description = bridgeMatch.LocalizedDescription;
+                }
+            }
         }
 
         private async Task MaybeClassifyNoAchievementsBySchemaAsync(AchievementsScrapeResponse res, string accessToken, int appId, CancellationToken ct)

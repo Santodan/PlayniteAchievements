@@ -704,6 +704,9 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomAutoResizeToContent):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomWrapAllText):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowBorder):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowGameName):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowMeta):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomBorderColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomAccentColor):
@@ -1159,7 +1162,16 @@ namespace PlayniteAchievements.Views
                 }
 
                 var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
-                publisher.SendUnlockPopup("Current Game", "Test Achievement", providerKey: "Local", overrideLocalSettings: localSettings);
+                var resolvedStyle = (_settingsViewModel?.Settings?.Persisted?.ProviderUnlockNotificationStyles?.TryGetValue("Local", out var ps) == true && !string.IsNullOrWhiteSpace(ps))
+                    ? ps
+                    : _settingsViewModel?.Settings?.Persisted?.DefaultUnlockNotificationStyle;
+                publisher.SendUnlockPopup(
+                    "Current Game",
+                    "Test Achievement",
+                    providerKey: "Local",
+                    forcedStyle: resolvedStyle,
+                    forcedDeliveryMode: LocalUnlockNotificationDeliveryMode.Overlay,
+                    overrideLocalSettings: localSettings);
 
                 await Task.Run(() =>
                 {
@@ -1858,6 +1870,9 @@ namespace PlayniteAchievements.Views
                     : currentName,
                 AutoResizeToContent = localSettings.OverlayCustomAutoResizeToContent,
                 WrapAllText = localSettings.OverlayCustomWrapAllText,
+                ShowBorder = localSettings.OverlayCustomShowBorder,
+                ShowGameName = localSettings.OverlayCustomShowGameName,
+                ShowMeta = localSettings.OverlayCustomShowMeta,
                 IconSize = localSettings.OverlayCustomIconSize,
                 Width = localSettings.OverlayCustomWidth,
                 Height = localSettings.OverlayCustomHeight,
@@ -1911,6 +1926,9 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomMetaFontSize = slot.MetaFontSize;
             localSettings.OverlayCustomAutoResizeToContent = slot.AutoResizeToContent;
             localSettings.OverlayCustomWrapAllText = slot.WrapAllText;
+            localSettings.OverlayCustomShowBorder = slot.ShowBorder;
+            localSettings.OverlayCustomShowGameName = slot.ShowGameName;
+            localSettings.OverlayCustomShowMeta = slot.ShowMeta;
             localSettings.OverlayCustomBackgroundColor = slot.BackgroundColor;
             localSettings.OverlayCustomBorderColor = slot.BorderColor;
             localSettings.OverlayCustomAccentColor = slot.AccentColor;
@@ -1983,6 +2001,9 @@ namespace PlayniteAchievements.Views
             NotificationsCustomInlinePreviewBorder.Height = localSettings.OverlayCustomHeight;
             NotificationsCustomInlinePreviewBorder.CornerRadius = new CornerRadius(localSettings.OverlayCustomCornerRadius);
             NotificationsCustomInlinePreviewBorder.BorderBrush = ParseColorBrush(localSettings.OverlayCustomBorderColor, Colors.SteelBlue);
+            NotificationsCustomInlinePreviewBorder.BorderThickness = localSettings.OverlayCustomShowBorder
+                ? new Thickness(1.5)
+                : new Thickness(0);
             NotificationsCustomInlinePreviewBorder.Background = ResolveInlinePreviewBackground(localSettings);
 
             NotificationsCustomInlinePreviewIconHost.Width = localSettings.OverlayCustomIconSize;
@@ -2001,6 +2022,13 @@ namespace PlayniteAchievements.Views
 
             NotificationsCustomInlinePreviewMeta.FontSize = localSettings.OverlayCustomMetaFontSize;
             NotificationsCustomInlinePreviewMeta.Foreground = ParseColorBrush(localSettings.OverlayCustomMetaColor, Color.FromRgb(188, 208, 229));
+
+            NotificationsCustomInlinePreviewGame.Visibility = localSettings.OverlayCustomShowGameName
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            NotificationsCustomInlinePreviewMeta.Visibility = localSettings.OverlayCustomShowMeta
+                ? Visibility.Visible
+                : Visibility.Collapsed;
 
             var wrapAllText = localSettings.OverlayCustomWrapAllText;
             var wrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap;

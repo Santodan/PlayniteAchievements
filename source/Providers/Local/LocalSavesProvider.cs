@@ -3730,24 +3730,49 @@ namespace PlayniteAchievements.Providers.Local
 
             async Task<SchemaAndPercentages> TryPreferredAnonymousSchemaAsync()
             {
+                // Get base schema for correlation with local entries
+                SchemaAndPercentages baseSchema = null;
                 switch (schemaPreference)
                 {
                     case LocalSteamSchemaPreference.PreferSteamHunters:
-                        return await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                        baseSchema = await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                        break;
                     case LocalSteamSchemaPreference.PreferSteam:
-                        return await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                        baseSchema = await TryGetSteamHuntersSchemaAsync(appId).ConfigureAwait(false);
+                        break;
                     case LocalSteamSchemaPreference.PreferCompletionist:
                         using (var completionistClient = CreateAnonymousSteamHttpClient())
                         {
-                            return await TryGetCompletionistSchemaAsync(completionistClient, appId).ConfigureAwait(false);
+                            baseSchema = await TryGetCompletionistSchemaAsync(completionistClient, appId).ConfigureAwait(false);
                         }
+                        break;
                     case LocalSteamSchemaPreference.PreferSteamCommunity:
                     default:
                         using (var communityClient = CreateAnonymousSteamHttpClient())
                         {
-                            return await TryGetSteamCommunityStatsSchemaAsync(communityClient, appId).ConfigureAwait(false);
+                            baseSchema = await TryGetSteamCommunityStatsSchemaAsync(communityClient, appId).ConfigureAwait(false);
                         }
+                        break;
                 }
+
+                // If non-English and PreferSteam, merge Community translations into SteamHunters for localized descriptions
+                if (baseSchema?.Achievements?.Count > 0 &&
+                    schemaPreference == LocalSteamSchemaPreference.PreferSteam &&
+                    !IsEnglishSteamLanguage(schemaLanguage))
+                {
+                    using (var communityClient = CreateAnonymousSteamHttpClient())
+                    {
+                        var localizedCommunitySchema = await TryGetSteamCommunityStatsSchemaAsync(communityClient, appId).ConfigureAwait(false);
+                        if (localizedCommunitySchema?.Achievements?.Count > 0)
+                        {
+                            // Merge Community translations into base schema for localized text
+                            MergeSchemaMetadata(baseSchema.Achievements, localizedCommunitySchema.Achievements, preferSourceText: true);
+                            Log($"SCHEMA SOURCE MERGED: appId={appId} language={schemaLanguage} base=steamhunters merged=steam-community (localized descriptions)");
+                        }
+                    }
+                }
+
+                return baseSchema;
             }
 
             var appCacheSchema = TryGetSteamAppCacheSchemaAndPercentages(appId);

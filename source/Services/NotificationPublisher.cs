@@ -1075,7 +1075,7 @@ steamImage +
             {
                 Background = backgroundBrush,
                 BorderBrush = borderBrush,
-                BorderThickness = new Thickness(1.5),
+                BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
                 CornerRadius = new CornerRadius(cornerRadius),
                 Padding = new Thickness(16),
                 Effect = new System.Windows.Media.Effects.DropShadowEffect
@@ -1143,6 +1143,8 @@ steamImage +
                 TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
             });
 
+            if (settings?.OverlayCustomShowGameName != false)
+            {
             textStack.Children.Add(new TextBlock
             {
                 Text = gameName,
@@ -1152,6 +1154,7 @@ steamImage +
                 TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
                 TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
             });
+            }
 
             textStack.Children.Add(new TextBlock
             {
@@ -1164,6 +1167,8 @@ steamImage +
                 TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
             });
 
+            if (settings?.OverlayCustomShowMeta != false)
+            {
             textStack.Children.Add(new TextBlock
             {
                 Text = string.IsNullOrWhiteSpace(providerKey) ? "Local / Custom" : $"{providerKey} / Custom",
@@ -1173,6 +1178,7 @@ steamImage +
                 TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
                 TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
             });
+            }
 
             Grid.SetColumn(textStack, 1);
             grid.Children.Add(textStack);

@@ -93,6 +93,9 @@ namespace PlayniteAchievements.Providers.Local
         public string Name { get; set; } = string.Empty;
         public bool AutoResizeToContent { get; set; }
         public bool WrapAllText { get; set; }
+        public bool ShowBorder { get; set; } = true;
+        public bool ShowGameName { get; set; } = true;
+        public bool ShowMeta { get; set; } = true;
         public double IconSize { get; set; } = 58;
         public double Width { get; set; } = 460;
         public double Height { get; set; } = 128;
@@ -157,6 +160,9 @@ namespace PlayniteAchievements.Providers.Local
         private double _overlayCustomMetaFontSize = 11;
         private bool _overlayCustomAutoResizeToContent;
         private bool _overlayCustomWrapAllText;
+        private bool _overlayCustomShowBorder = true;
+        private bool _overlayCustomShowGameName = true;
+        private bool _overlayCustomShowMeta = true;
         private string _overlayCustomBackgroundColor = "#1E2430";
         private string _overlayCustomBorderColor = "#6FA3D8";
         private string _overlayCustomAccentColor = "#A7E0FF";
@@ -398,6 +404,24 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _overlayCustomWrapAllText;
             set => SetValue(ref _overlayCustomWrapAllText, value);
+        }
+
+        public bool OverlayCustomShowBorder
+        {
+            get => _overlayCustomShowBorder;
+            set => SetValue(ref _overlayCustomShowBorder, value);
+        }
+
+        public bool OverlayCustomShowGameName
+        {
+            get => _overlayCustomShowGameName;
+            set => SetValue(ref _overlayCustomShowGameName, value);
+        }
+
+        public bool OverlayCustomShowMeta
+        {
+            get => _overlayCustomShowMeta;
+            set => SetValue(ref _overlayCustomShowMeta, value);
         }
 
         public string OverlayCustomBackgroundColor

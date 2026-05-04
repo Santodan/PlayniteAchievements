@@ -2171,11 +2171,11 @@
                                                          <ColumnDefinition Width="Auto"/>
                                                          <ColumnDefinition Width="Auto"/>
                                                      </Grid.ColumnDefinitions>
-                                                     <TextBlock Text="Meta size:"
-                                                                VerticalAlignment="Center"
-                                                                Margin="0,0,8,0"
-                                                                FontWeight="SemiBold"/>
+                                                     <CheckBox Content="Meta size:"
+                                                               VerticalAlignment="Center"
+                                                               IsChecked="{Binding OverlayCustomShowMeta, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                      <TextBox Grid.Column="1"
+                                                              IsEnabled="{Binding OverlayCustomShowMeta}"
                                                               Text="{Binding OverlayCustomMetaFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                      <TextBlock Grid.Column="3"
                                                                 Text="Icon size:"
@@ -2216,6 +2216,20 @@
                                                      <CheckBox Grid.Column="3"
                                                                Content="Wrap all text lines"
                                                                IsChecked="{Binding OverlayCustomWrapAllText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="220"/>
+                                                         <ColumnDefinition Width="10"/>
+                                                         <ColumnDefinition Width="5"/>
+                                                         <ColumnDefinition Width="220"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <CheckBox Content="Show border"
+                                                               IsChecked="{Binding OverlayCustomShowBorder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     <CheckBox Grid.Column="3"
+                                                               Content="Show game name"
+                                                               IsChecked="{Binding OverlayCustomShowGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">
