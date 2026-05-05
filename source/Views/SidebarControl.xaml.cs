@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
@@ -249,6 +250,47 @@ namespace PlayniteAchievements.Views
         private void ClearLeftSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearLeftSearch();
         private void ClearRightSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearRightSearch();
 
+        private void DefaultSortModeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null || !(sender is Button button))
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            if (menu == null)
+            {
+                return;
+            }
+
+            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            var current = _viewModel.DefaultAchievementSortMode;
+
+            var modes = new[]
+            {
+                (Mode: CompactListSortMode.None,         Key: "LOCPlayAch_Common_Default",              Fallback: "Default"),
+                (Mode: CompactListSortMode.DisplayOrder, Key: "LOCPlayAch_SortMode_RetroAchievements",  Fallback: "RetroAchievements"),
+                (Mode: CompactListSortMode.Custom,       Key: "LOCPlayAch_SortMode_CustomManual",       Fallback: "Custom (Manual)"),
+            };
+
+            menu.Items.Clear();
+            foreach (var (mode, locKey, fallback) in modes)
+            {
+                var label = ResourceProvider.GetString(locKey) ?? fallback;
+                var item = new MenuItem
+                {
+                    Header = label,
+                    IsChecked = (mode == current),
+                    Style = itemStyle,
+                };
+                var capturedMode = mode;
+                item.Click += (s, _) => _viewModel.DefaultAchievementSortMode = capturedMode;
+                menu.Items.Add(item);
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
+
         private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)
         {
             if (_viewModel == null)
@@ -261,6 +303,29 @@ namespace PlayniteAchievements.Views
                 _viewModel.RefreshModes,
                 _viewModel.SelectedRefreshMode,
                 selectedKey => _viewModel.SelectedRefreshMode = selectedKey);
+        }
+
+        private void ToggleDefaultAchievementSortDescending_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            _viewModel.DefaultAchievementSortDescending = !_viewModel.DefaultAchievementSortDescending;
+        }
+
+        private void ConfigureDefaultAchievementSort_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null)
+            {
+                return;
+            }
+
+            if (ManualAchievementSortDialog.TryShowDialog(_settings, _persistSettingsForUi))
+            {
+                _persistSettingsForUi?.Invoke();
+            }
         }
 
         private static void OpenSingleSelectRefreshModeContextMenu(

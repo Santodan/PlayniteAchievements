@@ -6,6 +6,7 @@
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
@@ -555,7 +556,69 @@
                     <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}"
                             Command="{Binding CancelRefreshCommand}"
                             Style="{StaticResource RefreshButtonStyle}"
-                            Margin="0"/>
+                            Margin="0,0,8,0"/>
+
+                    <Button x:Name="DefaultSortModeButton"
+                            Style="{StaticResource AchievementSelectorButtonStyle}"
+                            Content="{Binding DefaultAchievementSortModeText}"
+                            ToolTip="{DynamicResource LOCPlayAch_Settings_DefaultAchievementSort}"
+                            Click="DefaultSortModeButton_Click"
+                            HorizontalContentAlignment="Center"
+                            MinWidth="120"
+                            MaxWidth="200"
+                            Height="30"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="DefaultSortModeContextMenu"/>
+                        </Button.ContextMenu>
+                    </Button>
+
+                    <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                            Click="ToggleDefaultAchievementSortDescending_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                <Setter Property="Padding" Value="8,6"/>
+                                <Setter Property="MinWidth" Value="0"/>
+                                <Setter Property="Margin" Value="0,0,8,0"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="&#xea65;"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DefaultAchievementSortDescending}" Value="True">
+                                            <Setter Property="Text" Value="&#xea66;"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Button>
+
+                    <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
+                            Click="ConfigureDefaultAchievementSort_Click">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsDefaultAchievementSortCustom}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
 
                 <!-- Right: Empty for balance (same width as back button) -->

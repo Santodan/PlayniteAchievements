@@ -206,6 +206,192 @@
                 <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
                 <Setter Property="TextWrapping" Value="Wrap"/>
             </Style>
+
+            <Style x:Key="SettingsActionButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="MinWidth" Value="80"/>
+            </Style>
+
+            <Style x:Key="SettingsSortDirectionButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource SettingsActionButtonStyle}">
+                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="Margin" Value="4,0,0,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style TargetType="ComboBoxItem">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBoxItem">
+                            <Border x:Name="ItemBorder"
+                                    Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#10000000"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#18000000"/>
+                                    <Setter Property="Foreground" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="ItemBorder" Property="Opacity" Value="0.55"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Padding" Value="10,4"/>
+                <Setter Property="MinHeight" Value="30"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <Border x:Name="Border"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="16"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter x:Name="ContentSite"
+                                                          Grid.Column="0"
+                                                          Margin="{TemplateBinding Padding}"
+                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                          VerticalAlignment="Center"
+                                                          Content="{TemplateBinding SelectionBoxItem}"
+                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                          RecognizesAccessKey="True"/>
+                                        <TextBox x:Name="PART_EditableTextBox"
+                                                 Grid.Column="0"
+                                                 Margin="{TemplateBinding Padding}"
+                                                 HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                 VerticalContentAlignment="Center"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Foreground="{TemplateBinding Foreground}"
+                                                 Visibility="Hidden"
+                                                 IsReadOnly="{TemplateBinding IsReadOnly}"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="▼"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Right"
+                                                   Margin="0,0,8,0"
+                                                   Foreground="{TemplateBinding Foreground}"
+                                                   FontSize="10"
+                                                   Opacity="0.85"/>
+                                    </Grid>
+                                </Border>
+                                <Popup x:Name="PART_Popup"
+                                       Placement="Bottom"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       PopupAnimation="Slide">
+                                    <Border x:Name="PopupBorder"
+                                            MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Margin="0,4,0,0"
+                                            Background="{DynamicResource ControlBackgroundBrush}"
+                                            BorderBrush="{DynamicResource NormalBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                        <ScrollViewer Margin="0"
+                                                      SnapsToDevicePixels="True">
+                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="HasItems" Value="False">
+                                    <Setter TargetName="PopupBorder" Property="MinHeight" Value="20"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                    <Setter TargetName="Border" Property="Background" Value="#10000000"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsDropDownOpen" Value="True">
+                                    <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                    <Setter TargetName="Border" Property="Background" Value="#18000000"/>
+                                </Trigger>
+                                <Trigger Property="IsEditable" Value="True">
+                                    <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                                    <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Border" Property="Opacity" Value="0.55"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="TextBox">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="MinHeight" Value="30"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="TextBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="TextBorder" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="TextBorder" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                    <Setter TargetName="TextBorder" Property="Background" Value="#10000000"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="TextBorder" Property="Opacity" Value="0.55"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -973,12 +1159,10 @@
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_SortMode_RetroAchievements}" Tag="{x:Static settings:CompactListSortMode.DisplayOrder}"/>
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_SortMode_CustomManual}" Tag="{x:Static settings:CompactListSortMode.Custom}"/>
                                             </ComboBox>
-                                            <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
                                                     Click="ToggleDefaultAchievementSortDescending">
                                                 <Button.Style>
-                                                    <Style TargetType="Button">
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SettingsSortDirectionButtonStyle}">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -1002,12 +1186,11 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </Button>
-                                            <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
+                                                <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
                                                     Margin="8,0,0,0"
-                                                    VerticalAlignment="Center"
                                                     Click="ConfigureManualAchievementSort_Click">
                                                 <Button.Style>
-                                                    <Style TargetType="Button">
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SettingsActionButtonStyle}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
@@ -1049,8 +1232,7 @@
                                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_DisplayOrder}" Tag="{x:Static settings:CompactListSortMode.DisplayOrder}"/>
                                                 </ComboBox>
                                                 <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                        Margin="4,0,0,0"
-                                                        VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                         Click="ToggleSidebarSelectedGameGridSortDescending">
                                                     <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                         <TextBlock.Style>
@@ -1089,8 +1271,7 @@
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Column_Name}" Tag="{x:Static settings:GamesOverviewSortMode.Alphabetical}"/>
                                             </ComboBox>
                                             <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                     Click="ToggleGamesOverviewGridSortDescending">
                                                 <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                     <TextBlock.Style>
@@ -1109,24 +1290,24 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                <Border>
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource SettingGroupCardStyle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.DisplayOrder}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <StackPanel>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ViewAchievementsWindow}"
                                                    Style="{StaticResource SubSectionHeaderStyle}"
                                                    Margin="0,0,0,10"/>
                                         <StackPanel>
-                                            <StackPanel.Style>
-                                                <Style TargetType="StackPanel">
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.DisplayOrder}">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding Persisted.DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </StackPanel.Style>
                                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortBy}"
                                                        Style="{StaticResource SubSectionHeaderStyle}"
                                                        Margin="0,0,0,8"/>
@@ -1140,8 +1321,7 @@
                                                     <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_DisplayOrder}" Tag="{x:Static settings:CompactListSortMode.DisplayOrder}"/>
                                                 </ComboBox>
                                                 <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                        Margin="4,0,0,0"
-                                                        VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                         Click="ToggleSingleGameGridSortDescending">
                                                     <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                         <TextBlock.Style>
@@ -1323,8 +1503,7 @@
                                                 <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_DisplayOrder}" Tag="{x:Static settings:CompactListSortMode.DisplayOrder}"/>
                                             </ComboBox>
                                             <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                     Click="ToggleAchievementDataGridSortDescending">
                                                 <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                     <TextBlock.Style>
@@ -1399,8 +1578,7 @@
                                             </ComboBox>
                                             <Button Grid.Column="2"
                                                     ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                     Click="ToggleCompactListSortDescending">
                                                 <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                     <TextBlock.Style>
@@ -1470,8 +1648,7 @@
                                             </ComboBox>
                                             <Button Grid.Column="2"
                                                     ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                     Click="ToggleCompactUnlockedListSortDescending">
                                                 <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                     <TextBlock.Style>
@@ -1541,8 +1718,7 @@
                                             </ComboBox>
                                             <Button Grid.Column="2"
                                                     ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
-                                                    Margin="4,0,0,0"
-                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SettingsSortDirectionButtonStyle}"
                                                     Click="ToggleCompactLockedListSortDescending">
                                                 <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
                                                     <TextBlock.Style>

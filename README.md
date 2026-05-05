@@ -99,6 +99,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Add more settings to the overlay notification
 - Fixed the `Theme Migration`
 - Add `Custom (Manual)` option for the `Default Achievement Sort`
+- Add the `Default Achievement Sort` to the main page for a quicker change of sort order
 - Sorting by the `Icon` will sort with `RetroAchievement` order
 - Added a `StartPage` section in the `Theme Migration` to make it compatibile with the `Local` provider
 

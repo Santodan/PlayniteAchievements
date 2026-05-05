@@ -800,6 +800,60 @@ namespace PlayniteAchievements.ViewModels
         public bool ShowSidebarGameMetadata => _settings?.Persisted?.ShowSidebarGameMetadata ?? true;
 
         public bool ShowCompletionBorder => _settings?.Persisted?.ShowCompletionBorder ?? true;
+        public CompactListSortMode DefaultAchievementSortMode
+        {
+            get => _settings?.Persisted?.DefaultAchievementSortMode ?? CompactListSortMode.None;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.DefaultAchievementSortMode == value)
+                {
+                    return;
+                }
+
+                persisted.DefaultAchievementSortMode = value;
+                _persistSettingsForUi?.Invoke();
+                OnPropertyChanged(nameof(DefaultAchievementSortMode));
+                OnPropertyChanged(nameof(DefaultAchievementSortModeText));
+                OnPropertyChanged(nameof(IsDefaultAchievementSortCustom));
+            }
+        }
+
+        public bool DefaultAchievementSortDescending
+        {
+            get => _settings?.Persisted?.DefaultAchievementSortDescending ?? true;
+            set
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null || persisted.DefaultAchievementSortDescending == value)
+                {
+                    return;
+                }
+
+                persisted.DefaultAchievementSortDescending = value;
+                _persistSettingsForUi?.Invoke();
+                OnPropertyChanged(nameof(DefaultAchievementSortDescending));
+            }
+        }
+
+        public bool IsDefaultAchievementSortCustom =>
+            (_settings?.Persisted?.DefaultAchievementSortMode ?? CompactListSortMode.None) == CompactListSortMode.Custom;
+
+        public string DefaultAchievementSortModeText
+        {
+            get
+            {
+                switch (_settings?.Persisted?.DefaultAchievementSortMode ?? CompactListSortMode.None)
+                {
+                    case CompactListSortMode.DisplayOrder:
+                        return ResourceProvider.GetString("LOCPlayAch_SortMode_RetroAchievements") ?? "RetroAchievements";
+                    case CompactListSortMode.Custom:
+                        return ResourceProvider.GetString("LOCPlayAch_SortMode_CustomManual") ?? "Custom (Manual)";
+                    default:
+                        return ResourceProvider.GetString("LOCPlayAch_Common_Default") ?? "Default";
+                }
+            }
+        }
 
         private int _totalGamesOverview;
         public int TotalGamesOverview
@@ -1944,6 +1998,10 @@ namespace PlayniteAchievements.ViewModels
                 _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
                 ApplyConfiguredDefaultPlayStatusFilter();
                 RebuildRefreshModes();
+                OnPropertyChanged(nameof(DefaultAchievementSortMode));
+                OnPropertyChanged(nameof(DefaultAchievementSortModeText));
+                OnPropertyChanged(nameof(DefaultAchievementSortDescending));
+                OnPropertyChanged(nameof(IsDefaultAchievementSortCustom));
                 OnPropertyChanged(nameof(UseCoverImages));
                 OnPropertyChanged(nameof(EnableCompactGridMode));
                 OnPropertyChanged(nameof(EnableGridTextWrapping));
@@ -2014,6 +2072,16 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.ShowCompletionBorder))
             {
                 OnPropertyChanged(nameof(ShowCompletionBorder));
+            }
+            else if (propertyName == nameof(PersistedSettings.DefaultAchievementSortMode))
+            {
+                OnPropertyChanged(nameof(DefaultAchievementSortMode));
+                OnPropertyChanged(nameof(DefaultAchievementSortModeText));
+                OnPropertyChanged(nameof(IsDefaultAchievementSortCustom));
+            }
+            else if (propertyName == nameof(PersistedSettings.DefaultAchievementSortDescending))
+            {
+                OnPropertyChanged(nameof(DefaultAchievementSortDescending));
             }
             else if (propertyName == nameof(PersistedSettings.GamesOverviewCustomSortPath) ||
                 propertyName == nameof(PersistedSettings.GamesOverviewCustomSortDescending) ||
