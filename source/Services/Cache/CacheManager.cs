@@ -877,6 +877,7 @@ namespace PlayniteAchievements.Services
                     Description = achievement.Description,
                     UnlockedIconPath = achievement.UnlockedIconPath,
                     LockedIconPath = achievement.LockedIconPath,
+                    DisplayOrder = achievement.DisplayOrder,
                     Points = achievement.Points,
                     ScaledPoints = achievement.ScaledPoints,
                     CategoryType = achievement.CategoryType,
@@ -995,6 +996,8 @@ namespace PlayniteAchievements.Services
         public string UnlockedIconPath { get; set; }
 
         public string LockedIconPath { get; set; }
+
+        public int DisplayOrder { get; set; }
 
         public int? Points { get; set; }
 

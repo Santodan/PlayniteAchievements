@@ -72,6 +72,7 @@ namespace PlayniteAchievements.Services.Database
                 Description TEXT NULL,
                 UnlockedIconPath TEXT NULL,
                 LockedIconPath TEXT NULL,
+                DisplayOrder INTEGER NOT NULL DEFAULT 0,
                 Points INTEGER NULL,
                 ScaledPoints INTEGER NULL,
                 Category TEXT NOT NULL DEFAULT 'Default',
@@ -285,6 +286,7 @@ namespace PlayniteAchievements.Services.Database
 
             definitionColumns = GetColumnNames(db, "AchievementDefinitions");
             EnsureColumn(db, "AchievementDefinitions", "LockedIconPath", "TEXT NULL", definitionColumns, ref backupPath);
+            EnsureColumn(db, "AchievementDefinitions", "DisplayOrder", "INTEGER NOT NULL DEFAULT 0", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Points", "INTEGER NULL", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "Category", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
             EnsureColumn(db, "AchievementDefinitions", "CategoryType", "TEXT NOT NULL DEFAULT 'Default'", definitionColumns, ref backupPath);
@@ -671,6 +673,7 @@ namespace PlayniteAchievements.Services.Database
             var definitionColumns = GetColumnNames(db, "AchievementDefinitions");
             EnsureRequiredColumn(definitionColumns, "UnlockedIconPath", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "LockedIconPath", "AchievementDefinitions", missing);
+            EnsureRequiredColumn(definitionColumns, "DisplayOrder", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Points", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "ScaledPoints", "AchievementDefinitions", missing);
             EnsureRequiredColumn(definitionColumns, "Category", "AchievementDefinitions", missing);

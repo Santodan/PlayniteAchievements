@@ -14,6 +14,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderIcons.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -87,6 +88,7 @@
             <!-- Achievement Icon -->
             <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
                                     Header=""
+                                    SortMemberPath="DisplayOrder"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
                                     CellStyle="{StaticResource AchievementIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}"/>
@@ -107,6 +109,22 @@
             <!-- Unlock Date / Progress -->
             <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Unlocked}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
                                     CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
+
+            <!-- RetroAchievements display order (provider-defined progression order) -->
+            <DataGridTextColumn Width="86"
+                                MinWidth="72"
+                                SortMemberPath="DisplayOrder"
+                                Binding="{Binding DisplayOrder}"
+                                helpers:ColumnVisibilityHelper.ColumnKey="DisplayOrder">
+                <DataGridTextColumn.HeaderTemplate>
+                    <DataTemplate>
+                        <Viewbox Width="48" Height="16" Stretch="Uniform">
+                            <Path Data="{StaticResource GeoRetroAchievements}"
+                                  Fill="{DynamicResource TextBrush}"/>
+                        </Viewbox>
+                    </DataTemplate>
+                </DataGridTextColumn.HeaderTemplate>
+            </DataGridTextColumn>
 
             <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Label_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>

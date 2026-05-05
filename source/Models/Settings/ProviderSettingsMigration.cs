@@ -14,6 +14,7 @@ using PlayniteAchievements.Providers.ShadPS4;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Providers.Xbox;
+using PlayniteAchievements.Providers.Local;
 #endif
 
 namespace PlayniteAchievements.Models.Settings
@@ -65,10 +66,13 @@ namespace PlayniteAchievements.Models.Settings
                     persisted["ProviderSettings"] = providerSettings;
                 }
 
+                NormalizeLegacyNotificationKeys(persisted);
+
                 // Migrate each provider individually (skips if already in ProviderSettings)
                 MigrateSteam(persisted, providerSettings);
                 MigrateEpic(persisted, providerSettings);
                 MigrateGog(persisted, providerSettings);
+                MigrateLocal(persisted, providerSettings);
                 MigratePsn(persisted, providerSettings);
                 MigrateXbox(persisted, providerSettings);
                 MigrateRetroAchievements(persisted, providerSettings);
@@ -90,6 +94,29 @@ namespace PlayniteAchievements.Models.Settings
             }
         }
 
+        private static void NormalizeLegacyNotificationKeys(JObject persisted)
+        {
+            if (persisted == null)
+            {
+                return;
+            }
+
+            if (persisted["EnableNotifications"] == null && persisted["EnablePluginNotifications"] != null)
+            {
+                persisted["EnableNotifications"] = persisted["EnablePluginNotifications"];
+            }
+
+            if (persisted["NotifyPeriodicUpdates"] == null && persisted["NotifyPluginPeriodicUpdates"] != null)
+            {
+                persisted["NotifyPeriodicUpdates"] = persisted["NotifyPluginPeriodicUpdates"];
+            }
+
+            if (persisted["NotifyOnRebuild"] == null && persisted["NotifyPluginRebuild"] != null)
+            {
+                persisted["NotifyOnRebuild"] = persisted["NotifyPluginRebuild"];
+            }
+        }
+
         /// <summary>
         /// Checks if there are any flat properties that need to be migrated.
         /// </summary>
@@ -107,7 +134,13 @@ namespace PlayniteAchievements.Models.Settings
                    persisted["ShadPS4GameDataPath"] != null ||
                    persisted["Rpcs3ExecutablePath"] != null ||
                    persisted["XeniaAccountPath"] != null ||
-                   persisted["ManualTrackingOverrideEnabled"] != null;
+                   persisted["ManualTrackingOverrideEnabled"] != null ||
+                   persisted["LocalEnabled"] != null ||
+                   persisted["EnableInAppUnlockNotifications"] != null ||
+                   persisted["EnableWindowsToastNotifications"] != null ||
+                   persisted["EnableAchievementNotifications"] != null ||
+                   persisted["EnableAchievementWindowsNotifications"] != null ||
+                   persisted["EnablePluginNotifications"] != null;
         }
 
         private static void MigrateSteam(JObject persisted, JObject providerSettings)
@@ -306,6 +339,30 @@ namespace PlayniteAchievements.Models.Settings
             providerSettings["Xenia"] = JObject.Parse(settings.SerializeToJson());
         }
 
+        private static void MigrateLocal(JObject persisted, JObject providerSettings)
+        {
+            // Skip if already migrated
+            if (providerSettings["Local"] != null) return;
+
+            var settings = new LocalSettings
+            {
+                IsEnabled = persisted["LocalEnabled"]?.Value<bool>() ?? true,
+                EnableActiveGameMonitoring = persisted["EnableActiveGameMonitoring"]?.Value<bool>() ?? false,
+                ActiveGameMonitoringIntervalSeconds = persisted["ActiveGameMonitoringIntervalSeconds"]?.Value<int>() ?? 60,
+                EnableUnlockScreenshots = persisted["EnableUnlockScreenshots"]?.Value<bool>() ?? false,
+                EnableInAppUnlockNotifications =
+                    persisted["EnableInAppUnlockNotifications"]?.Value<bool>() ??
+                    persisted["EnableAchievementNotifications"]?.Value<bool>() ??
+                    true,
+                EnableWindowsToastNotifications =
+                    persisted["EnableWindowsToastNotifications"]?.Value<bool>() ??
+                    persisted["EnableAchievementWindowsNotifications"]?.Value<bool>() ??
+                    true,
+            };
+
+            providerSettings["Local"] = JObject.Parse(settings.SerializeToJson());
+        }
+
         private static void MigrateManual(JObject persisted, JObject providerSettings)
         {
             // Skip if already migrated
@@ -392,6 +449,21 @@ namespace PlayniteAchievements.Models.Settings
             // Xenia
             persisted.Remove("XeniaEnabled");
             persisted.Remove("XeniaAccountPath");
+
+            // Local
+            persisted.Remove("LocalEnabled");
+            persisted.Remove("EnableActiveGameMonitoring");
+            persisted.Remove("ActiveGameMonitoringIntervalSeconds");
+            persisted.Remove("EnableUnlockScreenshots");
+            persisted.Remove("EnableInAppUnlockNotifications");
+            persisted.Remove("EnableWindowsToastNotifications");
+            persisted.Remove("EnableAchievementNotifications");
+            persisted.Remove("EnableAchievementWindowsNotifications");
+
+            // Legacy global notification aliases
+            persisted.Remove("EnablePluginNotifications");
+            persisted.Remove("NotifyPluginPeriodicUpdates");
+            persisted.Remove("NotifyPluginRebuild");
 
             // Manual
             persisted.Remove("ManualEnabled");

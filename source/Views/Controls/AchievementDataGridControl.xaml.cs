@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["Game"] = 64,
                 ["Achievement"] = 460,
                 ["UnlockDate"] = 240,
+                ["DisplayOrder"] = 86,
                 ["CategoryType"] = 210,
                 ["CategoryLabel"] = 210,
                 ["Rarity"] = 170,

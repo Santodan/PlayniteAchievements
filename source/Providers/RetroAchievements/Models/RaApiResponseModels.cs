@@ -144,4 +144,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
         [JsonProperty("MemAddr")]
         public string MemAddr { get; set; }
     }
+
+    internal sealed class RaAchievementOrderInfo
+    {
+        public int DisplayOrder { get; set; }
+
+        public int Sequence { get; set; }
+    }
 }

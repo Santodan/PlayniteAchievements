@@ -22,6 +22,7 @@ namespace PlayniteAchievements.Views.Helpers
                 "CategoryType",
                 "CategoryLabel",
                 "TrophyType",
+                "DisplayOrder",  // RetroAchievements order should start 1 -> N
             };
 
         /// <summary>

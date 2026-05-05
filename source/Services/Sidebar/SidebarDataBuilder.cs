@@ -695,6 +695,7 @@ namespace PlayniteAchievements.Services.Sidebar
                     Description = recent.Description,
                     UnlockedIconPath = recent.UnlockedIconPath,
                     LockedIconPath = recent.LockedIconPath,
+                    DisplayOrder = recent.DisplayOrder,
                     Points = recent.Points,
                     ScaledPoints = recent.ScaledPoints,
                     Category = recent.Category,

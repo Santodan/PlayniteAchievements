@@ -424,10 +424,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 var raSettings = ProviderRegistry.Settings<RetroAchievementsSettings>();
                 var gameInfo = await _api.GetGameInfoAndUserProgressAsync(gameId, cancel).ConfigureAwait(false);
+                var displayOrderMap = await _api.GetAchievementDisplayOrderMapAsync(gameId, cancel).ConfigureAwait(false);
                 var achievements = ParseAchievements(
                     gameInfo,
                     raSettings.RaRarityStats,
                     categoryLabel: "Base",
+                    displayOrderByApiName: displayOrderMap,
                     enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
 
                 _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
@@ -447,11 +449,13 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                                 try
                                 {
                                     var subsetInfo = await _api.GetGameInfoAndUserProgressAsync(subset.Id, cancel).ConfigureAwait(false);
+                                    var subsetDisplayOrderMap = await _api.GetAchievementDisplayOrderMapAsync(subset.Id, cancel).ConfigureAwait(false);
                                     var categoryLabel = ExtractCategoryLabel(subset.Title) ?? "Subset";
                                     var subsetAchievements = ParseAchievements(
                                         subsetInfo,
                                         raSettings.RaRarityStats,
                                         categoryLabel: categoryLabel,
+                                        displayOrderByApiName: subsetDisplayOrderMap,
                                         enableAutomaticCapstoneAssignment: raSettings.EnableAutomaticCapstoneAssignment);
 
                                     _logger?.Info($"[RA] Parsed {subsetAchievements.Count} achievements for subset '{subset.Title}' (category={categoryLabel}).");
@@ -543,13 +547,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             Models.RaGameInfoUserProgress gameInfo,
             string rarityStats,
             string categoryLabel = null,
+            IReadOnlyDictionary<string, Models.RaAchievementOrderInfo> displayOrderByApiName = null,
             bool enableAutomaticCapstoneAssignment = false)
         {
-            var list = new List<AchievementDetail>();
+            var ordered = new List<(AchievementDetail detail, int sequence)>();
 
             if (gameInfo?.Achievements == null)
             {
-                return list;
+                return new List<AchievementDetail>();
             }
 
             var useHardcoreRarity = string.Equals(rarityStats, "hardcore", StringComparison.OrdinalIgnoreCase);
@@ -574,8 +579,10 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 distinctPlayersCasual > 0 ? distinctPlayersCasual :
                 distinctPlayersHardcore;
 
+            var fallbackSequence = 0;
             foreach (var kvp in gameInfo.Achievements)
             {
+                fallbackSequence++;
                 var achId = kvp.Key;
                 var ach = kvp.Value;
                 if (ach == null) continue;
@@ -649,6 +656,29 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     globalPercent = Math.Max(0, Math.Min(100, globalPercent.Value));
                 }
 
+                var canonicalDisplayOrder = ach.DisplayOrder;
+                var canonicalSequence = int.MaxValue;
+                if (canonicalDisplayOrder <= 0 &&
+                    displayOrderByApiName != null &&
+                    displayOrderByApiName.TryGetValue(achId, out var mappedOrder) &&
+                    mappedOrder != null &&
+                    mappedOrder.DisplayOrder > 0)
+                {
+                    canonicalDisplayOrder = mappedOrder.DisplayOrder;
+                }
+
+                if (displayOrderByApiName != null &&
+                    displayOrderByApiName.TryGetValue(achId, out var mappedSequenceInfo) &&
+                    mappedSequenceInfo != null &&
+                    mappedSequenceInfo.Sequence > 0)
+                {
+                    canonicalSequence = mappedSequenceInfo.Sequence;
+                }
+                else
+                {
+                    canonicalSequence = fallbackSequence;
+                }
+
                 var detail = new AchievementDetail
                 {
                     ApiName = achId,
@@ -659,7 +689,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     Points = ach.Points,
                     ScaledPoints = ach.TrueRatio,
                     Category = categoryLabel,
-                    DisplayOrder = ach.DisplayOrder,
+                    DisplayOrder = canonicalDisplayOrder,
                     IsCapstone = enableAutomaticCapstoneAssignment &&
                                  string.Equals(ach.Type, "win_condition", StringComparison.OrdinalIgnoreCase),
                     UnlockTimeUtc = unlockUtc,
@@ -670,10 +700,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     GlobalPercentUnlocked = NormalizePercent(globalPercent)
                 };
 
-                list.Add(detail);
+                ordered.Add((detail, canonicalSequence));
             }
 
-            return list;
+            return ordered
+                .OrderBy(x => x.detail?.DisplayOrder ?? 0)
+                .ThenBy(x => x.sequence)
+                .ThenBy(x => x.detail?.ApiName, StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.detail)
+                .ToList();
         }
 
         internal static string ExtractCategoryLabel(string subsetTitle)
