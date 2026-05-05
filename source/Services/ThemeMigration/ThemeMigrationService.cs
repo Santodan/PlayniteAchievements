@@ -722,6 +722,19 @@ namespace PlayniteAchievements.Services.ThemeMigration
             result = result.Replace("&#xE820;", "&#xEDD7;");
             replacements += CountOccurrences(originalContent, "&#xE820;");
 
+            // Legacy themes sometimes bind raw double Percent values with StringFormat={}{0}%.
+            // RetroAchievements can provide very small precise values (e.g. 0.0132026...),
+            // which renders an unreadable number of decimals. Normalize to two decimals.
+            result = Regex.Replace(
+                result,
+                @"StringFormat\s*=\s*\{\}\{0\}%",
+                "StringFormat={}{0:F2}%",
+                RegexOptions.IgnoreCase);
+            replacements += Regex.Matches(
+                originalContent,
+                @"StringFormat\s*=\s*\{\}\{0\}%",
+                RegexOptions.IgnoreCase).Count;
+
             return result;
         }
 
