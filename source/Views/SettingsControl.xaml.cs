@@ -366,6 +366,45 @@ namespace PlayniteAchievements.Views
             set => SetValue(ShowNoRevertableThemesMessageProperty, value);
         }
 
+        public static readonly DependencyProperty HasStartPageInstalledProperty =
+            DependencyProperty.Register(
+                nameof(HasStartPageInstalled),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool HasStartPageInstalled
+        {
+            get => (bool)GetValue(HasStartPageInstalledProperty);
+            set => SetValue(HasStartPageInstalledProperty, value);
+        }
+
+        public static readonly DependencyProperty ShowStartPageNotInstalledMessageProperty =
+            DependencyProperty.Register(
+                nameof(ShowStartPageNotInstalledMessage),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(true));
+
+        public bool ShowStartPageNotInstalledMessage
+        {
+            get => (bool)GetValue(ShowStartPageNotInstalledMessageProperty);
+            set => SetValue(ShowStartPageNotInstalledMessageProperty, value);
+        }
+
+        public static readonly DependencyProperty HasStartPageBackupProperty =
+            DependencyProperty.Register(
+                nameof(HasStartPageBackup),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false));
+
+        public bool HasStartPageBackup
+        {
+            get => (bool)GetValue(HasStartPageBackupProperty);
+            set => SetValue(HasStartPageBackupProperty, value);
+        }
+
         public ObservableCollection<ThemeMigrationElementOption> ThemeMigrationCustomOptions { get; } =
             new ObservableCollection<ThemeMigrationElementOption>();
 
@@ -400,6 +439,7 @@ namespace PlayniteAchievements.Views
         private readonly ILogger _logger;
         private readonly ThemeDiscoveryService _themeDiscovery;
         private readonly ThemeMigrationService _themeMigration;
+        private readonly StartPageCompatibilityService _startPageCompatibility;
         private readonly ProviderRegistry _providerRegistry;
 
         /// <summary>
@@ -479,6 +519,7 @@ namespace PlayniteAchievements.Views
                 _logger,
                 _settingsViewModel.Settings,
                 () => _plugin.SavePluginSettings(_settingsViewModel.Settings));
+            _startPageCompatibility = new StartPageCompatibilityService(_logger, _plugin, plugin.PlayniteApi);
 
             _notificationAutoPopupPreviewTimer = new DispatcherTimer
             {
@@ -523,6 +564,7 @@ namespace PlayniteAchievements.Views
 
                 // Load themes on initial load
                 LoadThemes();
+                RefreshStartPageCompatibilityState();
 
                 // Initialize Achievement Notifications tab with Local provider settings
                 InitializeAchievementNotificationsTab();
@@ -2243,6 +2285,24 @@ namespace PlayniteAchievements.Views
             ShowNoThemesMessage = !hasThemes;
             ShowNoRevertableThemesMessage = !hasRevertable;
             UpdateThemeMigrationModeButtonState();
+            RefreshStartPageCompatibilityState();
+        }
+
+        private void RefreshStartPageCompatibilityState()
+        {
+            try
+            {
+                HasStartPageInstalled = _startPageCompatibility?.IsStartPageInstalled() == true;
+                ShowStartPageNotInstalledMessage = !HasStartPageInstalled;
+                HasStartPageBackup = _startPageCompatibility?.HasBackup() == true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to detect StartPage installation state.");
+                HasStartPageInstalled = false;
+                ShowStartPageNotInstalledMessage = true;
+                HasStartPageBackup = false;
+            }
         }
 
         private async void MigrateThemeLimited_Click(object sender, RoutedEventArgs e)
@@ -2411,6 +2471,139 @@ namespace PlayniteAchievements.Views
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
                     L("LOCPlayAch_ThemeMigration_Revert", "Revert Theme"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async void ApplyStartPageCompatibility_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                RefreshStartPageCompatibilityState();
+                if (!HasStartPageInstalled)
+                {
+                    _plugin.PlayniteApi.Dialogs.ShowMessage(
+                        L("LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled", "StartPage is not installed in this Playnite environment."),
+                        L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                var result = await _startPageCompatibility.ApplyAsync();
+                if (result.Success)
+                {
+                    var restartText = L("LOCPlayAch_ThemeMigration_RestartRequired", "Please restart Playnite to apply the theme changes.");
+                    var details = string.IsNullOrWhiteSpace(result.BackupPath)
+                        ? result.Message
+                        : $"{result.Message}{Environment.NewLine}{Environment.NewLine}Backup: {result.BackupPath}";
+
+                    _plugin.PlayniteApi.Dialogs.ShowMessage(
+                        $"{details}{Environment.NewLine}{Environment.NewLine}{restartText}",
+                        L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    _plugin.PlayniteApi.Dialogs.ShowMessage(
+                        result.Message,
+                        L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+
+                RefreshStartPageCompatibilityState();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to apply StartPage compatibility migration from settings.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async void RevertStartPageCompatibility_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var confirm = _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_RevertConfirm",
+                        "Restore the achievement cache from the last backup? This will undo the compatibility migration."),
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                var result = await _startPageCompatibility.RevertAsync();
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    result.Message,
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                    MessageBoxButton.OK,
+                    result.Success ? MessageBoxImage.Information : MessageBoxImage.Error);
+
+                RefreshStartPageCompatibilityState();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to revert StartPage compatibility migration from settings.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private void RestartPlaynite_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrWhiteSpace(exePath))
+                {
+                    // Launch cmd.exe to wait for this process to exit, then relaunch Playnite.
+                    // This avoids the "another instance is running" startup error.
+                    var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
+
+                    // If a StartPage DLL update is pending, apply it after Playnite has exited
+                    // (the DLL is locked while loaded; taskkill releases it before the copy).
+                    var hasPendingDll = _startPageCompatibility?.HasPendingDllUpdate() == true;
+                    var pendingDll = hasPendingDll ? _startPageCompatibility.GetPendingDllPath() : null;
+                    var installedDll = hasPendingDll ? _startPageCompatibility.GetInstalledDllPath() : null;
+
+                    var dllChain = (hasPendingDll && !string.IsNullOrWhiteSpace(installedDll))
+                        ? $" & copy /Y \"{pendingDll}\" \"{installedDll}\" >nul 2>&1 & del \"{pendingDll}\" >nul 2>&1"
+                        : string.Empty;
+
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c taskkill /pid {pid} /f >nul 2>&1 & timeout /t 2 /nobreak >nul{dllChain} & start \"\" \"{exePath}\"",
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    });
+                }
+                else
+                {
+                    System.Windows.Application.Current.Shutdown();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, "Failed to restart Playnite.");
+                _plugin.PlayniteApi.Dialogs.ShowMessage(
+                    LF("LOCPlayAch_Status_Failed", "Error: {0}", ex.Message),
+                    L("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title", "StartPage Compatibility"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }

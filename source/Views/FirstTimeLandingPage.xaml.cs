@@ -31,6 +31,7 @@ namespace PlayniteAchievements.Views
         private readonly IPlayniteAPI _api;
         private readonly ThemeDiscoveryService _themeDiscovery;
         private readonly ThemeMigrationService _themeMigration;
+        private readonly StartPageCompatibilityService _startPageCompatibility;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -268,6 +269,7 @@ namespace PlayniteAchievements.Views
                 _logger,
                 _settings,
                 () => _plugin.SavePluginSettings(_settings));
+            _startPageCompatibility = new StartPageCompatibilityService(_logger, _plugin, _api);
 
             var modes = _refreshService.GetRefreshModes();
             RefreshModes = new ObservableCollection<RefreshMode>(
@@ -284,6 +286,7 @@ namespace PlayniteAchievements.Views
 
             DataContext = this;
 
+            RefreshStartPageCompatibilityState();
             RefreshProviderStatuses();
             LoadAvailableThemes();
         }
@@ -588,6 +591,7 @@ namespace PlayniteAchievements.Views
         private string _selectedRevertThemePath;
         private bool _showNoThemesMessage;
         private bool _showNoRevertableThemesMessage;
+        private bool _hasStartPageInstalled;
 
         /// <summary>
         /// Gets the collection of themes available for migration.
@@ -672,6 +676,25 @@ namespace PlayniteAchievements.Views
                 OnPropertyChanged(nameof(ShowNoRevertableThemesMessage));
             }
         }
+
+        /// <summary>
+        /// Gets whether StartPage is installed and can receive compatibility migration.
+        /// </summary>
+        public bool HasStartPageInstalled
+        {
+            get => _hasStartPageInstalled;
+            private set
+            {
+                _hasStartPageInstalled = value;
+                OnPropertyChanged(nameof(HasStartPageInstalled));
+                OnPropertyChanged(nameof(ShowStartPageNotInstalledMessage));
+            }
+        }
+
+        /// <summary>
+        /// Gets whether the StartPage not-installed hint should be shown.
+        /// </summary>
+        public bool ShowStartPageNotInstalledMessage => !HasStartPageInstalled;
 
         /// <summary>
         /// Command to migrate the selected theme with Limited mode (text replacements only).
@@ -807,6 +830,59 @@ namespace PlayniteAchievements.Views
         });
 
         /// <summary>
+        /// Command to apply StartPage compatibility migration for Local provider rows.
+        /// </summary>
+        public ICommand ApplyStartPageCompatibilityCommand => new RelayCommand(async () =>
+        {
+            try
+            {
+                if (!HasStartPageInstalled)
+                {
+                    _api?.Notifications?.Add(new NotificationMessage(
+                        "PlayAch_StartPageCompatNotInstalled",
+                        ResourceProvider.GetString("LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled")
+                            ?? "StartPage is not installed.",
+                        NotificationType.Info));
+                    return;
+                }
+
+                var result = await _startPageCompatibility.ApplyAsync();
+                if (result.Success)
+                {
+                    var restartText = ResourceProvider.GetString("LOCPlayAch_ThemeMigration_RestartRequired")
+                        ?? "Please restart Playnite to apply the theme changes.";
+                    var details = string.IsNullOrWhiteSpace(result.BackupPath)
+                        ? result.Message
+                        : $"{result.Message}\n\nBackup: {result.BackupPath}";
+
+                    _api?.Dialogs?.ShowMessage(
+                        $"{details}\n\n{restartText}",
+                        ResourceProvider.GetString("LOCPlayAch_ThemeMigration_StartPageCompatibility_Title")
+                            ?? "StartPage Compatibility",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    _api?.Notifications?.Add(new NotificationMessage(
+                        "PlayAch_StartPageCompatFailed",
+                        result.Message,
+                        NotificationType.Error));
+                }
+
+                RefreshStartPageCompatibilityState();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to apply StartPage compatibility migration.");
+                _api?.Notifications?.Add(new NotificationMessage(
+                    "PlayAch_StartPageCompatFailed",
+                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
+                    NotificationType.Error));
+            }
+        });
+
+        /// <summary>
         /// Loads the list of themes that need migrating.
         /// </summary>
         private void LoadAvailableThemes()
@@ -870,6 +946,19 @@ namespace PlayniteAchievements.Views
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to load available themes.");
+            }
+        }
+
+        private void RefreshStartPageCompatibilityState()
+        {
+            try
+            {
+                HasStartPageInstalled = _startPageCompatibility?.IsStartPageInstalled() == true;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to detect StartPage installation state.");
+                HasStartPageInstalled = false;
             }
         }
 

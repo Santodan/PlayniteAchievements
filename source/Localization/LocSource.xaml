@@ -686,6 +686,13 @@
     <sys:String x:Key="LOCPlayAch_ThemeMigration_RestartRequired">Please restart Playnite to apply the theme changes.</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_Revert">Revert Theme</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">Revert</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_ApplyButton">Apply Compatibility Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_Description">Apply a StartPage compatibility migration so Recent Achievements can include Local-provider entries after StartPage updates.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled">StartPage is not installed in this Playnite environment.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_RestartPlayniteButton">Restart Playnite</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_RevertButton">Revert Migration</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_RevertConfirm">Restore the achievement cache from the last backup? This will undo the compatibility migration.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_StartPageCompatibility_Title">StartPage Compatibility</sys:String>
     <sys:String x:Key="LOCPlayAch_ThemeMigration_Title">Theme Migration</sys:String>
 
     <!-- ================================================================= -->

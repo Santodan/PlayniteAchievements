@@ -2807,6 +2807,46 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ================== STARTPAGE COMPATIBILITY SECTION ================== -->
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_Title}"
+                                           Style="{StaticResource SectionHeaderStyle}"
+                                           Margin="0,0,0,12"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,16"
+                                           TextWrapping="Wrap"/>
+
+                                <WrapPanel HorizontalAlignment="Right">
+                                    <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_RevertButton}"
+                                            Click="RevertStartPageCompatibility_Click"
+                                            Padding="14,6"
+                                            Margin="0,0,8,0"
+                                            MinWidth="160"
+                                            Visibility="{Binding HasStartPageBackup, ElementName=SettingsControlRoot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                    <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_ApplyButton}"
+                                            Click="ApplyStartPageCompatibility_Click"
+                                            Padding="14,6"
+                                            Margin="0,0,8,0"
+                                            MinWidth="180"
+                                            IsEnabled="{Binding HasStartPageInstalled, ElementName=SettingsControlRoot}"/>
+
+                                    <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_RestartPlayniteButton}"
+                                            Click="RestartPlaynite_Click"
+                                            Padding="14,6"
+                                            MinWidth="140"/>
+                                </WrapPanel>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,8,0,0"
+                                           Visibility="{Binding ShowStartPageNotInstalledMessage, ElementName=SettingsControlRoot, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

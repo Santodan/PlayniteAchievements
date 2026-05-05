@@ -659,6 +659,46 @@
                                    Visibility="{Binding ShowNoRevertableThemesMessage, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </Border>
+
+                <!-- StartPage Compatibility Card -->
+                <Border Background="{DynamicResource ControlBackgroundBrush}"
+                        CornerRadius="4"
+                        Padding="16"
+                        Margin="0,12,0,0"
+                        BorderBrush="{DynamicResource NormalBorderBrush}"
+                        BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_Title}"
+                                   Style="{DynamicResource BaseTextBlockStyle}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Margin="0,0,0,8"/>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_Description}"
+                                   Style="{DynamicResource BaseTextBlockStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap"
+                                   Opacity="0.7"
+                                   Margin="0,0,0,12"/>
+
+                        <Button Content="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_ApplyButton}"
+                                Command="{Binding ApplyStartPageCompatibilityCommand}"
+                                Padding="12,6"
+                                MinWidth="160"
+                                HorizontalAlignment="Center"
+                                IsEnabled="{Binding HasStartPageInstalled}"/>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_StartPageCompatibility_NotInstalled}"
+                                   Style="{DynamicResource BaseTextBlockStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.6"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,8,0,0"
+                                   Visibility="{Binding ShowStartPageNotInstalledMessage, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <!-- End constrained content container -->

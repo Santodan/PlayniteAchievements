@@ -19,6 +19,7 @@ Packages:
   - "Fixed the `Theme Migration`"
   - "Add `Custom (Manual)` option for the `Default Achievement Sort`"
   - "Sorting by the `Icon` will sort with `RetroAchievement` order"
+  - "Added a `StartPage` section in the `Theme Migration` to make it compatibile with the `Local` provider"
 
   - Version: 2.1.3.1
     RequiredApiVersion: 6.14.0
