@@ -124,6 +124,8 @@ namespace PlayniteAchievements.Providers.Local
         public const string SteamAppCacheUserNone = "<none>";
 
         private Dictionary<Guid, int> _steamAppIdOverrides = new Dictionary<Guid, int>();
+        private Dictionary<Guid, int> _lumaPlayAppIdOverrides = new Dictionary<Guid, int>();
+        private Dictionary<Guid, string> _lumaPlayIniPathOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _steamAppCacheUserOverrides = new Dictionary<Guid, string>();
         private string _steamUserdataPath = string.Empty;
@@ -639,6 +641,18 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _steamAppIdOverrides;
             set => SetValue(ref _steamAppIdOverrides, value ?? new Dictionary<Guid, int>());
+        }
+
+        public Dictionary<Guid, int> LumaPlayAppIdOverrides
+        {
+            get => _lumaPlayAppIdOverrides;
+            set => SetValue(ref _lumaPlayAppIdOverrides, value ?? new Dictionary<Guid, int>());
+        }
+
+        public Dictionary<Guid, string> LumaPlayIniPathOverrides
+        {
+            get => _lumaPlayIniPathOverrides;
+            set => SetValue(ref _lumaPlayIniPathOverrides, value ?? new Dictionary<Guid, string>());
         }
 
         public Dictionary<Guid, string> LocalFolderOverrides

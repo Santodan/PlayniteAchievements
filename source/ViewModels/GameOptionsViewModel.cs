@@ -57,6 +57,12 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasLocalSteamAppIdOverride;
         private string _localSteamAppIdOverrideValue;
         private string _localSteamAppIdOverrideInput;
+        private bool _hasLocalLumaPlayAppIdOverride;
+        private string _localLumaPlayAppIdOverrideValue;
+        private string _localLumaPlayAppIdOverrideInput;
+        private bool _hasLocalLumaPlayIniPathOverride;
+        private string _localLumaPlayIniPathOverrideValue;
+        private string _localLumaPlayIniPathOverrideInput;
         private bool _hasLocalSteamAppCacheUserOverride;
         private string _localSteamAppCacheUserOverrideValue;
         private string _localSteamAppCacheUserOverrideInput;
@@ -103,6 +109,11 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ClearRaOverrideCommand { get; }
         public RelayCommand ApplyLocalSteamAppIdOverrideCommand { get; }
         public RelayCommand ClearLocalSteamAppIdOverrideCommand { get; }
+        public RelayCommand ApplyLocalLumaPlayAppIdOverrideCommand { get; }
+        public RelayCommand ClearLocalLumaPlayAppIdOverrideCommand { get; }
+        public RelayCommand ApplyLocalLumaPlayIniPathOverrideCommand { get; }
+        public RelayCommand ClearLocalLumaPlayIniPathOverrideCommand { get; }
+        public RelayCommand BrowseLocalLumaPlayIniPathOverrideCommand { get; }
         public RelayCommand ApplyLocalSteamAppCacheUserOverrideCommand { get; }
         public RelayCommand ClearLocalSteamAppCacheUserOverrideCommand { get; }
         public RelayCommand ApplyLocalFolderOverrideCommand { get; }
@@ -153,6 +164,11 @@ namespace PlayniteAchievements.ViewModels
             ClearRaOverrideCommand = new RelayCommand(_ => ClearRaOverride(), _ => HasGame && IsRaCapable && HasRaOverride);
             ApplyLocalSteamAppIdOverrideCommand = new RelayCommand(_ => ApplyLocalSteamAppIdOverride(), _ => HasGame);
             ClearLocalSteamAppIdOverrideCommand = new RelayCommand(_ => ClearLocalSteamAppIdOverride(), _ => HasGame && HasLocalSteamAppIdOverride);
+            ApplyLocalLumaPlayAppIdOverrideCommand = new RelayCommand(_ => ApplyLocalLumaPlayAppIdOverride(), _ => HasGame);
+            ClearLocalLumaPlayAppIdOverrideCommand = new RelayCommand(_ => ClearLocalLumaPlayAppIdOverride(), _ => HasGame && HasLocalLumaPlayAppIdOverride);
+            ApplyLocalLumaPlayIniPathOverrideCommand = new RelayCommand(_ => ApplyLocalLumaPlayIniPathOverride(), _ => HasGame);
+            ClearLocalLumaPlayIniPathOverrideCommand = new RelayCommand(_ => ClearLocalLumaPlayIniPathOverride(), _ => HasGame && HasLocalLumaPlayIniPathOverride);
+            BrowseLocalLumaPlayIniPathOverrideCommand = new RelayCommand(_ => BrowseLocalLumaPlayIniPathOverride(), _ => HasGame);
             ApplyLocalSteamAppCacheUserOverrideCommand = new RelayCommand(_ => ApplyLocalSteamAppCacheUserOverride(), _ => HasGame);
             ClearLocalSteamAppCacheUserOverrideCommand = new RelayCommand(_ => ClearLocalSteamAppCacheUserOverride(), _ => HasGame && HasLocalSteamAppCacheUserOverride);
             ApplyLocalFolderOverrideCommand = new RelayCommand(_ => ApplyLocalFolderOverride(), _ => HasGame);
@@ -634,6 +650,98 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public bool HasLocalLumaPlayAppIdOverride
+        {
+            get => _hasLocalLumaPlayAppIdOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasLocalLumaPlayAppIdOverride, value))
+                {
+                    OnPropertyChanged(nameof(LocalLumaPlayAppIdStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalLumaPlayAppIdOverrideValue
+        {
+            get => _localLumaPlayAppIdOverrideValue;
+            private set => SetValue(ref _localLumaPlayAppIdOverrideValue, value);
+        }
+
+        public string LocalLumaPlayAppIdOverrideInput
+        {
+            get => _localLumaPlayAppIdOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _localLumaPlayAppIdOverrideInput, value ?? string.Empty))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalLumaPlayAppIdStatusText
+        {
+            get
+            {
+                if (!HasLocalLumaPlayAppIdOverride)
+                {
+                    return L("LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideNone", "No forced LumaPlay Uplay App ID set");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideValue", "Forced LumaPlay Uplay App ID: {0}"),
+                    LocalLumaPlayAppIdOverrideValue);
+            }
+        }
+
+        public bool HasLocalLumaPlayIniPathOverride
+        {
+            get => _hasLocalLumaPlayIniPathOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasLocalLumaPlayIniPathOverride, value))
+                {
+                    OnPropertyChanged(nameof(LocalLumaPlayIniPathStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalLumaPlayIniPathOverrideValue
+        {
+            get => _localLumaPlayIniPathOverrideValue;
+            private set => SetValue(ref _localLumaPlayIniPathOverrideValue, value);
+        }
+
+        public string LocalLumaPlayIniPathOverrideInput
+        {
+            get => _localLumaPlayIniPathOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _localLumaPlayIniPathOverrideInput, value ?? string.Empty))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalLumaPlayIniPathStatusText
+        {
+            get
+            {
+                if (!HasLocalLumaPlayIniPathOverride)
+                {
+                    return L("LOCPlayAch_GameOptions_Status_LocalLumaPlayIniPathOverrideNone", "No LumaPlay.ini override set");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_GameOptions_Status_LocalLumaPlayIniPathOverrideValue", "LumaPlay.ini override: {0}"),
+                    LocalLumaPlayIniPathOverrideValue);
+            }
+        }
+
         public IReadOnlyList<LocalSteamAppCacheUserOption> AvailableLocalSteamAppCacheUsers
         {
             get => _availableLocalSteamAppCacheUsers;
@@ -1053,6 +1161,32 @@ namespace PlayniteAchievements.ViewModels
                     LocalSteamAppIdOverrideInput = string.Empty;
                 }
 
+                if (LocalSavesProvider.TryGetLumaPlayAppIdOverride(_gameId, out var localLumaPlayAppId))
+                {
+                    HasLocalLumaPlayAppIdOverride = true;
+                    LocalLumaPlayAppIdOverrideValue = localLumaPlayAppId.ToString();
+                    LocalLumaPlayAppIdOverrideInput = LocalLumaPlayAppIdOverrideValue;
+                }
+                else
+                {
+                    HasLocalLumaPlayAppIdOverride = false;
+                    LocalLumaPlayAppIdOverrideValue = string.Empty;
+                    LocalLumaPlayAppIdOverrideInput = string.Empty;
+                }
+
+                if (LocalSavesProvider.TryGetLumaPlayIniPathOverride(_gameId, out var localLumaPlayIniPath))
+                {
+                    HasLocalLumaPlayIniPathOverride = true;
+                    LocalLumaPlayIniPathOverrideValue = localLumaPlayIniPath;
+                    LocalLumaPlayIniPathOverrideInput = localLumaPlayIniPath;
+                }
+                else
+                {
+                    HasLocalLumaPlayIniPathOverride = false;
+                    LocalLumaPlayIniPathOverrideValue = string.Empty;
+                    LocalLumaPlayIniPathOverrideInput = string.Empty;
+                }
+
                 var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
                 var availableSteamUsers = new List<LocalSteamAppCacheUserOption>
                 {
@@ -1262,6 +1396,85 @@ namespace PlayniteAchievements.ViewModels
             if (TryClearLocalSteamAppIdOverride())
             {
                 Reload();
+            }
+        }
+
+        private void ApplyLocalLumaPlayAppIdOverride()
+        {
+            var text = (LocalLumaPlayAppIdOverrideInput ?? string.Empty).Trim();
+            if (!int.TryParse(text, out var newId) || newId <= 0)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Menu_LocalLumaPlayAppId_InvalidId", "Please enter a valid positive LumaPlay Uplay App ID."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (TrySetLocalLumaPlayAppIdOverride(newId))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearLocalLumaPlayAppIdOverride()
+        {
+            if (TryClearLocalLumaPlayAppIdOverride())
+            {
+                Reload();
+            }
+        }
+
+        private void ApplyLocalLumaPlayIniPathOverride()
+        {
+            var text = (LocalLumaPlayIniPathOverrideInput ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_LocalLumaPlayIniPath_Invalid", "Please enter a valid LumaPlay.ini path."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!File.Exists(text))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_LocalLumaPlayIniPath_NotFound", "The selected LumaPlay.ini file does not exist."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (TrySetLocalLumaPlayIniPathOverride(text))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearLocalLumaPlayIniPathOverride()
+        {
+            if (TryClearLocalLumaPlayIniPathOverride())
+            {
+                Reload();
+            }
+        }
+
+        private void BrowseLocalLumaPlayIniPathOverride()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "LumaPlay.ini|LumaPlay.ini|INI Files (*.ini)|*.ini|All Files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                LocalLumaPlayIniPathOverrideInput = dialog.FileName;
             }
         }
 
@@ -1707,6 +1920,78 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        private bool TrySetLocalLumaPlayAppIdOverride(int newId)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null || newId <= 0)
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TrySetLumaPlayAppIdOverride(_gameId, newId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TryClearLocalLumaPlayAppIdOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TryClearLumaPlayAppIdOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TrySetLocalLumaPlayIniPathOverride(string iniPath)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null || string.IsNullOrWhiteSpace(iniPath))
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TrySetLumaPlayIniPathOverride(_gameId, iniPath, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TryClearLocalLumaPlayIniPathOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TryClearLumaPlayIniPathOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
         private bool TrySetLocalSteamAppCacheUserOverride(string userId)
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -2059,6 +2344,11 @@ namespace PlayniteAchievements.ViewModels
             ClearRaOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged();
+            ApplyLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged();
+            ClearLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged();
+            ApplyLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();
+            ClearLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();
+            BrowseLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalSteamAppCacheUserOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalFolderOverrideCommand?.RaiseCanExecuteChanged();

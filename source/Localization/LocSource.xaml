@@ -202,6 +202,10 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideNone">No forced Steam App ID set</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideValue">Forced Steam App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideNone">No forced LumaPlay Uplay App ID set</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideValue">Forced LumaPlay Uplay App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayIniPathOverrideNone">No LumaPlay.ini override set</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayIniPathOverrideValue">LumaPlay.ini override: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamUserOverrideNone">Automatic Steam user detection</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamUserOverrideValue">Forced Steam user: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderNone">No local folder detected</sys:String>
@@ -212,6 +216,13 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LocalFolderOverride">Local save folder</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHeader">Local forced Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHint">Enter the Steam App ID the Local provider should use for this game. This is useful when a game has multiple Steam App IDs.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayAppIdHeader">Local forced LumaPlay Uplay App ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayAppIdHint">Enter the Uplay App ID that LumaPlay uses for this game (for example from UplayGameID in LumaPlay.ini).</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayIniPathHeader">LumaPlay.ini override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayIniPathHint">Point to the game's LumaPlay.ini file. The Local provider can infer UplayGameID from this file when the game has no app id metadata.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalLumaPlayAppId_InvalidId">Please enter a valid positive LumaPlay Uplay App ID.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalLumaPlayIniPath_Invalid">Please enter a valid LumaPlay.ini path.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalLumaPlayIniPath_NotFound">The selected LumaPlay.ini file does not exist.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamUserHeader">Local forced Steam user</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamUserHint">Choose the Steam local user whose appcache and userdata files should be used for this game. Leave it on automatic to search all detected users.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalSteamUser_Automatic">Automatic (all detected users)</sys:String>

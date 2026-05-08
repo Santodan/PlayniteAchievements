@@ -22,6 +22,9 @@
 >
 >- If you need setup instructions for Steam, GOG, Epic, RetroAchievements, PSN, Xbox, RPCS3, ShadPS4, Xenia, or Exophase, use the upstream wiki first.
 >- If you are using this fork specifically for Local support, the main differences are the Local provider, Local overrides, Local compatibility fixes, and Local-focused refresh / notification work listed above.
+>
+>
+> I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
 
 ## What This Fork Focuses On
 
@@ -35,6 +38,7 @@
 - Local-only realtime monitoring and notification improvements
 - Add all the local achievements' games with the corresponding metadata
 - Local Achievement Notification
+- Theme and `StartPage` migration
 
 ### Local Provider Folder List And Browse Flow
 
@@ -81,10 +85,14 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next Version Planned changes
 
-- Try to add `LumaPLay` into the achievements detection
 - Fix local `Steam` achievements, still with some issues
 
-## TBD - v2.1.3.2
+
+## TBD - v2.1.3.3
+
+- `LumaPLay` achievements integrated
+
+## 2026-05-05 - v2.1.3.2
 
 - Fixed the `Local` achievements not respecting the language setting
   - Added an API token fetch or manual insert for the hidden achievements

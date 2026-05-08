@@ -121,7 +121,22 @@ namespace PlayniteAchievements.Providers.Local
         {
             if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
             {
-                return false;
+                if (TryAutoDetectLumaPlayAppId(game, out var autoDetectedAppId, out var autoDetectedIniPath) && autoDetectedAppId > 0)
+                {
+                    appId = autoDetectedAppId;
+                    Log($"LUMAPLAY AUTO-DETECT: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
+                }
+                else
+                {
+                    if (game != null &&
+                        TryGetLumaPlayIniPathOverride(game.Id, out var lumaIniOverridePath) &&
+                        File.Exists(lumaIniOverridePath))
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }
             }
 
             var appIdText = appId.ToString(CultureInfo.InvariantCulture);
@@ -161,6 +176,40 @@ namespace PlayniteAchievements.Providers.Local
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
         {
             var appId = GetAppId(game, out var isAppIdOverridden);
+            if (string.IsNullOrEmpty(appId))
+            {
+                // If no app id is available from metadata, try to resolve it from a configured
+                // LumaPlay.ini override for this game. This enables manual games with empty GameId.
+                if (game != null &&
+                    TryGetLumaPlayIniPathOverride(game.Id, out var configuredLumaPlayIniPath) &&
+                    TryExtractUplayGameIdFromLumaPlayIni(configuredLumaPlayIniPath, out var appIdFromLumaPlayIni))
+                {
+                    appId = appIdFromLumaPlayIni.ToString(CultureInfo.InvariantCulture);
+                    isAppIdOverridden = true;
+                    Log($"LUMAPLAY APPID INFERRED: game='{game?.Name}' appId={appId} source={configuredLumaPlayIniPath}");
+                }
+
+                if (string.IsNullOrEmpty(appId) &&
+                    game != null &&
+                    TryGetFolderOverride(game.Id, out var overriddenFolderPath) &&
+                    TryFindLumaPlayIniPathFromFolder(overriddenFolderPath, out var discoveredLumaPlayIniPath) &&
+                    TryExtractUplayGameIdFromLumaPlayIni(discoveredLumaPlayIniPath, out appIdFromLumaPlayIni))
+                {
+                    appId = appIdFromLumaPlayIni.ToString(CultureInfo.InvariantCulture);
+                    isAppIdOverridden = true;
+                    Log($"LUMAPLAY APPID INFERRED: game='{game?.Name}' appId={appId} source={discoveredLumaPlayIniPath}");
+                }
+
+                if (string.IsNullOrEmpty(appId) &&
+                    TryAutoDetectLumaPlayAppId(game, out var autoDetectedAppId, out var autoDetectedIniPath) &&
+                    autoDetectedAppId > 0)
+                {
+                    appId = autoDetectedAppId.ToString(CultureInfo.InvariantCulture);
+                    isAppIdOverridden = true;
+                    Log($"LUMAPLAY APPID AUTO-DETECTED: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
+                }
+            }
+
             if (string.IsNullOrEmpty(appId)) return null;
 
             string localFolderPath = null;
@@ -562,6 +611,39 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(folderPath);
         }
 
+        internal static bool TryGetLumaPlayAppIdOverride(Guid gameId, out int appId)
+        {
+            appId = 0;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            return settings?.LumaPlayAppIdOverrides != null &&
+                   settings.LumaPlayAppIdOverrides.TryGetValue(gameId, out appId) &&
+                   appId > 0;
+        }
+
+        internal static bool TryGetLumaPlayIniPathOverride(Guid gameId, out string iniPath)
+        {
+            iniPath = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.LumaPlayIniPathOverrides == null ||
+                !settings.LumaPlayIniPathOverrides.TryGetValue(gameId, out var configuredPath))
+            {
+                return false;
+            }
+
+            iniPath = configuredPath?.Trim();
+            return !string.IsNullOrWhiteSpace(iniPath);
+        }
+
         internal static bool TryGetSteamAppCacheUserOverride(Guid gameId, out string userId)
         {
             userId = null;
@@ -628,6 +710,75 @@ namespace PlayniteAchievements.Providers.Local
             ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Set Local folder override for '{gameName}' to '{normalizedPath}'");
+            return true;
+        }
+
+        internal static bool TrySetLumaPlayAppIdOverride(Guid gameId, int appId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty || appId <= 0)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            settings.LumaPlayAppIdOverrides[gameId] = appId;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local LumaPlay Uplay App ID override for '{gameName}' to {appId}");
+            return true;
+        }
+
+        internal static bool TryClearLumaPlayAppIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.LumaPlayAppIdOverrides == null || !settings.LumaPlayAppIdOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local LumaPlay Uplay App ID override for '{gameName}'");
+            return true;
+        }
+
+        internal static bool TrySetLumaPlayIniPathOverride(Guid gameId, string iniPath, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(iniPath))
+            {
+                return false;
+            }
+
+            var normalizedPath = iniPath.Trim();
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            settings.LumaPlayIniPathOverrides[gameId] = normalizedPath;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local LumaPlay.ini override for '{gameName}' to '{normalizedPath}'");
+            return true;
+        }
+
+        internal static bool TryClearLumaPlayIniPathOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.LumaPlayIniPathOverrides == null || !settings.LumaPlayIniPathOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local LumaPlay.ini override for '{gameName}'");
             return true;
         }
 
@@ -703,6 +854,21 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
+            if (TryGetLumaPlayAppIdOverride(game.Id, out var overriddenLumaPlayAppId))
+            {
+                appId = overriddenLumaPlayAppId;
+                isOverridden = true;
+                return true;
+            }
+
+            if (TryGetLumaPlayIniPathOverride(game.Id, out var overriddenLumaPlayIniPath) &&
+                TryExtractUplayGameIdFromLumaPlayIni(overriddenLumaPlayIniPath, out var lumaPlayIniAppId))
+            {
+                appId = lumaPlayIniAppId;
+                isOverridden = true;
+                return true;
+            }
+
             var detected = DetectAppId(game);
             return int.TryParse(detected, out appId) && appId > 0;
         }
@@ -738,6 +904,160 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
             return null;
+        }
+
+        private static bool TryExtractUplayGameIdFromLumaPlayIni(string iniPath, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(iniPath) || !File.Exists(iniPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var inAchievementsSection = false;
+                foreach (var rawLine in File.ReadLines(iniPath))
+                {
+                    var line = (rawLine ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal) || line.StartsWith(";", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal))
+                    {
+                        var sectionName = line.Substring(1, line.Length - 2).Trim();
+                        inAchievementsSection = string.Equals(sectionName, "Achievements", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (!inAchievementsSection)
+                    {
+                        continue;
+                    }
+
+                    var separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line.Substring(0, separatorIndex).Trim();
+                    if (!string.Equals(key, "UplayGameID", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var value = line.Substring(separatorIndex + 1).Trim();
+                    return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) && appId > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private bool TryAutoDetectLumaPlayAppId(Game game, out int appId, out string detectedIniPath)
+        {
+            appId = 0;
+            detectedIniPath = null;
+            if (game == null)
+            {
+                return false;
+            }
+
+            var installDirectory = PathExpansion.ExpandGamePath(_api, game, game.InstallDirectory)?.Trim();
+            if (string.IsNullOrWhiteSpace(installDirectory) || !Directory.Exists(installDirectory))
+            {
+                return false;
+            }
+
+            if (!TryFindLumaPlayIniPathFromFolder(installDirectory, out var iniPath, maxSearchDepth: 3))
+            {
+                return false;
+            }
+
+            if (!TryExtractUplayGameIdFromLumaPlayIni(iniPath, out appId) || appId <= 0)
+            {
+                return false;
+            }
+
+            detectedIniPath = iniPath;
+            return true;
+        }
+
+        private static bool TryFindLumaPlayIniPathFromFolder(string folderPath, out string iniPath, int maxSearchDepth = 1)
+        {
+            iniPath = null;
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return false;
+            }
+
+            var directPath = Path.Combine(folderPath, "LumaPlay.ini");
+            if (File.Exists(directPath))
+            {
+                iniPath = directPath;
+                return true;
+            }
+
+            var lumaFilesPath = Path.Combine(folderPath, "LumaPlayFiles", "LumaPlay.ini");
+            if (File.Exists(lumaFilesPath))
+            {
+                iniPath = lumaFilesPath;
+                return true;
+            }
+
+            if (maxSearchDepth <= 0)
+            {
+                return false;
+            }
+
+            return TryFindLumaPlayIniPathRecursive(folderPath, 0, maxSearchDepth, out iniPath);
+        }
+
+        private static bool TryFindLumaPlayIniPathRecursive(string directoryPath, int currentDepth, int maxDepth, out string iniPath)
+        {
+            iniPath = null;
+            if (currentDepth >= maxDepth)
+            {
+                return false;
+            }
+
+            try
+            {
+                foreach (var child in Directory.EnumerateDirectories(directoryPath))
+                {
+                    var directPath = Path.Combine(child, "LumaPlay.ini");
+                    if (File.Exists(directPath))
+                    {
+                        iniPath = directPath;
+                        return true;
+                    }
+
+                    var lumaFilesPath = Path.Combine(child, "LumaPlayFiles", "LumaPlay.ini");
+                    if (File.Exists(lumaFilesPath))
+                    {
+                        iniPath = lumaFilesPath;
+                        return true;
+                    }
+
+                    if (TryFindLumaPlayIniPathRecursive(child, currentDepth + 1, maxDepth, out iniPath))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         private static bool TryExtractAppIdFromNotes(string notes, out int appId)
@@ -962,7 +1282,10 @@ namespace PlayniteAchievements.Providers.Local
                 return false;
             }
 
-            if (TryGetAppIdOverride(game.Id, out _) || TryGetFolderOverride(game.Id, out _))
+            if (TryGetAppIdOverride(game.Id, out _) ||
+                TryGetFolderOverride(game.Id, out _) ||
+                TryGetLumaPlayAppIdOverride(game.Id, out _) ||
+                TryGetLumaPlayIniPathOverride(game.Id, out _))
             {
                 return true;
             }
@@ -1004,25 +1327,25 @@ namespace PlayniteAchievements.Providers.Local
                 return null;
             }
 
-            var schema = TryGetSteamAppCacheSchema(appId);
-            if (schema != null && schema.Count > 0)
+            var schemaSections = TryGetSteamAppCacheSchemaSections(appId);
+            if (schemaSections != null && schemaSections.Count > 0)
             {
-                var unlockTimes = TryGetSteamAppCacheUnlockTimes(appId, game);
+                var unlockTimeSections = TryGetSteamAppCacheUnlockTimeSections(appId, game);
                 var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
 
-                foreach (var schemaEntry in schema)
+                for (var sectionIndex = 0; sectionIndex < schemaSections.Count; sectionIndex++)
                 {
-                    unlockTimes.TryGetValue(schemaEntry.Index, out var timestamp);
-                    entries[schemaEntry.ApiName] = new LocalEntry
+                    var schemaSection = schemaSections[sectionIndex];
+                    var unlockTimes = sectionIndex < unlockTimeSections.Count
+                        ? unlockTimeSections[sectionIndex]
+                        : null;
+
+                    foreach (var schemaEntry in schemaSection.Entries)
                     {
-                        earned = timestamp > 0,
-                        earned_time = timestamp,
-                        displayName = string.IsNullOrWhiteSpace(schemaEntry.DisplayName) ? schemaEntry.ApiName : schemaEntry.DisplayName,
-                        description = schemaEntry.Description ?? string.Empty,
-                        icon = BuildSteamAchievementIconUrl(appId, schemaEntry.IconHash),
-                        iconGray = BuildSteamAchievementIconUrl(appId, schemaEntry.IconGrayHash),
-                        hidden = schemaEntry.Hidden
-                    };
+                        var timestamp = 0L;
+                        unlockTimes?.TryGetValue(schemaEntry.Index, out timestamp);
+                        MergeSteamAppCacheEntry(entries, schemaEntry, timestamp, appId);
+                    }
                 }
 
                 return entries.Count > 0 ? entries : null;
@@ -1240,6 +1563,13 @@ namespace PlayniteAchievements.Providers.Local
 
         private List<SteamAppCacheSchemaEntry> TryGetSteamAppCacheSchema(int appId)
         {
+            return TryGetSteamAppCacheSchemaSections(appId)
+                ?.SelectMany(section => section.Entries)
+                .ToList();
+        }
+
+        private List<SteamAppCacheSchemaSection> TryGetSteamAppCacheSchemaSections(int appId)
+        {
             foreach (var schemaPath in GetSteamAppCacheSchemaFilePaths(appId))
             {
                 try
@@ -1262,7 +1592,8 @@ namespace PlayniteAchievements.Providers.Local
                         continue;
                     }
 
-                    var entries = new List<SteamAppCacheSchemaEntry>();
+                    var sections = new List<SteamAppCacheSchemaSection>();
+                    var currentEntries = new List<SteamAppCacheSchemaEntry>();
                     var index = bitsIndex + 1;
                     var lastEntryIndex = -1;
 
@@ -1276,12 +1607,14 @@ namespace PlayniteAchievements.Providers.Local
                             continue;
                         }
 
-                        // A non-increasing integer index signals a section restart (e.g., the
-                        // "stats" section also starts at 0).  Stop here to avoid counting stat
-                        // entries as achievements.
+                        // A non-increasing integer index signals a new appcache section. Steam can
+                        // split achievements across multiple "bits" blocks, each with local indexes.
                         if (entryIndex <= lastEntryIndex)
                         {
-                            break;
+                            AddSteamAppCacheSchemaSection(sections, currentEntries);
+                            currentEntries = new List<SteamAppCacheSchemaEntry>();
+                            lastEntryIndex = -1;
+                            continue;
                         }
 
                         lastEntryIndex = entryIndex;
@@ -1343,15 +1676,17 @@ namespace PlayniteAchievements.Providers.Local
                             index++;
                         }
 
-                        if (!string.IsNullOrWhiteSpace(entry.ApiName))
+                        if (IsSteamAppCacheAchievementEntry(entry))
                         {
-                            entries.Add(entry);
+                            currentEntries.Add(entry);
                         }
                     }
 
-                    if (entries.Count > 0)
+                    AddSteamAppCacheSchemaSection(sections, currentEntries);
+
+                    if (sections.Count > 0)
                     {
-                        return entries;
+                        return sections;
                     }
                 }
                 catch (Exception ex)
@@ -1363,9 +1698,49 @@ namespace PlayniteAchievements.Providers.Local
             return null;
         }
 
+        private static void AddSteamAppCacheSchemaSection(List<SteamAppCacheSchemaSection> sections, List<SteamAppCacheSchemaEntry> entries)
+        {
+            if (sections == null || entries == null || entries.Count == 0)
+            {
+                return;
+            }
+
+            sections.Add(new SteamAppCacheSchemaSection
+            {
+                Entries = entries
+            });
+        }
+
+        private static bool IsSteamAppCacheAchievementEntry(SteamAppCacheSchemaEntry entry)
+        {
+            return entry != null
+                && !string.IsNullOrWhiteSpace(entry.ApiName)
+                && (!string.IsNullOrWhiteSpace(entry.DisplayName)
+                    || !string.IsNullOrWhiteSpace(entry.Description)
+                    || !string.IsNullOrWhiteSpace(entry.IconHash)
+                    || !string.IsNullOrWhiteSpace(entry.IconGrayHash));
+        }
+
         private Dictionary<int, long> TryGetSteamAppCacheUnlockTimes(int appId, Game game = null)
         {
             var result = new Dictionary<int, long>();
+            foreach (var section in TryGetSteamAppCacheUnlockTimeSections(appId, game))
+            {
+                foreach (var pair in section)
+                {
+                    if (!result.ContainsKey(pair.Key))
+                    {
+                        result[pair.Key] = pair.Value;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private List<Dictionary<int, long>> TryGetSteamAppCacheUnlockTimeSections(int appId, Game game = null)
+        {
+            var sections = new List<Dictionary<int, long>>();
             var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId, game))
@@ -1387,6 +1762,7 @@ namespace PlayniteAchievements.Providers.Local
                             continue;
                         }
 
+                        var section = new Dictionary<int, long>();
                         var cursor = position + marker.Length;
                         while (cursor < bytes.Length && bytes[cursor] != 0)
                         {
@@ -1434,11 +1810,23 @@ namespace PlayniteAchievements.Providers.Local
                                 timestamp >= 946684800 &&
                                 timestamp <= nowUnix + 86400)
                             {
-                                result[entryIndex] = timestamp;
+                                section[entryIndex] = timestamp;
                                 cursor += 4;
                                 continue;
                             }
+
+                            break;
                         }
+
+                        if (section.Count > 0)
+                        {
+                            sections.Add(section);
+                        }
+                    }
+
+                    if (sections.Count > 0)
+                    {
+                        return sections;
                     }
                 }
                 catch (Exception ex)
@@ -1447,7 +1835,62 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            return result;
+            return sections;
+        }
+
+        private static void MergeSteamAppCacheEntry(
+            Dictionary<string, LocalEntry> entries,
+            SteamAppCacheSchemaEntry schemaEntry,
+            long timestamp,
+            int appId)
+        {
+            if (entries == null || schemaEntry == null || string.IsNullOrWhiteSpace(schemaEntry.ApiName))
+            {
+                return;
+            }
+
+            var unlocked = timestamp > 0;
+            var merged = new LocalEntry
+            {
+                earned = unlocked,
+                earned_time = timestamp,
+                displayName = string.IsNullOrWhiteSpace(schemaEntry.DisplayName) ? schemaEntry.ApiName : schemaEntry.DisplayName,
+                description = schemaEntry.Description ?? string.Empty,
+                icon = BuildSteamAchievementIconUrl(appId, schemaEntry.IconHash),
+                iconGray = BuildSteamAchievementIconUrl(appId, schemaEntry.IconGrayHash),
+                hidden = schemaEntry.Hidden
+            };
+
+            if (!entries.TryGetValue(schemaEntry.ApiName, out var existing))
+            {
+                entries[schemaEntry.ApiName] = merged;
+                return;
+            }
+
+            existing.earned = existing.earned || merged.earned;
+            existing.earned_time = Math.Max(existing.earned_time, merged.earned_time);
+            if (string.IsNullOrWhiteSpace(existing.displayName))
+            {
+                existing.displayName = merged.displayName;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.description))
+            {
+                existing.description = merged.description;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.icon))
+            {
+                existing.icon = merged.icon;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.iconGray))
+            {
+                existing.iconGray = merged.iconGray;
+            }
+
+            existing.hidden = existing.hidden || merged.hidden;
+            entries[schemaEntry.ApiName] = existing;
         }
 
         private static List<string> ExtractNullDelimitedTokens(byte[] bytes)
@@ -2550,6 +2993,32 @@ namespace PlayniteAchievements.Providers.Local
                 {
                     achievement.LockedIconPath = previousAchievement.LockedIconPath;
                 }
+
+                // LumaPlay registry values do not expose per-achievement unlock timestamps.
+                // Preserve known timestamps from prior cache, and stamp first-seen time only
+                // when we detect a locked -> unlocked transition with no incoming timestamp.
+                if (achievement.Unlocked)
+                {
+                    if (!achievement.UnlockTimeUtc.HasValue)
+                    {
+                        if (previousAchievement.Unlocked && previousAchievement.UnlockTimeUtc.HasValue)
+                        {
+                            achievement.UnlockTimeUtc = previousAchievement.UnlockTimeUtc;
+                        }
+                        else if (!previousAchievement.Unlocked)
+                        {
+                            achievement.UnlockTimeUtc = DateTime.UtcNow;
+                        }
+                        else if (previousAchievement.Unlocked)
+                        {
+                            achievement.UnlockTimeUtc = DateTime.UtcNow;
+                        }
+                    }
+                }
+                else
+                {
+                    achievement.UnlockTimeUtc = null;
+                }
             }
         }
 
@@ -2639,7 +3108,8 @@ namespace PlayniteAchievements.Providers.Local
         {
             description = description?.Trim();
             return string.IsNullOrWhiteSpace(description) ||
-                   string.Equals(description, "Local achievement from Local", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(description, "Local achievement from Local", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(description, "LumaPlay registry achievement", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsPlaceholderLocalDescription(string description)
@@ -2817,16 +3287,28 @@ namespace PlayniteAchievements.Providers.Local
                             // game config (achievements.json). This is the same operation the
                             // reference JS performs via getNameIndexFromConfigPath + resolveCanonicalName.
                             var ubisoftNameIndex = TryBuildUbisoftConnectNameIndex(candidateAppId);
-                            if (ubisoftNameIndex != null && ubisoftNameIndex.Count > 0)
+                            var ubisoftMetadataByCanonical = TryBuildUbisoftConnectMetadataByCanonical(candidateAppId);
+                            if ((ubisoftNameIndex != null && ubisoftNameIndex.Count > 0) ||
+                                (ubisoftMetadataByCanonical != null && ubisoftMetadataByCanonical.Count > 0))
                             {
                                 var resolved = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
                                 foreach (var kv in entries)
                                 {
                                     var canonical = ResolveUbisoftCanonicalName(kv.Key, ubisoftNameIndex);
-                                    resolved[canonical] = kv.Value;
+                                    var enriched = ApplyUbisoftMetadata(kv.Value, kv.Key, canonical, ubisoftMetadataByCanonical);
+
+                                    if (resolved.TryGetValue(canonical, out var existing))
+                                    {
+                                        resolved[canonical] = MergeLocalEntries(existing, enriched);
+                                    }
+                                    else
+                                    {
+                                        resolved[canonical] = enriched;
+                                    }
                                 }
+
                                 entries = resolved;
-                                Log($"LUMAPLAY UBISOFT CONFIG: appId={candidateAppId} resolved={entries.Count} names from local achievements.json");
+                                Log($"LUMAPLAY UBISOFT CONFIG: appId={candidateAppId} resolved={entries.Count} names+metadata from local Ubisoft config");
                             }
                             return entries;
                         }
@@ -2911,6 +3393,28 @@ namespace PlayniteAchievements.Providers.Local
         /// </summary>
         private static Dictionary<string, string> TryBuildUbisoftConnectNameIndex(string uplayAppId)
         {
+            var achievementsArray = TryLoadUbisoftConnectAchievementArray(uplayAppId);
+            if (achievementsArray == null || achievementsArray.Count == 0)
+            {
+                return null;
+            }
+
+            return BuildUbisoftAchievementNameIndex(achievementsArray);
+        }
+
+        private static Dictionary<string, UbisoftAchievementMetadata> TryBuildUbisoftConnectMetadataByCanonical(string uplayAppId)
+        {
+            var achievementsArray = TryLoadUbisoftConnectAchievementArray(uplayAppId);
+            if (achievementsArray == null || achievementsArray.Count == 0)
+            {
+                return null;
+            }
+
+            return BuildUbisoftAchievementMetadataByCanonical(achievementsArray);
+        }
+
+        private static JArray TryLoadUbisoftConnectAchievementArray(string uplayAppId)
+        {
             if (string.IsNullOrWhiteSpace(uplayAppId))
             {
                 return null;
@@ -2948,8 +3452,12 @@ namespace PlayniteAchievements.Providers.Local
                     try
                     {
                         var json = File.ReadAllText(configPath, System.Text.Encoding.UTF8);
-                        var arr = JArray.Parse(json);
-                        return BuildUbisoftAchievementNameIndex(arr);
+                        var token = JToken.Parse(json);
+                        var extracted = ExtractUbisoftAchievementArray(token);
+                        if (extracted != null && extracted.Count > 0)
+                        {
+                            return extracted;
+                        }
                     }
                     catch
                     {
@@ -2959,6 +3467,47 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return null;
+        }
+
+        private static JArray ExtractUbisoftAchievementArray(JToken root)
+        {
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (root is JArray directArray && LooksLikeUbisoftAchievementArray(directArray))
+            {
+                return directArray;
+            }
+
+            if (!(root is JContainer container))
+            {
+                return null;
+            }
+
+            foreach (var child in container.Children())
+            {
+                var array = ExtractUbisoftAchievementArray(child);
+                if (array != null)
+                {
+                    return array;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool LooksLikeUbisoftAchievementArray(JArray array)
+        {
+            if (array == null || array.Count == 0)
+            {
+                return false;
+            }
+
+            return array
+                .OfType<JObject>()
+                .Any(entry => !string.IsNullOrWhiteSpace(entry["name"]?.Value<string>()));
         }
 
         /// <summary>
@@ -3031,6 +3580,128 @@ namespace PlayniteAchievements.Providers.Local
             return index;
         }
 
+        private static Dictionary<string, UbisoftAchievementMetadata> BuildUbisoftAchievementMetadataByCanonical(JArray configArray)
+        {
+            var result = new Dictionary<string, UbisoftAchievementMetadata>(StringComparer.OrdinalIgnoreCase);
+            if (configArray == null || configArray.Count == 0)
+            {
+                return result;
+            }
+
+            foreach (var item in configArray)
+            {
+                if (!(item is JObject entry))
+                {
+                    continue;
+                }
+
+                var canonical = entry["name"]?.Value<string>()?.Trim();
+                if (string.IsNullOrWhiteSpace(canonical))
+                {
+                    continue;
+                }
+
+                var localizedDisplayName = ResolvePreferredUbisoftText(entry["displayName"]);
+                var localizedDescription = ResolvePreferredUbisoftText(entry["description"]) ??
+                                           ResolvePreferredUbisoftText(entry["strDescription"]);
+
+                var metadata = new UbisoftAchievementMetadata
+                {
+                    CanonicalName = canonical,
+                    DisplayName = localizedDisplayName,
+                    Description = localizedDescription
+                };
+
+                if (!result.ContainsKey(canonical))
+                {
+                    result[canonical] = metadata;
+                }
+                else
+                {
+                    var current = result[canonical];
+                    if (ShouldPreferSchemaDisplayName(current.DisplayName, metadata.DisplayName, canonical, preferLocalizedSchemaText: false))
+                    {
+                        current.DisplayName = metadata.DisplayName;
+                    }
+
+                    if (ShouldPreferSchemaDescription(current.Description, metadata.Description, preferLocalizedSchemaText: false))
+                    {
+                        current.Description = metadata.Description;
+                    }
+
+                    result[canonical] = current;
+                }
+            }
+
+            return result;
+        }
+
+        private static string ResolvePreferredUbisoftText(JToken token)
+        {
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.String)
+            {
+                var raw = token.Value<string>()?.Trim();
+                return string.IsNullOrWhiteSpace(raw) ? null : raw;
+            }
+
+            if (token is JObject localizedObject)
+            {
+                var cultureName = CultureInfo.CurrentUICulture?.Name;
+                var cultureTwoLetter = CultureInfo.CurrentUICulture?.TwoLetterISOLanguageName;
+                var preferredKeys = new[]
+                {
+                    cultureName,
+                    cultureName?.Replace('-', '_'),
+                    cultureTwoLetter,
+                    "en-US",
+                    "en_US",
+                    "en",
+                    "default"
+                };
+
+                foreach (var key in preferredKeys.Where(k => !string.IsNullOrWhiteSpace(k)))
+                {
+                    var matchingProperty = localizedObject.Properties()
+                        .FirstOrDefault(prop => string.Equals(prop.Name, key, StringComparison.OrdinalIgnoreCase));
+                    var value = matchingProperty?.Value?.Value<string>()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+
+                foreach (var property in localizedObject.Properties())
+                {
+                    var value = property.Value?.Value<string>()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+
+                return null;
+            }
+
+            if (token is JArray valuesArray)
+            {
+                foreach (var valueToken in valuesArray)
+                {
+                    var value = ResolvePreferredUbisoftText(valueToken);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Resolves a raw registry value name to its canonical form using the Ubisoft name index.
         /// Falls back to the raw name if no match is found (same as JS resolveCanonicalName fallback).
@@ -3057,8 +3728,73 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            // Fall back to raw name (same as JS "return candidates[candidates.length - 1] || """)
+            // Fall back to raw name (same as JS "return candidates[candidates.length - 1] || \"\"")
             return rawName;
+        }
+
+        private static LocalEntry ApplyUbisoftMetadata(
+            LocalEntry entry,
+            string rawName,
+            string canonicalName,
+            IReadOnlyDictionary<string, UbisoftAchievementMetadata> metadataByCanonical)
+        {
+            if (metadataByCanonical == null || metadataByCanonical.Count == 0 || string.IsNullOrWhiteSpace(canonicalName))
+            {
+                return entry;
+            }
+
+            if (!metadataByCanonical.TryGetValue(canonicalName, out var metadata) || metadata == null)
+            {
+                return entry;
+            }
+
+            if (ShouldPreferSchemaDisplayName(entry.displayName, metadata.DisplayName, rawName, preferLocalizedSchemaText: false))
+            {
+                entry.displayName = metadata.DisplayName;
+            }
+
+            if (ShouldPreferSchemaDescription(entry.description, metadata.Description, preferLocalizedSchemaText: false))
+            {
+                entry.description = metadata.Description;
+            }
+
+            return entry;
+        }
+
+        private static LocalEntry MergeLocalEntries(LocalEntry existing, LocalEntry incoming)
+        {
+            existing.earned = existing.earned || incoming.earned;
+            existing.earned_time = Math.Max(existing.earned_time, incoming.earned_time);
+
+            if (string.IsNullOrWhiteSpace(existing.displayName) ||
+                ShouldPreferSchemaDisplayName(existing.displayName, incoming.displayName, existing.displayName, preferLocalizedSchemaText: false))
+            {
+                existing.displayName = incoming.displayName;
+            }
+
+            if (ShouldPreferSchemaDescription(existing.description, incoming.description, preferLocalizedSchemaText: false))
+            {
+                existing.description = incoming.description;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.icon))
+            {
+                existing.icon = incoming.icon;
+            }
+
+            if (string.IsNullOrWhiteSpace(existing.iconGray))
+            {
+                existing.iconGray = incoming.iconGray;
+            }
+
+            existing.hidden = existing.hidden || incoming.hidden;
+
+            if (!existing.percent.HasValue && incoming.percent.HasValue)
+            {
+                existing.percent = incoming.percent;
+            }
+
+            return existing;
         }
 
         private static IEnumerable<string> BuildLumaPlayAppIdCandidates(string appId)
@@ -3629,14 +4365,6 @@ namespace PlayniteAchievements.Providers.Local
             isOverridden = false;
             isAmbiguous = false;
 
-            if (string.IsNullOrWhiteSpace(appId))
-            {
-                return false;
-            }
-
-            var candidates = FindLocalFolders(appId);
-            candidateFolders = candidates;
-
             if (game != null && TryGetFolderOverride(game.Id, out var overriddenFolderPath))
             {
                 if (Directory.Exists(overriddenFolderPath))
@@ -3648,6 +4376,14 @@ namespace PlayniteAchievements.Providers.Local
 
                 _logger?.Warn($"Local folder override for '{game.Name}' no longer exists: {overriddenFolderPath}");
             }
+
+            if (string.IsNullOrWhiteSpace(appId))
+            {
+                return false;
+            }
+
+            var candidates = FindLocalFolders(appId);
+            candidateFolders = candidates;
 
             if (candidates.Count == 0)
             {
@@ -6113,7 +6849,7 @@ namespace PlayniteAchievements.Providers.Local
         };
 
         private static readonly Regex GenericNumberedAchievementPattern = new Regex(
-            @"^achievement_(\d+)$",
+            @"^(?:ach(?:ieve(?:ment)?)?|stat|unlock|trophy|badge)[_\-\s]?(\d+)$",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly HashSet<string> SyntheticGenericAchievementIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -6148,6 +6884,13 @@ namespace PlayniteAchievements.Providers.Local
             public double? percent { get; set; }
         }
 
+        private sealed class UbisoftAchievementMetadata
+        {
+            public string CanonicalName { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
+        }
+
         private sealed class SteamLocalProgressSummary
         {
             public int AppId { get; set; }
@@ -6172,6 +6915,11 @@ namespace PlayniteAchievements.Providers.Local
             public bool Hidden { get; set; }
             public string IconHash { get; set; }
             public string IconGrayHash { get; set; }
+        }
+
+        private sealed class SteamAppCacheSchemaSection
+        {
+            public List<SteamAppCacheSchemaEntry> Entries { get; set; } = new List<SteamAppCacheSchemaEntry>();
         }
     }
 }
