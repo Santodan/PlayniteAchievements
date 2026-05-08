@@ -363,6 +363,54 @@
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,6,0,0"
                                TextWrapping="Wrap"/>
+
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,16" IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <TextBlock Text="SuccessStory Import"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="0,0,0,6"/>
+
+                    <TextBlock Text="Import unlock states from SuccessStory JSON files into PlayniteAchievements. This importer only applies Local-type entries (Local source, manual Steam, or Steam links in stats/appid format without profile), and is separate from Local game import."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,8"
+                               TextWrapping="Wrap"/>
+
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="SuccessStoryImportPathTextBox"
+                                 Grid.Column="0"
+                                 Text="{Binding SuccessStoryImportPath, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Width="90"
+                                Margin="8,0,0,0"
+                                Click="BrowseSuccessStoryImportPath_Click"/>
+                    </Grid>
+
+                    <DockPanel Margin="0,0,0,6">
+                        <Button x:Name="ImportSuccessStoryButton"
+                                Content="Import from SuccessStory JSON"
+                                HorizontalAlignment="Left"
+                                Padding="12,6"
+                                Click="ImportSuccessStoryButton_Click"/>
+                        <TextBlock x:Name="ImportSuccessStoryStatusTextBlock"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource MutedTextStyle}"/>
+                    </DockPanel>
+
+                    <TextBlock Text="Default folder: %PlayniteExtensionsData%\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory. Files can be named either with Playnite Game IDs or database IDs."
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
         </StackPanel>

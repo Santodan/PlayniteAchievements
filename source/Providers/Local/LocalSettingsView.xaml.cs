@@ -29,11 +29,26 @@ namespace PlayniteAchievements.Providers.Local
         private const string LocalProviderIconFileName = "local.png";
         private const string LocalProviderIconResourceKey = "GeoLocal";
         private const string LocalProviderColorHex = "#FF8A00";
+        private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
+        private const string SuccessStoryFolderName = "SuccessStory";
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _pluginSettings;
         private readonly ILogger _logger;
         private LocalSettings _localSettings;
         private CancellationTokenSource _localImportCts;
+
+        public static readonly DependencyProperty SuccessStoryImportPathProperty =
+            DependencyProperty.Register(
+                nameof(SuccessStoryImportPath),
+                typeof(string),
+                typeof(LocalSettingsView),
+                new PropertyMetadata(string.Empty));
+
+        public string SuccessStoryImportPath
+        {
+            get => (string)GetValue(SuccessStoryImportPathProperty);
+            set => SetValue(SuccessStoryImportPathProperty, value);
+        }
 
         public ObservableCollection<string> ExtraLocalPathEntries { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> AvailableSourceNames { get; } = new ObservableCollection<string>();
@@ -74,6 +89,8 @@ namespace PlayniteAchievements.Providers.Local
             RefreshExtraLocalPathEntries();
             RefreshImportedGameTargetControls();
             UpdateExtraLocalPathButtonStates();
+            EnsureSuccessStoryImportPathDefault();
+            UpdateSuccessStoryImportStatus("Ready.");
         }
 
         private void LocalSettings_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -404,6 +421,47 @@ namespace PlayniteAchievements.Providers.Local
                 iconRateLimitRetryRounds);
         }
 
+        private void BrowseSuccessStoryImportPath_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureSuccessStoryImportPathDefault();
+
+            var selectedPath = _playniteApi?.Dialogs?.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            SuccessStoryImportPath = selectedPath;
+            UpdateSuccessStoryImportStatus("Path selected.");
+        }
+
+        private void ImportSuccessStoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_localImportCts != null)
+            {
+                return;
+            }
+
+            EnsureSuccessStoryImportPathDefault();
+            var importPath = (SuccessStoryImportPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
+            {
+                var message = string.IsNullOrWhiteSpace(importPath)
+                    ? "SuccessStory folder path is empty."
+                    : $"SuccessStory folder does not exist: {importPath}";
+
+                _playniteApi?.Dialogs?.ShowMessage(
+                    message,
+                    "Playnite Achievements",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                UpdateSuccessStoryImportStatus(message);
+                return;
+            }
+
+            StartSuccessStoryImport(importPath);
+        }
+
         private void PendingExtraLocalPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             UpdateExtraLocalPathButtonStates();
@@ -453,6 +511,11 @@ namespace PlayniteAchievements.Providers.Local
             if (ImportExtraLocalGamesButton != null)
             {
                 ImportExtraLocalGamesButton.IsEnabled = _localImportCts == null;
+            }
+
+            if (ImportSuccessStoryButton != null)
+            {
+                ImportSuccessStoryButton.IsEnabled = _localImportCts == null;
             }
         }
 
@@ -872,7 +935,7 @@ namespace PlayniteAchievements.Providers.Local
                 new WindowOptions
                 {
                     Width = 430,
-                    Height = 250,
+                    Height = 360,
                     CanBeResizable = false,
                     ShowCloseButton = true,
                     ShowMinimizeButton = false,
@@ -1052,11 +1115,145 @@ namespace PlayniteAchievements.Providers.Local
             });
         }
 
+        private void EnsureSuccessStoryImportPathDefault()
+        {
+            if (!string.IsNullOrWhiteSpace(SuccessStoryImportPath))
+            {
+                return;
+            }
+
+            var extensionsDataPath = _playniteApi?.Paths?.ExtensionsDataPath;
+            if (string.IsNullOrWhiteSpace(extensionsDataPath))
+            {
+                return;
+            }
+
+            SuccessStoryImportPath = Path.Combine(
+                extensionsDataPath,
+                SuccessStoryExtensionId,
+                SuccessStoryFolderName);
+        }
+
+        private void StartSuccessStoryImport(string importPath)
+        {
+            _localImportCts?.Dispose();
+            _localImportCts = new CancellationTokenSource();
+            UpdateExtraLocalPathButtonStates();
+
+            var progressControl = new LocalImportProgressControl
+            {
+                DialogTitle = "Importing SuccessStory unlocks"
+            };
+
+            var window = PlayniteUiProvider.CreateExtensionWindow(
+                "Import SuccessStory unlocks",
+                progressControl,
+                new WindowOptions
+                {
+                    Width = 430,
+                    Height = 250,
+                    CanBeResizable = false,
+                    ShowCloseButton = true,
+                    ShowMinimizeButton = false,
+                    ShowMaximizeButton = false
+                });
+
+            progressControl.RequestClose += (s, e) => window.Close();
+            progressControl.CancelRequested += (s, e) => _localImportCts?.Cancel();
+            window.Closed += (s, e) =>
+            {
+                if (_localImportCts != null && !_localImportCts.IsCancellationRequested && progressControl.ShowCancelButton)
+                {
+                    _localImportCts.Cancel();
+                }
+            };
+
+            UpdateSuccessStoryImportStatus("Starting SuccessStory import...");
+            window.Show();
+
+            var progress = new Progress<LocalSuccessStoryImportService.SuccessStoryImportProgressInfo>(report =>
+            {
+                progressControl.Update(report?.Percent ?? 0d, report?.Message, report?.Detail);
+                UpdateSuccessStoryImportStatus(report?.Message);
+            });
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var plugin = _pluginSettings?._plugin;
+                    var cacheManager = plugin?.RefreshRuntime?.Cache;
+                    var achievementDataService = plugin?.AchievementDataService;
+
+                    if (cacheManager == null || achievementDataService == null)
+                    {
+                        throw new InvalidOperationException("PlayniteAchievements services are not ready yet.");
+                    }
+
+                    var importer = new LocalSuccessStoryImportService(
+                        _playniteApi,
+                        cacheManager,
+                        achievementDataService,
+                        _logger,
+                        _localSettings?.ImportedGameMetadataSourceId);
+
+                    var result = await importer.ImportFromFolderAsync(
+                        importPath,
+                        _localImportCts.Token,
+                        progress).ConfigureAwait(false);
+
+                    var summary = result.BuildSummary();
+                    Dispatcher.Invoke(() =>
+                    {
+                        progressControl.SetCopyableReport(summary);
+                        progressControl.MarkCompleted(summary);
+                        UpdateSuccessStoryImportStatus(summary);
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        const string message = "SuccessStory import cancelled.";
+                        progressControl.MarkCancelled(message);
+                        UpdateSuccessStoryImportStatus(message);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, "Failed importing unlock states from SuccessStory files.");
+                    Dispatcher.Invoke(() =>
+                    {
+                        var message = $"SuccessStory import failed: {ex.Message}";
+                        progressControl.MarkFailed(message);
+                        UpdateSuccessStoryImportStatus(message);
+                    });
+                }
+                finally
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _localImportCts?.Dispose();
+                        _localImportCts = null;
+                        UpdateExtraLocalPathButtonStates();
+                    });
+                }
+            });
+        }
+
         private void UpdateImportStatus(string message)
         {
             if (ImportExtraLocalGamesStatusTextBlock != null)
             {
                 ImportExtraLocalGamesStatusTextBlock.Text = message ?? string.Empty;
+            }
+        }
+
+        private void UpdateSuccessStoryImportStatus(string message)
+        {
+            if (ImportSuccessStoryStatusTextBlock != null)
+            {
+                ImportSuccessStoryStatusTextBlock.Text = message ?? string.Empty;
             }
         }
 
