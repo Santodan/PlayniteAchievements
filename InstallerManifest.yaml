@@ -1,26 +1,35 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.1.3.3
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-05-10
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.1.3.3/PlayniteAchievementsSantodan_2_1_3_3.pext
+    Changelog:
+    - "`LumaPLay` achievements integrated"
+    - "Import Local `SuccessStory` achievements history"
+    - "Fix local `Steam` achievements"
+
   - Version: 2.1.3.2
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-04-30
+    ReleaseDate: 2026-05-05
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.1.3.2/PlayniteAchievementsSantodan_2_1_3_2.pext
     Changelog:
-  - "Fixed the `Local` achievements not respecting the language setting"
-    - "Added an API token fetch or manual insert for the hidden achievements"
-  - "Fixex the extension not clearing the `Steam` authentication"
-  - "Added `SteamGridDB` as a icon fetcher for `SteamHunters` and `Completionist` metadata providers"
-    - "If no icon found, will add the cover image as icon"
-  - "The `Automatic` metadata fetch will not attempt the correct order:"
-    - "Universal Steam Metadata"
-    - "Steamhunters"
-    - "Completionest.me"
-    - "IGDB"
-  - "Add more settings to the overlay notification"
-  - "Fixed the `Theme Migration`"
-  - "Add `Custom (Manual)` option for the `Default Achievement Sort`"
-  - "Add the `Default Achievement Sort` to the main page for a quicker change of sort order"
-  - "Sorting by the `Icon` will sort with `RetroAchievement` order"
-  - "Added a `StartPage` section in the `Theme Migration` to make it compatibile with the `Local` provider"
+    - "Fixed the `Local` achievements not respecting the language setting"
+      - "Added an API token fetch or manual insert for the hidden achievements"
+    - "Fixex the extension not clearing the `Steam` authentication"
+    - "Added `SteamGridDB` as a icon fetcher for `SteamHunters` and `Completionist` metadata providers"
+      - "If no icon found, will add the cover image as icon"
+    - "The `Automatic` metadata fetch will not attempt the correct order:"
+      - "Universal Steam Metadata"
+      - "Steamhunters"
+      - "Completionest.me"
+      - "IGDB"
+    - "Add more settings to the overlay notification"
+    - "Fixed the `Theme Migration`"
+    - "Add `Custom (Manual)` option for the `Default Achievement Sort`"
+    - "Add the `Default Achievement Sort` to the main page for a quicker change of sort order"
+    - "Sorting by the `Icon` will sort with `RetroAchievement` order"
+    - "Added a `StartPage` section in the `Theme Migration` to make it compatibile with the `Local` provider"
 
   - Version: 2.1.3.1
     RequiredApiVersion: 6.14.0

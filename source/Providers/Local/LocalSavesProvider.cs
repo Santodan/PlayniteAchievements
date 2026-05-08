@@ -1332,13 +1332,27 @@ namespace PlayniteAchievements.Providers.Local
             {
                 var unlockTimeSections = TryGetSteamAppCacheUnlockTimeSections(appId, game);
                 var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+                var hasUnlockSectionIds = unlockTimeSections.Any(section => section?.SectionId.HasValue == true);
+                var unlockBySectionId = unlockTimeSections
+                    .Where(section => section?.SectionId.HasValue == true)
+                    .GroupBy(section => section.SectionId.Value)
+                    .ToDictionary(group => group.Key, group => group.First(), EqualityComparer<int>.Default);
 
                 for (var sectionIndex = 0; sectionIndex < schemaSections.Count; sectionIndex++)
                 {
                     var schemaSection = schemaSections[sectionIndex];
-                    var unlockTimes = sectionIndex < unlockTimeSections.Count
-                        ? unlockTimeSections[sectionIndex]
-                        : null;
+                    Dictionary<int, long> unlockTimes = null;
+
+                    if (schemaSection?.SectionId.HasValue == true &&
+                        unlockBySectionId.TryGetValue(schemaSection.SectionId.Value, out var matchedSection) &&
+                        matchedSection?.UnlockTimes != null)
+                    {
+                        unlockTimes = matchedSection.UnlockTimes;
+                    }
+                    else if (!hasUnlockSectionIds && sectionIndex < unlockTimeSections.Count)
+                    {
+                        unlockTimes = unlockTimeSections[sectionIndex]?.UnlockTimes;
+                    }
 
                     foreach (var schemaEntry in schemaSection.Entries)
                     {
@@ -1586,103 +1600,105 @@ namespace PlayniteAchievements.Providers.Local
                         continue;
                     }
 
-                    var bitsIndex = tokens.FindIndex(token => string.Equals(token, "bits", StringComparison.OrdinalIgnoreCase));
-                    if (bitsIndex < 0)
-                    {
-                        continue;
-                    }
-
                     var sections = new List<SteamAppCacheSchemaSection>();
-                    var currentEntries = new List<SteamAppCacheSchemaEntry>();
-                    var index = bitsIndex + 1;
-                    var lastEntryIndex = -1;
+                    var sectionIndex = 0;
 
-                    while (index < tokens.Count)
+                    while (sectionIndex + 1 < tokens.Count)
                     {
-                        if (!int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var entryIndex) ||
-                            index + 1 >= tokens.Count ||
-                            !string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase))
+                        if (!int.TryParse(tokens[sectionIndex], NumberStyles.Integer, CultureInfo.InvariantCulture, out var sectionId) ||
+                            !string.Equals(tokens[sectionIndex + 1], "bits", StringComparison.OrdinalIgnoreCase))
                         {
-                            index++;
+                            sectionIndex++;
                             continue;
                         }
 
-                        // A non-increasing integer index signals a new appcache section. Steam can
-                        // split achievements across multiple "bits" blocks, each with local indexes.
-                        if (entryIndex <= lastEntryIndex)
-                        {
-                            AddSteamAppCacheSchemaSection(sections, currentEntries);
-                            currentEntries = new List<SteamAppCacheSchemaEntry>();
-                            lastEntryIndex = -1;
-                            continue;
-                        }
-
-                        lastEntryIndex = entryIndex;
-
-                        var entry = new SteamAppCacheSchemaEntry { Index = entryIndex };
-                        index += 2;
-                        if (index >= tokens.Count)
-                        {
-                            break;
-                        }
-
-                        entry.ApiName = tokens[index];
-                        index++;
+                        var entries = new List<SteamAppCacheSchemaEntry>();
+                        var index = sectionIndex + 2;
 
                         while (index < tokens.Count)
                         {
-                            if (int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var nextIndex) &&
-                                index + 1 < tokens.Count &&
-                                string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase))
+                            if (index + 1 < tokens.Count &&
+                                int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out _) &&
+                                string.Equals(tokens[index + 1], "bits", StringComparison.OrdinalIgnoreCase))
                             {
                                 break;
                             }
 
-                            var token = tokens[index];
-                            if (string.Equals(token, "display", StringComparison.OrdinalIgnoreCase))
+                            if (!int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var entryIndex) ||
+                                index + 1 >= tokens.Count ||
+                                !string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase))
                             {
-                                entry.DisplayName = ParseLocalizedTokenValue(tokens, ref index);
+                                index++;
                                 continue;
                             }
 
-                            if (string.Equals(token, "desc", StringComparison.OrdinalIgnoreCase))
+                            var entry = new SteamAppCacheSchemaEntry { Index = entryIndex };
+                            index += 2;
+                            if (index >= tokens.Count)
                             {
-                                entry.Description = ParseLocalizedTokenValue(tokens, ref index);
-                                continue;
+                                break;
                             }
 
-                            if (string.Equals(token, "hidden", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
-                            {
-                                entry.Hidden = string.Equals(tokens[index + 1], "1", StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(tokens[index + 1], "true", StringComparison.OrdinalIgnoreCase);
-                                index += 2;
-                                continue;
-                            }
-
-                            if (string.Equals(token, "icon", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
-                            {
-                                entry.IconHash = tokens[index + 1];
-                                index += 2;
-                                continue;
-                            }
-
-                            if (string.Equals(token, "icon_gray", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
-                            {
-                                entry.IconGrayHash = tokens[index + 1];
-                                index += 2;
-                                continue;
-                            }
-
+                            entry.ApiName = tokens[index];
                             index++;
+
+                            while (index < tokens.Count)
+                            {
+                                if (int.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out _) &&
+                                    index + 1 < tokens.Count &&
+                                    (string.Equals(tokens[index + 1], "name", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(tokens[index + 1], "bits", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    break;
+                                }
+
+                                var token = tokens[index];
+                                if (string.Equals(token, "display", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    entry.DisplayName = ParseLocalizedTokenValue(tokens, ref index);
+                                    continue;
+                                }
+
+                                if (string.Equals(token, "desc", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    entry.Description = ParseLocalizedTokenValue(tokens, ref index);
+                                    continue;
+                                }
+
+                                if (string.Equals(token, "hidden", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                                {
+                                    entry.Hidden = string.Equals(tokens[index + 1], "1", StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(tokens[index + 1], "true", StringComparison.OrdinalIgnoreCase);
+                                    index += 2;
+                                    continue;
+                                }
+
+                                if (string.Equals(token, "icon", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                                {
+                                    entry.IconHash = tokens[index + 1];
+                                    index += 2;
+                                    continue;
+                                }
+
+                                if (string.Equals(token, "icon_gray", StringComparison.OrdinalIgnoreCase) && index + 1 < tokens.Count)
+                                {
+                                    entry.IconGrayHash = tokens[index + 1];
+                                    index += 2;
+                                    continue;
+                                }
+
+                                index++;
+                            }
+
+                            if (IsSteamAppCacheAchievementEntry(entry))
+                            {
+                                entries.Add(entry);
+                            }
                         }
 
-                        if (IsSteamAppCacheAchievementEntry(entry))
-                        {
-                            currentEntries.Add(entry);
-                        }
+                        AddSteamAppCacheSchemaSection(sections, entries, sectionId);
+                        sectionIndex = index;
                     }
-
-                    AddSteamAppCacheSchemaSection(sections, currentEntries);
 
                     if (sections.Count > 0)
                     {
@@ -1698,7 +1714,7 @@ namespace PlayniteAchievements.Providers.Local
             return null;
         }
 
-        private static void AddSteamAppCacheSchemaSection(List<SteamAppCacheSchemaSection> sections, List<SteamAppCacheSchemaEntry> entries)
+        private static void AddSteamAppCacheSchemaSection(List<SteamAppCacheSchemaSection> sections, List<SteamAppCacheSchemaEntry> entries, int? sectionId = null)
         {
             if (sections == null || entries == null || entries.Count == 0)
             {
@@ -1707,6 +1723,7 @@ namespace PlayniteAchievements.Providers.Local
 
             sections.Add(new SteamAppCacheSchemaSection
             {
+                SectionId = sectionId,
                 Entries = entries
             });
         }
@@ -1726,7 +1743,12 @@ namespace PlayniteAchievements.Providers.Local
             var result = new Dictionary<int, long>();
             foreach (var section in TryGetSteamAppCacheUnlockTimeSections(appId, game))
             {
-                foreach (var pair in section)
+                if (section?.UnlockTimes == null)
+                {
+                    continue;
+                }
+
+                foreach (var pair in section.UnlockTimes)
                 {
                     if (!result.ContainsKey(pair.Key))
                     {
@@ -1738,9 +1760,9 @@ namespace PlayniteAchievements.Providers.Local
             return result;
         }
 
-        private List<Dictionary<int, long>> TryGetSteamAppCacheUnlockTimeSections(int appId, Game game = null)
+        private List<SteamAppCacheUnlockTimeSection> TryGetSteamAppCacheUnlockTimeSections(int appId, Game game = null)
         {
-            var sections = new List<Dictionary<int, long>>();
+            var sections = new List<SteamAppCacheUnlockTimeSection>();
             var nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId, game))
@@ -1763,6 +1785,7 @@ namespace PlayniteAchievements.Providers.Local
                         }
 
                         var section = new Dictionary<int, long>();
+                        var sectionId = TryFindSteamAppCacheSectionId(bytes, position);
                         var cursor = position + marker.Length;
                         while (cursor < bytes.Length && bytes[cursor] != 0)
                         {
@@ -1820,7 +1843,11 @@ namespace PlayniteAchievements.Providers.Local
 
                         if (section.Count > 0)
                         {
-                            sections.Add(section);
+                            sections.Add(new SteamAppCacheUnlockTimeSection
+                            {
+                                SectionId = sectionId,
+                                UnlockTimes = section
+                            });
                         }
                     }
 
@@ -1836,6 +1863,59 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return sections;
+        }
+
+        private static int? TryFindSteamAppCacheSectionId(byte[] bytes, int markerPosition)
+        {
+            if (bytes == null || bytes.Length == 0 || markerPosition <= 0)
+            {
+                return null;
+            }
+
+            for (var tokenEnd = markerPosition - 1; tokenEnd > 0; tokenEnd--)
+            {
+                if (bytes[tokenEnd] != 0)
+                {
+                    continue;
+                }
+
+                var tokenStart = tokenEnd - 1;
+                while (tokenStart >= 0 && bytes[tokenStart] != 0)
+                {
+                    tokenStart--;
+                }
+
+                tokenStart++;
+                var tokenLength = tokenEnd - tokenStart;
+                if (tokenLength <= 0 || tokenLength > 10)
+                {
+                    continue;
+                }
+
+                var token = System.Text.Encoding.ASCII.GetString(bytes, tokenStart, tokenLength);
+                if (!int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sectionId))
+                {
+                    continue;
+                }
+
+                var cursor = tokenEnd + 1;
+                if (cursor < bytes.Length && bytes[cursor] == 0x02)
+                {
+                    cursor++;
+                }
+
+                if (cursor + 4 < bytes.Length &&
+                    bytes[cursor + 0] == (byte)'d' &&
+                    bytes[cursor + 1] == (byte)'a' &&
+                    bytes[cursor + 2] == (byte)'t' &&
+                    bytes[cursor + 3] == (byte)'a' &&
+                    bytes[cursor + 4] == 0x00)
+                {
+                    return sectionId;
+                }
+            }
+
+            return null;
         }
 
         private static void MergeSteamAppCacheEntry(
@@ -6919,7 +6999,14 @@ namespace PlayniteAchievements.Providers.Local
 
         private sealed class SteamAppCacheSchemaSection
         {
+            public int? SectionId { get; set; }
             public List<SteamAppCacheSchemaEntry> Entries { get; set; } = new List<SteamAppCacheSchemaEntry>();
+        }
+
+        private sealed class SteamAppCacheUnlockTimeSection
+        {
+            public int? SectionId { get; set; }
+            public Dictionary<int, long> UnlockTimes { get; set; } = new Dictionary<int, long>();
         }
     }
 }
