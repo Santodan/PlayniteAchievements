@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Services
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
+        private static Window _persistentSettingsPreviewOverlay;
 
         public NotificationPublisher(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
         {
@@ -162,7 +163,7 @@ namespace PlayniteAchievements.Services
             }
         }
 
-        public void ShowLocalAchievementUnlocked(string gameName, IReadOnlyList<string> unlockedAchievementNames, string customSoundPath, string unlockedAchievementIconPath = null)
+        public void ShowLocalAchievementUnlocked(string gameName, IReadOnlyList<string> unlockedAchievementNames, string customSoundPath, string unlockedAchievementIconPath = null, Game game = null)
         {
             var names = unlockedAchievementNames?
                 .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -230,7 +231,6 @@ namespace PlayniteAchievements.Services
                 }
             }
 
-            // Send Windows native toast notification
             if (names.Count > 0)
             {
                 var firstAchievement = names[0];
@@ -246,7 +246,8 @@ namespace PlayniteAchievements.Services
                                 safeGameName,
                                 firstAchievement,
                                 unlockedAchievementIconPath,
-                                providerKey: "Local");
+                                providerKey: "Local",
+                                game: game);
                         }
                         catch (Exception ex)
                         {
@@ -260,7 +261,8 @@ namespace PlayniteAchievements.Services
                         safeGameName,
                         firstAchievement,
                         unlockedAchievementIconPath,
-                        providerKey: "Local");
+                        providerKey: "Local",
+                        game: game);
                 }
             }
         }
@@ -272,7 +274,10 @@ namespace PlayniteAchievements.Services
             string providerKey = "Local",
             string forcedStyle = null,
             LocalUnlockNotificationDeliveryMode? forcedDeliveryMode = null,
-            LocalSettings overrideLocalSettings = null)
+            LocalSettings overrideLocalSettings = null,
+            Game game = null,
+            bool togglePersistentOverlay = false,
+            bool refreshPersistentOverlay = false)
         {
             var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
             var mode = forcedDeliveryMode ?? localSettings?.UnlockNotificationDeliveryMode ?? LocalUnlockNotificationDeliveryMode.Hybrid;
@@ -280,13 +285,67 @@ namespace PlayniteAchievements.Services
 
             if (mode == LocalUnlockNotificationDeliveryMode.Overlay || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
             {
-                ShowOverlayUnlockNotification(gameName, achievementName, achievementIconPath, style, providerKey, localSettings);
+                ShowOverlayUnlockNotification(
+                    gameName,
+                    achievementName,
+                    achievementIconPath,
+                    style,
+                    providerKey,
+                    localSettings,
+                    game,
+                    togglePersistentOverlay,
+                    refreshPersistentOverlay);
             }
 
             if (mode == LocalUnlockNotificationDeliveryMode.WindowsToast || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
             {
                 SendWindowsToastNotification(gameName, achievementName, achievementIconPath, providerKey, forcedStyle, localSettings);
             }
+        }
+
+        public FrameworkElement CreateOverlayPreviewContent(
+            string gameName,
+            string achievementName,
+            string forcedStyle = NotificationStyleCustom,
+            string providerKey = "Local",
+            LocalSettings overrideLocalSettings = null,
+            string achievementIconPath = null,
+            Game game = null)
+        {
+            var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>() ?? new LocalSettings();
+            var style = string.IsNullOrWhiteSpace(forcedStyle)
+                ? ResolveUnlockNotificationStyle(providerKey, null)
+                : NormalizeNotificationStyle(forcedStyle);
+            var title = ResolveOverlayTitle(style);
+            var safeGameName = string.IsNullOrWhiteSpace(gameName) ? "Current Game" : gameName.Trim();
+            var safeAchievement = string.IsNullOrWhiteSpace(achievementName) ? "Achievement unlocked" : achievementName.Trim();
+            var overlayScale = GetOverlayScale(localSettings, style);
+
+            return BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game);
+        }
+
+        public static void ClosePersistentSettingsPreview()
+        {
+            void CloseOverlay()
+            {
+                if (_persistentSettingsPreviewOverlay == null)
+                {
+                    return;
+                }
+
+                var existing = _persistentSettingsPreviewOverlay;
+                _persistentSettingsPreviewOverlay = null;
+                existing.Close();
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke((Action)CloseOverlay);
+                return;
+            }
+
+            CloseOverlay();
         }
 
         private static readonly string[] AllKnownProviderKeys = new[]
@@ -485,6 +544,8 @@ $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
 $xml.LoadXml($toastXml)
 $toast = New-Object Windows.UI.Notifications.ToastNotification $xml
 
+            LocalSettings overrideLocalSettings = null,
+            Game game = null)
 try {{
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Microsoft.Windows.PowerShell').Show($toast)
 }} catch {{
@@ -740,7 +801,16 @@ steamImage +
             return "<audio src='ms-winsoundevent:Notification.Default'/>";
         }
 
-        private void ShowOverlayUnlockNotification(string gameName, string achievementName, string achievementIconPath, string style, string providerKey, LocalSettings overrideLocalSettings = null)
+        private void ShowOverlayUnlockNotification(
+            string gameName,
+            string achievementName,
+            string achievementIconPath,
+            string style,
+            string providerKey,
+            LocalSettings overrideLocalSettings = null,
+            Game game = null,
+            bool togglePersistentOverlay = false,
+            bool refreshPersistentOverlay = false)
         {
             try
             {
@@ -754,6 +824,27 @@ steamImage +
 
                 RunOnUiThread(() =>
                 {
+                    var persistentPreviewRequested = togglePersistentOverlay || refreshPersistentOverlay;
+                    if (persistentPreviewRequested)
+                    {
+                        if (refreshPersistentOverlay && _persistentSettingsPreviewOverlay == null)
+                        {
+                            return;
+                        }
+
+                        if (_persistentSettingsPreviewOverlay != null)
+                        {
+                            var existing = _persistentSettingsPreviewOverlay;
+                            _persistentSettingsPreviewOverlay = null;
+                            existing.Close();
+
+                            if (togglePersistentOverlay && !refreshPersistentOverlay)
+                            {
+                                return;
+                            }
+                        }
+                    }
+
                     var title = ResolveOverlayTitle(style);
                     var safeGameName = string.IsNullOrWhiteSpace(gameName) ? "Current Game" : gameName.Trim();
                     var safeAchievement = string.IsNullOrWhiteSpace(achievementName) ? "Achievement unlocked" : achievementName.Trim();
@@ -794,7 +885,7 @@ steamImage +
                     }
 
                     PositionOverlayWindow(overlayWindow, position);
-                    overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale);
+                    overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game);
 
                     overlayWindow.Loaded += (sender, args) =>
                     {
@@ -805,6 +896,11 @@ steamImage +
 
                         var fadeIn = new DoubleAnimation(0, overlayOpacity, new Duration(TimeSpan.FromMilliseconds(Math.Max(0, fadeInMs))));
                         overlayWindow.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+
+                        if (persistentPreviewRequested)
+                        {
+                            return;
+                        }
 
                         var closeTimer = new DispatcherTimer
                         {
@@ -821,6 +917,19 @@ steamImage +
 
                         closeTimer.Start();
                     };
+
+                    overlayWindow.Closed += (_, __) =>
+                    {
+                        if (ReferenceEquals(_persistentSettingsPreviewOverlay, overlayWindow))
+                        {
+                            _persistentSettingsPreviewOverlay = null;
+                        }
+                    };
+
+                    if (persistentPreviewRequested)
+                    {
+                        _persistentSettingsPreviewOverlay = overlayWindow;
+                    }
 
                     overlayWindow.Show();
                 });
@@ -936,11 +1045,11 @@ steamImage +
             return settings.OverlaySteamScale;
         }
 
-        private FrameworkElement BuildOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale)
+        private FrameworkElement BuildOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string style, string providerKey, LocalSettings localSettings, double overlayScale, Game game = null)
         {
             if (string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
             {
-                return BuildCustomOverlayContent(title, gameName, achievementName, rawIconPath, providerKey, localSettings, overlayScale);
+                return BuildCustomOverlayContent(title, gameName, achievementName, rawIconPath, providerKey, localSettings, overlayScale, game);
             }
 
             var (backgroundBrush, borderBrush, accentBrush) = ResolveOverlayBrushes(style);
@@ -948,14 +1057,23 @@ steamImage +
             var titleSize = Math.Max(12, 15 * overlayScale);
             var detailSize = Math.Max(11, 13 * overlayScale);
             var metaSize = Math.Max(10, 11 * overlayScale);
+            var showBanner = localSettings?.EnableGameBannerAsBackground == true;
+            var bannerSource = showBanner ? TryCreatePlayniteGameImageSource(game, useBackground: true) : null;
+            var coverPosition = localSettings?.EnableGameCoverInOverlay == true
+                ? localSettings.GameCoverPosition
+                : LocalOverlayCoverPosition.None;
+            var coverWidth = Math.Max(48, (localSettings?.GameCoverWidth ?? 80) * overlayScale);
+            var coverHeight = Math.Max(iconSize + 18, 92 * overlayScale);
+            var contentPadding = new Thickness(Math.Max(8, 12 * overlayScale));
 
             var root = new Border
             {
-                Background = backgroundBrush,
+                Background = bannerSource == null ? backgroundBrush : Brushes.Transparent,
                 BorderBrush = borderBrush,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(Math.Max(8, 12 * overlayScale)),
+                Padding = new Thickness(0),
+                ClipToBounds = true,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect
                 {
                     BlurRadius = 14,
@@ -965,9 +1083,50 @@ steamImage +
                 }
             };
 
+            var container = new Grid();
+            if (bannerSource != null)
+            {
+                AddBannerBackground(
+                    container,
+                    bannerSource,
+                    CreateOverlayTintBrush(backgroundBrush, 192),
+                    localSettings?.GameBannerOpacity ?? 0.3,
+                    localSettings?.GameBannerBlurRadius ?? 8,
+                    10);
+            }
+
             var grid = new Grid();
+            grid.Margin = contentPadding;
+            if (coverPosition == LocalOverlayCoverPosition.Left)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            if (coverPosition == LocalOverlayCoverPosition.Right)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
+            var currentColumn = 0;
+
+            if (coverPosition == LocalOverlayCoverPosition.Left)
+            {
+                var leftCover = CreateGameCoverElement(
+                    game,
+                    coverWidth,
+                    coverHeight,
+                    7,
+                    new Thickness(0, 0, Math.Max(8, 10 * overlayScale), 0));
+                if (leftCover != null)
+                {
+                    Grid.SetColumn(leftCover, currentColumn);
+                    grid.Children.Add(leftCover);
+                    currentColumn++;
+                }
+            }
 
             var icon = new Border
             {
@@ -1002,8 +1161,9 @@ steamImage +
                 };
             }
 
-            Grid.SetColumn(icon, 0);
+            Grid.SetColumn(icon, currentColumn);
             grid.Children.Add(icon);
+            currentColumn++;
 
             var textStack = new StackPanel
             {
@@ -1048,14 +1208,30 @@ steamImage +
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
 
-            Grid.SetColumn(textStack, 1);
+            Grid.SetColumn(textStack, currentColumn);
             grid.Children.Add(textStack);
 
-            root.Child = grid;
+            if (coverPosition == LocalOverlayCoverPosition.Right)
+            {
+                var rightCover = CreateGameCoverElement(
+                    game,
+                    coverWidth,
+                    coverHeight,
+                    7,
+                    new Thickness(Math.Max(8, 10 * overlayScale), 0, 0, 0));
+                if (rightCover != null)
+                {
+                    Grid.SetColumn(rightCover, currentColumn + 1);
+                    grid.Children.Add(rightCover);
+                }
+            }
+
+            container.Children.Add(grid);
+            root.Child = container;
             return root;
         }
 
-        private FrameworkElement BuildCustomOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string providerKey, LocalSettings settings, double overlayScale)
+        private FrameworkElement BuildCustomOverlayContent(string title, string gameName, string achievementName, string rawIconPath, string providerKey, LocalSettings settings, double overlayScale, Game game = null)
         {
             var backgroundBrush = ResolveCustomBackgroundBrush(settings);
             var borderBrush = ParseBrushOrDefault(settings?.OverlayCustomBorderColor, Color.FromRgb(111, 163, 216));
@@ -1070,14 +1246,23 @@ steamImage +
             var detailSize = settings?.OverlayCustomDetailFontSize ?? 13;
             var metaSize = settings?.OverlayCustomMetaFontSize ?? 11;
             var cornerRadius = settings?.OverlayCustomCornerRadius ?? 18;
+            var showBanner = settings?.EnableGameBannerAsBackground == true;
+            var bannerSource = showBanner ? TryCreatePlayniteGameImageSource(game, useBackground: true) : null;
+            var coverPosition = settings?.EnableGameCoverInOverlay == true
+                ? settings.GameCoverPosition
+                : LocalOverlayCoverPosition.None;
+            var coverWidth = Math.Max(48, (settings?.GameCoverWidth ?? 80) * overlayScale);
+            var coverHeight = Math.Max(iconSize + 18, 96 * overlayScale);
+            var contentPadding = new Thickness(16);
 
             var root = new Border
             {
-                Background = backgroundBrush,
+                Background = bannerSource == null ? backgroundBrush : Brushes.Transparent,
                 BorderBrush = borderBrush,
                 BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
                 CornerRadius = new CornerRadius(cornerRadius),
-                Padding = new Thickness(16),
+                Padding = new Thickness(0),
+                ClipToBounds = true,
                 Effect = new System.Windows.Media.Effects.DropShadowEffect
                 {
                     BlurRadius = 16,
@@ -1087,9 +1272,50 @@ steamImage +
                 }
             };
 
+            var container = new Grid();
+            if (bannerSource != null)
+            {
+                AddBannerBackground(
+                    container,
+                    bannerSource,
+                    CreateOverlayTintBrush(ParseBrushOrDefault(settings?.OverlayCustomBackgroundColor, Color.FromRgb(30, 36, 48)), 194),
+                    settings?.GameBannerOpacity ?? 0.3,
+                    settings?.GameBannerBlurRadius ?? 8,
+                    cornerRadius);
+            }
+
             var grid = new Grid();
+            grid.Margin = contentPadding;
+            if (coverPosition == LocalOverlayCoverPosition.Left)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            if (coverPosition == LocalOverlayCoverPosition.Right)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
+            var currentColumn = 0;
+
+            if (coverPosition == LocalOverlayCoverPosition.Left)
+            {
+                var leftCover = CreateGameCoverElement(
+                    game,
+                    coverWidth,
+                    coverHeight,
+                    Math.Max(6, cornerRadius / 2.5),
+                    new Thickness(0, 0, 14, 0));
+                if (leftCover != null)
+                {
+                    Grid.SetColumn(leftCover, currentColumn);
+                    grid.Children.Add(leftCover);
+                    currentColumn++;
+                }
+            }
 
             var icon = new Border
             {
@@ -1124,8 +1350,9 @@ steamImage +
                 };
             }
 
-            Grid.SetColumn(icon, 0);
+            Grid.SetColumn(icon, currentColumn);
             grid.Children.Add(icon);
+            currentColumn++;
 
             var textStack = new StackPanel
             {
@@ -1180,10 +1407,26 @@ steamImage +
             });
             }
 
-            Grid.SetColumn(textStack, 1);
+            Grid.SetColumn(textStack, currentColumn);
             grid.Children.Add(textStack);
 
-            root.Child = grid;
+            if (coverPosition == LocalOverlayCoverPosition.Right)
+            {
+                var rightCover = CreateGameCoverElement(
+                    game,
+                    coverWidth,
+                    coverHeight,
+                    Math.Max(6, cornerRadius / 2.5),
+                    new Thickness(14, 0, 0, 0));
+                if (rightCover != null)
+                {
+                    Grid.SetColumn(rightCover, currentColumn + 1);
+                    grid.Children.Add(rightCover);
+                }
+            }
+
+            container.Children.Add(grid);
+            root.Child = container;
             return root;
         }
 
@@ -1263,6 +1506,109 @@ steamImage +
             var fallbackBrush = new SolidColorBrush(fallback);
             fallbackBrush.Freeze();
             return fallbackBrush;
+        }
+
+        private string ResolvePlayniteImagePath(string imageId)
+        {
+            var trimmedImageId = imageId?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmedImageId))
+            {
+                return null;
+            }
+
+            var resolvedPath = _api?.Database?.GetFullFilePath(trimmedImageId)?.Trim();
+            return string.IsNullOrWhiteSpace(resolvedPath) ? trimmedImageId : resolvedPath;
+        }
+
+        private ImageSource TryCreatePlayniteGameImageSource(Game game, bool useBackground)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            var imagePath = useBackground
+                ? ResolvePlayniteImagePath(game.BackgroundImage)
+                : ResolvePlayniteImagePath(game.CoverImage);
+
+            return TryCreateOverlayImageSource(imagePath);
+        }
+
+        private static Brush CreateOverlayTintBrush(Brush baseBrush, byte alpha)
+        {
+            if (baseBrush is SolidColorBrush solidBrush)
+            {
+                var color = solidBrush.Color;
+                var tintedBrush = new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
+                tintedBrush.Freeze();
+                return tintedBrush;
+            }
+
+            var fallbackBrush = new SolidColorBrush(Color.FromArgb(alpha, 0, 0, 0));
+            fallbackBrush.Freeze();
+            return fallbackBrush;
+        }
+
+        private static void AddBannerBackground(Grid container, ImageSource bannerSource, Brush tintBrush, double bannerOpacity, int blurRadius, double cornerRadius)
+        {
+            if (container == null || bannerSource == null)
+            {
+                return;
+            }
+
+            var imageBrush = new ImageBrush
+            {
+                ImageSource = bannerSource,
+                Stretch = Stretch.UniformToFill,
+                Opacity = Math.Max(0.1, Math.Min(1.0, bannerOpacity))
+            };
+
+            container.Children.Add(new System.Windows.Shapes.Rectangle
+            {
+                Fill = imageBrush,
+                RadiusX = Math.Max(0, cornerRadius),
+                RadiusY = Math.Max(0, cornerRadius),
+                Effect = blurRadius > 0
+                    ? new System.Windows.Media.Effects.BlurEffect { Radius = blurRadius }
+                    : null,
+                IsHitTestVisible = false
+            });
+
+            if (tintBrush != null)
+            {
+                container.Children.Add(new System.Windows.Shapes.Rectangle
+                {
+                    Fill = tintBrush,
+                    RadiusX = Math.Max(0, cornerRadius),
+                    RadiusY = Math.Max(0, cornerRadius),
+                    IsHitTestVisible = false
+                });
+            }
+        }
+
+        private FrameworkElement CreateGameCoverElement(Game game, double width, double height, double cornerRadius, Thickness margin)
+        {
+            var coverSource = TryCreatePlayniteGameImageSource(game, useBackground: false);
+            if (coverSource == null)
+            {
+                return null;
+            }
+
+            return new Border
+            {
+                Width = width,
+                Height = height,
+                CornerRadius = new CornerRadius(cornerRadius),
+                Margin = margin,
+                Background = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255)),
+                Child = new Image
+                {
+                    Source = coverSource,
+                    Stretch = Stretch.UniformToFill,
+                    Width = width,
+                    Height = height
+                }
+            };
         }
 
         private ImageSource TryCreateOverlayImageSource(string rawIconPath)

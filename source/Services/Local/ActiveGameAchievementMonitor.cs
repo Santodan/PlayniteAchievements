@@ -244,7 +244,7 @@ namespace PlayniteAchievements.Services.Local
                         }
                         else
                         {
-                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath);
+                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath, game);
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)

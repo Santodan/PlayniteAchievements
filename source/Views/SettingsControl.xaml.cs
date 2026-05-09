@@ -21,6 +21,7 @@ using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.ThemeMigration;
 using Playnite.SDK;
+using Playnite.SDK.Models;
 using System.Diagnostics;
 using System.Windows.Navigation;
 using System.Windows.Media;
@@ -453,6 +454,7 @@ namespace PlayniteAchievements.Views
         private readonly ObservableCollection<NotificationSoundOption> _notificationSoundOptions = new ObservableCollection<NotificationSoundOption>();
         private readonly ObservableCollection<NotificationStyleOption> _notificationStyleOptions = new ObservableCollection<NotificationStyleOption>();
         private readonly ObservableCollection<NotificationProviderOption> _notificationProviderOptions = new ObservableCollection<NotificationProviderOption>();
+        private readonly ObservableCollection<NotificationPreviewGameOption> _notificationPreviewGameOptions = new ObservableCollection<NotificationPreviewGameOption>();
         private readonly ObservableCollection<CustomStyleSlotOption> _customStyleSlotOptions = new ObservableCollection<CustomStyleSlotOption>();
         private readonly DispatcherTimer _notificationAutoPopupPreviewTimer;
         private Providers.Local.LocalSettings _notificationPreviewSettings;
@@ -487,6 +489,13 @@ namespace PlayniteAchievements.Views
             public string ProviderKey { get; set; }
         }
 
+        private sealed class NotificationPreviewGameOption
+        {
+            public string DisplayName { get; set; }
+
+            public Game Game { get; set; }
+        }
+
         private sealed class CustomStyleSlotOption
         {
             public string DisplayName { get; set; }
@@ -518,7 +527,11 @@ namespace PlayniteAchievements.Views
             _themeMigration = new ThemeMigrationService(
                 _logger,
                 _settingsViewModel.Settings,
-                () => _plugin.SavePluginSettings(_settingsViewModel.Settings));
+                () =>
+                {
+                    _plugin.SavePluginSettings(_settingsViewModel.Settings);
+                    NotificationPublisher.ClosePersistentSettingsPreview();
+                });
             _startPageCompatibility = new StartPageCompatibilityService(_logger, _plugin, plugin.PlayniteApi);
 
             _notificationAutoPopupPreviewTimer = new DispatcherTimer
@@ -756,6 +769,12 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomDetailColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundImagePath):
+                case nameof(Providers.Local.LocalSettings.EnableGameBannerAsBackground):
+                case nameof(Providers.Local.LocalSettings.GameBannerOpacity):
+                case nameof(Providers.Local.LocalSettings.GameBannerBlurRadius):
+                case nameof(Providers.Local.LocalSettings.EnableGameCoverInOverlay):
+                case nameof(Providers.Local.LocalSettings.GameCoverPosition):
+                case nameof(Providers.Local.LocalSettings.GameCoverWidth):
                 case nameof(Providers.Local.LocalSettings.SelectedCustomStyleSlot):
                 case nameof(Providers.Local.LocalSettings.CustomOverlayStyleSlots):
                     return true;
@@ -1075,13 +1094,17 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            var previewGame = GetSelectedNotificationPreviewGame();
+            var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             publisher.SendUnlockPopup(
-                "Current Game",
+                previewGameName,
                 $"Preview ({styleOption.DisplayName})",
                 providerKey: providerOption.ProviderKey,
                 forcedStyle: styleOption.StyleKey,
-                overrideLocalSettings: localSettings);
+                overrideLocalSettings: localSettings,
+                game: previewGame);
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed {styleOption.DisplayName} style for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
         }
 
@@ -1098,15 +1121,19 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            var previewGame = GetSelectedNotificationPreviewGame();
+            var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             foreach (var style in _notificationStyleOptions)
             {
                 publisher.SendUnlockPopup(
-                    "Current Game",
+                    previewGameName,
                     $"Preview ({style.DisplayName})",
                     providerKey: providerOption.ProviderKey,
                     forcedStyle: style.StyleKey,
-                    overrideLocalSettings: localSettings);
+                    overrideLocalSettings: localSettings,
+                    game: previewGame);
             }
 
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed all styles for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
@@ -1439,6 +1466,8 @@ namespace PlayniteAchievements.Views
                     NotificationsProviderStyleComboBox.ItemsSource = _notificationStyleOptions;
                 }
 
+                RefreshNotificationPreviewGameOptions();
+
                 if (NotificationsOverlayPresetStyleComboBox != null)
                 {
                     NotificationsOverlayPresetStyleComboBox.ItemsSource = _notificationStyleOptions;
@@ -1456,6 +1485,62 @@ namespace PlayniteAchievements.Views
             finally
             {
                 _isRefreshingNotificationStyleSelection = false;
+            }
+        }
+
+        private void RefreshNotificationPreviewGameOptions()
+        {
+            if (NotificationsPreviewGameComboBox == null)
+            {
+                return;
+            }
+
+            var selectedGameId = (NotificationsPreviewGameComboBox.SelectedItem as NotificationPreviewGameOption)?.Game?.Id;
+            var games = _plugin?.PlayniteApi?.Database?.Games?
+                .OrderBy(game => game.Name)
+                .ToList() ?? new List<Game>();
+
+            _notificationPreviewGameOptions.Clear();
+            _notificationPreviewGameOptions.Add(new NotificationPreviewGameOption
+            {
+                DisplayName = "Current Game / no Playnite art",
+                Game = null
+            });
+
+            foreach (var game in games)
+            {
+                var displayName = string.IsNullOrWhiteSpace(game?.Name)
+                    ? "<Unnamed game>"
+                    : game.Name.Trim();
+
+                _notificationPreviewGameOptions.Add(new NotificationPreviewGameOption
+                {
+                    DisplayName = displayName,
+                    Game = game
+                });
+            }
+
+            NotificationsPreviewGameComboBox.ItemsSource = _notificationPreviewGameOptions;
+            NotificationsPreviewGameComboBox.SelectedItem = _notificationPreviewGameOptions.FirstOrDefault(option => option.Game?.Id == selectedGameId)
+                ?? _notificationPreviewGameOptions.FirstOrDefault();
+        }
+
+        private Game GetSelectedNotificationPreviewGame()
+        {
+            return (NotificationsPreviewGameComboBox?.SelectedItem as NotificationPreviewGameOption)?.Game;
+        }
+
+        private void NotificationsPreviewGameComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings != null)
+            {
+                UpdateCustomStyleInlinePreview(localSettings);
+            }
+
+            if (NotificationsAutoPopupPreviewCheckBox?.IsChecked == true)
+            {
+                ScheduleAutoPopupPreview();
             }
         }
 
@@ -1765,18 +1850,26 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            var previewGame = GetSelectedNotificationPreviewGame();
+            var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             publisher.SendUnlockPopup(
-                "Current Game",
+                previewGameName,
                 "Sample Achievement",
                 providerKey: "Local",
                 forcedStyle: NotificationPublisher.NotificationStyleCustom,
                 forcedDeliveryMode: LocalUnlockNotificationDeliveryMode.Overlay,
-                overrideLocalSettings: localSettings);
+                overrideLocalSettings: localSettings,
+                game: previewGame,
+                togglePersistentOverlay: forceStatusMessage,
+                refreshPersistentOverlay: !forceStatusMessage);
 
             if (forceStatusMessage)
             {
-                NotificationsUnlockSoundStatusTextBlock.Text = "Displayed silent Custom overlay preview.";
+                NotificationsUnlockSoundStatusTextBlock.Text = string.IsNullOrWhiteSpace(previewGame?.Name)
+                    ? "Toggled silent Custom overlay preview."
+                    : $"Toggled silent Custom overlay preview for {previewGame.Name}.";
             }
         }
 
@@ -2034,67 +2127,21 @@ namespace PlayniteAchievements.Views
 
         private void UpdateCustomStyleInlinePreview(Providers.Local.LocalSettings localSettings)
         {
-            if (localSettings == null || NotificationsCustomInlinePreviewBorder == null)
+            if (localSettings == null || NotificationsCustomInlinePreviewHost == null)
             {
                 return;
             }
 
-            NotificationsCustomInlinePreviewBorder.Width = localSettings.OverlayCustomWidth;
-            NotificationsCustomInlinePreviewBorder.Height = localSettings.OverlayCustomHeight;
-            NotificationsCustomInlinePreviewBorder.CornerRadius = new CornerRadius(localSettings.OverlayCustomCornerRadius);
-            NotificationsCustomInlinePreviewBorder.BorderBrush = ParseColorBrush(localSettings.OverlayCustomBorderColor, Colors.SteelBlue);
-            NotificationsCustomInlinePreviewBorder.BorderThickness = localSettings.OverlayCustomShowBorder
-                ? new Thickness(1.5)
-                : new Thickness(0);
-            NotificationsCustomInlinePreviewBorder.Background = ResolveInlinePreviewBackground(localSettings);
-
-            NotificationsCustomInlinePreviewIconHost.Width = localSettings.OverlayCustomIconSize;
-            NotificationsCustomInlinePreviewIconHost.Height = localSettings.OverlayCustomIconSize;
-            NotificationsCustomInlinePreviewIconHost.CornerRadius = new CornerRadius(Math.Max(6, localSettings.OverlayCustomCornerRadius / 2.5));
-            NotificationsCustomInlinePreviewIconGlyph.Foreground = ParseColorBrush(localSettings.OverlayCustomTitleColor, Colors.White);
-
-            NotificationsCustomInlinePreviewTitle.FontSize = localSettings.OverlayCustomTitleFontSize;
-            NotificationsCustomInlinePreviewTitle.Foreground = ParseColorBrush(localSettings.OverlayCustomTitleColor, Colors.White);
-
-            NotificationsCustomInlinePreviewGame.FontSize = localSettings.OverlayCustomDetailFontSize;
-            NotificationsCustomInlinePreviewGame.Foreground = ParseColorBrush(localSettings.OverlayCustomDetailColor, Color.FromRgb(231, 238, 247));
-
-            NotificationsCustomInlinePreviewAchievement.FontSize = localSettings.OverlayCustomDetailFontSize;
-            NotificationsCustomInlinePreviewAchievement.Foreground = ParseColorBrush(localSettings.OverlayCustomAccentColor, Color.FromRgb(167, 224, 255));
-
-            NotificationsCustomInlinePreviewMeta.FontSize = localSettings.OverlayCustomMetaFontSize;
-            NotificationsCustomInlinePreviewMeta.Foreground = ParseColorBrush(localSettings.OverlayCustomMetaColor, Color.FromRgb(188, 208, 229));
-
-            NotificationsCustomInlinePreviewGame.Visibility = localSettings.OverlayCustomShowGameName
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            NotificationsCustomInlinePreviewMeta.Visibility = localSettings.OverlayCustomShowMeta
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-
-            var wrapAllText = localSettings.OverlayCustomWrapAllText;
-            var wrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap;
-            var trimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis;
-
-            NotificationsCustomInlinePreviewTitle.TextWrapping = wrapping;
-            NotificationsCustomInlinePreviewTitle.TextTrimming = trimming;
-            NotificationsCustomInlinePreviewGame.TextWrapping = wrapping;
-            NotificationsCustomInlinePreviewGame.TextTrimming = trimming;
-            NotificationsCustomInlinePreviewAchievement.TextWrapping = wrapping;
-            NotificationsCustomInlinePreviewAchievement.TextTrimming = trimming;
-            NotificationsCustomInlinePreviewMeta.TextWrapping = wrapping;
-            NotificationsCustomInlinePreviewMeta.TextTrimming = trimming;
-
-            if (localSettings.OverlayCustomAutoResizeToContent)
-            {
-                NotificationsCustomInlinePreviewBorder.Height = double.NaN;
-                NotificationsCustomInlinePreviewBorder.MinHeight = localSettings.OverlayCustomHeight;
-            }
-            else
-            {
-                NotificationsCustomInlinePreviewBorder.MinHeight = 0;
-                NotificationsCustomInlinePreviewBorder.Height = localSettings.OverlayCustomHeight;
-            }
+            var previewGame = GetSelectedNotificationPreviewGame();
+            var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+            var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
+            NotificationsCustomInlinePreviewHost.Content = publisher.CreateOverlayPreviewContent(
+                previewGameName,
+                "Sample Achievement",
+                forcedStyle: NotificationPublisher.NotificationStyleCustom,
+                providerKey: "Local",
+                overrideLocalSettings: localSettings,
+                game: previewGame);
         }
 
         private static Brush ResolveInlinePreviewBackground(Providers.Local.LocalSettings localSettings)
@@ -3033,6 +3080,7 @@ namespace PlayniteAchievements.Views
                 _logger.Info($"Value after setting to false: {_settingsViewModel.Settings.Persisted.FirstTimeSetupCompleted}");
 
                 _plugin.SavePluginSettings(_settingsViewModel.Settings);
+                NotificationPublisher.ClosePersistentSettingsPreview();
 
                 _plugin.PlayniteApi.Dialogs.ShowMessage(
                     L("LOCPlayAch_Status_Succeeded", "Success!"),
@@ -3225,9 +3273,14 @@ namespace PlayniteAchievements.Views
 
             if (ManualAchievementSortDialog.TryShowDialog(
                 _settingsViewModel.Settings,
-                () => _plugin.SavePluginSettings(_settingsViewModel.Settings)))
+                () =>
+                {
+                    _plugin.SavePluginSettings(_settingsViewModel.Settings);
+                    NotificationPublisher.ClosePersistentSettingsPreview();
+                }))
             {
                 _plugin.SavePluginSettings(_settingsViewModel.Settings);
+                NotificationPublisher.ClosePersistentSettingsPreview();
             }
         }
 
@@ -3496,6 +3549,7 @@ namespace PlayniteAchievements.Views
         public void Dispose()
         {
             _notificationAutoPopupPreviewTimer?.Stop();
+            NotificationPublisher.ClosePersistentSettingsPreview();
             if (_notificationPreviewSettings != null)
             {
                 _notificationPreviewSettings.PropertyChanged -= LocalNotificationSettings_PropertyChanged;

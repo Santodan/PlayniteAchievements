@@ -159,7 +159,7 @@ namespace PlayniteAchievements.Services.Exophase
                         {
                             var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
                             var soundPath = localSettings?.UnlockSoundPath;
-                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath);
+                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath, game);
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)

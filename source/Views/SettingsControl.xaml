@@ -2012,14 +2012,30 @@
 
                                     <Grid Margin="0,0,0,6">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="260"/>
+                                            <ColumnDefinition Width="16"/>
                                             <ColumnDefinition Width="170"/>
                                             <ColumnDefinition Width="8"/>
                                             <ColumnDefinition Width="140"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button Grid.Column="0"
+                                        <TextBlock Grid.Column="0"
+                                            Text="Preview game:"
+                                            VerticalAlignment="Center"
+                                            FontWeight="SemiBold"/>
+                                        <ComboBox Grid.Column="2"
+                                            x:Name="NotificationsPreviewGameComboBox"
+                                            MinWidth="240"
+                                            IsEditable="True"
+                                            IsTextSearchEnabled="True"
+                                            StaysOpenOnEdit="True"
+                                            DisplayMemberPath="DisplayName"
+                                            SelectionChanged="NotificationsPreviewGameComboBox_SelectionChanged"/>
+                                        <Button Grid.Column="4"
                                                 Content="Preview Selected Style"
                                                 Click="NotificationsPreviewSelectedStyle_Click"/>
-                                        <Button Grid.Column="2"
+                                        <Button Grid.Column="6"
                                                 Content="Preview All Styles"
                                                 Click="NotificationsPreviewAllStyles_Click"/>
                                     </Grid>
@@ -2226,33 +2242,112 @@
                                                      </DockPanel>
                                                  </Grid>
 
-                                                 <Grid Margin="0,0,0,8">
-                                                     <Grid.ColumnDefinitions>
-                                                         <ColumnDefinition Width="220"/>
-                                                         <ColumnDefinition Width="10"/>
-                                                         <ColumnDefinition Width="5"/>
-                                                         <ColumnDefinition Width="220"/>
-                                                         <ColumnDefinition Width="80"/>
-                                                     </Grid.ColumnDefinitions>
+                                                 <StackPanel Margin="0,0,0,8">
                                                      <CheckBox Content="Auto resize window to fit text"
                                                                IsChecked="{Binding OverlayCustomAutoResizeToContent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                                     <CheckBox Grid.Column="3"
-                                                               Content="Wrap all text lines"
+                                                     <CheckBox Content="Wrap all text lines"
+                                                               Margin="0,4,0,0"
                                                                IsChecked="{Binding OverlayCustomWrapAllText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 </StackPanel>
+
+                                                 <StackPanel Margin="0,0,0,8">
+                                                     <CheckBox Content="Show border"
+                                                               IsChecked="{Binding OverlayCustomShowBorder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     <CheckBox Content="Show game name"
+                                                               Margin="0,4,0,0"
+                                                               IsChecked="{Binding OverlayCustomShowGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 </StackPanel>
+
+                                                 <StackPanel Margin="0,0,0,8">
+                                                     <CheckBox Content="Use the game's banner as background"
+                                                               IsChecked="{Binding EnableGameBannerAsBackground, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     <CheckBox Content="Show the game's cover"
+                                                               Margin="0,4,0,0"
+                                                               IsChecked="{Binding EnableGameCoverInOverlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                 </StackPanel>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="150"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="180"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="90"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Cover position:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameCoverInOverlay}"/>
+                                                     <ComboBox Grid.Column="1"
+                                                               SelectedValue="{Binding GameCoverPosition, Mode=TwoWay}"
+                                                               SelectedValuePath="Tag"
+                                                               MinWidth="150"
+                                                               IsEnabled="{Binding EnableGameCoverInOverlay}">
+                                                         <ComboBoxItem Content="Left of the achievement icon"
+                                                                       Tag="{x:Static local:LocalOverlayCoverPosition.Left}"/>
+                                                         <ComboBoxItem Content="Right of the text"
+                                                                       Tag="{x:Static local:LocalOverlayCoverPosition.Right}"/>
+                                                     </ComboBox>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Cover width:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameCoverInOverlay}"/>
+                                                     <Slider Grid.Column="4"
+                                                             Minimum="40"
+                                                             Maximum="200"
+                                                             TickFrequency="10"
+                                                             IsSnapToTickEnabled="True"
+                                                             Value="{Binding GameCoverWidth, Mode=TwoWay}"
+                                                             IsEnabled="{Binding EnableGameCoverInOverlay}"/>
+                                                     <TextBlock Grid.Column="6"
+                                                                Text="Banner opacity:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameBannerAsBackground}"/>
+                                                     <Slider Grid.Column="7"
+                                                             Minimum="0.10"
+                                                             Maximum="1.00"
+                                                             TickFrequency="0.05"
+                                                             IsSnapToTickEnabled="True"
+                                                             Value="{Binding GameBannerOpacity, Mode=TwoWay}"
+                                                             IsEnabled="{Binding EnableGameBannerAsBackground}"/>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>
-                                                         <ColumnDefinition Width="220"/>
-                                                         <ColumnDefinition Width="10"/>
-                                                         <ColumnDefinition Width="5"/>
-                                                         <ColumnDefinition Width="220"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="120"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="80"/>
+                                                         <ColumnDefinition Width="20"/>
+                                                         <ColumnDefinition Width="Auto"/>
                                                      </Grid.ColumnDefinitions>
-                                                     <CheckBox Content="Show border"
-                                                               IsChecked="{Binding OverlayCustomShowBorder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                                     <CheckBox Grid.Column="3"
-                                                               Content="Show game name"
-                                                               IsChecked="{Binding OverlayCustomShowGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     <TextBlock Text="Banner blur:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameBannerAsBackground}"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding GameBannerBlurRadius, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding EnableGameBannerAsBackground}"/>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Cover width:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                Visibility="Collapsed"/>
+                                                     <TextBlock Grid.Column="6"
+                                                                Style="{StaticResource MutedTextStyle}"
+                                                                VerticalAlignment="Center"
+                                                                Text="Pick a preview game above to verify the Playnite cover and banner images."/>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">
@@ -2383,57 +2478,8 @@
                                                          <TextBlock Text="Inline real-time preview"
                                                                     Style="{StaticResource SectionHeaderStyle}"
                                                                     Margin="0,0,0,6"/>
-                                                         <Border x:Name="NotificationsCustomInlinePreviewBorder"
-                                                                 Width="460"
-                                                                 Height="128"
-                                                                 BorderThickness="1.5"
-                                                                 CornerRadius="18"
-                                                                 Padding="16"
-                                                                 HorizontalAlignment="Left">
-                                                             <Border.Effect>
-                                                                 <DropShadowEffect BlurRadius="16" ShadowDepth="0" Opacity="0.55" Color="Black"/>
-                                                             </Border.Effect>
-                                                             <Grid>
-                                                                 <Grid.ColumnDefinitions>
-                                                                     <ColumnDefinition Width="Auto"/>
-                                                                     <ColumnDefinition Width="*"/>
-                                                                 </Grid.ColumnDefinitions>
-                                                                 <Border x:Name="NotificationsCustomInlinePreviewIconHost"
-                                                                         Width="58"
-                                                                         Height="58"
-                                                                         Margin="0,0,14,0"
-                                                                         CornerRadius="8"
-                                                                         Background="#40FFFFFF">
-                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewIconGlyph"
-                                                                                Text="*"
-                                                                                HorizontalAlignment="Center"
-                                                                                VerticalAlignment="Center"
-                                                                                FontWeight="Bold"
-                                                                                Foreground="White"
-                                                                                FontSize="18"/>
-                                                                 </Border>
-                                                                 <StackPanel Grid.Column="1"
-                                                                             VerticalAlignment="Center">
-                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewTitle"
-                                                                                Text="Local Achievement Unlocked"
-                                                                                FontSize="17"
-                                                                                FontWeight="SemiBold"/>
-                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewGame"
-                                                                                Text="Current Game"
-                                                                                Margin="0,3,0,0"
-                                                                                FontSize="13"/>
-                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewAchievement"
-                                                                                Text="Unlocked: Sample Achievement"
-                                                                                Margin="0,3,0,0"
-                                                                                FontSize="13"
-                                                                                FontWeight="SemiBold"/>
-                                                                     <TextBlock x:Name="NotificationsCustomInlinePreviewMeta"
-                                                                                Text="Local / Custom"
-                                                                                Margin="0,5,0,0"
-                                                                                FontSize="11"/>
-                                                                 </StackPanel>
-                                                             </Grid>
-                                                         </Border>
+                                                         <ContentControl x:Name="NotificationsCustomInlinePreviewHost"
+                                                                         HorizontalAlignment="Left"/>
                                                      </StackPanel>
                                                  </Border>
                                              </StackPanel>

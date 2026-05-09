@@ -26,7 +26,7 @@
 >
 > I'm not a developer, I'm a troubleshooting guy, so everything is made with LLM
 
-## What This Fork Focuses On
+# What This Fork Focuses On
 
 - Local save support and local achievement
 - No need for a steam account to gather the achivements schema
@@ -38,15 +38,16 @@
 - Local-only realtime monitoring and notification improvements
 - Add all the local achievements' games with the corresponding metadata
 - Local Achievement Notification
+- `SuccessStory` Import
 - Theme and `StartPage` migration
 
-### Local Provider Folder List And Browse Flow
+## Local Provider Folder List And Browse Flow
 
 You can set any custom folder where you have saves located in your system
 
 <img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
 
-### Local Game Options Overrides
+## Local Game Options Overrides
 
 If you Right-click the game it will show a quicker way to do these changes:
 
@@ -56,42 +57,50 @@ From the PlayniteAchivements menu inside the game
 
 <img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
 
-### Local Realtime Monitoring And Sound Settings
 
-This was a request from a user to have a sound playing when an achivement is unlocked while playing a game.<br>
-Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)
+## Local Achivements' Games import and `SuccessStory Import`
 
-<img src="Images/LocalAchivementsNotification.png" alt="Sidebar single-game view" width="900">
+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the foldrs and adding one by one.
 
-### Local Achivements' Games import
-
-This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the foldrs and adding one by one
+There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
 
 <img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
 
-### Local Achievement Notification
+## Local Achievement Notification
 
-A notification for when the game that is been played has a new achievment unlocked.
-You can customize the overlay or use one of the provided themes.
+This was a request from a user to have a sound playing when an achivement is unlocked while playing a game.<br>
+Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)<br>
+A notification for when the game that is been played has a new achievment unlocked.<br>
+You can customize the overlay or use one of the provided themes.<br>
 You can enable / disable the `Achievement Notification` in the right click  menu for each game.
 
 <img src="Images/AchievementNotificationMenu.png" alt="Sidebar single-game view" width="900">
 
 <img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
 
-## Fork Changelog
+
+## `StartPage` and Themes compatability
+
+In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
+
+There is also the `StartPage Compatability` so the `Local` achievements apepar in the `StartPage` extension when `PlayniteAchievements` is selected
+
+<img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
+
+# Fork Changelog
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
 ## Next Version Planned changes
 
 
-## TBD - v2.1.3.3
+## 2026-05-09 - v2.1.3.3
 
 - `LumaPLay` achievements integrated
 - Import Local `SuccessStory` achievements history
 - Fixed local `Steam` achievements ( Hopefully this is the one )
 - Fixed Steam path auto-detect
+- Added the option of showing the game's banner and cover in the `Achievement Notification`
 
 ## 2026-05-05 - v2.1.3.2
 

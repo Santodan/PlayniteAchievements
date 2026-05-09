@@ -62,6 +62,13 @@ namespace PlayniteAchievements.Providers.Local
         BottomLeft = 3
     }
 
+    public enum LocalOverlayCoverPosition
+    {
+        None = 0,
+        Left = 1,
+        Right = 2
+    }
+
     public sealed class LocalMetadataSourceOption
     {
         public LocalMetadataSourceOption(string id, string displayName)
@@ -190,6 +197,12 @@ namespace PlayniteAchievements.Providers.Local
         private string _steamAppCacheUserId = string.Empty;
         private string _customProviderIconPath = string.Empty;
         private bool _warnOnAmbiguousLocalFolder = true;
+        private bool _enableGameCoverInOverlay = false;
+        private LocalOverlayCoverPosition _gameCoverPosition = LocalOverlayCoverPosition.Right;
+        private double _gameCoverWidth = 80;
+        private bool _enableGameBannerAsBackground = false;
+        private double _gameBannerOpacity = 0.3;
+        private int _gameBannerBlurRadius = 8;
 
         public override string ProviderKey => "Local";
 
@@ -635,6 +648,42 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _warnOnAmbiguousLocalFolder;
             set => SetValue(ref _warnOnAmbiguousLocalFolder, value);
+        }
+
+        public bool EnableGameCoverInOverlay
+        {
+            get => _enableGameCoverInOverlay;
+            set => SetValue(ref _enableGameCoverInOverlay, value);
+        }
+
+        public LocalOverlayCoverPosition GameCoverPosition
+        {
+            get => _gameCoverPosition;
+            set => SetValue(ref _gameCoverPosition, value);
+        }
+
+        public double GameCoverWidth
+        {
+            get => _gameCoverWidth;
+            set => SetValue(ref _gameCoverWidth, Math.Max(40, Math.Min(200, value)));
+        }
+
+        public bool EnableGameBannerAsBackground
+        {
+            get => _enableGameBannerAsBackground;
+            set => SetValue(ref _enableGameBannerAsBackground, value);
+        }
+
+        public double GameBannerOpacity
+        {
+            get => _gameBannerOpacity;
+            set => SetValue(ref _gameBannerOpacity, Math.Max(0.1, Math.Min(1.0, value)));
+        }
+
+        public int GameBannerBlurRadius
+        {
+            get => _gameBannerBlurRadius;
+            set => SetValue(ref _gameBannerBlurRadius, Math.Max(0, Math.Min(50, value)));
         }
 
         public Dictionary<Guid, int> SteamAppIdOverrides
