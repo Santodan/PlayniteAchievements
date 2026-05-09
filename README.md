@@ -85,13 +85,13 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next Version Planned changes
 
-- Fix local `Steam` achievements, still with some issues
-
 
 ## TBD - v2.1.3.3
 
 - `LumaPLay` achievements integrated
 - Import Local `SuccessStory` achievements history
+- Fixed local `Steam` achievements ( Hopefully this is the one )
+- Fixed Steam path auto-detect
 
 ## 2026-05-05 - v2.1.3.2
 

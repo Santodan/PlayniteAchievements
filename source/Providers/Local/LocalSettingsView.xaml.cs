@@ -13,6 +13,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
@@ -134,6 +135,32 @@ namespace PlayniteAchievements.Providers.Local
                 _localSettings.SteamUserdataPath = selectedPath;
                 RefreshAvailableSteamAppCacheUsers();
             }
+        }
+
+        private void SteamUserdataAutoDetect_Click(object sender, RoutedEventArgs e)
+        {
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            if (TryAutoDetectSteamBasePath(out var detectedSteamBasePath))
+            {
+                _localSettings.SteamUserdataPath = detectedSteamBasePath;
+                RefreshAvailableSteamAppCacheUsers();
+                _playniteApi?.Dialogs?.ShowMessage(
+                    $"Detected Steam path: {detectedSteamBasePath}",
+                    "Playnite Achievements",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            _playniteApi?.Dialogs?.ShowMessage(
+                "Steam path was not detected automatically. Please set it manually using Browse.",
+                "Playnite Achievements",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
         }
 
         private void BrowseExtraLocalPath_Click(object sender, RoutedEventArgs e)
@@ -721,6 +748,11 @@ namespace PlayniteAchievements.Providers.Local
 
             AddCandidate(_localSettings?.SteamUserdataPath);
             AddCandidate(Environment.GetEnvironmentVariable("SteamPath"));
+            foreach (var registryPath in GetSteamRegistryCandidatePaths())
+            {
+                AddCandidate(registryPath);
+            }
+
             AddCandidate(@"%ProgramFiles(x86)%\Steam");
             AddCandidate(@"%ProgramFiles%\Steam");
 
@@ -733,6 +765,171 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return candidates;
+        }
+
+        private bool TryAutoDetectSteamBasePath(out string detectedSteamBasePath)
+        {
+            detectedSteamBasePath = null;
+
+            var rankedCandidates = new List<(string Path, int Score)>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in GetSteamBaseCandidatePaths())
+            {
+                var normalized = NormalizeSteamBasePath(candidate);
+                if (string.IsNullOrWhiteSpace(normalized) || !seen.Add(normalized))
+                {
+                    continue;
+                }
+
+                var score = 0;
+                if (Directory.Exists(Path.Combine(normalized, "userdata")))
+                {
+                    score += 2;
+                }
+
+                if (Directory.Exists(Path.Combine(normalized, "appcache", "stats")))
+                {
+                    score += 2;
+                }
+
+                if (File.Exists(Path.Combine(normalized, "steam.exe")))
+                {
+                    score += 1;
+                }
+
+                rankedCandidates.Add((normalized, score));
+            }
+
+            var best = rankedCandidates
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.Path, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(best.Path))
+            {
+                return false;
+            }
+
+            detectedSteamBasePath = best.Path;
+            return true;
+        }
+
+        private static string NormalizeSteamBasePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            var expanded = Environment.ExpandEnvironmentVariables(path.Trim());
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                return null;
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "steam.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                expanded = Directory.GetParent(expanded)?.FullName;
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase))
+            {
+                expanded = Directory.GetParent(expanded)?.FullName;
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "stats", StringComparison.OrdinalIgnoreCase))
+            {
+                var appcachePath = Directory.GetParent(expanded);
+                if (string.Equals(appcachePath?.Name, "appcache", StringComparison.OrdinalIgnoreCase))
+                {
+                    expanded = appcachePath?.Parent?.FullName;
+                }
+            }
+
+            if (string.Equals(Path.GetFileName(expanded), "appcache", StringComparison.OrdinalIgnoreCase))
+            {
+                expanded = Directory.GetParent(expanded)?.FullName;
+            }
+
+            if (string.IsNullOrWhiteSpace(expanded))
+            {
+                return null;
+            }
+
+            try
+            {
+                var fullPath = Path.GetFullPath(expanded.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                return Directory.Exists(fullPath) ? fullPath : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static IEnumerable<string> GetSteamRegistryCandidatePaths()
+        {
+            var results = new List<string>();
+            var candidateValueNames = new[]
+            {
+                "SteamPath",
+                "InstallPath",
+                "InstallLocation"
+            };
+
+            var keyPaths = new[]
+            {
+                @"Software\Valve\Steam",
+                @"Software\WOW6432Node\Valve\Steam",
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1",
+                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1"
+            };
+
+            foreach (var hive in new[] { Registry.CurrentUser, Registry.LocalMachine })
+            {
+                foreach (var keyPath in keyPaths)
+                {
+                    RegistryKey key = null;
+                    try
+                    {
+                        key = hive.OpenSubKey(keyPath);
+                        if (key == null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var valueName in candidateValueNames)
+                        {
+                            var raw = key.GetValue(valueName) as string;
+                            if (!string.IsNullOrWhiteSpace(raw))
+                            {
+                                results.Add(raw.Trim());
+                            }
+                        }
+
+                        var steamExe = key.GetValue("SteamExe") as string;
+                        if (!string.IsNullOrWhiteSpace(steamExe))
+                        {
+                            var parent = Directory.GetParent(steamExe.Trim())?.FullName;
+                            if (!string.IsNullOrWhiteSpace(parent))
+                            {
+                                results.Add(parent);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore registry access failures and continue with filesystem candidates.
+                    }
+                    finally
+                    {
+                        key?.Dispose();
+                    }
+                }
+            }
+
+            return results;
         }
 
         private static string GetSteamUserdataRoot(string steamBasePath)
@@ -965,7 +1162,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
-                    var importer = new LocalFolderGamesImporter(_playniteApi, _pluginSettings, _logger);
+                    var importer = new LocalFolderGamesImporter(_playniteApi, _pluginSettings, _logger, _localSettings);
                     var result = await importer.ImportFromRootsAsync(
                         roots,
                         selectedTarget,

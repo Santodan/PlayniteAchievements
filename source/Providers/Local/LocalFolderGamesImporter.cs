@@ -118,12 +118,13 @@ namespace PlayniteAchievements.Providers.Local
         public LocalFolderGamesImporter(
             IPlayniteAPI api,
             PlayniteAchievementsSettings settings,
-            ILogger logger)
+            ILogger logger,
+            LocalSettings localSettingsOverride = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
-            _localSettings = ProviderRegistry.Settings<LocalSettings>();
+            _localSettings = localSettingsOverride ?? ProviderRegistry.Settings<LocalSettings>();
             _metadataApplier = new ImportedGameMetadataApplier(_api, _logger, "LocalImport");
         }
 

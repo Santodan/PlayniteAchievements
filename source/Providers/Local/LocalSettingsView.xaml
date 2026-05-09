@@ -123,11 +123,17 @@
                                FontWeight="SemiBold"
                                Margin="0,0,0,4"/>
                         <DockPanel Margin="0,0,0,6">
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Browse}"
-                            Width="90"
-                            DockPanel.Dock="Right"
-                            Margin="8,0,0,0"
-                            Click="SteamUserdataBrowse_Click"/>
+                        <StackPanel Orientation="Horizontal"
+                                    DockPanel.Dock="Right"
+                                    Margin="8,0,0,0">
+                            <Button Content="Auto Detect"
+                                Width="100"
+                                Margin="0,0,8,0"
+                                Click="SteamUserdataAutoDetect_Click"/>
+                            <Button Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Width="90"
+                                Click="SteamUserdataBrowse_Click"/>
+                        </StackPanel>
                         <TextBox Text="{Binding Settings.SteamUserdataPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              VerticalContentAlignment="Center"
                              KeyDown="SteamUserdataPath_KeyDown"
