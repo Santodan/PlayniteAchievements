@@ -43,7 +43,7 @@
 
 ## Local Provider Folder List And Browse Flow
 
-You can set any custom folder where you have saves located in your system
+You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
 
 <img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
 
