@@ -4379,9 +4379,16 @@ namespace PlayniteAchievements.Providers.Local
                 return false;
             }
 
+            var excludedLocalPaths = GetExcludedLocalPathEntries().ToList();
+
             foreach (var root in GetLocalRootPaths())
             {
                 if (string.IsNullOrWhiteSpace(root))
+                {
+                    continue;
+                }
+
+                if (IsPathExcludedFromLocalScan(root, excludedLocalPaths))
                 {
                     continue;
                 }
@@ -4401,11 +4408,14 @@ namespace PlayniteAchievements.Providers.Local
                     }
 
                     var appFolder = Path.Combine(candidate, appId);
-                    candidate = ResolveAchievementFilePath(appFolder, fileName);
-                    if (!string.IsNullOrWhiteSpace(candidate))
+                    if (!IsPathExcludedFromLocalScan(appFolder, excludedLocalPaths))
                     {
-                        filePath = candidate;
-                        return true;
+                        candidate = ResolveAchievementFilePath(appFolder, fileName);
+                        if (!string.IsNullOrWhiteSpace(candidate))
+                        {
+                            filePath = candidate;
+                            return true;
+                        }
                     }
 
                     if (!Directory.Exists(root))
@@ -4413,7 +4423,7 @@ namespace PlayniteAchievements.Providers.Local
                         continue;
                     }
 
-                    foreach (var matchDir in Directory.EnumerateDirectories(root, appId, SearchOption.AllDirectories))
+                    foreach (var matchDir in EnumerateDirectoriesByNameExcludingPaths(root, appId, excludedLocalPaths))
                     {
                         candidate = ResolveAchievementFilePath(matchDir, fileName);
                         if (!string.IsNullOrWhiteSpace(candidate))
@@ -4498,10 +4508,16 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             var folders = new List<string>();
+            var excludedLocalPaths = GetExcludedLocalPathEntries().ToList();
 
             foreach (var root in GetLocalRootPaths())
             {
                 if (string.IsNullOrWhiteSpace(root))
+                {
+                    continue;
+                }
+
+                if (IsPathExcludedFromLocalScan(root, excludedLocalPaths))
                 {
                     continue;
                 }
@@ -4511,14 +4527,17 @@ namespace PlayniteAchievements.Providers.Local
                     if (Directory.Exists(root))
                     {
                         var candidate = Path.Combine(root, appId);
-                        TryAddLocalFolderCandidate(folders, candidate);
+                        if (!IsPathExcludedFromLocalScan(candidate, excludedLocalPaths))
+                        {
+                            TryAddLocalFolderCandidate(folders, candidate);
+                        }
 
                         if (string.Equals(Path.GetFileName(root), appId, StringComparison.OrdinalIgnoreCase))
                         {
                             TryAddLocalFolderCandidate(folders, root);
                         }
 
-                        foreach (var matchDir in Directory.EnumerateDirectories(root, appId, SearchOption.AllDirectories))
+                        foreach (var matchDir in EnumerateDirectoriesByNameExcludingPaths(root, appId, excludedLocalPaths))
                         {
                             TryAddLocalFolderCandidate(folders, matchDir);
                         }
@@ -6443,6 +6462,7 @@ namespace PlayniteAchievements.Providers.Local
         private IEnumerable<string> GetInstallSchemaFilePaths(int appId)
         {
             var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var excludedLocalPaths = GetExcludedLocalPathEntries().ToList();
 
             foreach (var root in GetLocalRootPaths())
             {
@@ -6451,15 +6471,15 @@ namespace PlayniteAchievements.Providers.Local
                     continue;
                 }
 
+                if (IsPathExcludedFromLocalScan(root, excludedLocalPaths))
+                {
+                    continue;
+                }
+
                 try
                 {
-                    foreach (var directory in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
+                    foreach (var directory in EnumerateDirectoriesByNameExcludingPaths(root, appId.ToString(CultureInfo.InvariantCulture), excludedLocalPaths))
                     {
-                        if (!directory.EndsWith(appId.ToString(CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase))
-                        {
-                            continue;
-                        }
-
                         foreach (var relativePath in InstallSchemaRelativePaths)
                         {
                             var candidate = Path.Combine(directory, relativePath);
@@ -6821,6 +6841,113 @@ namespace PlayniteAchievements.Providers.Local
             return roots.Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
+        private IEnumerable<string> GetExcludedLocalPathEntries()
+        {
+            foreach (var excludedPath in LocalSettings.SplitExtraLocalPaths(_pluginSettings?.Persisted?.ExcludedLocalPaths))
+            {
+                var expanded = Environment.ExpandEnvironmentVariables(excludedPath);
+                var normalized = NormalizeDirectoryPath(expanded);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    yield return normalized;
+                }
+            }
+        }
+
+        private static string NormalizeDirectoryPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool IsPathExcludedFromLocalScan(string path, IReadOnlyList<string> excludedRoots)
+        {
+            if (string.IsNullOrWhiteSpace(path) || excludedRoots == null || excludedRoots.Count == 0)
+            {
+                return false;
+            }
+
+            var normalizedPath = NormalizeDirectoryPath(path);
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+            {
+                return false;
+            }
+
+            foreach (var excludedRoot in excludedRoots)
+            {
+                if (string.IsNullOrWhiteSpace(excludedRoot))
+                {
+                    continue;
+                }
+
+                if (string.Equals(normalizedPath, excludedRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (normalizedPath.StartsWith(excludedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedPath.StartsWith(excludedRoot + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static IEnumerable<string> EnumerateDirectoriesByNameExcludingPaths(string root, string directoryName, IReadOnlyList<string> excludedRoots)
+        {
+            if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(directoryName) || !Directory.Exists(root))
+            {
+                yield break;
+            }
+
+            var stack = new Stack<string>();
+            stack.Push(root);
+
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                IEnumerable<string> childDirectories;
+
+                try
+                {
+                    childDirectories = Directory.EnumerateDirectories(current, "*", SearchOption.TopDirectoryOnly);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var childDirectory in childDirectories)
+                {
+                    if (IsPathExcludedFromLocalScan(childDirectory, excludedRoots))
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(Path.GetFileName(childDirectory), directoryName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        yield return childDirectory;
+                    }
+
+                    stack.Push(childDirectory);
+                }
+            }
+        }
+
         // REQUIRED: Returning a real settings object makes the platform appear in the UI Filters
         public IProviderSettings GetSettings()
         {
@@ -6830,6 +6957,12 @@ namespace PlayniteAchievements.Providers.Local
                 && !string.IsNullOrWhiteSpace(_pluginSettings?.Persisted?.ExtraLocalPaths))
             {
                 settings.ExtraLocalPaths = _pluginSettings.Persisted.ExtraLocalPaths;
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.ExcludedLocalPaths)
+                && !string.IsNullOrWhiteSpace(_pluginSettings?.Persisted?.ExcludedLocalPaths))
+            {
+                settings.ExcludedLocalPaths = _pluginSettings.Persisted.ExcludedLocalPaths;
             }
 
             settings.SteamUserdataPath ??= string.Empty;
@@ -6851,6 +6984,7 @@ namespace PlayniteAchievements.Providers.Local
                 if (_pluginSettings?.Persisted != null)
                 {
                     _pluginSettings.Persisted.ExtraLocalPaths = localSettings.ExtraLocalPaths ?? string.Empty;
+                    _pluginSettings.Persisted.ExcludedLocalPaths = localSettings.ExcludedLocalPaths ?? string.Empty;
                 }
 
                 // Clear path-discovery caches so updated Steam paths take effect immediately.

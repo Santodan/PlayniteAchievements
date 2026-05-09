@@ -101,6 +101,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed local `Steam` achievements ( Hopefully this is the one )
 - Fixed Steam path auto-detect
 - Added the option of showing the game's banner and cover in the `Achievement Notification`
+- Added exception folders list to the `Local` tab to never get achievements from it
 
 ## 2026-05-05 - v2.1.3.2
 

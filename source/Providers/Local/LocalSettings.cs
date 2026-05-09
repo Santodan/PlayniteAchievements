@@ -208,6 +208,8 @@ namespace PlayniteAchievements.Providers.Local
 
         public string ExtraLocalPaths { get; set; } = string.Empty;
 
+        public string ExcludedLocalPaths { get; set; } = string.Empty;
+
         public bool EnableActiveGameMonitoring
         {
             get => _enableActiveGameMonitoring;
@@ -720,6 +722,11 @@ namespace PlayniteAchievements.Providers.Local
             return SplitExtraLocalPaths(ExtraLocalPaths).ToList();
         }
 
+        public IReadOnlyList<string> GetExcludedLocalPathEntries()
+        {
+            return SplitExtraLocalPaths(ExcludedLocalPaths).ToList();
+        }
+
         public IReadOnlyList<string> GetExtraUnlockSoundPathEntries()
         {
             return SplitUnlockSoundPaths(ExtraUnlockSoundPaths).ToList();
@@ -728,6 +735,11 @@ namespace PlayniteAchievements.Providers.Local
         public void SetExtraLocalPathEntries(IEnumerable<string> paths)
         {
             ExtraLocalPaths = JoinExtraLocalPaths(paths);
+        }
+
+        public void SetExcludedLocalPathEntries(IEnumerable<string> paths)
+        {
+            ExcludedLocalPaths = JoinExtraLocalPaths(paths);
         }
 
         public void SetExtraUnlockSoundPathEntries(IEnumerable<string> paths)

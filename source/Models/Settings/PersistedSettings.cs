@@ -142,6 +142,7 @@ namespace PlayniteAchievements.Models.Settings
         private TaggingSettings _taggingSettings;
         private Dictionary<string, JObject> _providerSettings = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
         private string _extraLocalPaths = "";
+        private string _excludedLocalPaths = "";
 
         #endregion
 
@@ -177,6 +178,16 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _extraLocalPaths;
             set => SetValue(ref _extraLocalPaths, value ?? "");
+        }
+
+        /// <summary>
+        /// Semicolon-separated list of local folders that should be excluded from achievement detection scans.
+        /// </summary>
+        [JsonProperty("ExcludedLocalPaths")]
+        public string ExcludedLocalPaths
+        {
+            get => _excludedLocalPaths;
+            set => SetValue(ref _excludedLocalPaths, value ?? "");
         }
 
         #endregion

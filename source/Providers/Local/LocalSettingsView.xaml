@@ -303,6 +303,59 @@
 
                     <TextBlock Text="Use Browse to select folders, then Apply to add them to the list. Environment variables such as %PUBLIC% or %APPDATA% are still expanded automatically when scanning."
                                Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Excluded folders from scan:"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="PendingExcludedLocalPathTextBox"
+                             Grid.Column="0"
+                             VerticalContentAlignment="Center"
+                             TextChanged="PendingExcludedLocalPathTextBox_TextChanged" />
+                        <Button Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                            Width="90"
+                            Margin="8,0,0,0"
+                            Click="BrowseExcludedLocalPath_Click" />
+                        <Button x:Name="AddExcludedLocalPathButton"
+                            Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Width="90"
+                            Margin="8,0,0,0"
+                            IsEnabled="False"
+                            Click="AddExcludedLocalPath_Click" />
+                        </Grid>
+
+                        <Border BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4"
+                            Margin="0,0,0,6">
+                        <ListBox x:Name="ExcludedLocalPathsList"
+                             SelectionChanged="ExcludedLocalPathsList_SelectionChanged"
+                             MinHeight="110"
+                             MaxHeight="180" />
+                        </Border>
+
+                        <Button x:Name="RemoveExcludedLocalPathButton"
+                            Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                            HorizontalAlignment="Left"
+                            Padding="12,6"
+                            Margin="0,0,0,6"
+                            IsEnabled="False"
+                            Click="RemoveExcludedLocalPath_Click" />
+
+                        <TextBlock Text="Excluded folders are skipped during Local achievement detection scans, including nested paths under those folders."
+                               Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"/>
 
                         <TextBlock Text="Imported game target library:"

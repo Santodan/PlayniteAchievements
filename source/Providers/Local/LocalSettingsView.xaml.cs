@@ -52,6 +52,7 @@ namespace PlayniteAchievements.Providers.Local
         }
 
         public ObservableCollection<string> ExtraLocalPathEntries { get; } = new ObservableCollection<string>();
+        public ObservableCollection<string> ExcludedLocalPathEntries { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> AvailableSourceNames { get; } = new ObservableCollection<string>();
         public ObservableCollection<ImportedGameMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<ImportedGameMetadataSourceOption>();
         public ObservableCollection<LocalSteamAppCacheUserOption> AvailableSteamAppCacheUsers { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
@@ -77,6 +78,7 @@ namespace PlayniteAchievements.Providers.Local
             _localSettings = settings as LocalSettings;
             base.Initialize(settings);
             ExtraLocalPathsList.ItemsSource = ExtraLocalPathEntries;
+            ExcludedLocalPathsList.ItemsSource = ExcludedLocalPathEntries;
             ImportedGameCustomSourceComboBox.ItemsSource = AvailableSourceNames;
             if (_localSettings != null)
             {
@@ -88,6 +90,7 @@ namespace PlayniteAchievements.Providers.Local
             RefreshAvailableSteamAppCacheUsers();
             RefreshLocalProviderIconControls();
             RefreshExtraLocalPathEntries();
+            RefreshExcludedLocalPathEntries();
             RefreshImportedGameTargetControls();
             UpdateExtraLocalPathButtonStates();
             EnsureSuccessStoryImportPathDefault();
@@ -172,6 +175,17 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             PendingExtraLocalPathTextBox.Text = selectedPath;
+        }
+
+        private void BrowseExcludedLocalPath_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPath = _playniteApi?.Dialogs?.SelectFolder();
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            PendingExcludedLocalPathTextBox.Text = selectedPath;
         }
 
 
@@ -386,6 +400,37 @@ namespace PlayniteAchievements.Providers.Local
             UpdateExtraLocalPathButtonStates();
         }
 
+        private void AddExcludedLocalPath_Click(object sender, RoutedEventArgs e)
+        {
+            var path = PendingExcludedLocalPathTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            if (!Directory.Exists(path))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    "The selected folder does not exist.",
+                    "Playnite Achievements",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (ExcludedLocalPathEntries.Any(existing => string.Equals(existing, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                PendingExcludedLocalPathTextBox.Clear();
+                UpdateExtraLocalPathButtonStates();
+                return;
+            }
+
+            ExcludedLocalPathEntries.Add(path);
+            SyncExcludedLocalPathsToSettings();
+            PendingExcludedLocalPathTextBox.Clear();
+            UpdateExtraLocalPathButtonStates();
+        }
+
         private void RemoveExtraLocalPath_Click(object sender, RoutedEventArgs e)
         {
             if (!(ExtraLocalPathsList.SelectedItem is string selectedPath))
@@ -395,6 +440,18 @@ namespace PlayniteAchievements.Providers.Local
 
             ExtraLocalPathEntries.Remove(selectedPath);
             SyncExtraLocalPathsToSettings();
+            UpdateExtraLocalPathButtonStates();
+        }
+
+        private void RemoveExcludedLocalPath_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(ExcludedLocalPathsList.SelectedItem is string selectedPath))
+            {
+                return;
+            }
+
+            ExcludedLocalPathEntries.Remove(selectedPath);
+            SyncExcludedLocalPathsToSettings();
             UpdateExtraLocalPathButtonStates();
         }
 
@@ -494,7 +551,17 @@ namespace PlayniteAchievements.Providers.Local
             UpdateExtraLocalPathButtonStates();
         }
 
+        private void PendingExcludedLocalPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            UpdateExtraLocalPathButtonStates();
+        }
+
         private void ExtraLocalPathsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateExtraLocalPathButtonStates();
+        }
+
+        private void ExcludedLocalPathsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateExtraLocalPathButtonStates();
         }
@@ -518,9 +585,28 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
+        private void RefreshExcludedLocalPathEntries()
+        {
+            ExcludedLocalPathEntries.Clear();
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            foreach (var path in _localSettings.GetExcludedLocalPathEntries())
+            {
+                ExcludedLocalPathEntries.Add(path);
+            }
+        }
+
         private void SyncExtraLocalPathsToSettings()
         {
             _localSettings?.SetExtraLocalPathEntries(ExtraLocalPathEntries);
+        }
+
+        private void SyncExcludedLocalPathsToSettings()
+        {
+            _localSettings?.SetExcludedLocalPathEntries(ExcludedLocalPathEntries);
         }
 
         private void UpdateExtraLocalPathButtonStates()
@@ -530,9 +616,19 @@ namespace PlayniteAchievements.Providers.Local
                 AddExtraLocalPathButton.IsEnabled = !string.IsNullOrWhiteSpace(PendingExtraLocalPathTextBox?.Text);
             }
 
+            if (AddExcludedLocalPathButton != null)
+            {
+                AddExcludedLocalPathButton.IsEnabled = !string.IsNullOrWhiteSpace(PendingExcludedLocalPathTextBox?.Text);
+            }
+
             if (RemoveExtraLocalPathButton != null)
             {
                 RemoveExtraLocalPathButton.IsEnabled = ExtraLocalPathsList?.SelectedItem is string;
+            }
+
+            if (RemoveExcludedLocalPathButton != null)
+            {
+                RemoveExcludedLocalPathButton.IsEnabled = ExcludedLocalPathsList?.SelectedItem is string;
             }
 
             if (ImportExtraLocalGamesButton != null)
