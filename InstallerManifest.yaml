@@ -10,6 +10,7 @@ Packages:
   - "Fixed local `Steam` achievements ( Hopefully this is the one )"
   - "Fixed Steam path auto-detect"
   - "Added the option of showing the game's banner and cover in the `Achievement Notification`"
+  - "Added exception folders list to the Local tab to never get achievements from it"
 
   - Version: 2.1.3.2
     RequiredApiVersion: 6.14.0
