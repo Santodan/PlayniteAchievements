@@ -14,6 +14,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using Newtonsoft.Json;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
@@ -27,6 +28,41 @@ namespace PlayniteAchievements.Providers.Local
 {
     public partial class LocalSettingsView : ProviderSettingsViewBase
     {
+        public sealed class SuccessStoryCategorySelectionOption : INotifyPropertyChanged
+        {
+            private bool _isSelected;
+
+            public string Key { get; set; } = string.Empty;
+
+            public string DisplayName { get; set; } = string.Empty;
+
+            public int Count { get; set; }
+
+            public bool IsSelected
+            {
+                get => _isSelected;
+                set
+                {
+                    if (_isSelected == value)
+                    {
+                        return;
+                    }
+
+                    _isSelected = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+                }
+            }
+
+            public event PropertyChangedEventHandler PropertyChanged;
+        }
+
+        public sealed class SuccessStorySourceTargetOption
+        {
+            public string SourceName { get; set; } = string.Empty;
+
+            public string DisplayName { get; set; } = string.Empty;
+        }
+
         private const string LocalProviderIconFileName = "local.png";
         private const string LocalProviderIconResourceKey = "GeoLocal";
         private const string LocalProviderColorHex = "#FF8A00";
@@ -56,6 +92,8 @@ namespace PlayniteAchievements.Providers.Local
         public ObservableCollection<string> AvailableSourceNames { get; } = new ObservableCollection<string>();
         public ObservableCollection<ImportedGameMetadataSourceOption> AvailableMetadataSources { get; } = new ObservableCollection<ImportedGameMetadataSourceOption>();
         public ObservableCollection<LocalSteamAppCacheUserOption> AvailableSteamAppCacheUsers { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
+        public ObservableCollection<SuccessStoryCategorySelectionOption> SuccessStoryImportCategoryOptions { get; } = new ObservableCollection<SuccessStoryCategorySelectionOption>();
+        public ObservableCollection<SuccessStorySourceTargetOption> AvailableSuccessStorySourceTargets { get; } = new ObservableCollection<SuccessStorySourceTargetOption>();
 
         public new LocalSettings Settings => _localSettings;
 
@@ -88,12 +126,19 @@ namespace PlayniteAchievements.Providers.Local
             RefreshAvailableSourceNames();
             RefreshAvailableMetadataSources();
             RefreshAvailableSteamAppCacheUsers();
+            RefreshAvailableSuccessStorySourceTargets();
             RefreshLocalProviderIconControls();
             RefreshExtraLocalPathEntries();
             RefreshExcludedLocalPathEntries();
             RefreshImportedGameTargetControls();
             UpdateExtraLocalPathButtonStates();
             EnsureSuccessStoryImportPathDefault();
+            LoadPersistedSuccessStoryScanSnapshot();
+            RestoreSuccessStoryCategorySelection();
+            if (SuccessStoryImportCategoryOptions.Count == 0)
+            {
+                UpdateSuccessStoryScanStatus("Scan not run yet.");
+            }
             UpdateSuccessStoryImportStatus("Ready.");
         }
 
@@ -516,6 +561,7 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             SuccessStoryImportPath = selectedPath;
+            SyncSuccessStoryImportPathToSettings(selectedPath);
             UpdateSuccessStoryImportStatus("Path selected.");
         }
 
@@ -528,6 +574,7 @@ namespace PlayniteAchievements.Providers.Local
 
             EnsureSuccessStoryImportPathDefault();
             var importPath = (SuccessStoryImportPath ?? string.Empty).Trim();
+            SyncSuccessStoryImportPathToSettings(importPath);
             if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
             {
                 var message = string.IsNullOrWhiteSpace(importPath)
@@ -543,7 +590,53 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
-            StartSuccessStoryImport(importPath);
+            var selectedCategoryKeys = GetSelectedSuccessStoryCategoryKeys();
+            if (!ConfirmSuccessStoryMissingCategoryImport(selectedCategoryKeys))
+            {
+                UpdateSuccessStoryImportStatus("SuccessStory import cancelled.");
+                return;
+            }
+
+            StartSuccessStoryImport(importPath, selectedCategoryKeys);
+        }
+
+        private async void ScanSuccessStorySourcesButton_Click(object sender, RoutedEventArgs e)
+        {
+            EnsureSuccessStoryImportPathDefault();
+            var importPath = (SuccessStoryImportPath ?? string.Empty).Trim();
+            SyncSuccessStoryImportPathToSettings(importPath);
+            if (string.IsNullOrWhiteSpace(importPath) || !Directory.Exists(importPath))
+            {
+                var message = string.IsNullOrWhiteSpace(importPath)
+                    ? "SuccessStory folder path is empty."
+                    : $"SuccessStory folder does not exist: {importPath}";
+                UpdateSuccessStoryScanStatus(message);
+                return;
+            }
+
+            try
+            {
+                if (ScanSuccessStorySourcesButton != null)
+                {
+                    ScanSuccessStorySourcesButton.IsEnabled = false;
+                }
+
+                UpdateSuccessStoryScanStatus("Scanning SuccessStory categories...");
+                var scanResult = await Task.Run(() => LocalSuccessStoryImportService.ScanCategoriesInFolder(importPath)).ConfigureAwait(true);
+                ApplySuccessStoryScanResult(scanResult);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed scanning SuccessStory categories.");
+                UpdateSuccessStoryScanStatus($"Scan failed: {ex.Message}");
+            }
+            finally
+            {
+                if (ScanSuccessStorySourcesButton != null)
+                {
+                    ScanSuccessStorySourcesButton.IsEnabled = true;
+                }
+            }
         }
 
         private void PendingExtraLocalPathTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -749,6 +842,53 @@ namespace PlayniteAchievements.Providers.Local
             if (!AvailableSteamAppCacheUsers.Any(option => string.Equals(option.UserId, selectedUserId, StringComparison.OrdinalIgnoreCase)))
             {
                 AvailableSteamAppCacheUsers.Add(new LocalSteamAppCacheUserOption(selectedUserId, selectedUserId));
+            }
+        }
+
+        private void RefreshAvailableSuccessStorySourceTargets()
+        {
+            AvailableSuccessStorySourceTargets.Clear();
+            AvailableSuccessStorySourceTargets.Add(new SuccessStorySourceTargetOption
+            {
+                SourceName = string.Empty,
+                DisplayName = "Automatic (from SourceLink)"
+            });
+
+            try
+            {
+                foreach (var sourceName in _playniteApi?.Database?.Sources?
+                    .Where(source => source != null && !string.IsNullOrWhiteSpace(source.Name))
+                    .Select(source => source.Name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(name => name, StringComparer.OrdinalIgnoreCase) ?? Enumerable.Empty<string>())
+                {
+                    AvailableSuccessStorySourceTargets.Add(new SuccessStorySourceTargetOption
+                    {
+                        SourceName = sourceName,
+                        DisplayName = sourceName
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed loading source targets for SuccessStory import settings.");
+            }
+
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            var selectedSourceName = (_localSettings.SuccessStoryImportTargetSourceName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(selectedSourceName))
+            {
+                _localSettings.SuccessStoryImportTargetSourceName = string.Empty;
+                return;
+            }
+
+            if (!AvailableSuccessStorySourceTargets.Any(option => string.Equals(option.SourceName, selectedSourceName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _localSettings.SuccessStoryImportTargetSourceName = string.Empty;
             }
         }
 
@@ -1415,6 +1555,13 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
+            var persistedPath = _localSettings?.SuccessStoryImportPath?.Trim();
+            if (!string.IsNullOrWhiteSpace(persistedPath))
+            {
+                SuccessStoryImportPath = persistedPath;
+                return;
+            }
+
             var extensionsDataPath = _playniteApi?.Paths?.ExtensionsDataPath;
             if (string.IsNullOrWhiteSpace(extensionsDataPath))
             {
@@ -1425,9 +1572,10 @@ namespace PlayniteAchievements.Providers.Local
                 extensionsDataPath,
                 SuccessStoryExtensionId,
                 SuccessStoryFolderName);
+            SyncSuccessStoryImportPathToSettings(SuccessStoryImportPath);
         }
 
-        private void StartSuccessStoryImport(string importPath)
+        private void StartSuccessStoryImport(string importPath, IReadOnlyCollection<string> selectedCategoryKeys)
         {
             _localImportCts?.Dispose();
             _localImportCts = new CancellationTokenSource();
@@ -1444,11 +1592,11 @@ namespace PlayniteAchievements.Providers.Local
                 new WindowOptions
                 {
                     Width = 430,
-                    Height = 250,
-                    CanBeResizable = false,
+                    Height = 320,
+                    CanBeResizable = true,
                     ShowCloseButton = true,
                     ShowMinimizeButton = false,
-                    ShowMaximizeButton = false
+                    ShowMaximizeButton = true
                 });
 
             progressControl.RequestClose += (s, e) => window.Close();
@@ -1488,12 +1636,18 @@ namespace PlayniteAchievements.Providers.Local
                         cacheManager,
                         achievementDataService,
                         _logger,
-                        _localSettings?.ImportedGameMetadataSourceId);
+                        _localSettings?.ImportedGameMetadataSourceId,
+                        _localSettings?.SuccessStoryImportTargetSourceName);
 
-                    var result = await importer.ImportFromFolderAsync(
-                        importPath,
-                        _localImportCts.Token,
-                        progress).ConfigureAwait(false);
+                    LocalSuccessStoryImportService.SuccessStoryImportResult result;
+                    using (plugin?.SuspendNewGameAutoRefresh("SuccessStory bulk import"))
+                    {
+                        result = await importer.ImportFromFolderAsync(
+                            importPath,
+                            _localImportCts.Token,
+                            selectedCategoryKeys,
+                            progress).ConfigureAwait(false);
+                    }
 
                     var summary = result.BuildSummary();
                     Dispatcher.Invoke(() =>
@@ -1547,6 +1701,175 @@ namespace PlayniteAchievements.Providers.Local
             if (ImportSuccessStoryStatusTextBlock != null)
             {
                 ImportSuccessStoryStatusTextBlock.Text = message ?? string.Empty;
+            }
+        }
+
+        private void RestoreSuccessStoryCategorySelection()
+        {
+            var selectedKeys = new HashSet<string>(
+                _localSettings?.GetSuccessStoryImportCategoryKeyEntries() ?? Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var option in SuccessStoryImportCategoryOptions)
+            {
+                option.IsSelected = selectedKeys.Contains(option.Key);
+            }
+        }
+
+        private void ApplySuccessStoryScanResult(LocalSuccessStoryImportService.SuccessStoryCategoryScanResult scanResult)
+        {
+            foreach (var option in SuccessStoryImportCategoryOptions)
+            {
+                option.PropertyChanged -= SuccessStoryCategoryOption_PropertyChanged;
+            }
+
+            var selectedKeys = new HashSet<string>(
+                _localSettings?.GetSuccessStoryImportCategoryKeyEntries() ?? Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+
+            SuccessStoryImportCategoryOptions.Clear();
+            foreach (var category in scanResult?.Categories ?? Enumerable.Empty<LocalSuccessStoryImportService.SuccessStoryCategoryScanItem>())
+            {
+                var option = new SuccessStoryCategorySelectionOption
+                {
+                    Key = category.Key ?? string.Empty,
+                    DisplayName = category.DisplayName ?? (category.Key ?? string.Empty),
+                    Count = Math.Max(0, category.Count),
+                    IsSelected = selectedKeys.Contains(category.Key ?? string.Empty)
+                };
+                option.PropertyChanged += SuccessStoryCategoryOption_PropertyChanged;
+                SuccessStoryImportCategoryOptions.Add(option);
+            }
+
+            SyncSuccessStoryCategorySelectionToSettings();
+            PersistSuccessStoryScanSnapshot();
+
+            var summary = scanResult == null
+                ? "Scan failed."
+                : $"Scanned {scanResult.ScannedFileCount} file(s), parsed {scanResult.ParsedFileCount}, failed {scanResult.FailedFileCount}, categories {SuccessStoryImportCategoryOptions.Count}.";
+            UpdateSuccessStoryScanStatus(summary);
+        }
+
+        private void LoadPersistedSuccessStoryScanSnapshot()
+        {
+            var rawSnapshot = _localSettings?.SuccessStoryCategoryScanSnapshotJson;
+            if (string.IsNullOrWhiteSpace(rawSnapshot))
+            {
+                return;
+            }
+
+            try
+            {
+                var categories = JsonConvert.DeserializeObject<List<LocalSuccessStoryImportService.SuccessStoryCategoryScanItem>>(rawSnapshot);
+                if (categories == null || categories.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var option in SuccessStoryImportCategoryOptions)
+                {
+                    option.PropertyChanged -= SuccessStoryCategoryOption_PropertyChanged;
+                }
+
+                SuccessStoryImportCategoryOptions.Clear();
+                foreach (var category in categories)
+                {
+                    var option = new SuccessStoryCategorySelectionOption
+                    {
+                        Key = category?.Key ?? string.Empty,
+                        DisplayName = category?.DisplayName ?? (category?.Key ?? string.Empty),
+                        Count = Math.Max(0, category?.Count ?? 0)
+                    };
+                    option.PropertyChanged += SuccessStoryCategoryOption_PropertyChanged;
+                    SuccessStoryImportCategoryOptions.Add(option);
+                }
+
+                UpdateSuccessStoryScanStatus($"Loaded cached scan categories: {SuccessStoryImportCategoryOptions.Count}.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to restore cached SuccessStory scan snapshot.");
+            }
+        }
+
+        private void PersistSuccessStoryScanSnapshot()
+        {
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            var categories = SuccessStoryImportCategoryOptions
+                .Where(option => option != null && !string.IsNullOrWhiteSpace(option.Key))
+                .Select(option => new LocalSuccessStoryImportService.SuccessStoryCategoryScanItem
+                {
+                    Key = option.Key,
+                    DisplayName = option.DisplayName,
+                    Count = option.Count
+                })
+                .ToList();
+
+            _localSettings.SuccessStoryCategoryScanSnapshotJson = categories.Count == 0
+                ? string.Empty
+                : JsonConvert.SerializeObject(categories);
+        }
+
+        private void SuccessStoryCategoryOption_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (!string.Equals(e?.PropertyName, nameof(SuccessStoryCategorySelectionOption.IsSelected), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            SyncSuccessStoryCategorySelectionToSettings();
+        }
+
+        private void SyncSuccessStoryCategorySelectionToSettings()
+        {
+            _localSettings?.SetSuccessStoryImportCategoryKeyEntries(GetSelectedSuccessStoryCategoryKeys());
+        }
+
+        private void SyncSuccessStoryImportPathToSettings(string path)
+        {
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            _localSettings.SuccessStoryImportPath = path?.Trim() ?? string.Empty;
+        }
+
+        private IReadOnlyList<string> GetSelectedSuccessStoryCategoryKeys()
+        {
+            return SuccessStoryImportCategoryOptions
+                .Where(option => option?.IsSelected == true && !string.IsNullOrWhiteSpace(option.Key))
+                .Select(option => option.Key.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private bool ConfirmSuccessStoryMissingCategoryImport(IReadOnlyCollection<string> selectedCategoryKeys)
+        {
+            if (selectedCategoryKeys == null
+                || !selectedCategoryKeys.Contains(LocalSuccessStoryImportService.SourceCategoryMissing, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var result = _playniteApi?.Dialogs?.ShowMessage(
+                "'SourceLink: Missing' is usually only noise. In your data it generally has no achievement source, no achievement items, and no unlocks, so it normally should not be imported.\n\nContinue anyway?",
+                "SuccessStory Missing Source Warning",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            return result == MessageBoxResult.Yes;
+        }
+
+        private void UpdateSuccessStoryScanStatus(string message)
+        {
+            if (ScanSuccessStoryStatusTextBlock != null)
+            {
+                ScanSuccessStoryStatusTextBlock.Text = message ?? string.Empty;
             }
         }
 

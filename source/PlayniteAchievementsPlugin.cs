@@ -87,6 +87,7 @@ namespace PlayniteAchievements
 
         private readonly BackgroundUpdater _backgroundUpdates;
         private readonly RefreshEntryPoint _refreshCoordinator;
+        private int _suspendNewGameAutoRefreshCount;
         private bool _applicationStarted;
 
         // Top panel item
@@ -893,14 +894,19 @@ namespace PlayniteAchievements
 
         private void Games_ItemCollectionChanged(object sender, ItemCollectionChangedEventArgs<Game> e)
         {
-            _logger.Info("Games_ItemCollectionChanged triggered.");
             if (e == null)
             {
                 return;
             }
 
+            var isNewGameAutoRefreshSuspended = Volatile.Read(ref _suspendNewGameAutoRefreshCount) > 0;
+            if (!isNewGameAutoRefreshSuspended)
+            {
+                _logger.Info("Games_ItemCollectionChanged triggered.");
+            }
+
             var addedItems = e.AddedItems;
-            if (addedItems != null)
+            if (!isNewGameAutoRefreshSuspended && addedItems != null)
             {
                 var addedGameIds = new List<Guid>();
                 foreach (var game in addedItems)
@@ -932,6 +938,26 @@ namespace PlayniteAchievements
                     _ = TriggerRemovedGameCleanupAsync(game);
                 }
             }
+        }
+
+        internal IDisposable SuspendNewGameAutoRefresh(string reason = null)
+        {
+            var level = Interlocked.Increment(ref _suspendNewGameAutoRefreshCount);
+            if (level == 1)
+            {
+                var reasonText = string.IsNullOrWhiteSpace(reason) ? string.Empty : $" Reason: {reason.Trim()}";
+                _logger.Info($"Suspending new-game auto-refresh.{reasonText}");
+            }
+
+            return new DisposableAction(() =>
+            {
+                var remaining = Interlocked.Decrement(ref _suspendNewGameAutoRefreshCount);
+                if (remaining <= 0)
+                {
+                    Interlocked.Exchange(ref _suspendNewGameAutoRefreshCount, 0);
+                    _logger.Info("Resumed new-game auto-refresh.");
+                }
+            });
         }
 
         private Task TriggerNewGamesRefreshAsync(List<Guid> gameIds)
@@ -974,6 +1000,21 @@ namespace PlayniteAchievements
                     _logger.Error(ex, $"Failed cleanup for removed game '{game?.Name}' ({game?.GameId}).");
                 }
             });
+        }
+
+        private sealed class DisposableAction : IDisposable
+        {
+            private Action _disposeAction;
+
+            public DisposableAction(Action disposeAction)
+            {
+                _disposeAction = disposeAction;
+            }
+
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref _disposeAction, null)?.Invoke();
+            }
         }
     }
 }

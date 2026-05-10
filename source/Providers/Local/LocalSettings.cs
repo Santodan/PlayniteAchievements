@@ -190,6 +190,10 @@ namespace PlayniteAchievements.Providers.Local
         private LocalImportedGameLibraryTarget _importedGameLibraryTarget = LocalImportedGameLibraryTarget.None;
         private string _importedGameCustomSourceName = string.Empty;
         private string _importedGameMetadataSourceId = string.Empty;
+        private string _successStoryImportTargetSourceName = string.Empty;
+        private string _successStoryImportPath = string.Empty;
+        private string _successStoryImportCategoryKeys = string.Empty;
+        private string _successStoryCategoryScanSnapshotJson = string.Empty;
         private LocalExistingGameImportBehavior _existingGameImportBehavior = LocalExistingGameImportBehavior.OverwriteExisting;
         private bool _includeFoldersWithoutAchievementFilesOnImport;
         private LocalIconRateLimitRetryMode _iconRateLimitRetryMode = LocalIconRateLimitRetryMode.FixedRounds;
@@ -606,6 +610,30 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _importedGameMetadataSourceId, value ?? string.Empty);
         }
 
+        public string SuccessStoryImportCategoryKeys
+        {
+            get => _successStoryImportCategoryKeys;
+            set => SetValue(ref _successStoryImportCategoryKeys, value ?? string.Empty);
+        }
+
+        public string SuccessStoryImportTargetSourceName
+        {
+            get => _successStoryImportTargetSourceName;
+            set => SetValue(ref _successStoryImportTargetSourceName, value ?? string.Empty);
+        }
+
+        public string SuccessStoryImportPath
+        {
+            get => _successStoryImportPath;
+            set => SetValue(ref _successStoryImportPath, value ?? string.Empty);
+        }
+
+        public string SuccessStoryCategoryScanSnapshotJson
+        {
+            get => _successStoryCategoryScanSnapshotJson;
+            set => SetValue(ref _successStoryCategoryScanSnapshotJson, value ?? string.Empty);
+        }
+
         public LocalExistingGameImportBehavior ExistingGameImportBehavior
         {
             get => _existingGameImportBehavior;
@@ -732,6 +760,11 @@ namespace PlayniteAchievements.Providers.Local
             return SplitUnlockSoundPaths(ExtraUnlockSoundPaths).ToList();
         }
 
+        public IReadOnlyList<string> GetSuccessStoryImportCategoryKeyEntries()
+        {
+            return SplitListSetting(SuccessStoryImportCategoryKeys).ToList();
+        }
+
         public void SetExtraLocalPathEntries(IEnumerable<string> paths)
         {
             ExtraLocalPaths = JoinExtraLocalPaths(paths);
@@ -745,6 +778,11 @@ namespace PlayniteAchievements.Providers.Local
         public void SetExtraUnlockSoundPathEntries(IEnumerable<string> paths)
         {
             ExtraUnlockSoundPaths = JoinUnlockSoundPaths(paths);
+        }
+
+        public void SetSuccessStoryImportCategoryKeyEntries(IEnumerable<string> keys)
+        {
+            SuccessStoryImportCategoryKeys = JoinListSetting(keys);
         }
 
         public static IEnumerable<string> SplitExtraLocalPaths(string rawPaths)
@@ -775,6 +813,21 @@ namespace PlayniteAchievements.Providers.Local
         public static string JoinUnlockSoundPaths(IEnumerable<string> paths)
         {
             return string.Join(";", NormalizeUnlockSoundPaths(paths));
+        }
+
+        public static IEnumerable<string> SplitListSetting(string rawValue)
+        {
+            if (string.IsNullOrWhiteSpace(rawValue))
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            return NormalizeListSetting(rawValue.Split(new[] { ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        public static string JoinListSetting(IEnumerable<string> values)
+        {
+            return string.Join(";", NormalizeListSetting(values));
         }
 
         private static IEnumerable<string> NormalizeExtraLocalPaths(IEnumerable<string> paths)
@@ -814,6 +867,26 @@ namespace PlayniteAchievements.Providers.Local
                 }
 
                 yield return normalizedPath;
+            }
+        }
+
+        private static IEnumerable<string> NormalizeListSetting(IEnumerable<string> values)
+        {
+            if (values == null)
+            {
+                yield break;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var rawValue in values)
+            {
+                var normalizedValue = rawValue?.Trim();
+                if (string.IsNullOrWhiteSpace(normalizedValue) || !seen.Add(normalizedValue))
+                {
+                    continue;
+                }
+
+                yield return normalizedValue;
             }
         }
 

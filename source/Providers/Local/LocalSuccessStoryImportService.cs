@@ -19,6 +19,12 @@ namespace PlayniteAchievements.Providers.Local
 {
     internal sealed class LocalSuccessStoryImportService
     {
+        internal const string SourceCategoryPrefix = "source:";
+        internal const string SourceCategoryMissing = "source:<missing>";
+        internal const string FlagCategoryManual = "flag:manual";
+        internal const string FlagCategoryEmulators = "flag:emulators";
+        internal const string FlagCategoryEmulatorPath = "flag:emulator-path";
+
         private static readonly string[] GuidIdPropertyCandidates =
         {
             "PlayniteGameId",
@@ -48,6 +54,7 @@ namespace PlayniteAchievements.Providers.Local
         private readonly ImportedGameMetadataApplier _metadataApplier;
         private readonly string _metadataSourceId;
         private readonly MetadataPlugin _metadataPlugin;
+        private readonly string _targetSourceName;
 
         private sealed class LegacyUnlockState
         {
@@ -122,18 +129,35 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
+        internal sealed class SuccessStoryCategoryScanItem
+        {
+            public string Key { get; set; }
+            public string DisplayName { get; set; }
+            public int Count { get; set; }
+        }
+
+        internal sealed class SuccessStoryCategoryScanResult
+        {
+            public int ScannedFileCount { get; set; }
+            public int ParsedFileCount { get; set; }
+            public int FailedFileCount { get; set; }
+            public List<SuccessStoryCategoryScanItem> Categories { get; set; } = new List<SuccessStoryCategoryScanItem>();
+        }
+
         public LocalSuccessStoryImportService(
             IPlayniteAPI api,
             ICacheManager cacheManager,
             AchievementDataService achievementDataService,
             ILogger logger,
-            string metadataSourceId = null)
+            string metadataSourceId = null,
+            string targetSourceName = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _logger = logger;
             _metadataSourceId = metadataSourceId;
+            _targetSourceName = targetSourceName?.Trim() ?? string.Empty;
             _metadataApplier = new ImportedGameMetadataApplier(api, logger, "SuccessStoryImport");
             _metadataPlugin = ImportedGameMetadataSourceCatalog.ResolveMetadataPlugin(api, logger, metadataSourceId);
         }
@@ -141,6 +165,7 @@ namespace PlayniteAchievements.Providers.Local
         public async Task<SuccessStoryImportResult> ImportFromFolderAsync(
             string folderPath,
             CancellationToken cancellationToken,
+            IReadOnlyCollection<string> includeCategoryKeys = null,
             IProgress<SuccessStoryImportProgressInfo> progress = null)
         {
             var result = new SuccessStoryImportResult();
@@ -162,6 +187,7 @@ namespace PlayniteAchievements.Providers.Local
 
             var gameIndex = BuildGameResolutionIndex();
             var total = jsonFiles.Count;
+            var selectedCategoryKeys = NormalizeCategorySelection(includeCategoryKeys);
 
             for (var i = 0; i < jsonFiles.Count; i++)
             {
@@ -186,7 +212,7 @@ namespace PlayniteAchievements.Providers.Local
 
                     result.ParsedFileCount++;
 
-                    if (!IsLocalSuccessStoryEntry(root))
+                    if (!ShouldImportEntry(root, selectedCategoryKeys))
                     {
                         result.SkippedNonLocalCount++;
                         continue;
@@ -272,6 +298,192 @@ namespace PlayniteAchievements.Providers.Local
             return result;
         }
 
+        public static SuccessStoryCategoryScanResult ScanCategoriesInFolder(string folderPath)
+        {
+            var result = new SuccessStoryCategoryScanResult();
+            var normalizedPath = (folderPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPath) || !Directory.Exists(normalizedPath))
+            {
+                return result;
+            }
+
+            var categoryCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var jsonFiles = Directory.EnumerateFiles(normalizedPath, "*.json", SearchOption.TopDirectoryOnly).ToList();
+            result.ScannedFileCount = jsonFiles.Count;
+
+            foreach (var filePath in jsonFiles)
+            {
+                try
+                {
+                    var root = LoadJson(filePath);
+                    if (root == null)
+                    {
+                        result.FailedFileCount++;
+                        continue;
+                    }
+
+                    result.ParsedFileCount++;
+                    foreach (var key in GetCategoryKeys(root))
+                    {
+                        if (string.IsNullOrWhiteSpace(key))
+                        {
+                            continue;
+                        }
+
+                        categoryCounts[key] = categoryCounts.TryGetValue(key, out var count)
+                            ? count + 1
+                            : 1;
+                    }
+                }
+                catch
+                {
+                    result.FailedFileCount++;
+                }
+            }
+
+            result.Categories = categoryCounts
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(pair => new SuccessStoryCategoryScanItem
+                {
+                    Key = pair.Key,
+                    DisplayName = BuildCategoryDisplayName(pair.Key),
+                    Count = pair.Value
+                })
+                .ToList();
+
+            return result;
+        }
+
+        private static HashSet<string> NormalizeCategorySelection(IReadOnlyCollection<string> includeCategoryKeys)
+        {
+            if (includeCategoryKeys == null || includeCategoryKeys.Count == 0)
+            {
+                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            return new HashSet<string>(
+                includeCategoryKeys
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .Select(key => key.Trim()),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static bool ShouldImportEntry(JObject root, HashSet<string> selectedCategoryKeys)
+        {
+            if (selectedCategoryKeys == null || selectedCategoryKeys.Count == 0)
+            {
+                return IsLocalSuccessStoryEntry(root);
+            }
+
+            return GetCategoryKeys(root).Any(key => selectedCategoryKeys.Contains(key));
+        }
+
+        internal static IReadOnlyCollection<string> GetCategoryKeys(JObject root)
+        {
+            var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (root == null)
+            {
+                return keys.ToList();
+            }
+
+            var sourceName = root["SourcesLink"]?["Name"]?.Value<string>()?.Trim();
+            var sourceUrl = root["SourcesLink"]?["Url"]?.Value<string>()?.Trim();
+            var hasSourceLink = root["SourcesLink"] != null;
+            var isManual = root.Value<bool?>("IsManual") == true;
+            var isEmulators = root.Value<bool?>("IsEmulators") == true;
+
+            keys.Add(BuildSourceCategoryKey(sourceName, sourceUrl));
+
+            if (isManual)
+            {
+                keys.Add(FlagCategoryManual);
+            }
+
+            if (isEmulators)
+            {
+                keys.Add(FlagCategoryEmulators);
+            }
+
+            if (!hasSourceLink && LooksLikeEmulatorAchievementPayload(root))
+            {
+                keys.Add(FlagCategoryEmulatorPath);
+            }
+
+            return keys.ToList();
+        }
+
+        private static string BuildSourceCategoryKey(string sourceName, string sourceUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(sourceName))
+            {
+                return SourceCategoryMissing;
+            }
+
+            var key = SourceCategoryPrefix + sourceName.Trim();
+
+            // Add sub-type for Steam to distinguish between profile-based and stats-only URLs
+            if (string.Equals(sourceName, "Steam", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(sourceUrl))
+            {
+                var hasProfileUrl = sourceUrl.IndexOf("/profiles/", StringComparison.OrdinalIgnoreCase) >= 0;
+                var hasStatsUrl = sourceUrl.IndexOf("steamcommunity.com/stats/", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (hasStatsUrl && !hasProfileUrl)
+                {
+                    key += "@stats";
+                }
+                else if (hasProfileUrl)
+                {
+                    key += "@profile";
+                }
+            }
+
+            return key;
+        }
+
+        internal static string BuildCategoryDisplayName(string categoryKey)
+        {
+            if (string.IsNullOrWhiteSpace(categoryKey))
+            {
+                return "Unknown";
+            }
+
+            if (categoryKey.StartsWith(SourceCategoryPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var sourceLabel = categoryKey.Substring(SourceCategoryPrefix.Length);
+                if (string.IsNullOrWhiteSpace(sourceLabel) || string.Equals(sourceLabel, "<missing>", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "SourceLink: Missing";
+                }
+
+                // Handle Steam source with profile/stats distinction
+                if (sourceLabel.StartsWith("Steam@", StringComparison.OrdinalIgnoreCase))
+                {
+                    var subType = sourceLabel.Substring(6); // Extract "profile" or "stats"
+                    return $"SourceLink: Steam from {subType}";
+                }
+
+                return $"SourceLink: {sourceLabel}";
+            }
+
+            if (string.Equals(categoryKey, FlagCategoryManual, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Flag: Manual";
+            }
+
+            if (string.Equals(categoryKey, FlagCategoryEmulators, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Flag: Emulators";
+            }
+
+            if (string.Equals(categoryKey, FlagCategoryEmulatorPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return "Flag: Local emulator paths in achievements";
+            }
+
+            return categoryKey;
+        }
+
         private static bool IsLocalSuccessStoryEntry(JObject root)
         {
             if (root == null)
@@ -281,7 +493,19 @@ namespace PlayniteAchievements.Providers.Local
 
             var sourceName = root["SourcesLink"]?["Name"]?.Value<string>()?.Trim();
             var sourceUrl = root["SourcesLink"]?["Url"]?.Value<string>()?.Trim();
+            var hasSourceLink = root["SourcesLink"] != null;
             var isManual = root.Value<bool?>("IsManual") == true;
+            var isEmulatorEntry = root.Value<bool?>("IsEmulators") == true;
+
+            if (isEmulatorEntry)
+            {
+                return true;
+            }
+
+            if (!hasSourceLink && LooksLikeEmulatorAchievementPayload(root))
+            {
+                return true;
+            }
 
             if (string.Equals(sourceName, "Local", StringComparison.OrdinalIgnoreCase))
             {
@@ -304,6 +528,46 @@ namespace PlayniteAchievements.Providers.Local
 
             // SuccessStory local/manual Steam imports are represented as manual Steam entries.
             return isManual && isSteamSource;
+        }
+
+        private static bool LooksLikeEmulatorAchievementPayload(JObject root)
+        {
+            var items = root?["Items"] as JArray;
+            if (items == null || items.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var token in items)
+            {
+                var item = token as JObject;
+                var unlockedPath = item?["UrlUnlocked"]?.Value<string>()?.Trim();
+                var lockedPath = item?["UrlLocked"]?.Value<string>()?.Trim();
+
+                if (LooksLikeLocalPath(unlockedPath) || LooksLikeLocalPath(lockedPath))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool LooksLikeLocalPath(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var trimmed = value.Trim();
+            if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return trimmed.IndexOf('\\') >= 0 || trimmed.IndexOf('/') >= 0;
         }
 
         private static void IndexGame(GameResolutionIndex index, Game game)
@@ -398,10 +662,10 @@ namespace PlayniteAchievements.Providers.Local
                 metadata.GameId = appId.ToString(CultureInfo.InvariantCulture);
             }
 
-            var sourceName = root["SourcesLink"]?["Name"]?.Value<string>()?.Trim();
-            if (!string.IsNullOrWhiteSpace(sourceName))
+            var resolvedSourceName = ResolveTargetSourceName(root);
+            if (!string.IsNullOrWhiteSpace(resolvedSourceName))
             {
-                metadata.Source = new MetadataNameProperty(sourceName);
+                metadata.Source = new MetadataNameProperty(resolvedSourceName);
             }
 
             try
@@ -411,6 +675,43 @@ namespace PlayniteAchievements.Providers.Local
             catch (Exception ex)
             {
                 _logger?.Warn(ex, $"[LocalSuccessStoryImport] Failed creating game '{gameName}' from SuccessStory root.");
+                return null;
+            }
+        }
+
+        private string ResolveTargetSourceName(JObject root)
+        {
+            if (!string.IsNullOrWhiteSpace(_targetSourceName))
+            {
+                return ResolveSourceNameFromDatabase(_targetSourceName);
+            }
+
+            var sourceName = root?["SourcesLink"]?["Name"]?.Value<string>()?.Trim();
+            return ResolveSourceNameFromDatabase(sourceName);
+        }
+
+        private string ResolveSourceNameFromDatabase(string sourceName)
+        {
+            if (string.IsNullOrWhiteSpace(sourceName))
+            {
+                return null;
+            }
+
+            var targetName = sourceName.Trim();
+
+            try
+            {
+                var availableNames = _api.Database?.Sources?
+                    .Where(source => source != null && !string.IsNullOrWhiteSpace(source.Name))
+                    .Select(source => source.Name.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>();
+
+                return availableNames.FirstOrDefault(name => string.Equals(name, targetName, StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[LocalSuccessStoryImport] Failed resolving source name '{targetName}'.");
                 return null;
             }
         }

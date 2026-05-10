@@ -432,7 +432,7 @@
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,0,0,6"/>
 
-                    <TextBlock Text="Import unlock states from SuccessStory JSON files into PlayniteAchievements. This importer only applies Local-type entries (Local source, manual Steam, or Steam links in stats/appid format without profile), and is separate from Local game import."
+                    <TextBlock Text="Import unlock states from SuccessStory JSON files into PlayniteAchievements. Use Scan to detect SourceLink/manual/emulator categories, then select which categories should be imported."
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,8"
                                TextWrapping="Wrap"/>
@@ -453,6 +453,66 @@
                                 Margin="8,0,0,0"
                                 Click="BrowseSuccessStoryImportPath_Click"/>
                     </Grid>
+
+                    <DockPanel Margin="0,0,0,6">
+                        <Button x:Name="ScanSuccessStorySourcesButton"
+                                Content="Scan SuccessStory categories"
+                                HorizontalAlignment="Left"
+                                Padding="12,6"
+                                Click="ScanSuccessStorySourcesButton_Click"/>
+                        <TextBlock x:Name="ScanSuccessStoryStatusTextBlock"
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Style="{StaticResource MutedTextStyle}"/>
+                    </DockPanel>
+
+                    <TextBlock Text="Import target source for newly created games:"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4"/>
+                    <ComboBox x:Name="SuccessStorySourceTargetComboBox"
+                              ItemsSource="{Binding AvailableSuccessStorySourceTargets, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="SourceName"
+                              SelectedValue="{Binding Settings.SuccessStoryImportTargetSourceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,6"
+                              MinHeight="28"/>
+                    <TextBlock Text="When set to Automatic, new games use the source inferred from SourceLink. If SourceLink is missing, games are imported without a source."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,6"
+                               TextWrapping="Wrap"/>
+
+                    <TextBlock Text="Select categories to import (when none are selected, legacy Local-only rules are used):"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,6"
+                               TextWrapping="Wrap"/>
+
+                    <Border BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="4"
+                            Margin="0,0,0,6">
+                        <ListBox x:Name="SuccessStoryCategoryList"
+                                 ItemsSource="{Binding SuccessStoryImportCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                 MinHeight="110"
+                                 MaxHeight="220">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="2,1">
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding Count}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"/>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  Content="{Binding DisplayName}"
+                                                  VerticalAlignment="Center"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
 
                     <DockPanel Margin="0,0,0,6">
                         <Button x:Name="ImportSuccessStoryButton"
