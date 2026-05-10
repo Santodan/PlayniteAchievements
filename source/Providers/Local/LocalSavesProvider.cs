@@ -1327,6 +1327,12 @@ namespace PlayniteAchievements.Providers.Local
                 return null;
             }
 
+            var kvEntries = TryGetSteamAppCacheEntriesFromKvBinary(appId, game);
+            if (kvEntries != null && kvEntries.Count > 0)
+            {
+                return kvEntries;
+            }
+
             var schemaSections = TryGetSteamAppCacheSchemaSections(appId);
             if (schemaSections != null && schemaSections.Count > 0)
             {
@@ -1342,23 +1348,29 @@ namespace PlayniteAchievements.Providers.Local
                 {
                     var schemaSection = schemaSections[sectionIndex];
                     Dictionary<int, long> unlockTimes = null;
+                    uint? sectionDataValue = null;
 
                     if (schemaSection?.SectionId.HasValue == true &&
                         unlockBySectionId.TryGetValue(schemaSection.SectionId.Value, out var matchedSection) &&
-                        matchedSection?.UnlockTimes != null)
+                        matchedSection != null)
                     {
                         unlockTimes = matchedSection.UnlockTimes;
+                        sectionDataValue = matchedSection.DataValue;
                     }
                     else if (!hasUnlockSectionIds && sectionIndex < unlockTimeSections.Count)
                     {
                         unlockTimes = unlockTimeSections[sectionIndex]?.UnlockTimes;
+                        sectionDataValue = unlockTimeSections[sectionIndex]?.DataValue;
                     }
 
                     foreach (var schemaEntry in schemaSection.Entries)
                     {
                         var timestamp = 0L;
                         unlockTimes?.TryGetValue(schemaEntry.Index, out timestamp);
-                        MergeSteamAppCacheEntry(entries, schemaEntry, timestamp, appId);
+                        var unlocked = sectionDataValue.HasValue
+                            ? ((sectionDataValue.Value >> schemaEntry.Index) & 1U) == 1U
+                            : timestamp > 0;
+                        MergeSteamAppCacheEntry(entries, schemaEntry, unlocked, timestamp, appId);
                     }
                 }
 
@@ -1371,6 +1383,852 @@ namespace PlayniteAchievements.Providers.Local
             // We scan for null-delimited tokens and look for pairs where the value byte is 1 (earned).
             var directEntries = TryGetSteamUserStatsDirectEntries(appId, game);
             return directEntries != null && directEntries.Count > 0 ? directEntries : null;
+        }
+
+        private Dictionary<string, LocalEntry> TryGetSteamAppCacheEntriesFromKvBinary(int appId, Game game = null)
+        {
+            foreach (var schemaPath in GetSteamAppCacheSchemaFilePaths(appId))
+            {
+                try
+                {
+                    if (!File.Exists(schemaPath))
+                    {
+                        continue;
+                    }
+
+                    if (!TryParseSteamKvBinary(File.ReadAllBytes(schemaPath), out var schemaRoot))
+                    {
+                        continue;
+                    }
+
+                    var schemaEntries = ExtractSteamAppCacheSchemaFromKv(schemaRoot);
+                    if (schemaEntries.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var userStatsByStatId = new Dictionary<int, SteamKvUserStatData>();
+                    foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId, game))
+                    {
+                        if (!File.Exists(userStatsPath))
+                        {
+                            continue;
+                        }
+
+                        if (!TryParseSteamKvBinary(File.ReadAllBytes(userStatsPath), out var userStatsRoot))
+                        {
+                            continue;
+                        }
+
+                        userStatsByStatId = ExtractSteamAppCacheUserStatsFromKv(userStatsRoot);
+                        if (userStatsByStatId.Count > 0)
+                        {
+                            break;
+                        }
+                    }
+
+                    var entries = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var schemaEntry in schemaEntries)
+                    {
+                        var unlocked = false;
+                        var timestamp = 0L;
+
+                        if (userStatsByStatId.TryGetValue(schemaEntry.StatId, out var statData) && statData != null)
+                        {
+                            unlocked = ((statData.DataU32 >> schemaEntry.Bit) & 1U) == 1U;
+                            if (unlocked)
+                            {
+                                statData.UnlockTimes.TryGetValue(schemaEntry.Bit, out timestamp);
+                            }
+                        }
+
+                        MergeSteamAppCacheEntry(entries, new SteamAppCacheSchemaEntry
+                        {
+                            Index = schemaEntry.Bit,
+                            ApiName = schemaEntry.ApiName,
+                            DisplayName = schemaEntry.DisplayName,
+                            Description = schemaEntry.Description,
+                            Hidden = schemaEntry.Hidden,
+                            IconHash = schemaEntry.IconHash,
+                            IconGrayHash = schemaEntry.IconGrayHash
+                        }, unlocked, timestamp, appId);
+                    }
+
+                    if (entries.Count > 0)
+                    {
+                        return entries;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"STEAM APPCACHE KV PARSE ERROR: path={schemaPath} msg={ex.Message}");
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryParseSteamKvBinary(byte[] bytes, out Dictionary<string, object> root)
+        {
+            root = null;
+            if (bytes == null || bytes.Length < 2)
+            {
+                return false;
+            }
+
+            var offset = 0;
+            var firstType = bytes[offset++];
+            if (firstType == 0x00)
+            {
+                if (!TryReadSteamKvCString(bytes, ref offset, out _))
+                {
+                    return false;
+                }
+
+                return TryParseSteamKvNodeChildren(bytes, ref offset, out root);
+            }
+
+            offset = 0;
+            return TryParseSteamKvNodeChildren(bytes, ref offset, out root);
+        }
+
+        private static bool TryParseSteamKvNodeChildren(byte[] bytes, ref int offset, out Dictionary<string, object> node)
+        {
+            node = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+            while (offset < bytes.Length)
+            {
+                var type = bytes[offset++];
+                if (type == 0x08)
+                {
+                    return true;
+                }
+
+                if (!TryReadSteamKvCString(bytes, ref offset, out var key))
+                {
+                    return false;
+                }
+
+                object value;
+                switch (type)
+                {
+                    case 0x00:
+                        if (!TryParseSteamKvNodeChildren(bytes, ref offset, out var childNode))
+                        {
+                            return false;
+                        }
+
+                        value = childNode;
+                        break;
+                    case 0x01:
+                        if (!TryReadSteamKvCString(bytes, ref offset, out var stringValue))
+                        {
+                            return false;
+                        }
+
+                        value = stringValue;
+                        break;
+                    case 0x02:
+                        if (offset + 4 > bytes.Length)
+                        {
+                            return false;
+                        }
+
+                        value = BitConverter.ToInt32(bytes, offset);
+                        offset += 4;
+                        break;
+                    case 0x03:
+                        if (offset + 4 > bytes.Length)
+                        {
+                            return false;
+                        }
+
+                        value = BitConverter.ToSingle(bytes, offset);
+                        offset += 4;
+                        break;
+                    case 0x04:
+                        if (offset + 4 > bytes.Length)
+                        {
+                            return false;
+                        }
+
+                        value = BitConverter.ToInt32(bytes, offset);
+                        offset += 4;
+                        break;
+                    case 0x05:
+                        if (!TryReadSteamKvWideString(bytes, ref offset, out var wideStringValue))
+                        {
+                            return false;
+                        }
+
+                        value = wideStringValue;
+                        break;
+                    case 0x06:
+                        if (offset + 4 > bytes.Length)
+                        {
+                            return false;
+                        }
+
+                        value = BitConverter.ToInt32(bytes, offset);
+                        offset += 4;
+                        break;
+                    case 0x07:
+                        if (offset + 8 > bytes.Length)
+                        {
+                            return false;
+                        }
+
+                        value = BitConverter.ToUInt64(bytes, offset);
+                        offset += 8;
+                        break;
+                    default:
+                        return false;
+                }
+
+                AddSteamKvValue(node, key, value);
+            }
+
+            return true;
+        }
+
+        private static bool TryReadSteamKvCString(byte[] bytes, ref int offset, out string value)
+        {
+            value = null;
+            if (bytes == null || offset < 0 || offset >= bytes.Length)
+            {
+                return false;
+            }
+
+            var start = offset;
+            while (offset < bytes.Length && bytes[offset] != 0x00)
+            {
+                offset++;
+            }
+
+            if (offset >= bytes.Length)
+            {
+                return false;
+            }
+
+            value = System.Text.Encoding.UTF8.GetString(bytes, start, offset - start);
+            offset++;
+            return true;
+        }
+
+        private static bool TryReadSteamKvWideString(byte[] bytes, ref int offset, out string value)
+        {
+            value = null;
+            if (bytes == null || offset < 0 || offset >= bytes.Length)
+            {
+                return false;
+            }
+
+            var start = offset;
+            while (offset + 1 < bytes.Length)
+            {
+                if (bytes[offset] == 0x00 && bytes[offset + 1] == 0x00)
+                {
+                    var length = offset - start;
+                    value = length > 0
+                        ? System.Text.Encoding.Unicode.GetString(bytes, start, length)
+                        : string.Empty;
+                    offset += 2;
+                    return true;
+                }
+
+                offset += 2;
+            }
+
+            return false;
+        }
+
+        private static void AddSteamKvValue(IDictionary<string, object> node, string key, object value)
+        {
+            if (node == null || string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+
+            if (node.TryGetValue(key, out var existing))
+            {
+                if (existing is List<object> list)
+                {
+                    list.Add(value);
+                }
+                else
+                {
+                    node[key] = new List<object> { existing, value };
+                }
+
+                return;
+            }
+
+            node[key] = value;
+        }
+
+        private static List<SteamKvSchemaEntry> ExtractSteamAppCacheSchemaFromKv(Dictionary<string, object> root)
+        {
+            var results = new List<SteamKvSchemaEntry>();
+            WalkSteamAppCacheSchemaNode(root, new List<string> { "root" }, results);
+
+            var deduplicated = new List<SteamKvSchemaEntry>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in results)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.ApiName) || seen.Contains(entry.ApiName))
+                {
+                    continue;
+                }
+
+                seen.Add(entry.ApiName);
+                deduplicated.Add(entry);
+            }
+
+            return deduplicated;
+        }
+
+        private static void WalkSteamAppCacheSchemaNode(object node, List<string> path, List<SteamKvSchemaEntry> results)
+        {
+            var dict = AsSteamKvDictionary(node);
+            if (dict == null)
+            {
+                return;
+            }
+
+            var bitsNode = GetSteamKvValue(dict, "bits");
+            var bitsDict = AsSteamKvDictionary(bitsNode);
+            var statId = TryParseSteamKvInt(path.LastOrDefault());
+            if (bitsDict != null && statId.HasValue)
+            {
+                foreach (var pair in bitsDict)
+                {
+                    foreach (var bitNode in ExpandSteamKvValues(pair.Value))
+                    {
+                        var bitDict = AsSteamKvDictionary(bitNode);
+                        if (bitDict == null)
+                        {
+                            continue;
+                        }
+
+                        var bit = TryParseSteamKvInt(GetSteamKvValue(bitDict, "bit")) ?? TryParseSteamKvInt(pair.Key);
+                        if (!bit.HasValue)
+                        {
+                            continue;
+                        }
+
+                        var apiName = FirstNonEmpty(
+                            AsSteamKvString(GetSteamKvValue(bitDict, "name")),
+                            AsSteamKvString(GetSteamKvValue(bitDict, "api")),
+                            AsSteamKvString(GetSteamKvValue(bitDict, "statname")),
+                            ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "name"));
+
+                        if (string.IsNullOrWhiteSpace(apiName))
+                        {
+                            continue;
+                        }
+
+                        results.Add(new SteamKvSchemaEntry
+                        {
+                            StatId = statId.Value,
+                            Bit = bit.Value,
+                            ApiName = apiName,
+                            DisplayName = FirstNonEmpty(
+                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "name"),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "displayName")),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "name"))),
+                            Description = FirstNonEmpty(
+                                ResolveSteamKvLocalizedField(GetSteamKvValue(bitDict, "display"), "desc"),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "description")),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "desc"))),
+                            IconHash = FirstNonEmpty(
+                                ResolveSteamKvSimpleField(GetSteamKvValue(bitDict, "display"), "icon"),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "icon"))),
+                            IconGrayHash = FirstNonEmpty(
+                                ResolveSteamKvSimpleField(GetSteamKvValue(bitDict, "display"), "icon_gray"),
+                                ResolveSteamKvSimpleField(GetSteamKvValue(bitDict, "display"), "icongray"),
+                                AsSteamKvString(GetSteamKvValue(bitDict, "icon_gray"))),
+                            Hidden = TryParseSteamKvBool(GetSteamKvValue(bitDict, "hidden")) ||
+                                TryParseSteamKvBool(ResolveSteamKvRawField(GetSteamKvValue(bitDict, "display"), "hidden"))
+                        });
+                    }
+                }
+            }
+
+            var legacyName = AsSteamKvString(GetSteamKvValue(dict, "name"));
+            if (!string.IsNullOrWhiteSpace(legacyName) && TryInferSteamKvStatIdAndBit(path, out var legacyStatId, out var legacyBit))
+            {
+                results.Add(new SteamKvSchemaEntry
+                {
+                    StatId = legacyStatId,
+                    Bit = legacyBit,
+                    ApiName = legacyName,
+                    DisplayName = FirstNonEmpty(
+                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "name"),
+                        AsSteamKvString(GetSteamKvValue(dict, "display")),
+                        legacyName),
+                    Description = FirstNonEmpty(
+                        ResolveSteamKvLocalizedField(GetSteamKvValue(dict, "display"), "desc"),
+                        AsSteamKvString(GetSteamKvValue(dict, "description")),
+                        AsSteamKvString(GetSteamKvValue(dict, "desc"))),
+                    IconHash = FirstNonEmpty(
+                        ResolveSteamKvSimpleField(GetSteamKvValue(dict, "display"), "icon"),
+                        AsSteamKvString(GetSteamKvValue(dict, "icon"))),
+                    IconGrayHash = FirstNonEmpty(
+                        ResolveSteamKvSimpleField(GetSteamKvValue(dict, "display"), "icon_gray"),
+                        ResolveSteamKvSimpleField(GetSteamKvValue(dict, "display"), "icongray"),
+                        AsSteamKvString(GetSteamKvValue(dict, "icon_gray"))),
+                    Hidden = TryParseSteamKvBool(GetSteamKvValue(dict, "hidden")) ||
+                        TryParseSteamKvBool(ResolveSteamKvRawField(GetSteamKvValue(dict, "display"), "hidden"))
+                });
+            }
+
+            foreach (var pair in dict)
+            {
+                foreach (var child in ExpandSteamKvValues(pair.Value))
+                {
+                    if (AsSteamKvDictionary(child) != null)
+                    {
+                        var childPath = new List<string>(path) { pair.Key };
+                        WalkSteamAppCacheSchemaNode(child, childPath, results);
+                    }
+                }
+            }
+        }
+
+        private static Dictionary<int, SteamKvUserStatData> ExtractSteamAppCacheUserStatsFromKv(Dictionary<string, object> root)
+        {
+            var stats = new Dictionary<int, SteamKvUserStatData>();
+            WalkSteamAppCacheUserStatsNode(root, new List<string> { "root" }, stats);
+            return stats;
+        }
+
+        private static void WalkSteamAppCacheUserStatsNode(object node, List<string> path, IDictionary<int, SteamKvUserStatData> stats)
+        {
+            var dict = AsSteamKvDictionary(node);
+            if (dict == null)
+            {
+                return;
+            }
+
+            var dataNode = GetSteamKvValue(dict, "data");
+            if (TryParseSteamKvUInt32(dataNode, out var dataU32))
+            {
+                var statId = TryParseSteamKvInt(path.LastOrDefault());
+                if (statId.HasValue)
+                {
+                    var times = new Dictionary<int, long>();
+                    var timesNode = FirstNonNull(
+                        GetSteamKvValue(dict, "AchievementTimes"),
+                        GetSteamKvValue(dict, "achievementTimes"),
+                        GetSteamKvValue(dict, "AchievementsTimes"),
+                        GetSteamKvValue(dict, "achievement_times"));
+
+                    var timesDict = AsSteamKvDictionary(timesNode);
+                    if (timesDict != null)
+                    {
+                        foreach (var pair in timesDict)
+                        {
+                            var bit = TryParseSteamKvInt(pair.Key);
+                            var timestamp = TryParseSteamKvLong(pair.Value);
+                            if (bit.HasValue && timestamp.HasValue)
+                            {
+                                times[bit.Value] = timestamp.Value;
+                            }
+                        }
+                    }
+
+                    stats[statId.Value] = new SteamKvUserStatData
+                    {
+                        DataU32 = dataU32,
+                        UnlockTimes = times
+                    };
+                }
+            }
+
+            foreach (var pair in dict)
+            {
+                foreach (var child in ExpandSteamKvValues(pair.Value))
+                {
+                    if (AsSteamKvDictionary(child) != null)
+                    {
+                        var childPath = new List<string>(path) { pair.Key };
+                        WalkSteamAppCacheUserStatsNode(child, childPath, stats);
+                    }
+                }
+            }
+        }
+
+        private static Dictionary<string, object> AsSteamKvDictionary(object value)
+        {
+            if (value is Dictionary<string, object> dict)
+            {
+                return dict;
+            }
+
+            if (value is List<object> list)
+            {
+                return list.OfType<Dictionary<string, object>>().FirstOrDefault();
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<object> ExpandSteamKvValues(object value)
+        {
+            if (value is List<object> list)
+            {
+                return list;
+            }
+
+            return value != null ? new[] { value } : Array.Empty<object>();
+        }
+
+        private static object GetSteamKvValue(IDictionary<string, object> dict, string key)
+        {
+            if (dict == null || string.IsNullOrWhiteSpace(key))
+            {
+                return null;
+            }
+
+            if (dict.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+
+            var pair = dict.FirstOrDefault(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+            return string.IsNullOrWhiteSpace(pair.Key) ? null : pair.Value;
+        }
+
+        private static string AsSteamKvString(object value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            if (value is string text)
+            {
+                return text;
+            }
+
+            if (value is Dictionary<string, object>)
+            {
+                return null;
+            }
+
+            if (value is List<object> list)
+            {
+                foreach (var item in list)
+                {
+                    var textValue = AsSteamKvString(item);
+                    if (!string.IsNullOrWhiteSpace(textValue))
+                    {
+                        return textValue;
+                    }
+                }
+
+                return null;
+            }
+
+            if (value is bool boolValue)
+            {
+                return boolValue ? "1" : "0";
+            }
+
+            if (value is int ||
+                value is long ||
+                value is uint ||
+                value is ulong ||
+                value is short ||
+                value is ushort ||
+                value is byte ||
+                value is sbyte ||
+                value is float ||
+                value is double ||
+                value is decimal)
+            {
+                return Convert.ToString(value, CultureInfo.InvariantCulture);
+            }
+
+            return null;
+        }
+
+        private static string ResolveSteamKvLocalizedField(object containerNode, string fieldName)
+        {
+            var fieldNode = ResolveSteamKvRawField(containerNode, fieldName);
+            var fieldText = AsSteamKvString(fieldNode);
+            if (!string.IsNullOrWhiteSpace(fieldText))
+            {
+                return fieldText;
+            }
+
+            var dict = AsSteamKvDictionary(fieldNode);
+            if (dict == null)
+            {
+                return null;
+            }
+
+            var english = AsSteamKvString(GetSteamKvValue(dict, "english"));
+            if (!string.IsNullOrWhiteSpace(english))
+            {
+                return english;
+            }
+
+            foreach (var pair in dict)
+            {
+                if (string.Equals(pair.Key, "token", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var value = AsSteamKvString(pair.Value);
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private static string ResolveSteamKvSimpleField(object containerNode, string fieldName)
+        {
+            var fieldNode = ResolveSteamKvRawField(containerNode, fieldName);
+            return AsSteamKvString(fieldNode);
+        }
+
+        private static object ResolveSteamKvRawField(object containerNode, string fieldName)
+        {
+            var containerDict = AsSteamKvDictionary(containerNode);
+            return containerDict == null ? null : GetSteamKvValue(containerDict, fieldName);
+        }
+
+        private static int? TryParseSteamKvInt(object value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            if (value is int intValue)
+            {
+                return intValue;
+            }
+
+            if (value is long longValue && longValue >= int.MinValue && longValue <= int.MaxValue)
+            {
+                return (int)longValue;
+            }
+
+            if (value is uint uintValue && uintValue <= int.MaxValue)
+            {
+                return (int)uintValue;
+            }
+
+            if (value is ulong ulongValue && ulongValue <= int.MaxValue)
+            {
+                return (int)ulongValue;
+            }
+
+            if (value is List<object> list)
+            {
+                foreach (var item in list)
+                {
+                    var parsed = TryParseSteamKvInt(item);
+                    if (parsed.HasValue)
+                    {
+                        return parsed;
+                    }
+                }
+
+                return null;
+            }
+
+            var text = AsSteamKvString(value);
+            return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedInt)
+                ? parsedInt
+                : (int?)null;
+        }
+
+        private static long? TryParseSteamKvLong(object value)
+        {
+            if (value == null)
+            {
+                return null;
+            }
+
+            if (value is long longValue)
+            {
+                return longValue;
+            }
+
+            if (value is int intValue)
+            {
+                return intValue;
+            }
+
+            if (value is uint uintValue)
+            {
+                return uintValue;
+            }
+
+            if (value is ulong ulongValue && ulongValue <= long.MaxValue)
+            {
+                return (long)ulongValue;
+            }
+
+            if (value is List<object> list)
+            {
+                foreach (var item in list)
+                {
+                    var parsed = TryParseSteamKvLong(item);
+                    if (parsed.HasValue)
+                    {
+                        return parsed;
+                    }
+                }
+
+                return null;
+            }
+
+            var text = AsSteamKvString(value);
+            return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong)
+                ? parsedLong
+                : (long?)null;
+        }
+
+        private static bool TryParseSteamKvUInt32(object value, out uint result)
+        {
+            result = 0;
+            if (value == null)
+            {
+                return false;
+            }
+
+            if (value is uint uintValue)
+            {
+                result = uintValue;
+                return true;
+            }
+
+            if (value is int intValue)
+            {
+                result = unchecked((uint)intValue);
+                return true;
+            }
+
+            if (value is long longValue)
+            {
+                result = unchecked((uint)longValue);
+                return true;
+            }
+
+            if (value is ulong ulongValue)
+            {
+                result = unchecked((uint)ulongValue);
+                return true;
+            }
+
+            if (value is List<object> list)
+            {
+                foreach (var item in list)
+                {
+                    if (TryParseSteamKvUInt32(item, out result))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            var text = AsSteamKvString(value);
+            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedLong))
+            {
+                result = unchecked((uint)parsedLong);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryParseSteamKvBool(object value)
+        {
+            if (value == null)
+            {
+                return false;
+            }
+
+            if (value is bool boolValue)
+            {
+                return boolValue;
+            }
+
+            if (value is int intValue)
+            {
+                return intValue != 0;
+            }
+
+            if (value is long longValue)
+            {
+                return longValue != 0;
+            }
+
+            if (value is List<object> list)
+            {
+                return list.Any(TryParseSteamKvBool);
+            }
+
+            var text = AsSteamKvString(value)?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            return string.Equals(text, "1", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(text, "true", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryInferSteamKvStatIdAndBit(IReadOnlyList<string> path, out int statId, out int bit)
+        {
+            statId = 0;
+            bit = 0;
+            if (path == null || path.Count == 0)
+            {
+                return false;
+            }
+
+            var foundBit = false;
+            for (var index = path.Count - 1; index >= 0; index--)
+            {
+                if (!int.TryParse(path[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue))
+                {
+                    continue;
+                }
+
+                if (!foundBit)
+                {
+                    bit = parsedValue;
+                    foundBit = true;
+                    continue;
+                }
+
+                statId = parsedValue;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string FirstNonEmpty(params string[] values)
+        {
+            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        }
+
+        private static object FirstNonNull(params object[] values)
+        {
+            return values?.FirstOrDefault(value => value != null);
         }
 
         /// <summary>
@@ -1785,7 +2643,7 @@ namespace PlayniteAchievements.Providers.Local
                         }
 
                         var section = new Dictionary<int, long>();
-                        var sectionId = TryFindSteamAppCacheSectionId(bytes, position);
+                        TryFindSteamAppCacheSectionMetadata(bytes, position, out var sectionId, out var sectionDataValue);
                         var cursor = position + marker.Length;
                         while (cursor < bytes.Length && bytes[cursor] != 0)
                         {
@@ -1846,6 +2704,7 @@ namespace PlayniteAchievements.Providers.Local
                             sections.Add(new SteamAppCacheUnlockTimeSection
                             {
                                 SectionId = sectionId,
+                                DataValue = sectionDataValue,
                                 UnlockTimes = section
                             });
                         }
@@ -1865,11 +2724,18 @@ namespace PlayniteAchievements.Providers.Local
             return sections;
         }
 
-        private static int? TryFindSteamAppCacheSectionId(byte[] bytes, int markerPosition)
+        private static void TryFindSteamAppCacheSectionMetadata(
+            byte[] bytes,
+            int markerPosition,
+            out int? sectionId,
+            out uint? dataValue)
         {
+            sectionId = null;
+            dataValue = null;
+
             if (bytes == null || bytes.Length == 0 || markerPosition <= 0)
             {
-                return null;
+                return;
             }
 
             for (var tokenEnd = markerPosition - 1; tokenEnd > 0; tokenEnd--)
@@ -1893,7 +2759,7 @@ namespace PlayniteAchievements.Providers.Local
                 }
 
                 var token = System.Text.Encoding.ASCII.GetString(bytes, tokenStart, tokenLength);
-                if (!int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var sectionId))
+                if (!int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedSectionId))
                 {
                     continue;
                 }
@@ -1911,16 +2777,22 @@ namespace PlayniteAchievements.Providers.Local
                     bytes[cursor + 3] == (byte)'a' &&
                     bytes[cursor + 4] == 0x00)
                 {
-                    return sectionId;
+                    sectionId = parsedSectionId;
+                    var valuePosition = cursor + 5;
+                    if (valuePosition + 4 <= bytes.Length)
+                    {
+                        dataValue = BitConverter.ToUInt32(bytes, valuePosition);
+                    }
+
+                    return;
                 }
             }
-
-            return null;
         }
 
         private static void MergeSteamAppCacheEntry(
             Dictionary<string, LocalEntry> entries,
             SteamAppCacheSchemaEntry schemaEntry,
+            bool unlocked,
             long timestamp,
             int appId)
         {
@@ -1929,11 +2801,10 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
-            var unlocked = timestamp > 0;
             var merged = new LocalEntry
             {
                 earned = unlocked,
-                earned_time = timestamp,
+                earned_time = unlocked ? timestamp : 0,
                 displayName = string.IsNullOrWhiteSpace(schemaEntry.DisplayName) ? schemaEntry.ApiName : schemaEntry.DisplayName,
                 description = schemaEntry.Description ?? string.Empty,
                 icon = BuildSteamAchievementIconUrl(appId, schemaEntry.IconHash),
@@ -2233,7 +3104,33 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            return candidates.ToList();
+            return candidates
+                .Select(path => new
+                {
+                    Path = path,
+                    LastWriteUtc = TryGetFileLastWriteTimeUtc(path)
+                })
+                .OrderByDescending(item => item.LastWriteUtc)
+                .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+                .Select(item => item.Path)
+                .ToList();
+        }
+
+        private static DateTime TryGetFileLastWriteTimeUtc(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return DateTime.MinValue;
+            }
+
+            try
+            {
+                return File.GetLastWriteTimeUtc(path);
+            }
+            catch
+            {
+                return DateTime.MinValue;
+            }
         }
 
         private IEnumerable<string> GetPreferredSteamAccountIds(Game game = null)
@@ -7131,6 +8028,24 @@ namespace PlayniteAchievements.Providers.Local
             public string IconGrayHash { get; set; }
         }
 
+        private sealed class SteamKvSchemaEntry
+        {
+            public int StatId { get; set; }
+            public int Bit { get; set; }
+            public string ApiName { get; set; }
+            public string DisplayName { get; set; }
+            public string Description { get; set; }
+            public bool Hidden { get; set; }
+            public string IconHash { get; set; }
+            public string IconGrayHash { get; set; }
+        }
+
+        private sealed class SteamKvUserStatData
+        {
+            public uint DataU32 { get; set; }
+            public Dictionary<int, long> UnlockTimes { get; set; } = new Dictionary<int, long>();
+        }
+
         private sealed class SteamAppCacheSchemaSection
         {
             public int? SectionId { get; set; }
@@ -7140,6 +8055,7 @@ namespace PlayniteAchievements.Providers.Local
         private sealed class SteamAppCacheUnlockTimeSection
         {
             public int? SectionId { get; set; }
+            public uint? DataValue { get; set; }
             public Dictionary<int, long> UnlockTimes { get; set; } = new Dictionary<int, long>();
         }
     }

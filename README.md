@@ -47,6 +47,7 @@ You can set any custom folder where you have saves located in your system as exc
 
 <img src="Images/LocalAchivementsFolders.png" alt="Sidebar single-game view" width="900">
 
+
 ## Local Game Options Overrides
 
 If you Right-click the game it will show a quicker way to do these changes:
@@ -65,6 +66,7 @@ This is a way of adding all of those achievements that are in the folders ina  w
 There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
 
 <img src="Images/LocalAchivementsGamesImport.png" alt="Sidebar single-game view" width="900">
+
 
 ## Local Achievement Notification
 
@@ -86,6 +88,7 @@ In the `Theme Migration` tab you will have the possibility to make theme compati
 There is also the `StartPage Compatability` so the `Local` achievements apepar in the `StartPage` extension when `PlayniteAchievements` is selected
 
 <img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
+
 
 # Fork Changelog
 
