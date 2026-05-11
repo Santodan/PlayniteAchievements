@@ -202,6 +202,9 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideNone">No forced Steam App ID set</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideValue">Forced Steam App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_SteamAccountOverrideNone">Using default Steam account</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_SteamAccountOverrideValue">Forced Steam account: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_SteamAccount_Default">Automatic (default Steam account)</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideNone">No forced LumaPlay Uplay App ID set</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayAppIdOverrideValue">Forced LumaPlay Uplay App ID: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalLumaPlayIniPathOverrideNone">No LumaPlay.ini override set</sys:String>
@@ -216,6 +219,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LocalFolderOverride">Local save folder</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHeader">Local forced Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHint">Enter the Steam App ID the Local provider should use for this game. This is useful when a game has multiple Steam App IDs.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SteamAccountHeader">Steam Account Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SteamAccountHint">Choose which configured Steam account should be used for this game. Leave on automatic to use the default account from Steam settings.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayAppIdHeader">Local forced LumaPlay Uplay App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayAppIdHint">Enter the Uplay App ID that LumaPlay uses for this game (for example from UplayGameID in LumaPlay.ini).</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalLumaPlayIniPathHeader">LumaPlay.ini override</sys:String>
@@ -547,7 +552,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_SteamWebApiKey_Help">Optional. Used to fetch localized achievement text (including hidden achievement descriptions). When you are authenticated with Steam, the session token is used automatically — you only need to fill this in if you are not authenticated. Get a free key at steamcommunity.com/dev/apikey</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamWebApiKey_SessionActive">You are authenticated with Steam. The session token will be used automatically to fetch localized achievement metadata — no API key needed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">Authenticate</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Steam Web API authenticated. This path takes priority while the API key is valid.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Steam Web API key configured for manual account overrides.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiNeedsUserId">Steam Web API key is configured, but the Steam User ID is not known yet. Authenticate once to detect it, or continue with web-only mode.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Steam web session active. Limited mode works without an API key; schema metadata may come from SteamHunters.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGames">Import Steam library games</sys:String>
@@ -567,6 +572,22 @@
     <sys:String x:Key="LOCPlayAch_Settings_Steam_SkipExistingGame">Skip existing game</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_IncludeFamilySharedGames">Include family-shared Steam games</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_IncludeFamilySharedGamesHint">When enabled, the importer will also try to load games available through Steam Family Sharing and mark them as Steam Family Sharing in Playnite.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_DefaultAccount">Default Steam account</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_DefaultAccount_Hint">The selected default account is used when a game has no Steam account override.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AccountsHint">Add one or more Steam accounts. You can set per-game account overrides from Game Options.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddAccount">Add Steam account</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey">Add Steam API key</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_Title">Add Steam API key</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_Hint">Paste a Steam Web API key for the new account.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_Invalid">The Steam Web API key appears invalid. Please verify it and try again.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_UserIdTitle">Steam User ID (optional)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_UserIdHint">Enter SteamID64, profile URL, or vanity URL/name for this API key account. If left empty, this account cannot refresh achievements until the Steam User ID is set.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_UserIdInvalid">Invalid Steam user input. Use SteamID64, steamcommunity.com/profiles/&lt;id&gt;, or steamcommunity.com/id/&lt;name&gt;.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_UserIdResolveFailed">Could not resolve SteamID from the provided vanity/profile input using this API key.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AddApiKey_UserIdMissing">Steam API keys do not expose account IDs directly. Add the 64-bit Steam User ID in this account to enable achievement refresh without web authentication.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiKeyAccountDefaultName">Steam API Key Account</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AccountDisplayName">Account label</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_AccountDefaultName">Steam Account</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ImportOwnedGamesProgress_Start">Preparing Steam import...</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKey">Steam Web API Key</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SteamApiKeyHint">Get your API key from</sys:String>

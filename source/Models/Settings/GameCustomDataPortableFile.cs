@@ -29,6 +29,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public int? RetroAchievementsGameIdOverride { get; set; }
 
+        public string SteamAccountIdOverride { get; set; }
+
         public string XeniaTitleIdOverride { get; set; }
 
         public string ShadPS4MatchIdOverride { get; set; }
@@ -63,6 +65,7 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
+                SteamAccountIdOverride = SteamAccountIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,

@@ -30,6 +30,7 @@ namespace PlayniteAchievements.Services
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
+            normalized.SteamAccountIdOverride = NormalizeString(normalized.SteamAccountIdOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -54,6 +55,7 @@ namespace PlayniteAchievements.Services
             normalized.ForceUseExophase = normalized.ForceUseExophase == true ? true : (bool?)null;
             normalized.ManualCapstoneApiName = NormalizeString(normalized.ManualCapstoneApiName);
             normalized.ExophaseSlugOverride = NormalizeString(normalized.ExophaseSlugOverride);
+            normalized.SteamAccountIdOverride = NormalizeString(normalized.SteamAccountIdOverride);
             normalized.XeniaTitleIdOverride = XeniaTitleIdHelper.Normalize(normalized.XeniaTitleIdOverride);
             normalized.ShadPS4MatchIdOverride = ShadPS4MatchIdHelper.Normalize(normalized.ShadPS4MatchIdOverride);
             normalized.RetroAchievementsGameIdOverride =
@@ -86,6 +88,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
+                   !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
@@ -113,6 +116,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
+                   !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
@@ -135,6 +139,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
+                   !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.ShadPS4MatchIdOverride) ||
                    data.ForceUseExophase == true ||
@@ -190,6 +195,9 @@ namespace PlayniteAchievements.Services
                         ? new Dictionary<string, string>(legacy.AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                         : null,
                 RetroAchievementsGameIdOverride = existing.RetroAchievementsGameIdOverride ?? legacy.RetroAchievementsGameIdOverride,
+                SteamAccountIdOverride = !string.IsNullOrWhiteSpace(existing.SteamAccountIdOverride)
+                    ? existing.SteamAccountIdOverride
+                    : legacy.SteamAccountIdOverride,
                 XeniaTitleIdOverride = !string.IsNullOrWhiteSpace(existing.XeniaTitleIdOverride)
                     ? existing.XeniaTitleIdOverride
                     : legacy.XeniaTitleIdOverride,

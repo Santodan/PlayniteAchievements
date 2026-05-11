@@ -96,6 +96,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next Version Planned changes
 
+- Fixed local `Steam` achievements ( part 99 )
+- Added the possibility to have a more than one steam account for achievements
+  - It is only possible through API for the additionall accounts
+
 
 ## 2026-05-09 - v2.1.3.3
 

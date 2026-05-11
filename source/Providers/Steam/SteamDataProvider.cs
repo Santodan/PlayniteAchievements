@@ -2,6 +2,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -71,6 +72,68 @@ namespace PlayniteAchievements.Providers.Steam
         private static bool IsSteamCapable(Game game)
         {
             return game.PluginId == SteamPluginId;
+        }
+
+        internal static bool TryGetSteamAccountOverride(Guid gameId, out string steamAccountId)
+        {
+            return GameCustomDataLookup.TryGetSteamAccountIdOverride(gameId, out steamAccountId);
+        }
+
+        internal static bool TrySetSteamAccountOverride(
+            Guid gameId,
+            string steamAccountId,
+            string gameName,
+            Action persistSettingsForUi,
+            ILogger logger)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(steamAccountId))
+            {
+                return false;
+            }
+
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null)
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, customData =>
+            {
+                customData.SteamAccountIdOverride = steamAccountId.Trim();
+            });
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Steam account override for '{gameName}' to accountId='{steamAccountId}'.");
+            return true;
+        }
+
+        internal static bool TryClearSteamAccountOverride(
+            Guid gameId,
+            string gameName,
+            Action persistSettingsForUi,
+            ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null ||
+                !customDataStore.TryLoad(gameId, out var customData) ||
+                string.IsNullOrWhiteSpace(customData?.SteamAccountIdOverride))
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, data =>
+            {
+                data.SteamAccountIdOverride = null;
+            });
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Steam account override for '{gameName}'.");
+            return true;
         }
 
         public Task<RebuildPayload> RefreshAsync(

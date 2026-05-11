@@ -71,17 +71,17 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 _logger?.Info("[SteamAch] Probing Steam login status before scan...");
                 var tokenResolution = await _tokenResolver.ResolveAsync(cancel).ConfigureAwait(false);
-                var steamUserId = tokenResolution.UserId?.Trim();
-                if (!tokenResolution.IsSuccess || string.IsNullOrWhiteSpace(steamUserId))
+
+                if (tokenResolution.IsSuccess)
                 {
-                    _logger?.Warn("[SteamAch] Steam authentication check failed. Aborting scan.");
-                    return new RebuildPayload
-                    {
-                        Summary = new RebuildSummary(),
-                        AuthRequired = true
-                    };
+                    _logger?.Info("[SteamAch] Steam web auth verified for default account.");
                 }
-                _logger?.Info("[SteamAch] Steam web auth verified.");
+                else
+                {
+                    _logger?.Info("[SteamAch] Steam web auth is not active. Per-account API keys will be used when available.");
+                }
+
+                var steamSettings = ProviderRegistry.Settings<SteamSettings>();
 
                 if (gamesToRefresh is null || gamesToRefresh.Count == 0)
                 {
@@ -105,8 +105,24 @@ namespace PlayniteAchievements.Providers.Steam
                             return ProviderRefreshExecutor.ProviderGameResult.Skipped();
                         }
 
+                        var gameId = game?.Id ?? Guid.Empty;
+                        var hasExplicitOverride = gameId != Guid.Empty &&
+                            SteamDataProvider.TryGetSteamAccountOverride(gameId, out _);
+                        var resolvedAccount = ResolveAccountForGame(gameId, steamSettings);
+                        if (!TryResolveAccessCredentials(
+                            resolvedAccount,
+                            tokenResolution,
+                            hasExplicitOverride,
+                            out var effectiveSteamUserId,
+                            out var accessToken,
+                            out var skipReason))
+                        {
+                            _logger?.Warn($"[SteamAch] Skipping '{game?.Name}' for Steam account '{resolvedAccount?.DisplayLabel ?? "Unknown"}': {skipReason}");
+                            return ProviderRefreshExecutor.ProviderGameResult.Skipped();
+                        }
+
                         var data = await rateLimiter.ExecuteWithRetryAsync(
-                            () => FetchGameDataAsync(game, steamUserId, tokenResolution.Token, token),
+                            () => FetchGameDataAsync(game, effectiveSteamUserId, accessToken, token),
                             IsTransientError,
                             token).ConfigureAwait(false);
 
@@ -1432,6 +1448,115 @@ namespace PlayniteAchievements.Providers.Steam
             }
 
             return RarityTier.Common;
+        }
+
+        private static SteamAccountSettings ResolveAccountForGame(Guid gameId, SteamSettings steamSettings)
+        {
+            if (steamSettings == null)
+            {
+                return null;
+            }
+
+            if (gameId != Guid.Empty &&
+                SteamDataProvider.TryGetSteamAccountOverride(gameId, out var overriddenAccountId))
+            {
+                var overriddenAccount = steamSettings.GetAccountById(overriddenAccountId);
+                if (overriddenAccount != null)
+                {
+                    return overriddenAccount;
+                }
+
+                // If a game explicitly targets a missing account, do not silently fall back.
+                // This prevents cross-account achievement reads when an override becomes stale.
+                return null;
+            }
+
+            return steamSettings.GetDefaultAccount();
+        }
+
+        private static bool TryResolveAccessCredentials(
+            SteamAccountSettings account,
+            SteamWebApiTokenResolution sessionTokenResolution,
+            bool hasExplicitOverride,
+            out string steamUserId,
+            out string accessToken,
+            out string skipReason)
+        {
+            steamUserId = null;
+            accessToken = null;
+            skipReason = "Missing Steam account configuration.";
+
+            if (account == null)
+            {
+                return false;
+            }
+
+            var sessionUserId = sessionTokenResolution?.UserId?.Trim();
+            var sessionToken = sessionTokenResolution?.Token?.Trim();
+            var hasSessionCredentials = sessionTokenResolution?.IsSuccess == true &&
+                !string.IsNullOrWhiteSpace(sessionUserId) &&
+                !string.IsNullOrWhiteSpace(sessionToken);
+            var manualUserId = account.SteamUserId?.Trim();
+            var manualApiKey = account.SteamWebApiKey?.Trim();
+
+            // Explicit per-game overrides should keep account isolation and prefer
+            // that account's manual credentials when provided.
+            if (hasExplicitOverride)
+            {
+                if (!string.IsNullOrWhiteSpace(manualApiKey))
+                {
+                    if (!ulong.TryParse(manualUserId, out _))
+                    {
+                        skipReason = $"Steam User ID '{manualUserId}' is not a numeric SteamID64.";
+                        return false;
+                    }
+
+                    steamUserId = manualUserId;
+                    accessToken = manualApiKey;
+                    return true;
+                }
+
+                if (hasSessionCredentials)
+                {
+                    if (!string.IsNullOrWhiteSpace(manualUserId) &&
+                        !string.Equals(manualUserId, sessionUserId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        skipReason = "Override account has no API key and its Steam User ID does not match the active Steam web session.";
+                        return false;
+                    }
+
+                    steamUserId = sessionUserId;
+                    accessToken = sessionToken;
+                    return true;
+                }
+
+                skipReason = "No API key configured for the override account and no active Steam web session is available.";
+                return false;
+            }
+
+            // Default path should always prefer active Steam web authentication.
+            if (hasSessionCredentials)
+            {
+                steamUserId = sessionUserId;
+                accessToken = sessionToken;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(manualApiKey))
+            {
+                if (!ulong.TryParse(manualUserId, out _))
+                {
+                    skipReason = $"Steam User ID '{manualUserId}' is not a numeric SteamID64.";
+                    return false;
+                }
+
+                steamUserId = manualUserId;
+                accessToken = manualApiKey;
+                return true;
+            }
+
+            skipReason = "No active Steam web session and no manual API key is configured for the default account.";
+            return false;
         }
     }
 }

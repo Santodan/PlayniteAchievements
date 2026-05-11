@@ -16,6 +16,7 @@ using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Providers.ShadPS4;
+using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Services;
 using AsyncCommand = PlayniteAchievements.Common.AsyncCommand;
@@ -57,6 +58,10 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasLocalSteamAppIdOverride;
         private string _localSteamAppIdOverrideValue;
         private string _localSteamAppIdOverrideInput;
+        private bool _hasSteamAccountOverride;
+        private string _steamAccountOverrideValue;
+        private string _steamAccountOverrideInput;
+        private IReadOnlyList<SteamAccountOption> _availableSteamAccounts = Array.Empty<SteamAccountOption>();
         private bool _hasLocalLumaPlayAppIdOverride;
         private string _localLumaPlayAppIdOverrideValue;
         private string _localLumaPlayAppIdOverrideInput;
@@ -109,6 +114,8 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ClearRaOverrideCommand { get; }
         public RelayCommand ApplyLocalSteamAppIdOverrideCommand { get; }
         public RelayCommand ClearLocalSteamAppIdOverrideCommand { get; }
+        public RelayCommand ApplySteamAccountOverrideCommand { get; }
+        public RelayCommand ClearSteamAccountOverrideCommand { get; }
         public RelayCommand ApplyLocalLumaPlayAppIdOverrideCommand { get; }
         public RelayCommand ClearLocalLumaPlayAppIdOverrideCommand { get; }
         public RelayCommand ApplyLocalLumaPlayIniPathOverrideCommand { get; }
@@ -164,6 +171,8 @@ namespace PlayniteAchievements.ViewModels
             ClearRaOverrideCommand = new RelayCommand(_ => ClearRaOverride(), _ => HasGame && IsRaCapable && HasRaOverride);
             ApplyLocalSteamAppIdOverrideCommand = new RelayCommand(_ => ApplyLocalSteamAppIdOverride(), _ => HasGame);
             ClearLocalSteamAppIdOverrideCommand = new RelayCommand(_ => ClearLocalSteamAppIdOverride(), _ => HasGame && HasLocalSteamAppIdOverride);
+            ApplySteamAccountOverrideCommand = new RelayCommand(_ => ApplySteamAccountOverride(), _ => HasGame);
+            ClearSteamAccountOverrideCommand = new RelayCommand(_ => ClearSteamAccountOverride(), _ => HasGame && HasSteamAccountOverride);
             ApplyLocalLumaPlayAppIdOverrideCommand = new RelayCommand(_ => ApplyLocalLumaPlayAppIdOverride(), _ => HasGame);
             ClearLocalLumaPlayAppIdOverrideCommand = new RelayCommand(_ => ClearLocalLumaPlayAppIdOverride(), _ => HasGame && HasLocalLumaPlayAppIdOverride);
             ApplyLocalLumaPlayIniPathOverrideCommand = new RelayCommand(_ => ApplyLocalLumaPlayIniPathOverride(), _ => HasGame);
@@ -647,6 +656,59 @@ namespace PlayniteAchievements.ViewModels
                 return string.Format(
                     L("LOCPlayAch_GameOptions_Status_LocalSteamAppIdOverrideValue", "Forced Steam App ID: {0}"),
                     LocalSteamAppIdOverrideValue);
+            }
+        }
+
+        public IReadOnlyList<SteamAccountOption> AvailableSteamAccounts
+        {
+            get => _availableSteamAccounts;
+            private set => SetValue(ref _availableSteamAccounts, value ?? Array.Empty<SteamAccountOption>());
+        }
+
+        public bool HasSteamAccountOverride
+        {
+            get => _hasSteamAccountOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasSteamAccountOverride, value))
+                {
+                    OnPropertyChanged(nameof(SteamAccountStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string SteamAccountOverrideValue
+        {
+            get => _steamAccountOverrideValue;
+            private set => SetValue(ref _steamAccountOverrideValue, value);
+        }
+
+        public string SteamAccountOverrideInput
+        {
+            get => _steamAccountOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _steamAccountOverrideInput, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(SteamAccountStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string SteamAccountStatusText
+        {
+            get
+            {
+                if (!HasSteamAccountOverride)
+                {
+                    return L("LOCPlayAch_GameOptions_Status_SteamAccountOverrideNone", "Using default Steam account");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_GameOptions_Status_SteamAccountOverrideValue", "Forced Steam account: {0}"),
+                    GetSteamAccountDisplayName(SteamAccountOverrideValue));
             }
         }
 
@@ -1161,6 +1223,30 @@ namespace PlayniteAchievements.ViewModels
                     LocalSteamAppIdOverrideInput = string.Empty;
                 }
 
+                var steamSettings = ProviderRegistry.Settings<SteamSettings>();
+                AvailableSteamAccounts = steamSettings?.GetSelectableAccountOptions(includeAutomatic: true)
+                    ?? new List<SteamAccountOption> { new SteamAccountOption(string.Empty, L("LOCPlayAch_GameOptions_SteamAccount_Default", "Automatic (default Steam account)")) };
+
+                if (SteamDataProvider.TryGetSteamAccountOverride(_gameId, out var steamAccountOverrideId))
+                {
+                    if (!AvailableSteamAccounts.Any(option => string.Equals(option.AccountId, steamAccountOverrideId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        AvailableSteamAccounts = AvailableSteamAccounts
+                            .Concat(new[] { new SteamAccountOption(steamAccountOverrideId, steamAccountOverrideId) })
+                            .ToList();
+                    }
+
+                    HasSteamAccountOverride = true;
+                    SteamAccountOverrideValue = steamAccountOverrideId;
+                    SteamAccountOverrideInput = steamAccountOverrideId;
+                }
+                else
+                {
+                    HasSteamAccountOverride = false;
+                    SteamAccountOverrideValue = string.Empty;
+                    SteamAccountOverrideInput = string.Empty;
+                }
+
                 if (LocalSavesProvider.TryGetLumaPlayAppIdOverride(_gameId, out var localLumaPlayAppId))
                 {
                     HasLocalLumaPlayAppIdOverride = true;
@@ -1394,6 +1480,33 @@ namespace PlayniteAchievements.ViewModels
         private void ClearLocalSteamAppIdOverride()
         {
             if (TryClearLocalSteamAppIdOverride())
+            {
+                Reload();
+            }
+        }
+
+        private void ApplySteamAccountOverride()
+        {
+            var selectedAccountId = (SteamAccountOverrideInput ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(selectedAccountId))
+            {
+                if (TryClearSteamAccountOverride())
+                {
+                    Reload();
+                }
+
+                return;
+            }
+
+            if (TrySetSteamAccountOverride(selectedAccountId))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearSteamAccountOverride()
+        {
+            if (TryClearSteamAccountOverride())
             {
                 Reload();
             }
@@ -1884,6 +1997,42 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        private bool TrySetSteamAccountOverride(string steamAccountId)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null || string.IsNullOrWhiteSpace(steamAccountId))
+            {
+                return false;
+            }
+
+            if (!SteamDataProvider.TrySetSteamAccountOverride(_gameId, steamAccountId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name, clearIconCache: false);
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TryClearSteamAccountOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (!SteamDataProvider.TryClearSteamAccountOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name, clearIconCache: false);
+            TriggerRefresh();
+            return true;
+        }
+
         private bool TrySetLocalSteamAppIdOverride(int newId)
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -2039,6 +2188,19 @@ namespace PlayniteAchievements.ViewModels
             return AvailableLocalSteamAppCacheUsers
                 ?.FirstOrDefault(option => string.Equals(option.UserId, normalizedUserId, StringComparison.OrdinalIgnoreCase))
                 ?.DisplayName ?? normalizedUserId;
+        }
+
+        private string GetSteamAccountDisplayName(string accountId)
+        {
+            var normalizedAccountId = (accountId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedAccountId))
+            {
+                return L("LOCPlayAch_GameOptions_SteamAccount_Default", "Automatic (default Steam account)");
+            }
+
+            return AvailableSteamAccounts
+                ?.FirstOrDefault(option => string.Equals(option.AccountId, normalizedAccountId, StringComparison.OrdinalIgnoreCase))
+                ?.DisplayName ?? normalizedAccountId;
         }
 
         private bool TrySetXeniaTitleIdOverride(string titleId)
@@ -2344,6 +2506,8 @@ namespace PlayniteAchievements.ViewModels
             ClearRaOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalSteamAppIdOverrideCommand?.RaiseCanExecuteChanged();
+            ApplySteamAccountOverrideCommand?.RaiseCanExecuteChanged();
+            ClearSteamAccountOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalLumaPlayAppIdOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalLumaPlayIniPathOverrideCommand?.RaiseCanExecuteChanged();

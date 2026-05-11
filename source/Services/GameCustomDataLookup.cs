@@ -435,6 +435,26 @@ namespace PlayniteAchievements.Services
             return false;
         }
 
+        public static bool TryGetSteamAccountIdOverride(
+            Guid gameId,
+            out string steamAccountIdOverride,
+            GameCustomDataStore store = null)
+        {
+            steamAccountIdOverride = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            if (TryLoad(gameId, out var customData, store))
+            {
+                steamAccountIdOverride = NormalizeValue(customData?.SteamAccountIdOverride);
+                return !string.IsNullOrWhiteSpace(steamAccountIdOverride);
+            }
+
+            return false;
+        }
+
         public static bool TryGetPreferredProviderOverride(
             Guid gameId,
             out string providerKey,

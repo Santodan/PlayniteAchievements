@@ -447,7 +447,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Auth_Cancelled">L'authentification {0} a été annulée.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_CookiesCleared">Session {0} effacée.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_AlreadyAuthenticated">{0} configuré avec succès</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Authentification Steam Web API active. Ce mode est prioritaire tant que la clé API est valide.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiAuthenticated">Clé Steam Web API configurée pour les remplacements de compte manuels.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_ApiNeedsUserId">La clé Steam Web API est configurée, mais l'identifiant utilisateur Steam n'est pas encore connu. Authentifiez-vous une fois pour le détecter, ou continuez en mode web uniquement.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Steam_WebAuthOnly">Session web Steam active, mais la clé API est requise.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Auth_ProbeFailed">Impossible de vérifier l'état d'authentification {0}.</sys:String>

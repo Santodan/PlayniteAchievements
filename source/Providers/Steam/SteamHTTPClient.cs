@@ -264,6 +264,101 @@ namespace PlayniteAchievements.Providers.Steam
             return await GetAppDetailsForOwnedGamesAsync(ownedAppIds, "owned Steam games", ct, progress).ConfigureAwait(false);
         }
 
+        internal async Task<OwnedGamesResolutionResult> GetOwnedGamesByApiKeyAsync(
+            string steamUserId,
+            string steamWebApiKey,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var result = new OwnedGamesResolutionResult();
+            var normalizedUserId = steamUserId?.Trim() ?? string.Empty;
+            var normalizedApiKey = steamWebApiKey?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedUserId) || string.IsNullOrWhiteSpace(normalizedApiKey))
+            {
+                return result;
+            }
+
+            var requestUrl = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
+                + "?key=" + Uri.EscapeDataString(normalizedApiKey)
+                + "&steamid=" + Uri.EscapeDataString(normalizedUserId)
+                + "&include_appinfo=1"
+                + "&include_played_free_games=1"
+                + "&include_free_sub=1"
+                + "&skip_unvetted_apps=false";
+
+            try
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Get, requestUrl))
+                {
+                    request.Headers.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
+                    request.Headers.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+
+                    using (var response = await _apiHttp.SendAsync(request, ct).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            _logger?.Warn($"[SteamAch] GetOwnedGames by API key failed with HTTP {(int)response.StatusCode} {response.ReasonPhrase}.");
+                            return result;
+                        }
+
+                        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(json))
+                        {
+                            return result;
+                        }
+
+                        var envelope = JsonConvert.DeserializeObject<OwnedGamesEnvelope>(json);
+                        var games = envelope?.Response?.Games ?? new List<OwnedGame>();
+                        foreach (var game in games)
+                        {
+                            if (game?.AppId <= 0)
+                            {
+                                continue;
+                            }
+
+                            var appType = game.AppType?.Trim();
+                            if (!IsImportableOwnedGameType(appType))
+                            {
+                                continue;
+                            }
+
+                            var name = game.Name?.Trim();
+                            if (LooksLikeNonBaseOwnedGameName(name))
+                            {
+                                continue;
+                            }
+
+                            game.Name = name;
+                            game.AppType = appType;
+                            game.LibrarySourceName = "Steam";
+                            result.Games.Add(game);
+                        }
+
+                        var deduplicatedGames = result.Games
+                            .Where(game => game?.AppId > 0)
+                            .GroupBy(game => game.AppId.Value)
+                            .Select(group => group.First())
+                            .ToList();
+                        result.Games.Clear();
+                        result.Games.AddRange(deduplicatedGames);
+
+                        _logger?.Info($"[SteamAch] GetOwnedGames by API key returned {result.Games.Count} owned Steam app entries after filtering.");
+                        return result;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "[SteamAch] Failed resolving owned Steam games by API key.");
+                return result;
+            }
+        }
+
         internal async Task<HashSet<int>> GetOwnedAppIdsFromSessionAsync(CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();

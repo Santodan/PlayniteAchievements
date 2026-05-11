@@ -167,8 +167,143 @@
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>
 
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0"
+                                               Text="{DynamicResource LOCPlayAch_Settings_Steam_DefaultAccount}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,8,12,0"/>
+
+                                    <StackPanel Grid.Column="1">
+                                        <ComboBox x:Name="DefaultSteamAccountComboBox"
+                                                  DisplayMemberPath="DisplayName"
+                                                  SelectedValuePath="AccountId"
+                                                  SelectedValue="{Binding DefaultSteamAccountId, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Padding="4"/>
+                                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,6,0,0"
+                                                   Text="{DynamicResource LOCPlayAch_Settings_Steam_DefaultAccount_Hint}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+
                                 <TextBlock Style="{StaticResource MutedTextStyle}"
                                            Margin="0,10,0,0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Steam_AccountsHint}"
+                                           TextWrapping="Wrap"/>
+
+                                <ItemsControl ItemsSource="{Binding SteamAccounts, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              Margin="0,10,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource ControlBackgroundBrush}"
+                                                    BorderBrush="{DynamicResource NormalBorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10"
+                                                    Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{Binding DisplayLabel}"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center"/>
+
+                                                        <Button Grid.Column="1"
+                                                                Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                                                                Click="RemoveSteamAccount_Click"
+                                                                Tag="{Binding AccountId}"
+                                                                Padding="10,4"
+                                                                Margin="8,0,0,0"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_Steam_AccountDisplayName}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding DisplayName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_SteamUserId}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding SteamUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding SteamWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Padding="4"
+                                                                 TextChanged="SteamAccountField_TextChanged"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Steam_AddApiKey}"
+                                        Click="AddSteamApiKey_Click"
+                                        Style="{StaticResource AuthActionButtonStyle}"
+                                        HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Steam Import Section -->
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGames}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   VerticalAlignment="Top"
+                                   Margin="0,8,0,0"/>
+
+                        <Border Grid.Column="1"
+                                Background="{DynamicResource PanelBackgroundBrush}"
+                                CornerRadius="8"
+                                Padding="16"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource NormalBorderBrush}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource MutedTextStyle}"
                                            Text="{DynamicResource LOCPlayAch_Settings_Steam_ImportOwnedGamesHint}"
                                            TextWrapping="Wrap"/>
 
@@ -236,69 +371,6 @@
                         </Border>
                     </Grid>
 
-                    <!-- Steam User ID -->
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_SteamUserId}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   VerticalAlignment="Top"
-                                   Margin="0,8,0,0"/>
-
-                        <StackPanel Grid.Column="1">
-                            <TextBox Text="{Binding Settings.SteamUserId, Mode=OneWay}"
-                                     IsReadOnly="True"
-                                     Padding="4"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamUserId_Help}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       Margin="0,8,0,0"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Steam Web API Key -->
-                    <Grid Margin="0,16,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   VerticalAlignment="Top"
-                                   Margin="0,8,0,0"/>
-
-                        <StackPanel Grid.Column="1">
-                            <!-- Session-active notice (shown when authenticated) -->
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey_SessionActive}"
-                                       Margin="0,4,0,8"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding WebAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                         Value="True">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-
-                            <TextBox Text="{Binding Settings.SteamWebApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Padding="4"/>
-                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SteamWebApiKey_Help}"
-                                       Style="{StaticResource MutedTextStyle}"
-                                       Margin="0,6,0,0"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>
