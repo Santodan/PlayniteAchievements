@@ -335,7 +335,10 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (hasAchievementsFile)
                 {
-                    raw = await LoadLocalEntriesAsync(jsonPath, iniPath).ConfigureAwait(false);
+                    // OnlineFix progress should come from Achievements.ini when present.
+                    // Do not merge achievements.json in this case.
+                    var hasIniSource = !string.IsNullOrWhiteSpace(iniPath) && File.Exists(iniPath);
+                    raw = await LoadLocalEntriesAsync(hasIniSource ? null : jsonPath, iniPath).ConfigureAwait(false);
                 }
 
                 if ((raw == null || raw.Count == 0) && hasLumaRegistryEntries)
@@ -346,6 +349,8 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (raw != null && raw.Count > 0)
                 {
+                    Log($"LOCAL SOURCE: game={game?.Name} folder={localFolderPath ?? "none"} json={jsonPath ?? "none"} ini={iniPath ?? "none"} rawEntries={raw.Count} schemaEntries={(steamSchema?.Achievements?.Count ?? 0)} source={rawSource}");
+
                     if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                     {
                         // For LumaPlay registry entries, normalize the key names to match the Steam
@@ -355,16 +360,12 @@ namespace PlayniteAchievements.Providers.Local
                         {
                             raw = NormalizeLumaPlayNamesAgainstSchema(raw, steamSchema.Achievements);
                         }
-
-                        raw = RemapGenericAchievementEntries(raw, steamSchema.Achievements);
                     }
 
-                    var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var shouldExpandSchemaFirst = ShouldExpandSchemaAchievementsForLocalEntries(steamSchemaSource);
-                    var correlatedCount = 0;
-
-                    if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                     {
+                        var correlatedEntries = CorrelateLocalEntriesWithSchema(raw, steamSchema.Achievements);
+
                         foreach (var schemaAch in steamSchema.Achievements)
                         {
                             if (string.IsNullOrWhiteSpace(schemaAch?.Name))
@@ -372,36 +373,20 @@ namespace PlayniteAchievements.Providers.Local
                                 continue;
                             }
 
-                            raw.TryGetValue(schemaAch.Name, out var entry);
+                            correlatedEntries.TryGetValue(schemaAch.Name, out var entry);
                             data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText));
-                            added.Add(schemaAch.Name);
                         }
+
+                        PreserveCachedLocalMetadata(data);
+                        Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedEntries.Count}");
+                        Log($"SUCCESS: {game.Name} - Found {data.Achievements.Count} schema achievements with local progress from {rawSource}. schemaSource={steamSchemaSource ?? "none"}");
+                        return data;
                     }
 
-                    var remaining = raw.Where(kv => !added.Contains(kv.Key));
-                    if (shouldExpandSchemaFirst && steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
-                    {
-                        remaining = remaining.Where(kv => !IsGenericAchievementId(kv.Key));
-                    }
-
-                    foreach (var kv in remaining)
+                    foreach (var kv in raw)
                     {
                         var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
-                        if (schemaAch != null)
-                        {
-                            correlatedCount++;
-                        }
-
                         data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
-                    }
-
-                    if (!shouldExpandSchemaFirst && steamSchema?.Achievements?.Count > 0)
-                    {
-                        Log($"SCHEMA CORRELATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} matched={correlatedCount}");
-                        if (correlatedCount == 0)
-                        {
-                            Log($"SCHEMA CORRELATION LIMITATION: appId={appIdInt} source={steamSchemaSource ?? "unknown"} localEntries={raw.Count} reason=title-only-source-no-match");
-                        }
                     }
 
                     FilterPlaceholderLocalAchievements(data);
@@ -419,29 +404,8 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (steamAppCacheEntries != null && steamAppCacheEntries.Count > 0)
                 {
-                    // The local binary schema can be stale (missing achievements added since the
-                    // last client sync).  When the online schema has more entries, add the missing
-                    // ones as unearned so the count matches Steam.
-                    if (steamSchema?.Achievements != null)
-                    {
-                        foreach (var schemaAch in steamSchema.Achievements)
-                        {
-                            if (string.IsNullOrWhiteSpace(schemaAch?.Name) || steamAppCacheEntries.ContainsKey(schemaAch.Name))
-                                continue;
-
-                            steamAppCacheEntries[schemaAch.Name] = new LocalEntry
-                            {
-                                earned = false,
-                                earned_time = 0,
-                                displayName = schemaAch.DisplayName ?? schemaAch.Name,
-                                description = schemaAch.Description ?? string.Empty,
-                                icon = schemaAch.Icon ?? string.Empty,
-                                iconGray = schemaAch.IconGray ?? string.Empty,
-                                hidden = schemaAch.Hidden == 1
-                            };
-                        }
-                    }
-
+                    // Display only achievements that are actually tracked in the Steam appcache.
+                    // Use schema data for enrichment, but don't add achievements missing from the cache.
                     var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var kv in steamAppCacheEntries)
@@ -4092,6 +4056,125 @@ namespace PlayniteAchievements.Providers.Local
         private static bool IsPlaceholderLocalDescription(string description)
         {
             return string.Equals(description?.Trim(), "Local achievement from Local", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, LocalEntry> CorrelateLocalEntriesWithSchema(
+            IReadOnlyDictionary<string, LocalEntry> localEntries,
+            IReadOnlyList<SchemaAchievement> schemaAchievements)
+        {
+            var correlated = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+            if (localEntries == null || localEntries.Count == 0 || schemaAchievements == null || schemaAchievements.Count == 0)
+            {
+                return correlated;
+            }
+
+            var schemaNameByKey = BuildSchemaNameByCorrelationKey(schemaAchievements);
+            foreach (var pair in localEntries)
+            {
+                foreach (var key in EnumerateCorrelationKeys(pair.Key))
+                {
+                    if (!schemaNameByKey.TryGetValue(key, out var schemaName))
+                    {
+                        continue;
+                    }
+
+                    if (correlated.TryGetValue(schemaName, out var existing))
+                    {
+                        correlated[schemaName] = MergeLocalEntries(existing, pair.Value);
+                    }
+                    else
+                    {
+                        correlated[schemaName] = pair.Value;
+                    }
+
+                    break;
+                }
+            }
+
+            return correlated;
+        }
+
+        private static Dictionary<string, string> BuildSchemaNameByCorrelationKey(IReadOnlyList<SchemaAchievement> schemaAchievements)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (schemaAchievements == null)
+            {
+                return map;
+            }
+
+            foreach (var schemaAchievement in schemaAchievements)
+            {
+                var schemaName = schemaAchievement?.Name?.Trim();
+                if (string.IsNullOrWhiteSpace(schemaName))
+                {
+                    continue;
+                }
+
+                foreach (var key in EnumerateCorrelationKeys(schemaName))
+                {
+                    if (!map.ContainsKey(key))
+                    {
+                        map[key] = schemaName;
+                    }
+                }
+            }
+
+            return map;
+        }
+
+        private static IEnumerable<string> EnumerateCorrelationKeys(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                yield break;
+            }
+
+            var trimmed = value.Trim();
+            var normalized = NormalizeCorrelationKey(trimmed);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                yield return normalized;
+            }
+
+            var withoutAchPrefix = RemoveAchPrefix(normalized);
+            if (!string.IsNullOrWhiteSpace(withoutAchPrefix) && !string.Equals(withoutAchPrefix, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return withoutAchPrefix;
+            }
+
+            if (!string.IsNullOrWhiteSpace(withoutAchPrefix) && int.TryParse(withoutAchPrefix, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numberValue))
+            {
+                yield return numberValue.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private static string NormalizeCorrelationKey(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var chars = value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray();
+            return new string(chars);
+        }
+
+        private static string RemoveAchPrefix(string normalized)
+        {
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return string.Empty;
+            }
+
+            if (normalized.StartsWith("ach", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalized.Substring(3);
+            }
+
+            return normalized;
         }
 
         private static void FilterPlaceholderLocalAchievements(GameAchievementData data)
