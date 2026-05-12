@@ -6,61 +6,158 @@
                    xmlns:local="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    mc:Ignorable="d"
                    d:DesignHeight="82" d:DesignWidth="600">
 
-    <!-- Virtualized horizontal compact list -->
-    <ItemsControl x:Name="AchievementsList"
-                  ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                  VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling"
-                  VirtualizingPanel.ScrollUnit="Pixel">
-        <ItemsControl.Style>
-            <Style TargetType="ItemsControl">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
-                                 Value="False">
+    <modern:AchievementCompactListControlBase.Resources>
+        <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
+        <converters:BooleanConverter x:Key="InvertedBooleanToVisibilityConverter" Mode="InvertedToVisibility"/>
+    </modern:AchievementCompactListControlBase.Resources>
+
+    <StackPanel ClipToBounds="False">
+        <Border Padding="0,0,0,8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <controls:AchievementCompactItemControl Grid.Column="0"
+                                                       DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                                                       IconSize="44"
+                                                       Margin="0,0,10,0"/>
+
+                <StackPanel Grid.Column="1"
+                            VerticalAlignment="Center"
+                            DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}">
+                    <TextBlock Text="{Binding DisplayNameResolved}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding DescriptionResolved}"
+                               Foreground="{DynamicResource TextBrushDarker}"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+
+                <TextBlock Grid.Column="2"
+                           Margin="10,0,0,0"
+                           VerticalAlignment="Top"
+                           Foreground="{DynamicResource TextBrush}"
+                           DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                           Text="{Binding UnlockTimeText}"/>
+            </Grid>
+        </Border>
+
+        <TextBlock Text="{DynamicResource LOCPlayAch_NoUnlockedAchievements}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextBrushDarker}">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <Grid ClipToBounds="False">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}" Value="{x:Null}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ItemsControl x:Name="AchievementsList"
+                          Grid.Column="0"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          VirtualizingPanel.ScrollUnit="Pixel">
+                <ItemsControl.Style>
+                    <Style TargetType="ItemsControl">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactUnlockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
+                                         Value="False">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.Style>
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ItemsPresenter/>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"
+                                    IsItemsHost="True"
+                                    ClipToBounds="False"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="ClipToBounds" Value="False"/>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:AchievementCompactItemControl
+                            IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                            Margin="4,4,8,4"/>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Grid.Column="1"
+                       Margin="8,0,0,0"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextBrush}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Text="{Binding OverflowCount, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}, StringFormat=+{0}}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed"/>
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-        </ItemsControl.Style>
-        <ItemsControl.Template>
-            <ControlTemplate TargetType="ItemsControl">
-                <ScrollViewer CanContentScroll="True"
-                              HorizontalScrollBarVisibility="Hidden"
-                              VerticalScrollBarVisibility="Disabled"
-                              Padding="0"
-                              ClipToBounds="False">
-                    <ItemsPresenter/>
-                </ScrollViewer>
-            </ControlTemplate>
-        </ItemsControl.Template>
-
-        <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-                <VirtualizingStackPanel Orientation="Horizontal"
-                                        IsItemsHost="True"
-                                        VirtualizationMode="Recycling"
-                                        ClipToBounds="False"/>
-            </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-
-        <ItemsControl.ItemContainerStyle>
-            <Style TargetType="ContentPresenter">
-                <Setter Property="ClipToBounds" Value="False"/>
-            </Style>
-        </ItemsControl.ItemContainerStyle>
-
-        <ItemsControl.ItemTemplate>
-            <DataTemplate>
-                <!-- Use shared compact item control -->
-                <controls:AchievementCompactItemControl
-                    IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                    Margin="4"/>
-            </DataTemplate>
-        </ItemsControl.ItemTemplate>
-    </ItemsControl>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasOverflow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                                         Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+    </StackPanel>
 </modern:AchievementCompactListControlBase>
 
 

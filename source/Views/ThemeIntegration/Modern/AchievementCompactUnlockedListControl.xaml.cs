@@ -1,5 +1,10 @@
+using System.Collections.Generic;
+using System.Linq;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 {
@@ -10,9 +15,23 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
     /// </summary>
     public partial class AchievementCompactUnlockedListControl : AchievementCompactListControlBase
     {
+        public static readonly System.Windows.DependencyProperty FeaturedItemProperty =
+            System.Windows.DependencyProperty.Register(
+                nameof(FeaturedItem),
+                typeof(AchievementDisplayItem),
+                typeof(AchievementCompactUnlockedListControl),
+                new System.Windows.PropertyMetadata(null));
+
         public AchievementCompactUnlockedListControl()
         {
+            VisibleCount = 6;
             InitializeComponent();
+        }
+
+        public AchievementDisplayItem FeaturedItem
+        {
+            get => (AchievementDisplayItem)GetValue(FeaturedItemProperty);
+            private set => SetValue(FeaturedItemProperty, value);
         }
 
         /// <summary>
@@ -25,14 +44,30 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         protected override AchievementSortSurface SortSurface => AchievementSortSurface.CompactUnlockedList;
 
+        protected override bool UseAdaptiveOverflowPreview => false;
+
+        protected override List<AchievementDetail> GetOrderedAchievements(ModernThemeBindings theme)
+        {
+            var persisted = EffectiveSettings?.Persisted;
+            if (persisted == null || persisted.CompactUnlockedListSortMode == CompactListSortMode.None)
+            {
+                return theme?.AchievementsNewestFirst ?? base.GetOrderedAchievements(theme);
+            }
+
+            return base.GetOrderedAchievements(theme);
+        }
+
         /// <summary>
         /// Refreshes the ItemsControl ItemsSource binding.
         /// </summary>
         protected override void RefreshItemsSource()
         {
+            FeaturedItem = DisplayItems.FirstOrDefault();
+            var remainingItems = DisplayItems.Skip(1).ToList();
+
             if (AchievementsList != null)
             {
-                AchievementsList.ItemsSource = DisplayItems;
+                AchievementsList.ItemsSource = remainingItems;
             }
         }
     }

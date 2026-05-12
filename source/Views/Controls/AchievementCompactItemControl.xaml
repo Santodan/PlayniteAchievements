@@ -155,7 +155,7 @@
                          Background="#80000000"
                          Foreground="{DynamicResource HighlightGlyphBrush}"
                          BorderThickness="0"/>
-            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding RarityPercentValue, Mode=OneWay, StringFormat={}{0:F1}%}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        FontSize="8"

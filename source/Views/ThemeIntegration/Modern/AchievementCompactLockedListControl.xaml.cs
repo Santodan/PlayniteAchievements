@@ -12,6 +12,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
     {
         public AchievementCompactLockedListControl()
         {
+            VisibleCount = 5;
             InitializeComponent();
         }
 
@@ -24,6 +25,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// Uses the shared selected-game sort source, then filters to locked achievements.
         /// </summary>
         protected override AchievementSortSurface SortSurface => AchievementSortSurface.CompactLockedList;
+
+        protected override bool UseAdaptiveOverflowPreview => false;
 
         /// <summary>
         /// Refreshes the ItemsControl ItemsSource binding.

@@ -82,6 +82,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         private List<AchievementDisplayItem> _lastAllItems;
         private List<AchievementDetail> _lastAllAchievements;
         private List<AchievementDetail> _lastSourceAchievements;
+        private int _lastAppliedVisibleCount = int.MinValue;
 
         private List<AchievementDisplayItem> _displayItems = new List<AchievementDisplayItem>();
         /// <summary>
@@ -96,21 +97,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             }
         }
 
-        private int _overflowCount;
         /// <summary>
         /// Gets the count of items that exceed VisibleCount.
         /// </summary>
         public int OverflowCount
         {
-            get => _overflowCount;
+            get => (int)GetValue(OverflowCountProperty);
             protected set
             {
-                if (_overflowCount != value)
-                {
-                    _overflowCount = value;
-                    OnPropertyChanged(new DependencyPropertyChangedEventArgs(
-                        OverflowCountProperty, value, value));
-                }
+                SetValue(OverflowCountProperty, value);
             }
         }
 
@@ -121,19 +116,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             DependencyProperty.Register(nameof(OverflowCount), typeof(int), typeof(AchievementCompactListControlBase),
                 new PropertyMetadata(0));
 
-        private bool _hasOverflow;
+        /// <summary>
+        /// Identifies the HasOverflow dependency property for binding.
+        /// </summary>
+        public static readonly DependencyProperty HasOverflowProperty =
+            DependencyProperty.Register(nameof(HasOverflow), typeof(bool), typeof(AchievementCompactListControlBase),
+                new PropertyMetadata(false));
+
         /// <summary>
         /// Gets a value indicating whether there are more items than VisibleCount.
         /// </summary>
         public bool HasOverflow
         {
-            get => _hasOverflow;
+            get => (bool)GetValue(HasOverflowProperty);
             protected set
             {
-                if (_hasOverflow != value)
-                {
-                    _hasOverflow = value;
-                }
+                SetValue(HasOverflowProperty, value);
             }
         }
 
@@ -146,6 +144,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             DataContext = this;
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
+            SizeChanged += OnSizeChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -160,6 +159,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         {
             _isLoaded = false;
             PreviewMouseWheel -= OnPreviewMouseWheel;
+        }
+
+        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_isLoaded && UseAdaptiveOverflowPreview && e.WidthChanged)
+            {
+                LoadData();
+            }
         }
 
         /// <summary>
@@ -180,6 +187,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected virtual bool FilterAchievement(AchievementDetail achievement) => true;
 
         protected virtual AchievementSortSurface SortSurface => AchievementSortSurface.CompactList;
+
+        /// <summary>
+        /// Gets a value indicating whether this compact list should auto-fit to available width
+        /// and expose overflow through a trailing "+N" badge.
+        /// </summary>
+        protected virtual bool UseAdaptiveOverflowPreview => false;
 
         /// <summary>
         /// Gets the ordered achievement source that should drive the compact list.
@@ -212,10 +225,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             var allAchievements = theme.AllAchievements ?? new List<AchievementDetail>();
             var sourceAchievements = GetOrderedAchievements(theme) ?? new List<AchievementDetail>();
 
-            // Skip work if source references haven't changed
-            if (ReferenceEquals(allItems, _lastAllItems) &&
+            // Skip work if source references and the effective item cap haven't changed.
+            if (!UseAdaptiveOverflowPreview &&
+                ReferenceEquals(allItems, _lastAllItems) &&
                 ReferenceEquals(allAchievements, _lastAllAchievements) &&
-                ReferenceEquals(sourceAchievements, _lastSourceAchievements))
+                ReferenceEquals(sourceAchievements, _lastSourceAchievements) &&
+                VisibleCount == _lastAppliedVisibleCount)
             {
                 return;
             }
@@ -252,11 +267,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 displayItems.Add(clonedItem);
             }
 
-            // Apply VisibleCount limit
-            if (VisibleCount > 0 && displayItems.Count > VisibleCount)
+            var effectiveVisibleCount = GetEffectiveVisibleCount(displayItems.Count);
+
+            if (effectiveVisibleCount > 0 && displayItems.Count > effectiveVisibleCount)
             {
-                DisplayItems = displayItems.Take(VisibleCount).ToList();
-                OverflowCount = displayItems.Count - VisibleCount;
+                DisplayItems = displayItems.Take(effectiveVisibleCount).ToList();
+                OverflowCount = displayItems.Count - effectiveVisibleCount;
                 HasOverflow = true;
             }
             else
@@ -266,8 +282,38 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                 HasOverflow = false;
             }
 
+            _lastAppliedVisibleCount = effectiveVisibleCount;
+
             // Refresh the ItemsControl binding
             RefreshItemsSource();
+        }
+
+        private int GetEffectiveVisibleCount(int totalCount)
+        {
+            if (VisibleCount > 0)
+            {
+                return VisibleCount;
+            }
+
+            if (!UseAdaptiveOverflowPreview || totalCount <= 0)
+            {
+                return 0;
+            }
+
+            var actualWidth = ActualWidth;
+            if (double.IsNaN(actualWidth) || actualWidth <= 0)
+            {
+                return 0;
+            }
+
+            var slotWidth = Math.Max(1.0, IconSize + 10.0);
+            var slots = Math.Max(1, (int)(actualWidth / slotWidth));
+            if (totalCount <= slots)
+            {
+                return 0;
+            }
+
+            return Math.Max(0, slots - 1);
         }
 
         /// <summary>
@@ -278,6 +324,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastAllItems = null;
             _lastAllAchievements = null;
             _lastSourceAchievements = null;
+            _lastAppliedVisibleCount = int.MinValue;
             DisplayItems = new List<AchievementDisplayItem>();
             OverflowCount = 0;
             HasOverflow = false;
