@@ -3894,71 +3894,81 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             var previousAchievements = previousLocalData?.Achievements;
-            if (previousAchievements == null || previousAchievements.Count == 0)
+            bool hadPreviousCache = previousAchievements != null && previousAchievements.Count > 0;
+            if (hadPreviousCache)
             {
-                return;
-            }
+                var previousByApiName = previousAchievements
+                    .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.ApiName))
+                    .ToDictionary(achievement => achievement.ApiName, achievement => achievement, StringComparer.OrdinalIgnoreCase);
 
-            var previousByApiName = previousAchievements
-                .Where(achievement => achievement != null && !string.IsNullOrWhiteSpace(achievement.ApiName))
-                .ToDictionary(achievement => achievement.ApiName, achievement => achievement, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var achievement in data.Achievements)
-            {
-                if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName))
+                foreach (var achievement in data.Achievements)
                 {
-                    continue;
-                }
-
-                if (!previousByApiName.TryGetValue(achievement.ApiName, out var previousAchievement) || previousAchievement == null)
-                {
-                    continue;
-                }
-
-                if (ShouldPreserveDisplayName(achievement, previousAchievement))
-                {
-                    achievement.DisplayName = previousAchievement.DisplayName;
-                }
-
-                if (ShouldPreserveDescription(achievement, previousAchievement))
-                {
-                    achievement.Description = previousAchievement.Description;
-                }
-
-                if (ShouldPreserveUnlockedIcon(achievement, previousAchievement))
-                {
-                    achievement.UnlockedIconPath = previousAchievement.UnlockedIconPath;
-                }
-
-                if (ShouldPreserveLockedIcon(achievement, previousAchievement))
-                {
-                    achievement.LockedIconPath = previousAchievement.LockedIconPath;
-                }
-
-                // LumaPlay registry values do not expose per-achievement unlock timestamps.
-                // Preserve known timestamps from prior cache, and stamp first-seen time only
-                // when we detect a locked -> unlocked transition with no incoming timestamp.
-                if (achievement.Unlocked)
-                {
-                    if (!achievement.UnlockTimeUtc.HasValue)
+                    if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName))
                     {
-                        if (previousAchievement.Unlocked && previousAchievement.UnlockTimeUtc.HasValue)
+                        continue;
+                    }
+
+                    if (!previousByApiName.TryGetValue(achievement.ApiName, out var previousAchievement) || previousAchievement == null)
+                    {
+                        continue;
+                    }
+
+                    if (ShouldPreserveDisplayName(achievement, previousAchievement))
+                    {
+                        achievement.DisplayName = previousAchievement.DisplayName;
+                    }
+
+                    if (ShouldPreserveDescription(achievement, previousAchievement))
+                    {
+                        achievement.Description = previousAchievement.Description;
+                    }
+
+                    if (ShouldPreserveUnlockedIcon(achievement, previousAchievement))
+                    {
+                        achievement.UnlockedIconPath = previousAchievement.UnlockedIconPath;
+                    }
+
+                    if (ShouldPreserveLockedIcon(achievement, previousAchievement))
+                    {
+                        achievement.LockedIconPath = previousAchievement.LockedIconPath;
+                    }
+
+                    // LumaPlay registry values do not expose per-achievement unlock timestamps.
+                    // Preserve known timestamps from prior cache, and stamp first-seen time only
+                    // when we detect a locked -> unlocked transition with no incoming timestamp.
+                    if (achievement.Unlocked)
+                    {
+                        if (!achievement.UnlockTimeUtc.HasValue)
                         {
-                            achievement.UnlockTimeUtc = previousAchievement.UnlockTimeUtc;
-                        }
-                        else if (!previousAchievement.Unlocked)
-                        {
-                            achievement.UnlockTimeUtc = DateTime.UtcNow;
-                        }
-                        else if (previousAchievement.Unlocked)
-                        {
-                            achievement.UnlockTimeUtc = DateTime.UtcNow;
+                            if (previousAchievement.Unlocked && previousAchievement.UnlockTimeUtc.HasValue)
+                            {
+                                achievement.UnlockTimeUtc = previousAchievement.UnlockTimeUtc;
+                            }
+                            else if (!previousAchievement.Unlocked)
+                            {
+                                achievement.UnlockTimeUtc = DateTime.UtcNow;
+                            }
+                            else if (previousAchievement.Unlocked)
+                            {
+                                achievement.UnlockTimeUtc = DateTime.UtcNow;
+                            }
                         }
                     }
+                    else
+                    {
+                        achievement.UnlockTimeUtc = null;
+                    }
                 }
-                else
+            }
+            else
+            {
+                // No previous cache: set unlock time for all unlocked achievements with no timestamp
+                foreach (var achievement in data.Achievements)
                 {
-                    achievement.UnlockTimeUtc = null;
+                    if (achievement != null && achievement.Unlocked && !achievement.UnlockTimeUtc.HasValue)
+                    {
+                        achievement.UnlockTimeUtc = DateTime.UtcNow;
+                    }
                 }
             }
         }
@@ -4068,9 +4078,21 @@ namespace PlayniteAchievements.Providers.Local
                 return correlated;
             }
 
+            var workingEntries = RemapGenericAchievementEntries(
+                localEntries.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                schemaAchievements);
+
             var schemaNameByKey = BuildSchemaNameByCorrelationKey(schemaAchievements);
-            foreach (var pair in localEntries)
+            var apiNameMap = schemaAchievements
+                .Where(a => !string.IsNullOrWhiteSpace(a?.Name))
+                .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+            var schemaLookupByText = BuildSchemaLookupByText(schemaAchievements);
+            var schemaLookupByTitle = BuildSchemaLookupByTitle(schemaAchievements);
+
+            foreach (var pair in workingEntries)
             {
+                string correlatedSchemaName = null;
+
                 foreach (var key in EnumerateCorrelationKeys(pair.Key))
                 {
                     if (!schemaNameByKey.TryGetValue(key, out var schemaName))
@@ -4078,16 +4100,28 @@ namespace PlayniteAchievements.Providers.Local
                         continue;
                     }
 
-                    if (correlated.TryGetValue(schemaName, out var existing))
-                    {
-                        correlated[schemaName] = MergeLocalEntries(existing, pair.Value);
-                    }
-                    else
-                    {
-                        correlated[schemaName] = pair.Value;
-                    }
-
+                    correlatedSchemaName = schemaName;
                     break;
+                }
+
+                if (string.IsNullOrWhiteSpace(correlatedSchemaName))
+                {
+                    var resolved = ResolveSchemaAchievement(pair.Key, pair.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
+                    correlatedSchemaName = resolved?.Name;
+                }
+
+                if (string.IsNullOrWhiteSpace(correlatedSchemaName))
+                {
+                    continue;
+                }
+
+                if (correlated.TryGetValue(correlatedSchemaName, out var existing))
+                {
+                    correlated[correlatedSchemaName] = MergeLocalEntries(existing, pair.Value);
+                }
+                else
+                {
+                    correlated[correlatedSchemaName] = pair.Value;
                 }
             }
 
