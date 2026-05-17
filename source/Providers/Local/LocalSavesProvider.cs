@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -129,12 +130,25 @@ namespace PlayniteAchievements.Providers.Local
                 else
                 {
                     if (game != null &&
-                        TryGetLumaPlayIniPathOverride(game.Id, out var lumaIniOverridePath) &&
-                        File.Exists(lumaIniOverridePath))
+                        TryGetLumaPlayIniPathOverride(game.Id, out var lumaIniOverridePath))
                     {
+                        if (File.Exists(lumaIniOverridePath))
+                        {
+                            return true;
+                        }
+
+                        Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' iniOverrideMissing='{lumaIniOverridePath}'");
+                    }
+
+                    // Keep capability when explicit Local/manual fallback context exists
+                    // so refresh can proceed and produce richer diagnostics.
+                    if (SupportsSchemaOnlyManualFallback(game))
+                    {
+                        Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' using schema-only/manual fallback without resolved app id.");
                         return true;
                     }
 
+                    Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' not capable (no app id, no auto-detect, no valid ini override).");
                     return false;
                 }
             }
@@ -208,9 +222,21 @@ namespace PlayniteAchievements.Providers.Local
                     isAppIdOverridden = true;
                     Log($"LUMAPLAY APPID AUTO-DETECTED: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
                 }
+
+                if (string.IsNullOrEmpty(appId) &&
+                    game != null &&
+                    TryGetLumaPlayIniPathOverride(game.Id, out var configuredLumaIniPath) &&
+                    !File.Exists(configuredLumaIniPath))
+                {
+                    Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' iniOverrideMissing='{configuredLumaIniPath}'");
+                }
             }
 
-            if (string.IsNullOrEmpty(appId)) return null;
+            if (string.IsNullOrEmpty(appId))
+            {
+                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
+                return null;
+            }
 
             string localFolderPath = null;
             var hasResolvedLocalFolder = TryResolveLocalFolder(game, appId, out localFolderPath, out _, out _, out _);
@@ -235,6 +261,14 @@ namespace PlayniteAchievements.Providers.Local
 
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || !string.IsNullOrWhiteSpace(iniPath);
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
+            var hasLumaPlayAppIdOverride = game != null && TryGetLumaPlayAppIdOverride(game.Id, out _);
+            var hasLumaPlayIniOverride = game != null && TryGetLumaPlayIniPathOverride(game.Id, out _);
+            var hasAutoDetectedLumaPlayIni = game != null &&
+                TryAutoDetectLumaPlayAppId(game, out _, out _);
+            var isLumaPlayContext = hasLumaRegistryEntries ||
+                hasLumaPlayAppIdOverride ||
+                hasLumaPlayIniOverride ||
+                hasAutoDetectedLumaPlayIni;
             var preferLocalizedSchemaText = ShouldPreferLocalizedSteamText();
 
             SchemaAndPercentages steamSchema = null;
@@ -255,7 +289,7 @@ namespace PlayniteAchievements.Providers.Local
                 // For LumaPlay (Uplay/Ubisoft Connect) games: the registry key uses a Uplay game ID,
                 // which differs from the Steam App ID. If no explicit schema override was set via Links
                 // or Notes, auto-resolve the correct Steam App ID by searching Steam Store by game name.
-                if (hasLumaRegistryEntries && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
+                if (isLumaPlayContext && steamSchemaAppIdInt == appIdInt && !string.IsNullOrWhiteSpace(game?.Name))
                 {
                     var autoSteamAppId = await TryResolveSteamAppIdByGameNameAsync(game.Name).ConfigureAwait(false);
                     if (autoSteamAppId > 0 && autoSteamAppId != appIdInt)
@@ -1101,59 +1135,82 @@ namespace PlayniteAchievements.Providers.Local
                     return 0;
                 }
 
-                var encoded = Uri.EscapeDataString(normalizedQuery);
-                var url = $"https://store.steampowered.com/api/storesearch/?term={encoded}&l=english&cc=US";
+                var queryCandidates = BuildSteamSearchQueryCandidates(normalizedQuery)
+                    .Take(5)
+                    .ToList();
 
                 using (var client = CreateAnonymousSteamHttpClient())
                 {
-                    var json = await client.GetStringAsync(url).ConfigureAwait(false);
-                    if (string.IsNullOrWhiteSpace(json))
-                    {
-                        _lumaPlaySteamAppIdCache[gameName] = 0;
-                        return 0;
-                    }
-
-                    var root = JObject.Parse(json);
-                    var items = root["items"] as JArray;
-                    if (items == null || items.Count == 0)
-                    {
-                        _lumaPlaySteamAppIdCache[gameName] = 0;
-                        return 0;
-                    }
-
                     int bestId = 0;
                     double bestScore = 0.0;
+                    string bestQuery = normalizedQuery;
 
-                    for (int i = 0; i < items.Count; i++)
+                    foreach (var query in queryCandidates)
                     {
-                        if (!(items[i] is JObject item))
+                        var encoded = Uri.EscapeDataString(query);
+                        var url = $"https://store.steampowered.com/api/storesearch/?term={encoded}&l=english&cc=US";
+                        string json;
+                        try
+                        {
+                            json = await client.GetStringAsync(url).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, $"[Local] Steam store search request failed for query '{query}'.");
+                            continue;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(json))
                         {
                             continue;
                         }
 
-                        var type = item["type"]?.Value<string>();
-                        if (!string.Equals(type, "app", StringComparison.OrdinalIgnoreCase))
+                        var root = JObject.Parse(json);
+                        var items = root["items"] as JArray;
+                        if (items == null || items.Count == 0)
                         {
                             continue;
                         }
 
-                        var itemId = item["id"]?.Value<int>() ?? 0;
-                        var itemName = item["name"]?.Value<string>();
-                        if (itemId <= 0 || string.IsNullOrWhiteSpace(itemName))
+                        for (int i = 0; i < items.Count; i++)
                         {
-                            continue;
+                            if (!(items[i] is JObject item))
+                            {
+                                continue;
+                            }
+
+                            var type = item["type"]?.Value<string>();
+                            if (!string.Equals(type, "app", StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
+                            var itemId = item["id"]?.Value<int>() ?? 0;
+                            var itemName = item["name"]?.Value<string>();
+                            if (itemId <= 0 || string.IsNullOrWhiteSpace(itemName))
+                            {
+                                continue;
+                            }
+
+                            var normalizedItemName = NormalizeGameNameForSteamSearch(itemName);
+                            var score = Math.Max(
+                                ComputeNameSimilarity(normalizedQuery, normalizedItemName),
+                                ComputeNameSimilarity(query, normalizedItemName));
+                            if (score > bestScore)
+                            {
+                                bestScore = score;
+                                bestId = itemId;
+                                bestQuery = query;
+                            }
+
+                            // First result with very high confidence — stop early
+                            if (i == 0 && score >= 0.90)
+                            {
+                                break;
+                            }
                         }
 
-                        var normalizedItemName = NormalizeGameNameForSteamSearch(itemName);
-                        var score = ComputeNameSimilarity(normalizedQuery, normalizedItemName);
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            bestId = itemId;
-                        }
-
-                        // First result with very high confidence — stop early
-                        if (i == 0 && score >= 0.85)
+                        if (bestScore >= 0.90)
                         {
                             break;
                         }
@@ -1165,7 +1222,7 @@ namespace PlayniteAchievements.Providers.Local
 
                     if (resolvedId > 0)
                     {
-                        Log($"LUMA STEAM SEARCH: game='{gameName}' normalized='{normalizedQuery}' steamAppId={resolvedId} score={bestScore:F2}");
+                        Log($"LUMA STEAM SEARCH: game='{gameName}' normalized='{normalizedQuery}' query='{bestQuery}' steamAppId={resolvedId} score={bestScore:F2}");
                     }
                     else
                     {
@@ -1194,9 +1251,110 @@ namespace PlayniteAchievements.Providers.Local
             name = Regex.Replace(name, @"[™®©]", string.Empty);
             // Strip trailing parenthetical qualifiers: "(Steam Version)", "(RU)", etc.
             name = Regex.Replace(name, @"\s*\([^)]{1,30}\)\s*$", string.Empty);
+            // Normalize apostrophes to plain quote for easier token matching
+            name = name.Replace('’', '\'');
             // Normalize whitespace
             name = Regex.Replace(name, @"\s+", " ").Trim();
             return name;
+        }
+
+        private static IEnumerable<string> BuildSteamSearchQueryCandidates(string normalizedName)
+        {
+            var candidates = new List<string>();
+            void AddCandidate(string value)
+            {
+                value = NormalizeGameNameForSteamSearch(value);
+                if (!string.IsNullOrWhiteSpace(value) && !candidates.Contains(value, StringComparer.OrdinalIgnoreCase))
+                {
+                    candidates.Add(value);
+                }
+            }
+
+            AddCandidate(normalizedName);
+            AddCandidate(RemoveDiacritics(normalizedName));
+
+            // Handle possessive/title quirks like "Assassins's" vs "Assassin's".
+            AddCandidate(Regex.Replace(normalizedName, @"\b([A-Za-z]{3,})'s\b", "$1", RegexOptions.IgnoreCase));
+            AddCandidate(Regex.Replace(normalizedName, @"\b([A-Za-z]{3,})s's\b", "$1's", RegexOptions.IgnoreCase));
+
+            // Handle common roman numeral vs arabic numeral title variants.
+            AddCandidate(ConvertRomanNumeralsToDigits(normalizedName));
+            AddCandidate(ConvertDigitsToRomanNumerals(normalizedName));
+
+            return candidates;
+        }
+
+        private static string RemoveDiacritics(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value ?? string.Empty;
+            }
+
+            var normalized = value.Normalize(NormalizationForm.FormD);
+            var builder = new StringBuilder(normalized.Length);
+            foreach (var c in normalized)
+            {
+                var unicodeCategory = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (unicodeCategory != UnicodeCategory.NonSpacingMark)
+                {
+                    builder.Append(c);
+                }
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        private static string ConvertRomanNumeralsToDigits(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value ?? string.Empty;
+            }
+
+            return Regex.Replace(value, @"\bX\b|\bIX\b|\bVIII\b|\bVII\b|\bVI\b|\bV\b|\bIV\b|\bIII\b|\bII\b|\bI\b", match =>
+            {
+                return match.Value.ToUpperInvariant() switch
+                {
+                    "I" => "1",
+                    "II" => "2",
+                    "III" => "3",
+                    "IV" => "4",
+                    "V" => "5",
+                    "VI" => "6",
+                    "VII" => "7",
+                    "VIII" => "8",
+                    "IX" => "9",
+                    "X" => "10",
+                    _ => match.Value
+                };
+            }, RegexOptions.IgnoreCase);
+        }
+
+        private static string ConvertDigitsToRomanNumerals(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value ?? string.Empty;
+            }
+
+            return Regex.Replace(value, @"\b10\b|\b9\b|\b8\b|\b7\b|\b6\b|\b5\b|\b4\b|\b3\b|\b2\b|\b1\b", match =>
+            {
+                return match.Value switch
+                {
+                    "1" => "I",
+                    "2" => "II",
+                    "3" => "III",
+                    "4" => "IV",
+                    "5" => "V",
+                    "6" => "VI",
+                    "7" => "VII",
+                    "8" => "VIII",
+                    "9" => "IX",
+                    "10" => "X",
+                    _ => match.Value
+                };
+            });
         }
 
         private static double ComputeNameSimilarity(string a, string b)
