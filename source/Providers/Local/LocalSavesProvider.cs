@@ -62,6 +62,23 @@ namespace PlayniteAchievements.Providers.Local
             public bool UsedOverride { get; set; }
         }
 
+        public enum LocalAchievementFileKind
+        {
+            Json,
+            Ini
+        }
+
+        public sealed class LocalAchievementEditResult
+        {
+            public bool Success { get; set; }
+            public string FilePath { get; set; }
+            public LocalAchievementFileKind FileKind { get; set; }
+            public int AppId { get; set; }
+            public bool UsedOverride { get; set; }
+            public int UpdatedCount { get; set; }
+            public string Message { get; set; }
+        }
+
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _pluginSettings;
@@ -3547,6 +3564,42 @@ namespace PlayniteAchievements.Providers.Local
             return true;
         }
 
+        internal bool TryResolveWritableAchievementFilePath(Game game, out string filePath, out LocalAchievementFileKind fileKind, out int appId, out bool isOverridden)
+        {
+            filePath = null;
+            fileKind = LocalAchievementFileKind.Json;
+            appId = 0;
+            isOverridden = false;
+
+            if (!TryResolveAppId(game, out appId, out isOverridden))
+            {
+                return false;
+            }
+
+            if (!TryResolveLocalFolder(game, appId.ToString(CultureInfo.InvariantCulture), out var localFolderPath, out _, out _, out _) || string.IsNullOrWhiteSpace(localFolderPath))
+            {
+                return false;
+            }
+
+            var jsonPath = ResolveAchievementFilePath(localFolderPath, "achievements.json");
+            if (!string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath))
+            {
+                filePath = jsonPath;
+                fileKind = LocalAchievementFileKind.Json;
+                return true;
+            }
+
+            var iniPath = ResolveAchievementFilePath(localFolderPath, "achievements.ini");
+            if (!string.IsNullOrWhiteSpace(iniPath) && File.Exists(iniPath))
+            {
+                filePath = iniPath;
+                fileKind = LocalAchievementFileKind.Ini;
+                return true;
+            }
+
+            return false;
+        }
+
         internal bool TryGetResolvedFolderInfo(Game game, out string selectedFolderPath, out IReadOnlyList<string> candidateFolders, out bool isOverridden, out bool isAmbiguous)
         {
             selectedFolderPath = null;
@@ -3649,6 +3702,351 @@ namespace PlayniteAchievements.Providers.Local
                     game.Name,
                     jsonPath)
             };
+        }
+
+        public async Task<LocalAchievementEditResult> SaveLocalAchievementsAsync(Game game, IReadOnlyCollection<AchievementDetail> achievements, CancellationToken token)
+        {
+            if (game == null)
+            {
+                return new LocalAchievementEditResult
+                {
+                    Success = false,
+                    Message = ResourceProvider.GetString("LOCPlayAch_Text_UnknownGame")
+                };
+            }
+
+            if (achievements == null || achievements.Count == 0)
+            {
+                return new LocalAchievementEditResult
+                {
+                    Success = false,
+                    Message = "No achievements were provided to save."
+                };
+            }
+
+            if (!TryResolveWritableAchievementFilePath(game, out var filePath, out var fileKind, out var appId, out var isOverridden))
+            {
+                Log($"LOCAL EDIT SAVE: unresolved writable file for game='{game?.Name}' appId={appId} override={isOverridden}");
+                return new LocalAchievementEditResult
+                {
+                    Success = false,
+                    AppId = appId,
+                    UsedOverride = isOverridden,
+                    Message = "This Local provider setup does not use a writable achievements.json or achievements.ini file."
+                };
+            }
+
+            Dictionary<string, LocalEntry> existingEntries;
+            if (fileKind == LocalAchievementFileKind.Json)
+            {
+                existingEntries = await LoadLocalEntriesAsync(filePath, null).ConfigureAwait(false);
+            }
+            else
+            {
+                existingEntries = await LoadLocalEntriesAsync(null, filePath).ConfigureAwait(false);
+            }
+
+            existingEntries ??= new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+            var updatedCount = 0;
+            var matchedByApiNameCount = 0;
+            var matchedByDisplayNameCount = 0;
+            var createdEntryCount = 0;
+            var iniDesiredStateByKey = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
+
+            var existingDisplayNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var duplicateDisplayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in existingEntries)
+            {
+                var displayNameValue = pair.Value.displayName;
+                var displayNameKey = string.IsNullOrWhiteSpace(displayNameValue)
+                    ? string.Empty
+                    : displayNameValue.Trim();
+                if (string.IsNullOrWhiteSpace(displayNameKey))
+                {
+                    continue;
+                }
+
+                if (existingDisplayNameMap.ContainsKey(displayNameKey))
+                {
+                    duplicateDisplayNames.Add(displayNameKey);
+                    continue;
+                }
+
+                existingDisplayNameMap[displayNameKey] = pair.Key;
+            }
+
+            foreach (var duplicateDisplayName in duplicateDisplayNames)
+            {
+                existingDisplayNameMap.Remove(duplicateDisplayName);
+            }
+
+            foreach (var achievement in achievements)
+            {
+                token.ThrowIfCancellationRequested();
+
+                if (achievement == null || string.IsNullOrWhiteSpace(achievement.ApiName))
+                {
+                    continue;
+                }
+
+                var resolvedEntryKey = achievement.ApiName;
+                var resolvedByDisplayName = false;
+
+                if (existingEntries.ContainsKey(resolvedEntryKey))
+                {
+                    matchedByApiNameCount++;
+                }
+                else
+                {
+                    var displayNameKey = achievement.DisplayName?.Trim();
+                    if (!string.IsNullOrWhiteSpace(displayNameKey) &&
+                        existingDisplayNameMap.TryGetValue(displayNameKey, out var mappedKey) &&
+                        existingEntries.ContainsKey(mappedKey))
+                    {
+                        resolvedEntryKey = mappedKey;
+                        resolvedByDisplayName = true;
+                        matchedByDisplayNameCount++;
+                    }
+                    else
+                    {
+                        createdEntryCount++;
+                    }
+                }
+
+                existingEntries.TryGetValue(resolvedEntryKey, out var currentEntry);
+                var hasUnlockTime = achievement.Unlocked && achievement.UnlockTimeUtc.HasValue;
+                var resolvedUnlockTime = hasUnlockTime
+                    ? DateTime.SpecifyKind(achievement.UnlockTimeUtc.Value, DateTimeKind.Utc)
+                    : (DateTime?)null;
+
+                if (achievement.Unlocked && !resolvedUnlockTime.HasValue && currentEntry.earned_time > 0)
+                {
+                    resolvedUnlockTime = DateTimeOffset.FromUnixTimeSeconds(currentEntry.earned_time).UtcDateTime;
+                }
+
+                if (achievement.Unlocked && !resolvedUnlockTime.HasValue)
+                {
+                    resolvedUnlockTime = DateTime.UtcNow;
+                }
+
+                currentEntry.earned = achievement.Unlocked;
+                currentEntry.earned_time = achievement.Unlocked && resolvedUnlockTime.HasValue
+                    ? new DateTimeOffset(resolvedUnlockTime.Value).ToUnixTimeSeconds()
+                    : 0;
+
+                if (string.IsNullOrWhiteSpace(currentEntry.displayName))
+                {
+                    currentEntry.displayName = achievement.DisplayName;
+                }
+
+                if (string.IsNullOrWhiteSpace(currentEntry.description))
+                {
+                    currentEntry.description = achievement.Description;
+                }
+
+                if (string.IsNullOrWhiteSpace(currentEntry.icon))
+                {
+                    currentEntry.icon = achievement.UnlockedIconPath;
+                }
+
+                if (string.IsNullOrWhiteSpace(currentEntry.iconGray))
+                {
+                    currentEntry.iconGray = achievement.LockedIconPath;
+                }
+
+                currentEntry.hidden = achievement.Hidden;
+                currentEntry.percent = achievement.GlobalPercentUnlocked;
+
+                // Persist under the original file key when matched by display name.
+                existingEntries[resolvedEntryKey] = currentEntry;
+
+                if (!resolvedByDisplayName &&
+                    !string.Equals(resolvedEntryKey, achievement.ApiName, StringComparison.OrdinalIgnoreCase) &&
+                    !existingEntries.ContainsKey(achievement.ApiName))
+                {
+                    existingEntries[achievement.ApiName] = currentEntry;
+                }
+
+                iniDesiredStateByKey[resolvedEntryKey] = currentEntry;
+
+                updatedCount++;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+            if (fileKind == LocalAchievementFileKind.Json)
+            {
+                var serialized = JsonConvert.SerializeObject(existingEntries, Formatting.Indented);
+                await Task.Run(() => File.WriteAllText(filePath, serialized, Encoding.UTF8), token).ConfigureAwait(false);
+            }
+            else
+            {
+                await Task.Run(() => UpdateIniUnlockFieldsPreservingFormat(filePath, iniDesiredStateByKey), token).ConfigureAwait(false);
+            }
+
+            Log($"LOCAL EDIT SAVE: game='{game?.Name}' appId={appId} kind={fileKind} file={filePath} requested={achievements.Count} updated={updatedCount} matchedApi={matchedByApiNameCount} matchedDisplay={matchedByDisplayNameCount} created={createdEntryCount}");
+
+            return new LocalAchievementEditResult
+            {
+                Success = true,
+                FilePath = filePath,
+                FileKind = fileKind,
+                AppId = appId,
+                UsedOverride = isOverridden,
+                UpdatedCount = updatedCount,
+                Message = $"Saved {updatedCount} achievement updates to {filePath}. (matched: {matchedByApiNameCount + matchedByDisplayNameCount}, created: {createdEntryCount})"
+            };
+        }
+
+        private static void UpdateIniUnlockFieldsPreservingFormat(string iniPath, IReadOnlyDictionary<string, LocalEntry> desiredBySection)
+        {
+            if (string.IsNullOrWhiteSpace(iniPath))
+            {
+                return;
+            }
+
+            var lines = File.Exists(iniPath)
+                ? File.ReadAllLines(iniPath, Encoding.UTF8).ToList()
+                : new List<string>();
+
+            var sections = ParseIniSectionInfos(lines);
+            var sectionLookup = sections.ToDictionary(section => section.Name, section => section, StringComparer.OrdinalIgnoreCase);
+
+            var unlockedKeyName = sections.Select(section => section.UnlockedKeyName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "achieved";
+            var timeKeyName = sections.Select(section => section.TimeKeyName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "timestamp";
+
+            var useTrueFalseBooleans = sections.Any(section =>
+                !string.IsNullOrWhiteSpace(section.UnlockedValueRaw) &&
+                (section.UnlockedValueRaw.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                 section.UnlockedValueRaw.Equals("false", StringComparison.OrdinalIgnoreCase)));
+
+            foreach (var desired in desiredBySection)
+            {
+                var sectionName = desired.Key?.Trim();
+                if (string.IsNullOrWhiteSpace(sectionName))
+                {
+                    continue;
+                }
+
+                var unlockedValue = useTrueFalseBooleans
+                    ? (desired.Value.earned ? "true" : "false")
+                    : (desired.Value.earned ? "1" : "0");
+                var timestampValue = (desired.Value.earned ? desired.Value.earned_time : 0).ToString(CultureInfo.InvariantCulture);
+
+                if (sectionLookup.TryGetValue(sectionName, out var sectionInfo))
+                {
+                    if (sectionInfo.UnlockedLineIndex >= 0)
+                    {
+                        lines[sectionInfo.UnlockedLineIndex] = $"{sectionInfo.UnlockedKeyName}={unlockedValue}";
+                    }
+
+                    if (sectionInfo.TimeLineIndex >= 0)
+                    {
+                        lines[sectionInfo.TimeLineIndex] = $"{sectionInfo.TimeKeyName}={timestampValue}";
+                    }
+
+                    continue;
+                }
+
+                // Keep sparse OnlineFix style: only create new sections for unlocked achievements.
+                if (!desired.Value.earned)
+                {
+                    continue;
+                }
+
+                if (lines.Count > 0 && !string.IsNullOrWhiteSpace(lines.Last()))
+                {
+                    lines.Add(string.Empty);
+                }
+
+                lines.Add($"[{sectionName}]");
+                lines.Add($"{unlockedKeyName}={unlockedValue}");
+                lines.Add($"{timeKeyName}={timestampValue}");
+                lines.Add(string.Empty);
+            }
+
+            File.WriteAllLines(iniPath, lines, Encoding.UTF8);
+        }
+
+        private static List<IniSectionInfo> ParseIniSectionInfos(IReadOnlyList<string> lines)
+        {
+            var result = new List<IniSectionInfo>();
+            if (lines == null || lines.Count == 0)
+            {
+                return result;
+            }
+
+            IniSectionInfo current = null;
+            for (var index = 0; index < lines.Count; index++)
+            {
+                var rawLine = lines[index] ?? string.Empty;
+                var line = rawLine.Trim();
+
+                if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal) && line.Length > 2)
+                {
+                    if (current != null)
+                    {
+                        current.EndLineIndex = index - 1;
+                        result.Add(current);
+                    }
+
+                    current = new IniSectionInfo
+                    {
+                        Name = line.Substring(1, line.Length - 2).Trim(),
+                        StartLineIndex = index,
+                        EndLineIndex = index
+                    };
+
+                    continue;
+                }
+
+                if (current == null)
+                {
+                    continue;
+                }
+
+                current.EndLineIndex = index;
+
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";", StringComparison.Ordinal) || line.StartsWith("#", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var separatorIndex = line.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                var key = line.Substring(0, separatorIndex).Trim();
+                var value = line.Substring(separatorIndex + 1).Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                var normalizedKey = key.ToLowerInvariant();
+                if ((normalizedKey == "achieved" || normalizedKey == "earned" || normalizedKey == "unlocked") && current.UnlockedLineIndex < 0)
+                {
+                    current.UnlockedLineIndex = index;
+                    current.UnlockedKeyName = key;
+                    current.UnlockedValueRaw = value;
+                }
+
+                if ((normalizedKey == "timestamp" || normalizedKey == "earned_time" || normalizedKey == "unlocktime" || normalizedKey == "unlock_time" || normalizedKey == "time") && current.TimeLineIndex < 0)
+                {
+                    current.TimeLineIndex = index;
+                    current.TimeKeyName = key;
+                }
+            }
+
+            if (current != null)
+            {
+                result.Add(current);
+            }
+
+            return result;
         }
 
         private static AchievementDetail CreateAchievementDetail(
@@ -4264,6 +4662,11 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (string.IsNullOrWhiteSpace(correlatedSchemaName))
                 {
+                    if (IsGenericAchievementId(pair.Key))
+                    {
+                        continue;
+                    }
+
                     var resolved = ResolveSchemaAchievement(pair.Key, pair.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
                     correlatedSchemaName = resolved?.Name;
                 }
@@ -4390,27 +4793,37 @@ namespace PlayniteAchievements.Providers.Local
                 return source ?? new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
             }
 
-            var remapped = new Dictionary<string, LocalEntry>(source, StringComparer.OrdinalIgnoreCase);
+            var schemaNames = new HashSet<string>(
+                schemaAchievements
+                    .Select(achievement => achievement?.Name?.Trim())
+                    .Where(name => !string.IsNullOrWhiteSpace(name)),
+                StringComparer.OrdinalIgnoreCase);
+
+            var remapped = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
             foreach (var kv in source)
             {
-                if (!TryParseGenericAchievementIndex(kv.Key, out var oneBasedIndex))
+                var targetKey = kv.Key;
+                if (TryParseGenericAchievementIndex(kv.Key, out var oneBasedIndex) && !schemaNames.Contains(kv.Key))
                 {
-                    continue;
+                    var zeroBasedIndex = oneBasedIndex - 1;
+                    if (zeroBasedIndex >= 0 && zeroBasedIndex < schemaAchievements.Count)
+                    {
+                        var schemaName = schemaAchievements[zeroBasedIndex]?.Name?.Trim();
+                        if (!string.IsNullOrWhiteSpace(schemaName))
+                        {
+                            targetKey = schemaName;
+                        }
+                    }
                 }
 
-                var zeroBasedIndex = oneBasedIndex - 1;
-                if (zeroBasedIndex < 0 || zeroBasedIndex >= schemaAchievements.Count)
+                if (remapped.TryGetValue(targetKey, out var existing))
                 {
-                    continue;
+                    remapped[targetKey] = MergeLocalEntries(existing, kv.Value);
                 }
-
-                var schemaName = schemaAchievements[zeroBasedIndex]?.Name?.Trim();
-                if (string.IsNullOrWhiteSpace(schemaName) || remapped.ContainsKey(schemaName))
+                else
                 {
-                    continue;
+                    remapped[targetKey] = kv.Value;
                 }
-
-                remapped[schemaName] = kv.Value;
             }
 
             return remapped;
@@ -5255,6 +5668,53 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return merged;
+        }
+
+        private static IEnumerable<string> SerializeLocalEntriesToIni(IReadOnlyDictionary<string, LocalEntry> entries)
+        {
+            var lines = new List<string>();
+            foreach (var pair in entries.OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                var key = pair.Key?.Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                lines.Add($"[{key}]");
+                lines.Add($"earned={(pair.Value.earned ? "1" : "0")}");
+                lines.Add($"earned_time={pair.Value.earned_time}");
+
+                if (!string.IsNullOrWhiteSpace(pair.Value.displayName))
+                {
+                    lines.Add($"displayName={pair.Value.displayName}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(pair.Value.description))
+                {
+                    lines.Add($"description={pair.Value.description}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(pair.Value.icon))
+                {
+                    lines.Add($"icon={pair.Value.icon}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(pair.Value.iconGray))
+                {
+                    lines.Add($"iconGray={pair.Value.iconGray}");
+                }
+
+                lines.Add($"hidden={(pair.Value.hidden ? "1" : "0")}");
+                if (pair.Value.percent.HasValue)
+                {
+                    lines.Add($"percent={pair.Value.percent.Value.ToString(CultureInfo.InvariantCulture)}");
+                }
+
+                lines.Add(string.Empty);
+            }
+
+            return lines;
         }
 
         private static Dictionary<string, LocalEntry> ParseIniEntries(IEnumerable<string> lines)
@@ -8268,6 +8728,18 @@ namespace PlayniteAchievements.Providers.Local
             public string iconGray { get; set; }
             public bool hidden { get; set; }
             public double? percent { get; set; }
+        }
+
+        private sealed class IniSectionInfo
+        {
+            public string Name { get; set; }
+            public int StartLineIndex { get; set; }
+            public int EndLineIndex { get; set; }
+            public int UnlockedLineIndex { get; set; } = -1;
+            public string UnlockedKeyName { get; set; }
+            public string UnlockedValueRaw { get; set; }
+            public int TimeLineIndex { get; set; } = -1;
+            public string TimeKeyName { get; set; }
         }
 
         private sealed class UbisoftAchievementMetadata

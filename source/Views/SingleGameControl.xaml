@@ -145,6 +145,11 @@
                         </TextBlock>
 
                         <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}" Command="{Binding RefreshGameCommand}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <Button Content="Edit Local Achievements"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Click="OpenLocalEditor_Click"
+                            Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}" />
                         <TextBlock Text="{Binding RefreshStatusMessage}" VerticalAlignment="Center" Margin="10,0,0,0" Visibility="{Binding IsStatusMessageVisible, Converter={StaticResource BoolToVis}}" Foreground="{DynamicResource TextBrush}"/>
                     </StackPanel>
 

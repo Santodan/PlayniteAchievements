@@ -535,17 +535,30 @@ namespace PlayniteAchievements.ViewModels
 
         private void InitializeTimePickerFromUnlockTime()
         {
+            var preserveTwentyFourHourMode = _selectedTimeMode == TimeMode.TwentyFourHour;
+
             if (UnlockTimeLocal.HasValue)
             {
                 var time = UnlockTimeLocal.Value.TimeOfDay;
-                Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
+                if (preserveTwentyFourHourMode)
+                {
+                    _selectedHour = time.Hours;
+                    _selectedTimeMode = TimeMode.TwentyFourHour;
+                }
+                else
+                {
+                    Convert24To12Hour(time.Hours, out _selectedHour, out _selectedTimeMode);
+                }
+
                 _selectedMinute = time.Minutes;
             }
             else
             {
                 _selectedHour = 12;
                 _selectedMinute = 0;
-                _selectedTimeMode = TimeMode.PM;
+                _selectedTimeMode = preserveTwentyFourHourMode
+                    ? TimeMode.TwentyFourHour
+                    : TimeMode.PM;
             }
 
             SetTimeTextFromSelection();

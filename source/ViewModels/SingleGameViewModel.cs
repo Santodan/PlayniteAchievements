@@ -9,6 +9,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services;
 using Playnite.SDK;
 
@@ -37,6 +38,7 @@ namespace PlayniteAchievements.ViewModels
         private bool _showUnlocked = true;
         private bool _showLocked = true;
         private bool _showHidden = true;
+        private bool _canEditLocalAchievements;
         private bool _hasCustomAchievementOrder;
         private readonly HashSet<string> _selectedCategoryTypeFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryLabelFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -292,6 +294,14 @@ namespace PlayniteAchievements.ViewModels
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
         public string ProgressionText => $"{Progression}%";
+
+        public Guid GameId => _gameId;
+
+        public bool CanEditLocalAchievements
+        {
+            get => _canEditLocalAchievements;
+            private set => SetValue(ref _canEditLocalAchievements, value);
+        }
 
         public TimelineViewModel Timeline { get; private set; }
 
@@ -627,6 +637,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(ProgressionText));
 
                     Timeline.SetCounts(null);
+                    CanEditLocalAchievements = false;
                     return;
                 }
 
@@ -695,6 +706,12 @@ namespace PlayniteAchievements.ViewModels
 
                 _allAchievements = displayItems;
 
+                var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
+                CanEditLocalAchievements =
+                    localProvider != null &&
+                    string.Equals(gameData.EffectiveProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
+                    localProvider.TryResolveWritableAchievementFilePath(game, out _, out _, out _, out _);
+
                 UpdateAchievementFilterOptions(_allAchievements);
                 ApplySearchFilter();
 
@@ -707,6 +724,7 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed to load game data for {_gameId}");
                 HasCustomAchievementOrder = false;
+                CanEditLocalAchievements = false;
             }
         }
 

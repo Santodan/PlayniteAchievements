@@ -128,6 +128,16 @@ namespace PlayniteAchievements.Views
             ViewModel?.ClearSearch();
         }
 
+        private void OpenLocalEditor_Click(object sender, RoutedEventArgs e)
+        {
+            if (ViewModel == null)
+            {
+                return;
+            }
+
+            PlayniteAchievementsPlugin.Instance?.OpenLocalAchievementsEditorView(ViewModel.GameId);
+        }
+
         private void CategoryTypeFilterSelectionButton_Click(object sender, RoutedEventArgs e)
         {
             if (ViewModel == null)

@@ -78,6 +78,7 @@ namespace PlayniteAchievements.ViewModels
         private string _localFolderAutoPath;
         private string _localFolderCandidatesSummary;
         private bool _hasAmbiguousLocalFolders;
+        private bool _canEditLocalAchievements;
         private bool _showXeniaTitleIdOverride;
         private bool _hasXeniaTitleIdOverride;
         private string _xeniaTitleIdOverrideValue;
@@ -140,6 +141,7 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ExportCustomPackageCommand { get; }
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ClearCustomDataCommand { get; }
+        public RelayCommand OpenLocalAchievementsEditorCommand { get; }
 
         public GameOptionsViewModel(
             Guid gameId,
@@ -197,8 +199,21 @@ namespace PlayniteAchievements.ViewModels
             ExportCustomPackageCommand = new RelayCommand(_ => ExportCustomPackage(), _ => HasGame && CanExportCustomJson);
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
+            OpenLocalAchievementsEditorCommand = new RelayCommand(_ => OpenLocalAchievementsEditor(), _ => HasGame && CanEditLocalAchievements);
 
             Reload();
+        }
+
+        public bool CanEditLocalAchievements
+        {
+            get => _canEditLocalAchievements;
+            private set
+            {
+                if (SetValueAndReturn(ref _canEditLocalAchievements, value))
+                {
+                    RaiseCommandStates();
+                }
+            }
         }
 
         public Guid GameId => _gameId;
@@ -256,6 +271,27 @@ namespace PlayniteAchievements.ViewModels
 
                 SetValue(ref _selectedTab, value);
             }
+        }
+
+        private void RefreshLocalAchievementEditorState()
+        {
+            var localProvider = _refreshService?.Providers?.OfType<LocalSavesProvider>().FirstOrDefault();
+            if (localProvider == null || _playniteApi?.Database?.Games == null)
+            {
+                CanEditLocalAchievements = false;
+                return;
+            }
+
+            var game = _playniteApi.Database.Games.Get(_gameId);
+            CanEditLocalAchievements =
+                game != null &&
+                string.Equals(_cachedProviderKey, "Local", StringComparison.OrdinalIgnoreCase) &&
+                localProvider.TryResolveWritableAchievementFilePath(game, out _, out _, out _, out _);
+        }
+
+        private void OpenLocalAchievementsEditor()
+        {
+            _plugin?.OpenLocalAchievementsEditorView(_gameId);
         }
 
         public bool ShowManualTrackingTab
@@ -2541,6 +2577,7 @@ namespace PlayniteAchievements.ViewModels
             var hasStoredData = HasGame && store != null && store.TryLoad(_gameId, out currentData) && currentData != null;
             CanClearCustomData = hasStoredData;
             CanExportCustomJson = hasStoredData && GameCustomDataNormalizer.HasPortableData(currentData);
+            RefreshLocalAchievementEditorState();
         }
 
         internal void NotifyCustomDataChanged(

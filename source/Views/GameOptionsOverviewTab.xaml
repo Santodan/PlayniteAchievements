@@ -107,6 +107,12 @@
                                     Padding="12,6"
                                     MinWidth="100"
                                     Margin="0,0,8,0" />
+                                <Button Content="Edit Local Achievements"
+                                    Command="{Binding OpenLocalAchievementsEditorCommand}"
+                                    Padding="12,6"
+                                    MinWidth="170"
+                                    Margin="0,0,8,0"
+                                    Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}" />
                                 <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
                                     Command="{Binding OpenAchievementsCommand}"
                                     Padding="12,6"
