@@ -99,8 +99,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed local `Steam` achievements ( part 99 )
 - Added the possibility to have a more than one steam account for achievements
   - It is only possible through API for the additionall accounts
+- Fixed some `LumaPlay` compatibility bugs
 - Fixed `OnlineFix` games wrong achievement detection
 - Fixed some missing `Theme Migration` compatibility
+- Fixes the duplicated achievements in the `SuccessStory` import
+- Added the option to overwritting existing achievements when using the `SuccessStory` import
+- Added the possibility to exclude sources when using the `SuccessStory` import
 
 ## 2026-05-09 - v2.1.3.3
 

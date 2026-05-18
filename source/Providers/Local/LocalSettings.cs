@@ -193,7 +193,9 @@ namespace PlayniteAchievements.Providers.Local
         private string _successStoryImportTargetSourceName = string.Empty;
         private string _successStoryImportPath = string.Empty;
         private string _successStoryImportCategoryKeys = string.Empty;
+        private string _successStoryImportExcludedCategoryKeys = string.Empty;
         private string _successStoryCategoryScanSnapshotJson = string.Empty;
+        private bool _successStoryOverwriteExistingAchievements;
         private LocalExistingGameImportBehavior _existingGameImportBehavior = LocalExistingGameImportBehavior.OverwriteExisting;
         private bool _includeFoldersWithoutAchievementFilesOnImport;
         private LocalIconRateLimitRetryMode _iconRateLimitRetryMode = LocalIconRateLimitRetryMode.FixedRounds;
@@ -616,6 +618,12 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _successStoryImportCategoryKeys, value ?? string.Empty);
         }
 
+        public string SuccessStoryImportExcludedCategoryKeys
+        {
+            get => _successStoryImportExcludedCategoryKeys;
+            set => SetValue(ref _successStoryImportExcludedCategoryKeys, value ?? string.Empty);
+        }
+
         public string SuccessStoryImportTargetSourceName
         {
             get => _successStoryImportTargetSourceName;
@@ -632,6 +640,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _successStoryCategoryScanSnapshotJson;
             set => SetValue(ref _successStoryCategoryScanSnapshotJson, value ?? string.Empty);
+        }
+
+        public bool SuccessStoryOverwriteExistingAchievements
+        {
+            get => _successStoryOverwriteExistingAchievements;
+            set => SetValue(ref _successStoryOverwriteExistingAchievements, value);
         }
 
         public LocalExistingGameImportBehavior ExistingGameImportBehavior
@@ -765,6 +779,11 @@ namespace PlayniteAchievements.Providers.Local
             return SplitListSetting(SuccessStoryImportCategoryKeys).ToList();
         }
 
+        public IReadOnlyList<string> GetSuccessStoryImportExcludedCategoryKeyEntries()
+        {
+            return SplitListSetting(SuccessStoryImportExcludedCategoryKeys).ToList();
+        }
+
         public void SetExtraLocalPathEntries(IEnumerable<string> paths)
         {
             ExtraLocalPaths = JoinExtraLocalPaths(paths);
@@ -783,6 +802,11 @@ namespace PlayniteAchievements.Providers.Local
         public void SetSuccessStoryImportCategoryKeyEntries(IEnumerable<string> keys)
         {
             SuccessStoryImportCategoryKeys = JoinListSetting(keys);
+        }
+
+        public void SetSuccessStoryImportExcludedCategoryKeyEntries(IEnumerable<string> keys)
+        {
+            SuccessStoryImportExcludedCategoryKeys = JoinListSetting(keys);
         }
 
         public static IEnumerable<string> SplitExtraLocalPaths(string rawPaths)

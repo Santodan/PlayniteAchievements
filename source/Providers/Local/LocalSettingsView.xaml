@@ -483,7 +483,16 @@
                                Margin="0,0,0,6"
                                TextWrapping="Wrap"/>
 
-                    <TextBlock Text="Select categories to import (when none are selected, legacy Local-only rules are used):"
+                    <CheckBox Content="Overwrite existing achievements when the matched game already has a schema"
+                              IsChecked="{Binding Settings.SuccessStoryOverwriteExistingAchievements, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,4"/>
+
+                    <TextBlock Text="When unchecked, existing achievements are preserved and only missing rows/unlock states are merged. When checked, the SuccessStory schema replaces the existing one for matched games."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="0,0,0,6"
+                               TextWrapping="Wrap"/>
+
+                    <TextBlock Text="Choose categories to include or exclude. Exclude wins over include. When the include list is empty, legacy Local-only rules are used."
                                Style="{StaticResource MutedTextStyle}"
                                Margin="0,0,0,6"
                                TextWrapping="Wrap"/>
@@ -493,25 +502,65 @@
                             CornerRadius="4"
                             Padding="4"
                             Margin="0,0,0,6">
-                        <ListBox x:Name="SuccessStoryCategoryList"
-                                 ItemsSource="{Binding SuccessStoryImportCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                 MinHeight="110"
-                                 MaxHeight="220">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel Margin="2,1">
-                                        <TextBlock DockPanel.Dock="Right"
-                                                   Text="{Binding Count}"
-                                                   Style="{StaticResource MutedTextStyle}"
-                                                   Margin="8,0,0,0"
-                                                   VerticalAlignment="Center"/>
-                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                  Content="{Binding DisplayName}"
-                                                  VerticalAlignment="Center"/>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Include"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,4"/>
+                                <ListBox x:Name="SuccessStoryIncludeCategoryList"
+                                         ItemsSource="{Binding SuccessStoryImportCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                         MinHeight="110"
+                                         MaxHeight="220">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="2,1">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding Count}"
+                                                           Style="{StaticResource MutedTextStyle}"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"/>
+                                                <CheckBox IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                                                          Content="{Binding DisplayName}"
+                                                          VerticalAlignment="Center"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Exclude"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,4"/>
+                                <ListBox x:Name="SuccessStoryExcludeCategoryList"
+                                         ItemsSource="{Binding SuccessStoryImportCategoryOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                         MinHeight="110"
+                                         MaxHeight="220">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <DockPanel Margin="2,1">
+                                                <TextBlock DockPanel.Dock="Right"
+                                                           Text="{Binding Count}"
+                                                           Style="{StaticResource MutedTextStyle}"
+                                                           Margin="8,0,0,0"
+                                                           VerticalAlignment="Center"/>
+                                                <CheckBox IsChecked="{Binding IsExcluded, Mode=TwoWay}"
+                                                          Content="{Binding DisplayName}"
+                                                          VerticalAlignment="Center"/>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <DockPanel Margin="0,0,0,6">

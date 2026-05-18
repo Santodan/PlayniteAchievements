@@ -30,7 +30,8 @@ namespace PlayniteAchievements.Providers.Local
     {
         public sealed class SuccessStoryCategorySelectionOption : INotifyPropertyChanged
         {
-            private bool _isSelected;
+            private bool _isIncluded;
+            private bool _isExcluded;
 
             public string Key { get; set; } = string.Empty;
 
@@ -38,18 +39,45 @@ namespace PlayniteAchievements.Providers.Local
 
             public int Count { get; set; }
 
-            public bool IsSelected
+            public bool IsIncluded
             {
-                get => _isSelected;
+                get => _isIncluded;
                 set
                 {
-                    if (_isSelected == value)
+                    if (_isIncluded == value)
                     {
                         return;
                     }
 
-                    _isSelected = value;
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+                    _isIncluded = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsIncluded)));
+
+                    if (value && _isExcluded)
+                    {
+                        _isExcluded = false;
+                        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExcluded)));
+                    }
+                }
+            }
+
+            public bool IsExcluded
+            {
+                get => _isExcluded;
+                set
+                {
+                    if (_isExcluded == value)
+                    {
+                        return;
+                    }
+
+                    _isExcluded = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExcluded)));
+
+                    if (value && _isIncluded)
+                    {
+                        _isIncluded = false;
+                        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsIncluded)));
+                    }
                 }
             }
 
@@ -590,14 +618,19 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
-            var selectedCategoryKeys = GetSelectedSuccessStoryCategoryKeys();
-            if (!ConfirmSuccessStoryMissingCategoryImport(selectedCategoryKeys))
+            var includedCategoryKeys = GetIncludedSuccessStoryCategoryKeys();
+            var excludedCategoryKeys = GetExcludedSuccessStoryCategoryKeys();
+            if (!ConfirmSuccessStoryMissingCategoryImport(includedCategoryKeys, excludedCategoryKeys))
             {
                 UpdateSuccessStoryImportStatus("SuccessStory import cancelled.");
                 return;
             }
 
-            StartSuccessStoryImport(importPath, selectedCategoryKeys);
+            StartSuccessStoryImport(
+                importPath,
+                includedCategoryKeys,
+                excludedCategoryKeys,
+                _localSettings?.SuccessStoryOverwriteExistingAchievements == true);
         }
 
         private async void ScanSuccessStorySourcesButton_Click(object sender, RoutedEventArgs e)
@@ -1575,7 +1608,11 @@ namespace PlayniteAchievements.Providers.Local
             SyncSuccessStoryImportPathToSettings(SuccessStoryImportPath);
         }
 
-        private void StartSuccessStoryImport(string importPath, IReadOnlyCollection<string> selectedCategoryKeys)
+        private void StartSuccessStoryImport(
+            string importPath,
+            IReadOnlyCollection<string> includedCategoryKeys,
+            IReadOnlyCollection<string> excludedCategoryKeys,
+            bool overwriteExistingAchievements)
         {
             _localImportCts?.Dispose();
             _localImportCts = new CancellationTokenSource();
@@ -1645,7 +1682,9 @@ namespace PlayniteAchievements.Providers.Local
                         result = await importer.ImportFromFolderAsync(
                             importPath,
                             _localImportCts.Token,
-                            selectedCategoryKeys,
+                            includedCategoryKeys,
+                            excludedCategoryKeys,
+                            overwriteExistingAchievements,
                             progress).ConfigureAwait(false);
                     }
 
@@ -1706,13 +1745,17 @@ namespace PlayniteAchievements.Providers.Local
 
         private void RestoreSuccessStoryCategorySelection()
         {
-            var selectedKeys = new HashSet<string>(
+            var includedKeys = new HashSet<string>(
                 _localSettings?.GetSuccessStoryImportCategoryKeyEntries() ?? Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var excludedKeys = new HashSet<string>(
+                _localSettings?.GetSuccessStoryImportExcludedCategoryKeyEntries() ?? Array.Empty<string>(),
                 StringComparer.OrdinalIgnoreCase);
 
             foreach (var option in SuccessStoryImportCategoryOptions)
             {
-                option.IsSelected = selectedKeys.Contains(option.Key);
+                option.IsIncluded = includedKeys.Contains(option.Key);
+                option.IsExcluded = excludedKeys.Contains(option.Key);
             }
         }
 
@@ -1723,8 +1766,11 @@ namespace PlayniteAchievements.Providers.Local
                 option.PropertyChanged -= SuccessStoryCategoryOption_PropertyChanged;
             }
 
-            var selectedKeys = new HashSet<string>(
+            var includedKeys = new HashSet<string>(
                 _localSettings?.GetSuccessStoryImportCategoryKeyEntries() ?? Array.Empty<string>(),
+                StringComparer.OrdinalIgnoreCase);
+            var excludedKeys = new HashSet<string>(
+                _localSettings?.GetSuccessStoryImportExcludedCategoryKeyEntries() ?? Array.Empty<string>(),
                 StringComparer.OrdinalIgnoreCase);
 
             SuccessStoryImportCategoryOptions.Clear();
@@ -1735,7 +1781,8 @@ namespace PlayniteAchievements.Providers.Local
                     Key = category.Key ?? string.Empty,
                     DisplayName = category.DisplayName ?? (category.Key ?? string.Empty),
                     Count = Math.Max(0, category.Count),
-                    IsSelected = selectedKeys.Contains(category.Key ?? string.Empty)
+                    IsIncluded = includedKeys.Contains(category.Key ?? string.Empty),
+                    IsExcluded = excludedKeys.Contains(category.Key ?? string.Empty)
                 };
                 option.PropertyChanged += SuccessStoryCategoryOption_PropertyChanged;
                 SuccessStoryImportCategoryOptions.Add(option);
@@ -1816,7 +1863,8 @@ namespace PlayniteAchievements.Providers.Local
 
         private void SuccessStoryCategoryOption_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (!string.Equals(e?.PropertyName, nameof(SuccessStoryCategorySelectionOption.IsSelected), StringComparison.Ordinal))
+            if (!string.Equals(e?.PropertyName, nameof(SuccessStoryCategorySelectionOption.IsIncluded), StringComparison.Ordinal)
+                && !string.Equals(e?.PropertyName, nameof(SuccessStoryCategorySelectionOption.IsExcluded), StringComparison.Ordinal))
             {
                 return;
             }
@@ -1826,7 +1874,8 @@ namespace PlayniteAchievements.Providers.Local
 
         private void SyncSuccessStoryCategorySelectionToSettings()
         {
-            _localSettings?.SetSuccessStoryImportCategoryKeyEntries(GetSelectedSuccessStoryCategoryKeys());
+            _localSettings?.SetSuccessStoryImportCategoryKeyEntries(GetIncludedSuccessStoryCategoryKeys());
+            _localSettings?.SetSuccessStoryImportExcludedCategoryKeyEntries(GetExcludedSuccessStoryCategoryKeys());
         }
 
         private void SyncSuccessStoryImportPathToSettings(string path)
@@ -1839,19 +1888,36 @@ namespace PlayniteAchievements.Providers.Local
             _localSettings.SuccessStoryImportPath = path?.Trim() ?? string.Empty;
         }
 
-        private IReadOnlyList<string> GetSelectedSuccessStoryCategoryKeys()
+        private IReadOnlyList<string> GetIncludedSuccessStoryCategoryKeys()
         {
             return SuccessStoryImportCategoryOptions
-                .Where(option => option?.IsSelected == true && !string.IsNullOrWhiteSpace(option.Key))
+                .Where(option => option?.IsIncluded == true && !string.IsNullOrWhiteSpace(option.Key))
                 .Select(option => option.Key.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
-        private bool ConfirmSuccessStoryMissingCategoryImport(IReadOnlyCollection<string> selectedCategoryKeys)
+        private IReadOnlyList<string> GetExcludedSuccessStoryCategoryKeys()
         {
-            if (selectedCategoryKeys == null
-                || !selectedCategoryKeys.Contains(LocalSuccessStoryImportService.SourceCategoryMissing, StringComparer.OrdinalIgnoreCase))
+            return SuccessStoryImportCategoryOptions
+                .Where(option => option?.IsExcluded == true && !string.IsNullOrWhiteSpace(option.Key))
+                .Select(option => option.Key.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private bool ConfirmSuccessStoryMissingCategoryImport(
+            IReadOnlyCollection<string> includedCategoryKeys,
+            IReadOnlyCollection<string> excludedCategoryKeys)
+        {
+            if (excludedCategoryKeys != null
+                && excludedCategoryKeys.Contains(LocalSuccessStoryImportService.SourceCategoryMissing, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (includedCategoryKeys == null
+                || !includedCategoryKeys.Contains(LocalSuccessStoryImportService.SourceCategoryMissing, StringComparer.OrdinalIgnoreCase))
             {
                 return true;
             }

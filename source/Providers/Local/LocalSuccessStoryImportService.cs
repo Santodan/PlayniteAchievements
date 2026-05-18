@@ -166,6 +166,8 @@ namespace PlayniteAchievements.Providers.Local
             string folderPath,
             CancellationToken cancellationToken,
             IReadOnlyCollection<string> includeCategoryKeys = null,
+            IReadOnlyCollection<string> excludeCategoryKeys = null,
+            bool overwriteExistingAchievements = false,
             IProgress<SuccessStoryImportProgressInfo> progress = null)
         {
             var result = new SuccessStoryImportResult();
@@ -188,6 +190,7 @@ namespace PlayniteAchievements.Providers.Local
             var gameIndex = BuildGameResolutionIndex();
             var total = jsonFiles.Count;
             var selectedCategoryKeys = NormalizeCategorySelection(includeCategoryKeys);
+            var excludedCategoryKeys = NormalizeCategorySelection(excludeCategoryKeys);
 
             for (var i = 0; i < jsonFiles.Count; i++)
             {
@@ -212,7 +215,7 @@ namespace PlayniteAchievements.Providers.Local
 
                     result.ParsedFileCount++;
 
-                    if (!ShouldImportEntry(root, selectedCategoryKeys))
+                    if (!ShouldImportEntry(root, selectedCategoryKeys, excludedCategoryKeys))
                     {
                         result.SkippedNonLocalCount++;
                         continue;
@@ -253,6 +256,10 @@ namespace PlayniteAchievements.Providers.Local
                         cachedData = BuildGameDataFromSuccessStory(matchedGame, root, sourceAchievements);
                         result.CreatedFromSuccessStoryCount++;
                         createdFromSuccessStory = true;
+                    }
+                    else if (overwriteExistingAchievements)
+                    {
+                        ReplaceAchievementsFromSuccessStory(cachedData, sourceAchievements);
                     }
 
                     var addedRowsForGame = EnsureAchievementsFromSuccessStory(cachedData, sourceAchievements);
@@ -369,14 +376,26 @@ namespace PlayniteAchievements.Providers.Local
                 StringComparer.OrdinalIgnoreCase);
         }
 
-        private static bool ShouldImportEntry(JObject root, HashSet<string> selectedCategoryKeys)
+        private static bool ShouldImportEntry(
+            JObject root,
+            HashSet<string> selectedCategoryKeys,
+            HashSet<string> excludedCategoryKeys)
         {
+            var categoryKeys = GetCategoryKeys(root);
+
+            if (excludedCategoryKeys != null
+                && excludedCategoryKeys.Count > 0
+                && categoryKeys.Any(key => excludedCategoryKeys.Contains(key)))
+            {
+                return false;
+            }
+
             if (selectedCategoryKeys == null || selectedCategoryKeys.Count == 0)
             {
                 return IsLocalSuccessStoryEntry(root);
             }
 
-            return GetCategoryKeys(root).Any(key => selectedCategoryKeys.Contains(key));
+            return categoryKeys.Any(key => selectedCategoryKeys.Contains(key));
         }
 
         internal static IReadOnlyCollection<string> GetCategoryKeys(JObject root)
@@ -1040,17 +1059,36 @@ namespace PlayniteAchievements.Providers.Local
             var byApiName = cachedData.Achievements
                 .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                 .ToDictionary(a => a.ApiName.Trim(), a => a, StringComparer.OrdinalIgnoreCase);
+            var byApiNameNormalized = cachedData.Achievements
+                .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
+                .GroupBy(a => NormalizeKey(a.ApiName))
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+            var byDisplayNameNormalized = cachedData.Achievements
+                .Where(a => a != null && !string.IsNullOrWhiteSpace(a.DisplayName))
+                .GroupBy(a => NormalizeKey(a.DisplayName))
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             var added = 0;
             foreach (var source in sourceAchievements)
             {
-                if (source == null || string.IsNullOrWhiteSpace(source.ApiName))
+                if (source == null || (string.IsNullOrWhiteSpace(source.ApiName) && string.IsNullOrWhiteSpace(source.DisplayName)))
                 {
                     continue;
                 }
 
-                var apiName = source.ApiName.Trim();
-                if (byApiName.ContainsKey(apiName))
+                var existing = ResolveAchievement(source, byApiName, byApiNameNormalized, byDisplayNameNormalized);
+                if (existing != null)
+                {
+                    continue;
+                }
+
+                var apiName = string.IsNullOrWhiteSpace(source.ApiName)
+                    ? source.DisplayName?.Trim()
+                    : source.ApiName.Trim();
+
+                if (string.IsNullOrWhiteSpace(apiName))
                 {
                     continue;
                 }
@@ -1072,10 +1110,41 @@ namespace PlayniteAchievements.Providers.Local
 
                 cachedData.Achievements.Add(detail);
                 byApiName[apiName] = detail;
+                var normalizedApi = NormalizeKey(apiName);
+                if (!string.IsNullOrWhiteSpace(normalizedApi) && !byApiNameNormalized.ContainsKey(normalizedApi))
+                {
+                    byApiNameNormalized[normalizedApi] = detail;
+                }
+
+                var normalizedDisplay = NormalizeKey(detail.DisplayName);
+                if (!string.IsNullOrWhiteSpace(normalizedDisplay) && !byDisplayNameNormalized.ContainsKey(normalizedDisplay))
+                {
+                    byDisplayNameNormalized[normalizedDisplay] = detail;
+                }
+
                 added++;
             }
 
             return added;
+        }
+
+        private static void ReplaceAchievementsFromSuccessStory(
+            GameAchievementData cachedData,
+            IReadOnlyCollection<LegacyUnlockState> sourceAchievements)
+        {
+            if (cachedData == null)
+            {
+                return;
+            }
+
+            var replacement = new GameAchievementData
+            {
+                Achievements = new List<AchievementDetail>()
+            };
+
+            EnsureAchievementsFromSuccessStory(replacement, sourceAchievements);
+            cachedData.Achievements = replacement.Achievements ?? new List<AchievementDetail>();
+            cachedData.HasAchievements = cachedData.Achievements.Count > 0;
         }
 
         private static GameAchievementData BuildGameDataFromSuccessStory(
