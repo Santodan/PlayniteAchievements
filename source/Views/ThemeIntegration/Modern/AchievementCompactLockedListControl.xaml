@@ -7,85 +7,68 @@
                    xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    mc:Ignorable="d"
-                   d:DesignHeight="82" d:DesignWidth="600">
+                   d:DesignHeight="82" d:DesignWidth="600"
+                   UseLayoutRounding="True"
+                   SnapsToDevicePixels="True">
 
-    <Grid ClipToBounds="False">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
+    <ItemsControl x:Name="AchievementsList"
+                  ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  VirtualizingPanel.ScrollUnit="Pixel">
+        <ItemsControl.Style>
+            <Style TargetType="ItemsControl">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ItemsControl.Style>
+        <ItemsControl.Template>
+            <ControlTemplate TargetType="ItemsControl">
+                <ScrollViewer CanContentScroll="True"
+                              HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Disabled"
+                              Padding="0"
+                              ClipToBounds="False"
+                              UseLayoutRounding="True"
+                              SnapsToDevicePixels="True">
+                    <ItemsPresenter/>
+                </ScrollViewer>
+            </ControlTemplate>
+        </ItemsControl.Template>
 
-        <!-- Virtualized horizontal compact list -->
-        <ItemsControl x:Name="AchievementsList"
-                      Grid.Column="0"
-                      ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                      VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      VirtualizingPanel.ScrollUnit="Pixel">
-            <ItemsControl.Style>
-                <Style TargetType="ItemsControl">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
-                                     Value="False">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ItemsControl.Style>
-            <ItemsControl.Template>
-                <ControlTemplate TargetType="ItemsControl">
-                    <ScrollViewer CanContentScroll="True"
-                                  HorizontalScrollBarVisibility="Hidden"
-                                  VerticalScrollBarVisibility="Disabled"
-                                  Padding="0"
-                                  ClipToBounds="False">
-                        <ItemsPresenter/>
-                    </ScrollViewer>
-                </ControlTemplate>
-            </ItemsControl.Template>
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <VirtualizingStackPanel Orientation="Horizontal"
+                                        IsItemsHost="True"
+                                        VirtualizationMode="Recycling"
+                                        ClipToBounds="False"
+                                        UseLayoutRounding="True"
+                                        SnapsToDevicePixels="True"/>
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
 
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <VirtualizingStackPanel Orientation="Horizontal"
-                                            IsItemsHost="True"
-                                            VirtualizationMode="Recycling"
-                                            ClipToBounds="False"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemContainerStyle>
+            <Style TargetType="ContentPresenter">
+                <Setter Property="ClipToBounds" Value="False"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+        </ItemsControl.ItemContainerStyle>
 
-            <ItemsControl.ItemContainerStyle>
-                <Style TargetType="ContentPresenter">
-                    <Setter Property="ClipToBounds" Value="False"/>
-                </Style>
-            </ItemsControl.ItemContainerStyle>
-
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <controls:AchievementCompactItemControl
-                        IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                        Margin="4"/>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <TextBlock Grid.Column="1"
-                   Margin="8,0,0,0"
-                   VerticalAlignment="Center"
-                   Foreground="{DynamicResource TextBrush}"
-                   Text="{Binding OverflowCount, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}, StringFormat=+{0}}">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding HasOverflow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                                     Value="True">
-                            <Setter Property="Visibility" Value="Visible"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </TextBlock.Style>
-        </TextBlock>
-    </Grid>
+        <ItemsControl.ItemTemplate>
+            <DataTemplate>
+                <controls:AchievementCompactItemControl
+                    IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                    Margin="4"/>
+            </DataTemplate>
+        </ItemsControl.ItemTemplate>
+    </ItemsControl>
 </modern:AchievementCompactListControlBase>
+
+
 
 

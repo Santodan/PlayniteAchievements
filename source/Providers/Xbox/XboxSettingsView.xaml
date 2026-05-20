@@ -130,6 +130,25 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseExophaseForRarity}"
+                      IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"
+                      IsEnabled="{Binding Settings.IsEnabled}"
+                      Margin="0,0,0,4"/>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseExophaseForRarity_Help}"
+                       Margin="24,0,0,16"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
     </ScrollViewer>
 </settings:ProviderSettingsViewBase>

@@ -151,6 +151,63 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveGridSortAction_DefaultOnDifferentColumn_CyclesAscendingDescendingThenReset()
+        {
+            var settings = new PersistedSettings
+            {
+                GamesOverviewGridSortMode = GamesOverviewSortMode.RecentUnlock,
+                GamesOverviewGridSortDescending = true
+            };
+
+            var first = GamesOverviewSortHelper.ResolveGridSortAction(
+                "SortingName",
+                currentSortPath: null,
+                currentSortDirection: null,
+                settings);
+            var second = GamesOverviewSortHelper.ResolveGridSortAction(
+                "SortingName",
+                first.SortMemberPath,
+                first.Direction,
+                settings);
+            var third = GamesOverviewSortHelper.ResolveGridSortAction(
+                "SortingName",
+                second.SortMemberPath,
+                second.Direction,
+                settings);
+
+            Assert.AreEqual(GamesOverviewGridSortActionKind.ApplySort, first.Kind);
+            Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
+            Assert.AreEqual(GamesOverviewGridSortActionKind.ApplySort, second.Kind);
+            Assert.AreEqual(ListSortDirection.Descending, second.Direction);
+            Assert.AreEqual(GamesOverviewGridSortActionKind.ResetToDefault, third.Kind);
+        }
+
+        [TestMethod]
+        public void ResolveGridSortAction_DefaultOnSameColumn_SkipsDefaultDirectionAndThenResets()
+        {
+            var settings = new PersistedSettings
+            {
+                GamesOverviewGridSortMode = GamesOverviewSortMode.LastPlayed,
+                GamesOverviewGridSortDescending = true
+            };
+
+            var first = GamesOverviewSortHelper.ResolveGridSortAction(
+                nameof(GameOverviewItem.LastPlayed),
+                currentSortPath: null,
+                currentSortDirection: null,
+                settings);
+            var second = GamesOverviewSortHelper.ResolveGridSortAction(
+                nameof(GameOverviewItem.LastPlayed),
+                first.SortMemberPath,
+                first.Direction,
+                settings);
+
+            Assert.AreEqual(GamesOverviewGridSortActionKind.ApplySort, first.Kind);
+            Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
+            Assert.AreEqual(GamesOverviewGridSortActionKind.ResetToDefault, second.Kind);
+        }
+
+        [TestMethod]
         public void ApplySortIndicator_RecentUnlockDefault_DoesNotReturnVisibleColumn()
         {
             string indicatorPath = "seed";

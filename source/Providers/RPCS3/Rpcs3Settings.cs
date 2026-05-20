@@ -8,6 +8,7 @@ namespace PlayniteAchievements.Providers.RPCS3
     public class Rpcs3Settings : ProviderSettingsBase
     {
         private string _executablePath;
+        private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "RPCS3";
@@ -19,6 +20,15 @@ namespace PlayniteAchievements.Providers.RPCS3
         {
             get => _executablePath;
             set => SetValue(ref _executablePath, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// When true, enriches RPCS3 trophy rarity from Exophase after native scanning.
+        /// </summary>
+        public bool UseExophaseForRarity
+        {
+            get => _useExophaseForRarity;
+            set => SetValue(ref _useExophaseForRarity, value);
         }
     }
 }

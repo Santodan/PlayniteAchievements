@@ -1,5 +1,7 @@
 using System;
+using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Models.Achievements
@@ -12,12 +14,23 @@ namespace PlayniteAchievements.Models.Achievements
         /// <summary>
         /// Gets the badge icon resource key for this rarity tier.
         /// </summary>
-        public static string ToIconKey(this RarityTier tier) => tier switch
+        public static string ToIconKey(this RarityTier tier, bool useUniformRarityBadges = false) => tier switch
         {
             RarityTier.UltraRare => "BadgePlatinumHexagon",
-            RarityTier.Rare => "BadgeGoldPentagon",
-            RarityTier.Uncommon => "BadgeSilverSquare",
-            _ => "BadgeBronzeTriangle"
+            RarityTier.Rare => useUniformRarityBadges ? "BadgeGoldHexagon" : "BadgeGoldPentagon",
+            RarityTier.Uncommon => useUniformRarityBadges ? "BadgeSilverHexagon" : "BadgeSilverSquare",
+            _ => useUniformRarityBadges ? "BadgeBronzeHexagon" : "BadgeBronzeTriangle"
+        };
+
+        /// <summary>
+        /// Gets the dynamic application resource key for this rarity tier.
+        /// </summary>
+        public static string ToDynamicIconKey(this RarityTier tier) => tier switch
+        {
+            RarityTier.UltraRare => "BadgeRarityUltraRare",
+            RarityTier.Rare => "BadgeRarityRare",
+            RarityTier.Uncommon => "BadgeRarityUncommon",
+            _ => "BadgeRarityCommon"
         };
 
         /// <summary>
@@ -82,6 +95,32 @@ namespace PlayniteAchievements.Models.Achievements
         public static double RareThreshold => RareThresholdValue;
         public static double UncommonThreshold => UncommonThresholdValue;
 
+        public static void ApplyBadgeApplicationResources(bool useUniformRarityBadges)
+        {
+            var app = Application.Current;
+            if (app == null)
+            {
+                return;
+            }
+
+            void apply()
+            {
+                ApplyBadgeAlias(app.Resources, RarityTier.Common, useUniformRarityBadges);
+                ApplyBadgeAlias(app.Resources, RarityTier.Uncommon, useUniformRarityBadges);
+                ApplyBadgeAlias(app.Resources, RarityTier.Rare, useUniformRarityBadges);
+                ApplyBadgeAlias(app.Resources, RarityTier.UltraRare, useUniformRarityBadges);
+            }
+
+            var dispatcher = app.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.BeginInvoke(new Action(apply), DispatcherPriority.Normal);
+                return;
+            }
+
+            apply();
+        }
+
         /// <summary>
         /// Gets the rarity tier for a given global unlock percentage.
         /// </summary>
@@ -91,6 +130,37 @@ namespace PlayniteAchievements.Models.Achievements
             if (globalPercent <= RareThresholdValue) return RarityTier.Rare;
             if (globalPercent <= UncommonThresholdValue) return RarityTier.Uncommon;
             return RarityTier.Common;
+        }
+
+        private static void ApplyBadgeAlias(ResourceDictionary resources, RarityTier tier, bool useUniformRarityBadges)
+        {
+            if (resources == null)
+            {
+                return;
+            }
+
+            var source = TryFindResource(tier.ToIconKey(useUniformRarityBadges));
+            if (source != null)
+            {
+                resources[tier.ToDynamicIconKey()] = source;
+            }
+        }
+
+        private static object TryFindResource(string resourceKey)
+        {
+            if (string.IsNullOrWhiteSpace(resourceKey))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Application.Current?.TryFindResource(resourceKey);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 

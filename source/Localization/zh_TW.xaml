@@ -1,0 +1,702 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ================================================================= -->
+    <!-- 01 Plugin Titles -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Title_PluginName">Playnite 成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Title_Refresh">Playnite 成就重新整理</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 02 Core and Common Text -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Achievements">成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">從統計摘要中排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">包含在統計摘要中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_AddType">新增類型</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">套用於已選</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Ascending">升序</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_All">全部</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Check">檢查</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">清除覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Continue">繼續</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Default">預設</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DeselectAll">取消全選</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Descending">降序</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Edit">編輯</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Enabled">已啟用</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ExistingLabel">現有標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_FilterAchievementsPlaceholder">搜尋成就...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_General">一般</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Hide">隱藏</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Category">分類</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Platform">平台</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Playtime">遊玩時間</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Region">區域</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Label_Type">類型</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_LastUnlock">最後解鎖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Locked">未解鎖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NewLabel">新標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">此遊戲沒有可用的快取成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">此遊戲尚未追蹤成就。點擊「重新整理」按鈕檢查成就數據。</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsMessageAlt">此遊戲可能不支援成就，或成就數據在此平台上不可用。</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoAchievementsTitle">未發現成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NotAuthenticated">未認證</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_RenameLabelEllipsis">重新命名標籤...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ResetSelected">重設已選</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_RevertChanges">還原變更</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SelectAll">全選</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SetLabelEllipsis">設定標籤...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_Disabled">已停用</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_Linked">已連結</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_None">無</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_NoOverrideSet">未設定覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_NotLinked">未連結</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">覆蓋值: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Unlocked">已解鎖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">已解鎖數量</sys:String>
+    <sys:String x:Key="LOCPlayAch_Completed">已完成</sys:String>
+    <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Rarity">稀有度:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Trophies">獎盃:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress">進度</sys:String>
+    <sys:String x:Key="LOCPlayAch_RecentAchievements">最近成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Text_UnknownGame">未知遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Bronze">銅盃</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Gold">金盃</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Platinum">白金盃</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Silver">銀盃</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_UnlockTime">解鎖時間</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 03 Columns -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Column_Achievement">成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_AppId">ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Game">遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_LastPlayed">最近遊玩</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Name">名稱</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Playtime">遊玩時間</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Points">點數</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Rarity">稀有度</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Total">總計</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Trophy">獎盃</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 04 Buttons -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Button_Apply">套用</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Browse">瀏覽</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Cancel">取消</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Clear">清除</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Configure">配置</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Login">登入</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Next">下一步</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Ok">確定</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Refresh">重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Reset">重設</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Save">儲存</sys:String>
+    <sys:String x:Key="LOCPlayAch_Button_Search">搜尋</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 05 Provider Names -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Provider_BattleNet">Battle.net</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Apple">Apple</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_EA">EA</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Epic">Epic Games</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_GOG">GOG</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Manual">手動</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_RPCS3">RPCS3</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_ShadPS4">ShadPS4</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Steam">Steam</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Ubisoft">Ubisoft</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Xbox">Xbox</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Xenia">Xenia</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 06 Menus -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData">清除數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">清除 {0} 個選取遊戲的數據？&#10;&#10;這將移除這些遊戲的快取成就和圖示。任何手動追蹤連結和手動解鎖時間也將被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">清除「{0}」的數據？&#10;&#10;這將移除此遊戲的快取成就和圖示。如果遊戲有手動追蹤連結，該連結及其手動解鎖時間也將被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">排除 {0} 個選取遊戲並清除數據？&#10;&#10;這將從成就檢視中移除這些遊戲，刪除其快取數據，並移除任何手動追蹤連結。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">排除「{0}」並清除數據？&#10;&#10;這將從成就檢視中移除此遊戲，刪除其快取數據，並移除任何手動追蹤連結。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">不包含在重新整理中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">不包含在重新整理中並清除數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExcludeGame">排除此遊戲並清除數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ExophaseSlug_Empty">請輸入 Exophase 遊戲 ID。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_GameOptions">遊戲選項</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_IncludeGame">包含此遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshes">包含在重新整理中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_IncludeInRefreshesAndRefresh">包含在重新整理中並重新整理已選遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInLibrary">在收藏庫中開啟遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_OpenOverview">成就概覽</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_OpenGameInSidebar">在側邊欄中開啟遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RaGameId_InvalidId">請輸入有效的正整數遊戲 ID。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_XeniaTitleId_InvalidId">請輸入有效的 8 位十六進位 Xenia TitleID。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ShadPS4MatchId_InvalidId">請輸入有效的 ShadPS4 匹配 ID，例如 CUSA00432 或 NPWR12345_00。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">重新整理單款遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[正在重新整理]</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">重新整理已選遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">設定壓軸成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_TestModernControls">測試現代主題控制項</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">取消成就連結</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">取消「{0}」的成就連結？&#10;&#10;這將立即移除手動成就連結，刪除所有手動設定的解鎖時間，並清除此遊戲的快取數據。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">檢視成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">檢視</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 07 Game Options -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_BulkHint">展開以批次編輯已選成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelHint">為已選成就輸入分類標籤。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelTitle">設定分類標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Label">依分類標籤篩選</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Filter_Type">依分類類型篩選</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Hint">為此遊戲的成就設定分類。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_IgnoredHint">類型為「已忽略」的成就在所有介面元素中都會被隱藏。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_InputPlaceholder">已選成就的分類標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Hint">選取現有標籤並提供新的標籤文字。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_NoLabels">沒有可重新命名的分類標籤。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_RenameDialog_Title">重新命名分類標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Base">本體</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Collectable">收集</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Default">預設</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Difficulty">難度</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_DLC">DLC</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Missable">易錯過</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Multiplayer">多人</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Singleplayer">單人</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">可堆疊</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Ignored">已忽略</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorLabel">分類類型</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Header">自訂成就圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Hint">為此遊戲的成就設定選用的已解鎖和未解鎖影像覆蓋。支援拖入瀏覽器連結、拖入區域影像檔案或瀏覽檔案。區域影像將立即複製到外掛程式管理的儲存空間中。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_LocalFileMissing">選定的影像檔案已不存在。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_OpenFolderButton">開啟圖示資料夾</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_OpenFolderUnavailable">延伸模組數據路徑不可用。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">一個或多個圖示值無效。請使用絕對 http:// 或 https:// URL，或複製到外掛程式數據中的管理區域檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">勾選以對此遊戲強制使用 Exophase。未勾選的遊戲如果其平台在「受管平台」中，則會自動使用 Exophase。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">覆蓋自動偵測的 Exophase 遊戲 ID 以連結到特定的 Exophase 遊戲。留空則使用自動偵測。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Exophase 遊戲 ID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">未配置手動連結。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning">手動追蹤可能會替換來自 {0} 的快取成就數據。是否繼續？</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">手動來源</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Unlink">取消手動追蹤連結</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">自訂成就排序</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">拖放行以定義預設排序。支援使用 Shift/Ctrl 多選。變更會立即儲存。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">清除自訂數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">清除「{0}」的所有自訂數據？&#10;&#10;這將移除 Playnite Achievements 儲存的單款遊戲排除設定、手動連結、壓軸成就、自訂圖示連結、排序/分類變更以及提供者覆蓋。快取的成就數據不會被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHeader">自訂數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHint">將此遊戲的自訂數據匯出為僅包含連結的 .PA 檔案或完整的 .PA.ZIP 影像包；為此遊戲匯入 .PA 或 .PA.ZIP 檔案；或清除此遊戲的儲存自訂數據。批次重新整理和摘要排除設定永遠不會被匯出，匯入時也不會被變更。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">遊戲排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHint">將此遊戲從追蹤中排除或重新包含。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaButton">匯出 .PA</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPackageButton">匯出 .PA.ZIP</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExportPaOmittedLocalIcons">.PA 匯出忽略了 {0} 個區域影像覆蓋。請使用 .PA.ZIP 匯出完整的影像集。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportIgnoredPackageImages">忽略了 {0} 個影像檔案，因為其檔名與此遊戲的成就 API 名稱不匹配。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ImportPortableButton">匯入 .PA / .PA.ZIP</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusOverride">透過覆蓋啟用</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIcons_StatusSettings">透過設定啟用</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsCheckbox">此遊戲始終使用獨立的未解鎖圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHeader">獨立的未解鎖圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LockedIconsHint">當提供者公開獨立的未解鎖圖示時，強制此遊戲下載並使用它們。未勾選時，遊戲遵循全域設定。變更將在下次重新整理此遊戲時生效。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements 遊戲 ID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">輸入 RetroAchievements 遊戲 ID 以覆蓋此遊戲的自動匹配。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements 覆蓋對此遊戲不可用。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaHeader">Xenia TitleID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaHint">輸入 Xbox 360 TitleID 以覆蓋此遊戲的自動匹配。這將強制該遊戲由 Xenia 管理。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ShadPS4Header">ShadPS4 匹配 ID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ShadPS4Hint">輸入 PS4 Title ID（如 CUSA00432）或獎盃 ID（如 NPWR12345_00）以覆蓋此遊戲的自動匹配。這將強制該遊戲由 ShadPS4 管理。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHeader">摘要排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">從側邊欄和所有遊戲摘要數據中排除此遊戲。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Current">目前壓軸: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Capstone_Subtitle">選取一個成就作為此遊戲的「壓軸」。解鎖壓軸成就後，遊戲將被標記為已完成。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Capstone">目前壓軸</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">完成度</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite 遊戲 ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">最後更新 (區域)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">收藏庫來源</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">提供者</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_XeniaOverride">Xenia TitleID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ShadPS4Override">ShadPS4 匹配 ID 覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">已排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromRefreshes">已從批次重新整理中排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromSummaries">已從摘要中排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">已包含</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromRefreshes">已包含在批次重新整理中</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_IncludedFromSummaries">已包含在摘要中</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_AchievementOrder">排序</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">壓軸</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Category">分類</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomIcons">圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">手動追蹤</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">概覽</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">對此遊戲使用 Exophase</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">不可用</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">遊戲選項 - {0}</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 08 Manual Tracking and Linking -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Edit_Header">勾選您已解鎖的成就並設定解鎖時間。點擊「確定」儲存變更。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthCheckFailed">無法驗證用於手動連結的 Exophase 認證。請重試，或在外掛程式設定中重新登入 Exophase。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_ExophaseAuthRequired">手動連結需要登入 Exophase。請在外掛程式設定中登入 Exophase，然後重試。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_SteamAuthRequired">獲取成就數據需要登入 Steam。請在外掛程式設定中登入 Steam，然後重試。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Schema_NoAchievements">選定的遊戲沒有成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_Header">搜尋要從中連結成就的遊戲。選定遊戲的成就會被連結到此 Playnite 遊戲。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_NoResults">未找到遊戲。請嘗試其他搜尋詞。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManualAchievements_Search_ResultsFormat">找到 {0} 款遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Description">從 SuccessStory (舊版) 匯入手動連結。匯入僅支援增量新增，絕不會覆蓋現有的手動連結或快取的提供者數據。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_Header">舊版手動匯入</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_ImportButton">匯入舊版手動連結</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathHint">預設: Playnite ExtensionsData\cebe6d32-8c46-4459-b993-5a5189d60788\SuccessStory</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_PathLabel">舊版資料夾</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryHeader">舊版匯入完成。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryImported">已匯入: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryParseFailed">解析失敗: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummaryScanned">已掃描: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Legacy_SummarySkipped">已跳過: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Description">允許對已有官方成就支援的遊戲進行手動追蹤。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_Override_Enable">啟用手動追蹤覆蓋</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth">要求 Exophase 認證</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Manual_RequireExophaseAuth_Description">啟用時，Exophase 手動連結需要認證，並可以使用在地化的成就文字。停用時，將在未認證的情況下使用 Exophase，且無法保證顯示在地化文字。</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 09 Refresh and Execution -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ExcludeHeader">排除遊戲 ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ExecutionHeader">執行</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ForceIncludeBypass">顯式包含將繞過使用者排除設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Header">構建一次性自訂重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_IncludeHeader">包含遊戲 ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_InvalidRecentLimit">「最近」限制覆蓋必須是正數。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_MenuItem">自訂重新整理...</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingGames">沒有遊戲匹配此自訂重新整理請求。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_NoMatchingProviders">沒有已啟用並認證的平台匹配此自訂重新整理請求。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_None">無</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Delete">刪除</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_DeleteConfirm">刪除預設「{0}」？</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_Load">載入</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary">預設載入已調整: 移除了 {0} 個不可用平台和 {1} 個遺失的遊戲引用。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_MaxReached">您最多可以儲存 {0} 個預設。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogHint">輸入預設名稱 (1-64 個字元)。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogTitle">儲存自訂重新整理預設</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameInvalid">預設名稱必須在 1 到 {0} 個字元之間。</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption">&#160;</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm">覆蓋預設「{0}」？</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">另存為</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">預設</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProvidersHeader">平台</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ProviderStatus_Ready">就緒</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_RespectExclusions">遵循使用者排除設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_All">所有遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_Explicit">僅顯式包含</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Scope_LibrarySelected">收藏庫中已選</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_ScopeHeader">遊戲範圍</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_SummaryFormat">平台: {0} | 估計目標: {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_TargetingHeader">包含 / 排除遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseIncludeUnplayed">覆蓋「包含未遊玩」</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseParallelOverride">覆蓋並行平台執行</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_UseRecentLimit">覆蓋「最近」限制</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress_ButtonOpenGame">開啟遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress_RefreshRunningNote">您仍可以在側邊欄查看進度。</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Custom">自訂重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Favorites">重新整理最愛</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Full">全量重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Installed">重新整理已安裝</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Missing">重新整理缺失</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Recent">重新整理最近</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Selected">重新整理已選</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshMode_Single">重新整理遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Custom">自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Favorites">最愛</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Full">全量</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Installed">已安裝</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Missing">缺失</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Recent">最近</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Selected">已選</sys:String>
+    <sys:String x:Key="LOCPlayAch_RefreshModeShort_Single">單款</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_AuthRequired">需要 Steam 認證。重新整理已取消。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Canceled">重新整理已取消。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Failed">錯誤: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_FilteredCounts">{3} 款遊戲，共 {1} 個成就 (已解鎖 {0} 個，占比 {2})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_LoadingAchievements">正在載入成就...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_NoAchievementsCached">沒有快取成就。點擊「全部重新整理」重新整理您的遊戲。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshComplete">重新整理完成！</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix">某些平台需要認證。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} 重新整理完成: 已重新整理 {1} 款遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Refreshing">正在重新整理...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Starting">正在啟動...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Succeeded">成功！</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_TotalCounts">{2} 款遊戲，共 {0} 個成就 (已解鎖 {1} 個)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_UpdatingCache">正在更新快取...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithCounts">正在重新整理 {0} 的成就 ({1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Targeted_RefreshingGameWithIcons">正在重新整理 {0} 的成就 ({1}) - 正在下載圖示 {2}/{3}</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 10 Settings -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridMaxHeight">最大高度</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridPreview">成就數據網格</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementDataGridThemeControl">排序依據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Description">控制成就圖示在磁碟上的儲存方式。變更將在下次重新整理時生效。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_AchievementIconCache_Title">成就圖示快取</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ApplyAndSync">套用並同步</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes">批次重新整理包含隱藏遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IncludeHiddenGamesInBulkRefreshes_Description">控制批次重新整理是否包含在 Playnite 中被標記為隱藏的遊戲。單款遊戲或其他顯式的使用者目標重新整理仍會包含隱藏遊戲。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BarChartPreview">條形圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ButtonPreview">按鈕</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Cache_ProgressClearing">正在清除快取的成就數據...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_ClearDescription">移除快取的成就記錄。再次重新整理將從提供者重新構建。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Description">清除快取的成就記錄，但不觸及圖示檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CachedAchievementData_Title">快取成就數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactListPreview">緊湊列表</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactLockedListPreview">緊湊未解鎖列表</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_CompactUnlockedListPreview">緊湊已解鎖列表</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Description">Playnite Achievements 設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Display_SidebarSection">側邊欄</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableArchiveScanning">啟用封存掃描 (.zip/.7z/.rar/.rvz/.cso/.ciso)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableCompactGridMode">啟用緊湊網格模式</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableDiscHashing">啟用光碟雜湊 (針對基於光碟的主機)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableNotifications">啟用外掛程式通知</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">啟用並行平台重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh_Help">停用時，各平台將按固定順序依次重新整理。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">啟用背景定期更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_EnableTagging">啟用標籤同步</sys:String>
+    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">包含未遊玩遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">未勾選時，遊玩時間為 0 的遊戲將在重新整理時被跳過。</sys:String>
+    <sys:String x:Key="LOCPlayAch_InvalidPath">目錄不存在</sys:String>
+
+    <!-- Provider: Epic -->
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">在此處貼上 authorizationCode 值:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 在預設瀏覽器開啟後登入 Epic\n2. 登入後，在頁面上找到 "authorizationCode" 值\n3. 將該值複製並貼上到下一個對話方塊中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">備援登入</sys:String>
+
+    <!-- Provider: Exophase -->
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_EnableProvider_Help">啟用時，Exophase 可以自動追蹤受管平台上遊戲的成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Help">認證 Exophase 以重新整理追蹤數據並使用 Exophase 手動連結。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">受管平台</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">這些平台上的遊戲將使用 Exophase 而非現代提供者。勾選您希望由 Exophase 管理的平台。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">注意: 對於未勾選平台上的遊戲，請使用「遊戲選項」單獨包含。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">將資料庫表匯出為 CSV 以供偵錯</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">匯出 CSV</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">強制雜湊索引重建</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HashIndexMaxAgeDays">雜湊索引最大有效期 (天)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements">隱藏成就可見性</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HiddenAchievements_Description">控制隱藏成就在您揭開它們之前哪些元素是模糊的。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_HoursBetweenUpdates">更新間隔時間 (小時):</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearAllDescription">移除所有快取的成就圖示檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearCompressedDescription">僅移除經最佳化的 128px 圖示檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearFullResolutionDescription">僅移除原始解析度的圖示檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ClearLockedDescription">僅移除獨立的未解鎖圖示檔案。被鎖定的成就在下次重新整理恢復前會顯示為預設預留位置圖示。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_Description">移除快取的圖示檔案。所有操作也會清除記憶體中的影像快取，缺失的檔案將在下次重新整理時恢復。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_All">圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Compressed">已壓縮圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_FullResolution">原始解析度圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_FileLabel_Locked">未解鎖圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressDeletingCount">正在刪除快取的 {0} 檔案... ({1}/{2})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoFiles">未找到快取的 {0} 檔案。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressNoLockedReferences">未找到快取的未解鎖圖示引用。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanning">正在掃描快取的 {0} 檔案...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_IconCache_ProgressScanningLockedReferences">正在掃描快取的未解鎖圖示引用... ({0}/{1})</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Language">語言</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LanguageHint">成就文字的語言。平台將在可用時使用此語言，若不支援則回復到英語。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements">未解鎖成就可見性</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_LockedAchievements_Description">控制未解鎖成就圖示的顯示方式。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Description">用於清除外掛程式快取數據以及開啟支援或偵錯工具的工具。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Maintenance_Title">維護</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotifyOnRebuild">重新整理完成/失敗時顯示系統通知</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotifyPeriodicUpdates">定期更新時顯示系統通知</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolder">開啟延伸模組數據資料夾 (包含日誌和快取)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_OpenDataFolderButton">開啟資料夾</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PieChartPreview">圓餅圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PixelsUnit">像素 (留空 = 無限制)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution">保留原始解析度的成就圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PreserveAchievementIconResolution_Help">以原始解析度儲存快取圖示，而不是使用最佳化的 128px 快取模式。這將佔用更多磁碟空間。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProgressBarPreview">進度條</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_GamesOverviewGridSort">側邊欄遊戲概覽網格</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SelectedGameGridSort">側邊栏已選遊戲網格</sys:String>
+
+    <!-- Provider: Shared -->
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderAuth">{0} 認證</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_NotConfigured">{0} 未配置。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} 連線</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">此平台已停用。請啟用它以追蹤成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">啟用此平台</sys:String>
+
+    <!-- Provider: PlayStation -->
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">登入 (舊版)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1">在 PlayStation.com 登入</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_Step1Note">(勾選「信任此瀏覽器」)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_Step2">開啟 Sony SSO Cookie 頁面</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_Step2Note">並複製 npsso 值</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Psn_Step3">將該值貼到下方並按 Enter</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PsnNpsso">NPSSO Cookie</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PsnNpssoHint">僅複製 {"npsso":"xxx"} 中的 xxx 部分</sys:String>
+
+    <!-- Provider: RetroAchievements -->
+    <sys:String x:Key="LOCPlayAch_Settings_RaUsername">使用者名稱</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaUsername_Help">您的 RetroAchievements 使用者名稱。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey">Web API 金鑰</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaWebApiKey_Help">在您的 RetroAchievements 控制面板中找到金鑰:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode">點數顯示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Description">TrueRatio 根據成就稀有度加權計算點數，賦予難度較大的成就更高的價值。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Points">標準點數</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaPointsMode_Scaled">TrueRatio (加權)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaEnableFuzzyNameMatching">啟用模糊名稱匹配</sys:String>
+    <sys:String x:Key="LOCPlayAch_RaEnableSubsetScanning">獲取 RetroAchievements 子集</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaEnableAutomaticCapstoneAssignment">自動從獲勝條件分配壓軸成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats">稀有度統計</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Casual">休閒 (Softcore)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Combined">總體 (休閒 + 硬核)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Description">控制稀有度百分比的計算方式。變更此項需要重新整理以更新快取值。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RaRarityStats_Hardcore">硬核 (Hardcore)</sys:String>
+
+    <!-- Provider: Steam -->
+    <sys:String x:Key="LOCPlayAch_Settings_SteamUserId">Steam 使用者 ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SteamUserId_Help">您的 64 位 Steam ID。將在您認證時自動偵測。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ReauthSteam">認證</sys:String>
+    <!-- Provider: RPCS3 -->
+    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePath">可執行檔路徑</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Rpcs3ExecutablePathHint">rpcs3.exe 的路徑</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoTrophyFolder">未找到獎盃資料夾</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NotRpcs3">不是有效的 RPCS3 安裝 - 缺失 dev_hdd0\home</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rpcs3Validation_NoUser">在 dev_hdd0\home 中未找到使用者設定檔</sys:String>
+
+    <!-- Provider: ShadPS4 -->
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPath">根資料夾</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShadPS4GameDataPathHint">設定您的 ShadPS4 根資料夾。外掛程式會自動查找舊版 game_data 和新版 home/trophy 配置。預設: %AppData%\shadPS4。</sys:String>
+
+    <!-- Provider: Xbox -->
+    <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons">下載低解析度圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XboxLowResIcons_Help">如果 Xbox 圖示下載緩慢，請啟用此項。將請求 128px 圖示而非原始解析度。</sys:String>
+
+    <!-- Provider: Xenia -->
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPath">帳戶路徑</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_XeniaAccountPathHint">&lt;Xenia 路徑&gt;\content\&lt;帳戶 ID&gt;\FFFE07D1\00010000\&lt;帳戶 ID&gt;\</sys:String>
+    <sys:String x:Key="LOCPlayAch_XeniaValidation_NoAccount">不是有效的 Xenia 帳戶路徑 - 缺失 Account 檔案</sys:String>
+
+    <sys:String x:Key="LOCPlayAch_Settings_RebuildNow">立即重建</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_Description">僅重新整理您最近遊玩的且有成就的遊戲。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RecentRefresh_RecentGames">要重新整理的最近遊戲數量</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RemoveAllTags">移除所有標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetup">在下次開啟側邊欄時再次顯示首次設定引導頁面。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ResetFirstTimeSetupButton">重設引導頁面</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenDescription">揭開隱藏描述</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenIcon">揭开隐藏图标</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealHiddenTitle">揭開隱藏名稱</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_RevealLockedIcon">揭開未解鎖圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScanningHashing">掃描與雜湊</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SetCompletionStatus">為已完成的遊戲設定完成狀態</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">顯示稀有度條</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortBy">排序依據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">切換排序方向</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionBorder">顯示完成邊框</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">顯示 (隱藏成就) 後綴</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">在已解鎖圖示上顯示稀有度發光效果</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarBarCharts">顯示側邊欄條形圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowGamePlatformPlaytimeRegion">顯示遊戲平台/遊玩時間/區域</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarGamesPieChart">顯示已完成遊戲圓餅圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarPiePercentages">顯示圓餅圖百分比</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarProviderPieChart">顯示平台圓餅圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">顯示稀有度圓餅圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">顯示獎盃圓餅圖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">顯示頂部功能表列按鈕</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SingleGameGridSort">單款遊戲檢視網格</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">檢視成就視窗</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">小切片處理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">精確</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact_Description">顯示精確的切片大小。為了減少重疊，占比低於 5% 的切片將隱藏徑向圖示。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Hide_Description">從側邊欄圓餅圖中隱藏占比低於 5% 的切片。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Note">中心百分比始終使用精確計數，因此當切片被隱藏或捨入時，可能與可見圓餅圖有所不同。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round">捨入</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Round_Description">將占比低於 5% 的切片向上捨入為 5%。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_StatsPreview">統計</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TabDisplay">顯示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingDescription">根據成就狀態自動為遊戲新增標籤。標籤可用於篩選和組織您的收藏庫。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingHeader">標籤</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_TaggingSection">標籤配置</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UnlockedAchievements">已解鎖成就可見性</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable">在可用時使用獨立的未解鎖圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help">僅當提供者提供的未解鎖圖示與已解鎖圖示不同時，才下載並儲存它們。否則，已解鎖圖示將被轉換為灰階顯示。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Description">非快取維護和偵錯工具。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Utilities_Title">公用程式</sys:String>
+    <sys:String x:Key="LOCPlayAch_UseCoverImages">在遊戲列表中使用封面影像代替圖示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ViewItemPreview">檢視項目</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 11 Authentication -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Auth_Authenticated">已認證</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_Checking">正在檢查認證...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">未檢查</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">認證檢查失敗。請重試。</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 12 Sidebar and Filters -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Filter_Achievements">搜尋成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Complete">已完成</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_CompletenessSelectorPlaceholder">完成情况</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Games">搜尋遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Hidden">已隱藏</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_NoProgress">無進度</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Played">已遊玩</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_PlayStatusSelectorPlaceholder">遊玩狀態</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unplayed">未遊玩</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_GamesOverview">遊戲概覽</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_GamesPieChart">已完成遊戲</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_Incomplete">未完成</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_ProviderDistribution">各平台成就分佈</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_RarityPieChart">各稀有度成就分佈</sys:String>
+    <sys:String x:Key="LOCPlayAch_Sidebar_TrophyPieChart">各獎盃成就分佈</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 13 Theme Migration -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllLegacy">全部舊版</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AllModern">全部現代</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedMessage">{0} 已針對 PlayniteAchievements 自動更新。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedRestart">請重啟 Playnite 以套用變更。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_AutoMigratedTitle">主題已自動遷移</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Custom">自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Description">將主題從 SuccessStory 遷移到 PlayniteAchievements。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrateLabel">遷移主題</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationCustom">自訂遷移</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationFull">全量遷移</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_MigrationLimited">受限遷移</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeLegacy">舊版</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_ModeModern">現代</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoRevertableThemes">未找到帶有可還原備份的主題。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_NoThemesMessage">未找到需要遷移的主題。包含 SuccessStory 引用的主題將顯示在此處。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_RestartRequired">請重啟 Playnite 以套用主題變更。</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Revert">還原主題</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_RevertButton">還原</sys:String>
+    <sys:String x:Key="LOCPlayAch_ThemeMigration_Title">主題遷移</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 14 First-Time Landing -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Landing_BeginRefresh">開始重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_EnableProvider">啟用</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataFound">找到了您現有的成就數據</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataMessage">我們找到了您現有的成就數據。繼續前往成就檢視開始追蹤吧。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_HasDataTitle">歡迎回來</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Language">成就語言</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NeedsRefreshMessage">您的憑據已配置。開始您的首次重新整理，以追蹤收藏庫中遊戲的成就。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NoAuthMessage">要追蹤您的成就，請登入您的任一平台。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_NoAuthTitle">配置您的帳戶</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_OpenSettings">開啟外掛程式設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_ProviderStatus">平台狀態</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeChecking">檢查中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_BadgeSetup">待設定</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_Checking">正在檢查...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_ConfigureInSettings">在設定中配置</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Status_ReadyToRefresh">準備好重新整理</sys:String>
+    <sys:String x:Key="LOCPlayAch_Landing_Title">歡迎使用 Playnite Achievements！</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 15 Tagging -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Tag_Completed">[PA] 已完成</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_Excluded">[PA] 已排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_ExcludedFromSummaries">[PA] 已從摘要中排除</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_HasAchievements">[PA] 有成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_InProgress">[PA] 進行中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_NoAchievements">[PA] 無成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_Customized">[PA] 已自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tag_NotCustomized">[PA] 未自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_HasAchievements">有成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_InProgress">進行中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_NoAchievements">無成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_Customized">已自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_NotCustomized">未自訂</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_RemoveAllConfirm">從所有遊戲中移除所有 Playnite Achievements 標籤？</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_RemovingProgress">正在移除標籤...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tagging_SyncingProgress">正在同步標籤...</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 16 Rarity Sections and Time -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Rarity_Common">普通</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_Rare">稀有</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_UltraRare">極其稀有</sys:String>
+    <sys:String x:Key="LOCPlayAch_Rarity_Uncommon">不常見</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Notifications">通知</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Stats">成就統計</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_SyncUpdates">同步與更新</sys:String>
+    <sys:String x:Key="LOCPlayAch_Section_Timeline">成就隨時間變化</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_14D">14天</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_1M">1個月</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_1Y">1年</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_3M">3個月</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_7D">7天</sys:String>
+    <sys:String x:Key="LOCPlayAch_TimeRange_All">全部</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 17 Errors and Notifications -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Error_NoAuthenticatedProviders">沒有認證的平台。請在重新整理前在設定中至少配置一個平台。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_NotifySubscribers">無法通知訂閱者。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_Periodic_InitialCheckFailed">定期更新初始檢查失敗。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_Periodic_UpdateFailed">定期更新失敗。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_RebuildFailed">重新整理失敗</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_RefreshFailed">重新整理失敗: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Error_SteamDatetimeParse">在此次掃描中，Steam 解鎖時間解析失敗了 {0} 次。請檢查日誌和 failed_steam_datetimes.csv，然後在 GitHub 上提交 issue。您的 PlayniteAchievements 語言設定必須與 Steam 語言匹配才能正確解析。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Notification_ProviderAuthFailed">{0} 認證已過期或無效。點擊開啟設定。</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 18 Miscellaneous -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayAch_Achievements_ClickToReveal">點擊以顯示</sys:String>
+    <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle">隱藏成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle_WithParens">&#32;(隱藏成就)</sys:String>
+    <sys:String x:Key="LOCPlayAch_ChartCut">裁剪</sys:String>
+    <sys:String x:Key="LOCPlayAch_GroupByUnlocked">按已解鎖分組</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoLockedAchievements">沒有未解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_NoUnlockedAchievements">沒有已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayAch_Tooltip_RightClickShowHide">右鍵點擊以顯示/隱藏</sys:String>
+
+    <!-- ================================================================= -->
+    <!-- 99 Legacy SuccessStory Compatibility -->
+    <!-- ================================================================= -->
+    <sys:String x:Key="LOCPlayniteAchievementsAchievements">成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsAchievementsCount">成就數量</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsAchStats">成就統計</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsBaseGame">本體遊戲</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsCommon">普通</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsDateUnlocked">解鎖日期</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsEarned">已獲得</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsFirstUnlock">首次解鎖</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGlobalProgression">全域成就進度</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitle">按月統計已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALL">按月統計所有已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleALLDay">按日統計所有已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleDay">按日統計已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsGraphicTitleSources">按來源統計已解鎖成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsHiddenAchievement">隱藏成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsHiddenTrophy">隱藏獎盃</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsLastUnlock">最後解鎖</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementslvGamesProgression">進度</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsManualAchievements">您的成就</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsNoCommon">不常見</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsProgress">進度</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRare">稀有</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRarety">稀有度</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsRetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsTimeToUnlock">解鎖全部所需時間</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsUltraRare">極其稀有</sys:String>
+    <sys:String x:Key="LOCPlayniteAchievementsUserStats">使用者統計</sys:String>
+
+</ResourceDictionary>

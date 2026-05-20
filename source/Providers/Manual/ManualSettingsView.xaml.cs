@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Playnite.SDK;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 
@@ -165,10 +166,88 @@ namespace PlayniteAchievements.Providers.Manual
                 gameId => _playniteApi?.Database?.Games?.Get(gameId) != null,
                 gameId => false,
                 _logger,
-                gameCustomDataStore: PlayniteAchievementsPlugin.Instance?.GameCustomDataStore);
+                gameCustomDataStore: PlayniteAchievementsPlugin.Instance?.GameCustomDataStore,
+                resolveMissingGameId: ResolveLegacyImportGameId);
 
             var result = importer.Import(folderPath) ?? new LegacyManualImportResult();
             return result;
+        }
+
+        private Guid? ResolveLegacyImportGameId(LegacyManualImportGameMetadata metadata)
+        {
+            if (metadata == null || _playniteApi?.Database?.Games == null)
+            {
+                return null;
+            }
+
+            var games = _playniteApi.Database.Games
+                .Where(game => game != null && game.Id != Guid.Empty)
+                .ToList();
+
+            if (games.Count == 0)
+            {
+                return null;
+            }
+
+            if (string.Equals(metadata.SourceName, "Exophase", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(metadata.SourceGameId))
+            {
+                var slugMatches = games
+                    .Where(game => string.Equals(
+                        ExophaseDataProvider.GeneratePreviewSlug(game),
+                        metadata.SourceGameId.Trim(),
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (slugMatches.Count == 1)
+                {
+                    return slugMatches[0].Id;
+                }
+            }
+
+            var candidateNames = new[]
+                {
+                    metadata.SourceGameName,
+                    metadata.GameName
+                }
+                .Select(NormalizeLegacyImportName)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (candidateNames.Count == 0)
+            {
+                return null;
+            }
+
+            var nameMatches = games
+                .Where(game => candidateNames.Contains(NormalizeLegacyImportName(game.Name), StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            return nameMatches.Count == 1
+                ? nameMatches[0].Id
+                : (Guid?)null;
+        }
+
+        private static string NormalizeLegacyImportName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            var normalized = value.Trim().ToLowerInvariant();
+            var safeChars = new char[normalized.Length];
+            var pos = 0;
+            foreach (var c in normalized)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    safeChars[pos++] = c;
+                }
+            }
+
+            return pos == 0 ? null : new string(safeChars, 0, pos);
         }
 
         private string BuildLegacyManualImportSummary(LegacyManualImportResult result)

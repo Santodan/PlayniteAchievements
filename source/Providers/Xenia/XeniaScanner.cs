@@ -5,6 +5,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Xenia.Models;
 using PlayniteAchievements.Services;
 using System;
@@ -24,6 +25,7 @@ namespace PlayniteAchievements.Providers.Xenia
         private readonly IPlayniteAPI _playniteApi;
         private readonly XeniaSettings _providerSettings;
         private readonly string _pluginUserDataPath;
+        private readonly PlayniteAchievementsSettings _settings;
 
         List<KeyValuePair<Guid, string>> _titleIDCache = new List<KeyValuePair<Guid, string>>();
         List<string> KnownPublishers = new List<string>() { "5444", "464F", "4143", "4156", "4158", "4142", "4144", "4150", "4151", "4157", "414B", "4148", "4153", "4159", "4154", "424D", "4241", "4257", "4253", "4242", "4248", "4246", "4245", "4247", "4254", "4244", "4252", "4256", "4255", "4343", "434D", "4356", "4354", "4458", "4445", "4443", "4546", "4553", "4541", "454D", "4543", "454C", "4556", "464C", "4649", "4653", "4746", "4745", "4756", "4857", "4850", "4845", "4855", "4946", "494F", "494D", "4947", "494C", "4950", "4958", "4A41", "4A57", "4B59", "4B4F", "4B4E", "4B41", "4B54", "4C41", "4D4A", "4D45", "4D44", "4D53", "4D57", "4D4D", "4E4D", "4E4B", "4E4C", "4F47", "4F58", "5058", "504C", "5043", "5241", "5341", "5343", "5345", "5353", "534E", "5350", "5351", "5354", "5355", "5357", "5441", "5454", "544B", "544D", "5443", "5451", "5453", "5553", "5647", "5656", "5643", "5655", "5745", "5752", "584B", "584C", "5841", "5849", "5850", "5942", "5A44", "4450", "394F", "4C53", "4656", "3734", "4133", "545A", "435A", "4346", "4D4B", "434E", "4436", "5A45", "4645" };
@@ -32,12 +34,14 @@ namespace PlayniteAchievements.Providers.Xenia
             ILogger logger,
             IPlayniteAPI playniteApi,
             XeniaSettings providerSettings,
-            string pluginUserDataPath)
+            string pluginUserDataPath,
+            PlayniteAchievementsSettings settings = null)
         {
             _logger = logger;
             _playniteApi = playniteApi;
             _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
+            _settings = settings;
             _titleIDCache = LoadTitleIdCache(_pluginUserDataPath, logger);
         }
 
@@ -58,14 +62,20 @@ namespace PlayniteAchievements.Providers.Xenia
                 return new RebuildPayload { Summary = new RebuildSummary() };
             }
 
+            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
+
             return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
-                (game, token) => Task.FromResult(
-                    new ProviderRefreshExecutor.ProviderGameResult
+                async (game, token) =>
+                {
+                    var data = GetAchievementData(game);
+                    await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
+                    return new ProviderRefreshExecutor.ProviderGameResult
                     {
-                        Data = GetAchievementDataAsync(game)
-                    }),
+                        Data = data
+                    };
+                },
                 onGameCompleted,
                 isAuthRequiredException: _ => false,
                 onGameError: (game, ex, consecutiveErrors) =>
@@ -77,7 +87,7 @@ namespace PlayniteAchievements.Providers.Xenia
                 cancel).ConfigureAwait(false);
         }
 
-        private GameAchievementData GetAchievementDataAsync(Game game)
+        private GameAchievementData GetAchievementData(Game game)
         {
             if (!ResolveTitleID(game, out var titleID))
             {
@@ -162,6 +172,32 @@ namespace PlayniteAchievements.Providers.Xenia
             SaveTitleIdCache();
 
             return data;
+        }
+
+        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        {
+            if (_providerSettings?.UseExophaseForRarity != true)
+            {
+                return null;
+            }
+
+            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
+            return enricher;
+        }
+
+        private static async Task EnrichRarityAsync(
+            Game game,
+            GameAchievementData data,
+            ExophaseRarityEnricher rarityEnricher,
+            CancellationToken cancel)
+        {
+            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            await rarityEnricher.EnrichAsync(game, data.Achievements, "xbox-360", "Xbox", cancel).ConfigureAwait(false);
         }
 
         internal bool ResolveTitleID(Game game, out string titleID)

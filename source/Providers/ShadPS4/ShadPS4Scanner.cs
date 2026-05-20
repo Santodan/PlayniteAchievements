@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Services;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -20,6 +21,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
         private readonly ShadPS4Settings _providerSettings;
         private readonly ShadPS4DataProvider _provider;
         private readonly IPlayniteAPI _playniteApi;
+        private readonly string _pluginUserDataPath;
 
         // PS4's RTC epoch is January 1, 2008 00:00:00 UTC
         private static readonly DateTime Ps4Epoch = new DateTime(2008, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -40,6 +42,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _provider = provider;
             _playniteApi = playniteApi;
+            _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
         }
 
         public async Task<RebuildPayload> RefreshAsync(
@@ -78,12 +81,15 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (hasNewData)
                 _logger?.Info($"[ShadPS4] Found {npCommIdCache.Count} titles in new AppData format.");
 
+            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
+
             return await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 onGameStarting,
                 async (game, token) =>
                 {
                     var data = await FetchGameDataAsync(game, titleCache, npCommIdCache, token).ConfigureAwait(false);
+                    await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
                     return new ProviderRefreshExecutor.ProviderGameResult { Data = data };
                 },
                 onGameCompleted,
@@ -93,6 +99,32 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 delayBetweenGamesAsync: null,
                 delayAfterErrorAsync: null,
                 cancel).ConfigureAwait(false);
+        }
+
+        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        {
+            if (_providerSettings?.UseExophaseForRarity != true)
+            {
+                return null;
+            }
+
+            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
+            return enricher;
+        }
+
+        private static async Task EnrichRarityAsync(
+            Game game,
+            GameAchievementData data,
+            ExophaseRarityEnricher rarityEnricher,
+            CancellationToken cancel)
+        {
+            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            await rarityEnricher.EnrichAsync(game, data.Achievements, "ps4", "PSN", cancel).ConfigureAwait(false);
         }
 
         private async Task<Dictionary<string, string>> BuildTitleIdCacheAsync(CancellationToken cancel)
@@ -237,21 +269,40 @@ namespace PlayniteAchievements.Providers.ShadPS4
                 var doc = XDocument.Load(xmlPath);
                 var achievements = new List<AchievementDetail>();
                 var unlockedCount = 0;
-                var groupNamesById = BuildGroupNamesDictionary(doc);
                 var ps4Locale = MapGlobalLanguageToPs4Locale(_settings?.Persisted?.GlobalLanguage);
+                var metadataDoc = format == TrophyFormat.New ? TryLoadSharedMetadataDocument(npcommid, cancel) : null;
+                var metadataById = BuildTrophyElementDictionary(metadataDoc);
+                var groupNamesById = BuildGroupNamesDictionary(doc, ps4Locale);
+                var metadataGroupNamesById = BuildGroupNamesDictionary(metadataDoc, ps4Locale);
 
                 foreach (var trophyElement in doc.Descendants("trophy"))
                 {
                     cancel.ThrowIfCancellationRequested();
 
                     var trophyId = trophyElement.Attribute("id")?.Value;
-                    var trophyType = trophyElement.Attribute("ttype")?.Value;
-                    var isHidden = trophyElement.Attribute("hidden")?.Value == "yes";
-                    var name = GetLocalizedElement(trophyElement, "name", ps4Locale)?.Trim();
-                    var description = GetLocalizedElement(trophyElement, "detail", ps4Locale)?.Trim();
-                    var groupId = trophyElement.Attribute("gid")?.Value?.Trim();
+                    metadataById.TryGetValue(NormalizeTrophyIdKey(trophyId) ?? string.Empty, out var metadataElement);
+                    var trophyType = Prefer(
+                        trophyElement.Attribute("ttype")?.Value,
+                        metadataElement?.Attribute("ttype")?.Value);
+                    var isHidden = string.Equals(
+                        Prefer(trophyElement.Attribute("hidden")?.Value, metadataElement?.Attribute("hidden")?.Value),
+                        "yes",
+                        StringComparison.OrdinalIgnoreCase);
+                    var name = Prefer(
+                        GetLocalizedElement(trophyElement, "name", ps4Locale),
+                        GetLocalizedElement(metadataElement, "name", ps4Locale));
+                    var description = Prefer(
+                        GetLocalizedElement(trophyElement, "detail", ps4Locale),
+                        GetLocalizedElement(metadataElement, "detail", ps4Locale));
+                    var groupId = Prefer(
+                        trophyElement.Attribute("gid")?.Value,
+                        metadataElement?.Attribute("gid")?.Value);
                     groupId = string.IsNullOrWhiteSpace(groupId) ? "0" : groupId;
                     groupNamesById.TryGetValue(groupId, out var groupName);
+                    if (string.IsNullOrWhiteSpace(groupName))
+                    {
+                        metadataGroupNamesById.TryGetValue(groupId, out groupName);
+                    }
 
                     bool isUnlocked;
                     DateTime? unlockTime = null;
@@ -384,7 +435,67 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         #region XML helpers
 
-        private static Dictionary<string, string> BuildGroupNamesDictionary(XDocument doc)
+        private XDocument TryLoadSharedMetadataDocument(string npcommid, CancellationToken cancel)
+        {
+            if (_provider == null || string.IsNullOrWhiteSpace(npcommid))
+            {
+                return null;
+            }
+
+            var appDataPath = _provider.GetAppDataPath();
+            if (string.IsNullOrWhiteSpace(appDataPath))
+            {
+                return null;
+            }
+
+            var trophyBasePath = _provider.GetTrophyBasePath(appDataPath);
+            if (string.IsNullOrWhiteSpace(trophyBasePath))
+            {
+                return null;
+            }
+
+            var specificPath = Path.Combine(trophyBasePath, npcommid, "Xml", "TROP.XML");
+            var flatPath = Path.Combine(trophyBasePath, "Xml", "TROP.XML");
+
+            var specificDoc = TryLoadXmlDocument(specificPath, cancel);
+            if (specificDoc != null)
+            {
+                return specificDoc;
+            }
+
+            var flatDoc = TryLoadXmlDocument(flatPath, cancel);
+            return XmlNpCommIdMatches(flatDoc, npcommid) ? flatDoc : null;
+        }
+
+        private XDocument TryLoadXmlDocument(string xmlPath, CancellationToken cancel)
+        {
+            if (string.IsNullOrWhiteSpace(xmlPath) || !File.Exists(xmlPath))
+            {
+                return null;
+            }
+
+            cancel.ThrowIfCancellationRequested();
+
+            try
+            {
+                return XDocument.Load(xmlPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"[ShadPS4] Failed to load shared trophy metadata at '{xmlPath}'");
+                return null;
+            }
+        }
+
+        private static bool XmlNpCommIdMatches(XDocument doc, string npcommid)
+        {
+            var xmlNpCommId = ShadPS4MatchIdHelper.Normalize(doc?.Descendants("npcommid").FirstOrDefault()?.Value);
+            var expectedNpCommId = ShadPS4MatchIdHelper.Normalize(npcommid);
+            return !string.IsNullOrWhiteSpace(xmlNpCommId) &&
+                   string.Equals(xmlNpCommId, expectedNpCommId, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static Dictionary<string, string> BuildGroupNamesDictionary(XDocument doc, string language)
         {
             var groups = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (doc == null) return groups;
@@ -392,7 +503,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             foreach (var groupElement in doc.Descendants("group"))
             {
                 var id = groupElement.Attribute("id")?.Value?.Trim();
-                var name = groupElement.Element("name")?.Value?.Trim();
+                var name = GetLocalizedElement(groupElement, "name", language)?.Trim();
                 if (!string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(name))
                     groups[id] = name;
             }
@@ -400,8 +511,42 @@ namespace PlayniteAchievements.Providers.ShadPS4
             return groups;
         }
 
+        private static Dictionary<string, XElement> BuildTrophyElementDictionary(XDocument doc)
+        {
+            var trophiesById = new Dictionary<string, XElement>(StringComparer.OrdinalIgnoreCase);
+            if (doc == null) return trophiesById;
+
+            foreach (var trophyElement in doc.Descendants("trophy"))
+            {
+                var trophyIdKey = NormalizeTrophyIdKey(trophyElement.Attribute("id")?.Value);
+                if (string.IsNullOrWhiteSpace(trophyIdKey))
+                {
+                    continue;
+                }
+
+                trophiesById[trophyIdKey] = trophyElement;
+            }
+
+            return trophiesById;
+        }
+
+        private static string NormalizeTrophyIdKey(string trophyId)
+        {
+            var trimmed = trophyId?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return null;
+            }
+
+            var normalized = trimmed.All(char.IsDigit) ? trimmed.TrimStart('0') : trimmed;
+            return normalized.Length == 0 ? "0" : normalized;
+        }
+
         private static string GetLocalizedElement(XElement trophyElement, string elementName, string language)
         {
+            if (trophyElement == null)
+                return null;
+
             if (string.IsNullOrWhiteSpace(language))
                 return trophyElement.Element(elementName)?.Value;
 
@@ -412,6 +557,11 @@ namespace PlayniteAchievements.Providers.ShadPS4
             return trophyElement.Elements(elementName)
                 .FirstOrDefault(e => e.Attribute("lang") == null)?.Value
                 ?? trophyElement.Element(elementName)?.Value;
+        }
+
+        private static string Prefer(string primary, string fallback)
+        {
+            return (string.IsNullOrWhiteSpace(primary) ? fallback : primary)?.Trim();
         }
 
         private static string MapGlobalLanguageToPs4Locale(string globalLanguage)

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -16,6 +17,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
     {
         [DontSerialize]
         private bool _hasAchievements;
+        [DontSerialize]
+        private Guid? _selectedGameId;
         [DontSerialize]
         private bool _hasCustomAchievementOrder;
         [DontSerialize]
@@ -177,6 +180,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _hasAchievements;
             set => SetValue(ref _hasAchievements, value);
+        }
+
+        [DontSerialize]
+        public Guid? SelectedGameId
+        {
+            get => _selectedGameId;
+            set => SetValue(ref _selectedGameId, value);
         }
 
         [DontSerialize]

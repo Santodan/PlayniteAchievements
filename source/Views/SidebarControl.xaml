@@ -12,6 +12,8 @@
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
              Loaded="OnLoaded">
 
     <UserControl.Resources>
@@ -29,7 +31,9 @@
             <!-- Shared LegendItem DataTemplate for all pie charts -->
             <DataTemplate x:Key="LegendItemTemplate">
                 <StackPanel Orientation="Horizontal" Margin="0,2">
-                    <Grid Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center">
+                    <Grid Width="18" Height="18" Margin="0,0,6,0" VerticalAlignment="Center"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True">
                         <!-- Badge icons: complex DrawingImages from AchievementResources.xaml -->
                         <Image Source="{Binding IconKey, Converter={StaticResource ResourceKeyToImage}}"
                                Effect="{StaticResource BadgeShadow}"
@@ -225,9 +229,12 @@
             <!-- Style for Game Icon/Cover in Grid -->
             <Style x:Key="GameImageBorderStyle" TargetType="Border">
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                <Setter Property="ClipToBounds" Value="True"/>
                 <Setter Property="Width" Value="64"/>
                 <Setter Property="Height" Value="64"/>
-                <Setter Property="Margin" Value="6,8"/>
+                <Setter Property="Margin" Value="6,8,6,7"/>
                     <Setter Property="Background">
                         <Setter.Value>
                         <ImageBrush Stretch="Uniform"
@@ -268,6 +275,20 @@
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                                <ContentPresenter VerticalAlignment="Stretch"
+                                                  HorizontalAlignment="Stretch"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=ContextMenu.IsOpen}" Value="True">
                         <Setter Property="Background" Value="#30FFFFFF"/>
@@ -292,6 +313,8 @@
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
                 <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
                 <Setter Property="Cursor" Value="Hand"/>
                 <Setter Property="MinHeight" Value="112"/>
@@ -354,6 +377,7 @@
                 <Setter Property="Height" Value="32"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="UseLayoutRounding" Value="True"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="NearestNeighbor"/>
                 <Style.Triggers>
@@ -894,6 +918,8 @@
                             ScrollViewer.VerticalScrollBarVisibility="Visible"
                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                             ScrollViewer.IsDeferredScrollingEnabled="False"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True"
                             PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
                             <DataGrid.CellStyle>
                                 <Style TargetType="DataGridCell"
@@ -1152,7 +1178,7 @@
                                                             <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
                                                                         Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}"
                                                                         ToolTip="Ultra Rare">
-                                                                <Image Source="{StaticResource BadgePlatinumHexagon}"
+                                                                <Image Source="{DynamicResource BadgeRarityUltraRare}"
                                                                        Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                                                                 <TextBlock Text="{Binding UltraRareCount}"
                                                                            Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
@@ -1161,7 +1187,7 @@
                                                             <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
                                                                         Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}"
                                                                         ToolTip="Rare">
-                                                                <Image Source="{StaticResource BadgeGoldPentagon}"
+                                                                <Image Source="{DynamicResource BadgeRarityRare}"
                                                                        Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                                                                 <TextBlock Text="{Binding RareCount}"
                                                                            Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
@@ -1170,7 +1196,7 @@
                                                             <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
                                                                         Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}"
                                                                         ToolTip="Uncommon">
-                                                                <Image Source="{StaticResource BadgeSilverSquare}"
+                                                                <Image Source="{DynamicResource BadgeRarityUncommon}"
                                                                        Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                                                                 <TextBlock Text="{Binding UncommonCount}"
                                                                            Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
@@ -1179,7 +1205,7 @@
                                                             <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
                                                                         Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}"
                                                                         ToolTip="Common">
-                                                                <Image Source="{StaticResource BadgeBronzeTriangle}"
+                                                                <Image Source="{DynamicResource BadgeRarityCommon}"
                                                                        Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
                                                                 <TextBlock Text="{Binding CommonCount}"
                                                                            Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
@@ -1254,7 +1280,12 @@
                                                         </Style>
                                                     </Border.Style>
                                                 </Border>
-                                                <TextBlock VerticalAlignment="Center" HorizontalAlignment="Center" Style="{DynamicResource BaseTextBlockStyle}" Foreground="{DynamicResource TextBrush}">
+                                                <TextBlock VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center">
                                                     <Run Text="{Binding UnlockedAchievements, Mode=OneWay}" FontWeight="Bold"/>
                                                     <Run Text="/" Foreground="{DynamicResource TextBrush}"/>
                                                     <Run Text="{Binding TotalAchievements, Mode=OneWay}" Foreground="{DynamicResource TextBrush}"/>
@@ -1276,7 +1307,7 @@
                                 Height="38"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,0,0,1"
-                                Visibility="{Binding IsGameSelected, Converter={StaticResource InverseBoolToVis}}">
+                                Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
                             <TabControl SelectedIndex="{Binding SelectedRightTabIndex, Mode=TwoWay}"
                                         Margin="8,0,8,0"
                                         VerticalAlignment="Stretch"
@@ -1292,7 +1323,7 @@
                                 Height="38"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,0,0,1"
-                                Visibility="{Binding IsGameSelected, Converter={StaticResource BoolToVis}}">
+                                Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
                             <Grid Margin="16,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -1300,7 +1331,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding SelectedGame.GameName}"
+                                    <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
                                                FontSize="{DynamicResource FontSize}"
                                                FontWeight="Bold"
                                                Foreground="{DynamicResource TextBrush}"
@@ -1343,7 +1374,7 @@
                         <!-- Content Area: Recent List OR Game Details -->
                         <Grid Grid.Row="0" ClipToBounds="False">
                             <!-- Default Panel: When no game selected -->
-                            <Grid Visibility="{Binding IsGameSelected, Converter={StaticResource InverseBoolToVis}}">
+                            <Grid Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
@@ -1398,7 +1429,7 @@
                         </Grid>
 
                         <!-- Game Detail Panel: When a game is selected -->
-                        <Grid Visibility="{Binding IsGameSelected, Converter={StaticResource BoolToVis}}">
+                        <Grid Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>

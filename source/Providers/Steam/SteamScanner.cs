@@ -462,7 +462,8 @@ namespace PlayniteAchievements.Providers.Steam
                     }
 
                     var iconGrayFile = ExtractIconFilename(ach.IconGray);
-                    if (!string.IsNullOrWhiteSpace(iconGrayFile))
+                    if (!string.IsNullOrWhiteSpace(iconGrayFile) &&
+                        !string.Equals(iconGrayFile, iconFile, StringComparison.OrdinalIgnoreCase))
                     {
                         if (!iconFileToAchievements.ContainsKey(iconGrayFile))
                             iconFileToAchievements[iconGrayFile] = new List<SchemaAchievement>();
@@ -506,9 +507,15 @@ namespace PlayniteAchievements.Providers.Steam
                         }
                         else
                         {
+                            var rowDescription = NormalizeMatchText(row.Description);
+                            var rowDisplayName = NormalizeMatchText(row.DisplayName);
+
                             // Multiple achievements share this icon - prioritize: Description, then DisplayName
                             var descMatches = achievements.Where(a =>
-                                string.Equals(a.Description, row.Description, StringComparison.OrdinalIgnoreCase)).ToList();
+                                string.Equals(
+                                    NormalizeMatchText(a.Description),
+                                    rowDescription,
+                                    StringComparison.OrdinalIgnoreCase)).ToList();
 
                             if (descMatches.Count == 1)
                             {
@@ -518,7 +525,10 @@ namespace PlayniteAchievements.Providers.Steam
                             {
                                 // Description matched zero or multiple - fall back to DisplayName
                                 apiName = achievements.FirstOrDefault(a =>
-                                    string.Equals(a.DisplayName, row.DisplayName, StringComparison.OrdinalIgnoreCase))?.Name;
+                                    string.Equals(
+                                        NormalizeMatchText(a.DisplayName),
+                                        rowDisplayName,
+                                        StringComparison.OrdinalIgnoreCase))?.Name;
                             }
 
                             if (apiName != null)
@@ -564,6 +574,13 @@ namespace PlayniteAchievements.Providers.Steam
                 return null;
 
             return iconUrl.Substring(lastSlash + 1);
+        }
+
+        private static string NormalizeMatchText(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : value.Trim();
         }
 
         // ---------------------------------------------------------------------

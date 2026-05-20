@@ -19,6 +19,8 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public class PersistedSettings : ObservableObject
     {
+        public const double DefaultAchievementDataGridMaxHeight = 600d;
+
         public PersistedSettings()
         {
         }
@@ -46,6 +48,7 @@ namespace PlayniteAchievements.Models.Settings
         private bool _useSeparateLockedIconsWhenAvailable = false;
         private HashSet<Guid> _separateLockedIconEnabledGameIds = new HashSet<Guid>();
         private bool _showRarityGlow = true;
+        private bool _useUniformRarityBadges = false;
         private bool _useCoverImages = true;
         private bool _includeUnplayedGames = true;
         private string _sidebarDefaultRefreshModeKey = RefreshModeType.Installed.GetKey();
@@ -74,8 +77,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _enableAchievementPieChartControl = true;
         private bool _enableAchievementBarChartControl = true;
         private bool _enableCompactGridMode = false;
-        private bool _enableGridTextWrapping = false;
-        private double? _achievementDataGridMaxHeight = null;
+    private bool _enableGridTextWrapping = false;
+    private double? _achievementDataGridMaxHeight = DefaultAchievementDataGridMaxHeight;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
         private int _maxRetryAttempts = 3;
@@ -419,6 +422,15 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showRarityGlow;
             set => SetValue(ref _showRarityGlow, value);
+        }
+
+        /// <summary>
+        /// When true, all rarity badges use the hexagon shape while keeping rarity colors.
+        /// </summary>
+        public bool UseUniformRarityBadges
+        {
+            get => _useUniformRarityBadges;
+            set => SetValue(ref _useUniformRarityBadges, value);
         }
 
         /// <summary>
@@ -992,6 +1004,7 @@ namespace PlayniteAchievements.Models.Settings
 
         /// <summary>
         /// Maximum height for AchievementDataGrid controls (null = unlimited).
+        /// Defaults to 600 so theme-hosted grids do not expand indefinitely.
         /// </summary>
         public double? AchievementDataGridMaxHeight
         {
@@ -1554,6 +1567,7 @@ namespace PlayniteAchievements.Models.Settings
                 PreserveAchievementIconResolution = this.PreserveAchievementIconResolution,
                 UseSeparateLockedIconsWhenAvailable = this.UseSeparateLockedIconsWhenAvailable,
                 ShowRarityGlow = this.ShowRarityGlow,
+                UseUniformRarityBadges = this.UseUniformRarityBadges,
                 UseCoverImages = this.UseCoverImages,
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 SidebarDefaultRefreshModeKey = this.SidebarDefaultRefreshModeKey,

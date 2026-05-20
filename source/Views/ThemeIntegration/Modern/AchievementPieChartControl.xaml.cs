@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using LiveCharts;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
@@ -50,6 +51,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                    propertyName == nameof(ModernThemeBindings.LockedCount);
         }
 
+        protected override bool ShouldHandleSettingsDataChange(string propertyName)
+        {
+            return propertyName == nameof(PersistedSettings.UseUniformRarityBadges);
+        }
+
         /// <summary>
         /// Called when theme data changes. Updates the pie chart.
         /// </summary>
@@ -61,7 +67,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _viewModel.SetRarityData(
                 theme.Common.Unlocked, theme.Uncommon.Unlocked, theme.Rare.Unlocked, theme.UltraRare.Unlocked, theme.LockedCount,
                 theme.Common.Total, theme.Uncommon.Total, theme.Rare.Total, theme.UltraRare.Total,
-                "Common", "Uncommon", "Rare", "Ultra Rare", "Locked");
+                "Common", "Uncommon", "Rare", "Ultra Rare", "Locked",
+                EffectiveSettings?.Persisted?.UseUniformRarityBadges ?? false);
         }
     }
 }

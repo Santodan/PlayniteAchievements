@@ -20,6 +20,7 @@
             <conv:NullableDoubleTextConverter x:Key="NullableDoubleTextConverter"/>
             <conv:EnumToBoolConverter x:Key="EnumToBool"/>
             <conv:BooleanConverter x:Key="BoolToVis" Mode="ToVisibility"/>
+            <conv:ProviderIconConverter x:Key="ProviderIconConverter"/>
 
             <Style x:Key="PreviewThemeControlStyle"
                    TargetType="{x:Type base:ThemeControlBase}">
@@ -211,6 +212,43 @@
             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"/>
             <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"/>
             <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"/>
+            <Style x:Key="ProviderNavigationItemContainerStyle" TargetType="ListBoxItem">
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="0"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="BackgroundBorder"
+                                    Background="{TemplateBinding Background}">
+                                <Grid>
+                                    <Border x:Name="SelectionAccent"
+                                            Width="3"
+                                            HorizontalAlignment="Left"
+                                            Background="{DynamicResource HighlightGlyphBrush}"
+                                            Visibility="Collapsed"/>
+                                    <ContentPresenter Margin="3,0,0,0"
+                                                      HorizontalAlignment="Stretch"
+                                                      VerticalAlignment="Stretch"/>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#10FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="BackgroundBorder" Property="Background" Value="#1CFFFFFF"/>
+                                    <Setter TargetName="SelectionAccent" Property="Visibility" Value="Visible"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -1072,6 +1110,10 @@
                                                 </Button>
                                             </StackPanel>
                                         </StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,8,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1111,6 +1153,10 @@
                                                 </TextBlock>
                                             </Button>
                                         </StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,8,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1163,6 +1209,10 @@
                                                 </Button>
                                             </StackPanel>
                                         </StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,8,0,0"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1345,6 +1395,10 @@
                                                 </TextBlock>
                                             </Button>
                                         </StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_SortResetHint}"
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,8,0,0"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -2647,6 +2701,127 @@
 
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <!-- ================== TAB: PROVIDERS ================== -->
+            <TabItem x:Name="ProvidersTab" Header="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
+                <Grid Background="{DynamicResource PanelBackgroundBrush}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220" MinWidth="190" MaxWidth="260"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="0,0,1,0"
+                            Background="{DynamicResource ControlBackgroundBrush}">
+                        <DockPanel LastChildFill="True">
+                            <Border DockPanel.Dock="Top"
+                                    BorderBrush="{DynamicResource NormalBorderBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="10,10,10,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="&#xE721;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.55"
+                                               Margin="0,0,8,0"
+                                               VerticalAlignment="Center"/>
+
+                                    <TextBox Grid.Column="1"
+                                             Height="24"
+                                             Padding="6,2"
+                                             Text="{Binding ProviderSearchText, ElementName=SettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="{DynamicResource LOCPlayAch_Button_Search}"/>
+                                </Grid>
+                            </Border>
+
+                            <ListBox ItemsSource="{Binding ProviderNavigationItems, ElementName=SettingsControlRoot}"
+                                     SelectedItem="{Binding SelectedProviderNavigationItem, ElementName=SettingsControlRoot, Mode=TwoWay}"
+                                     ItemContainerStyle="{StaticResource ProviderNavigationItemContainerStyle}"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     Padding="0">
+                                <ListBox.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold"
+                                                           Opacity="0.58"
+                                                           Margin="10,10,8,3"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ListBox.GroupStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="8,3"
+                                              MinHeight="30">
+                                            <Grid.Style>
+                                                <Style TargetType="Grid">
+                                                    <Setter Property="Opacity" Value="1"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.55"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Grid.Style>
+
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Image Width="18"
+                                                   Height="18"
+                                                   Margin="0,0,8,0"
+                                                   VerticalAlignment="Center"
+                                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                                        <Binding Path="ProviderIconKey"/>
+                                                        <Binding Path="ProviderColorHex"/>
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+
+                                            <StackPanel Grid.Column="1"
+                                                        VerticalAlignment="Center"
+                                                        ToolTip="{Binding Subtitle}">
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontSize="{DynamicResource FontSize}"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Subtitle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           FontSize="{DynamicResource FontSizeSmall}"
+                                                           Opacity="0.6"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Visibility="{Binding HasSubtitle, Converter={StaticResource BoolToVis}}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
+
+                    <ContentControl Grid.Column="1"
+                                    Content="{Binding SelectedProviderNavigationItem.SettingsView, ElementName=SettingsControlRoot}"/>
+                </Grid>
             </TabItem>
 
             <TabItem x:Name="ThemeMigrationTab" Header="{DynamicResource LOCPlayAch_ThemeMigration_Title}">

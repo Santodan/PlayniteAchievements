@@ -220,7 +220,8 @@ namespace PlayniteAchievements.Views
                 UpdatePieChartLayout();
             }
 
-            if (e.PropertyName != nameof(SidebarViewModel.IsGameSelected)) return;
+            if (e.PropertyName != nameof(SidebarViewModel.IsGameSelected) &&
+                e.PropertyName != nameof(SidebarViewModel.IsSelectedGameContentReady)) return;
 
             // Defer grid operations to Render priority to batch with visibility change
             // This prevents flicker by ensuring all layout happens in one render pass
@@ -887,7 +888,7 @@ namespace PlayniteAchievements.Views
 
         private void QueueWidthUpdate(Dictionary<string, double> map, string key, double width)
         {
-            map[key] = Math.Round(width, 2);
+            map[key] = ColumnWidthNormalization.RoundPixelWidth(width);
             _saveTimer?.Stop();
             _saveTimer?.Start();
         }
@@ -1056,7 +1057,7 @@ namespace PlayniteAchievements.Views
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (_viewModel == null) return;
-                if (_viewModel.IsGameSelected) return; // GameAchievementsGrid manages itself
+                if (_viewModel.IsSelectedGameContentReady) return; // GameAchievementsGrid manages itself
 
                 if (RecentAchievementsDataGrid.InternalDataGrid == null || !RecentAchievementsDataGrid.InternalDataGrid.IsLoaded ||
                     !RecentAchievementsDataGrid.InternalDataGrid.IsVisible || RecentAchievementsDataGrid.InternalDataGrid.ActualWidth <= 1) return;
@@ -1179,7 +1180,7 @@ namespace PlayniteAchievements.Views
                     if (string.IsNullOrWhiteSpace(key)) continue;
                     if (map.TryGetValue(key, out var width) && ColumnWidthNormalization.IsValidWidth(width))
                     {
-                        column.Width = new DataGridLength(width, DataGridLengthUnitType.Pixel);
+                        column.Width = new DataGridLength(ColumnWidthNormalization.RoundPixelWidth(width), DataGridLengthUnitType.Pixel);
                     }
                 }
             }
@@ -1200,9 +1201,10 @@ namespace PlayniteAchievements.Views
                 {
                     if (column == null || !column.CanUserResize) continue;
                     var colKey = ColumnWidthNormalization.GetColumnKey(column);
-                    if (ColumnWidthNormalization.KeysEqual(colKey, key) && Math.Abs(column.ActualWidth - width) > 0.1)
+                    var roundedWidth = ColumnWidthNormalization.RoundPixelWidth(width);
+                    if (ColumnWidthNormalization.KeysEqual(colKey, key) && Math.Abs(column.ActualWidth - roundedWidth) > 0.1)
                     {
-                        column.Width = new DataGridLength(width, DataGridLengthUnitType.Pixel);
+                        column.Width = new DataGridLength(roundedWidth, DataGridLengthUnitType.Pixel);
                     }
                 }
             }
@@ -1590,6 +1592,17 @@ namespace PlayniteAchievements.Views
             }), DispatcherPriority.Loaded);
         }
 
+        private void ClearAchievementsSortIndicators()
+        {
+            var grid = GameAchievementsGrid?.InternalDataGrid;
+            if (grid != null)
+            {
+                foreach (var c in grid.Columns) c.SortDirection = null;
+            }
+
+            GameAchievementsGrid?.SetSortIndicator(null, null);
+        }
+
         private void ResetAchievementsSortDirection()
         {
             var grid = GameAchievementsGrid?.InternalDataGrid;
@@ -1668,75 +1681,18 @@ namespace PlayniteAchievements.Views
                 column.SortDirection = null;
                 SetColumnSortLevel(grid, column, null);
             }
-
-            GamesOverviewSortHelper.ApplySortIndicator(
-                _viewModel?.OverviewSortPath,
-                _viewModel?.OverviewSortDirection,
-                _settings?.Persisted,
-                (sortPath, sortDirection) =>
-                {
-                    if (string.IsNullOrWhiteSpace(sortPath) || !sortDirection.HasValue)
-                    {
-                        return;
-                    }
-
-                    var targetColumn = grid.Columns.FirstOrDefault(column => column?.SortMemberPath == sortPath);
-                    if (targetColumn != null)
-                    {
-                        targetColumn.SortDirection = sortDirection;
-                        SetColumnSortLevel(grid, targetColumn, "1");
-                    }
-                });
-
-            // Also show sort indicators for any active secondary sort columns
-            if (_viewModel?.OverviewSecondarySorts != null)
-            {
-                var secondaries = _viewModel.OverviewSecondarySorts;
-                for (var i = 0; i < secondaries.Count; i++)
-                {
-                    var (path, dir) = secondaries[i];
-                    var col = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == path);
-                    if (col != null)
-                    {
-                        col.SortDirection = dir;
-                        SetColumnSortLevel(grid, col, (i + 2).ToString()); // primary=1, secondaries start at 2
-                    }
-                }
-            }
         }
 
         private void ResetRecentAchievementsSortDirection()
         {
             if (RecentAchievementsDataGrid == null) return;
-            var grid = RecentAchievementsDataGrid.InternalDataGrid;
-            if (grid == null) return;
-
-            foreach (var c in grid.Columns) { c.SortDirection = null; SetColumnSortLevel(grid, c, null); }
 
             AchievementSortHelper.ApplySortIndicator(
                 _viewModel?.RecentSortPath,
                 _viewModel?.RecentSortDirection,
                 _settings?.Persisted,
-                AchievementSortSurface.AchievementDataGrid,
-                (sortPath, sortDirection) =>
-                {
-                    if (!string.IsNullOrWhiteSpace(sortPath))
-                    {
-                        var primary = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == sortPath);
-                        if (primary != null) { primary.SortDirection = sortDirection; SetColumnSortLevel(grid, primary, "1"); }
-                    }
-                });
-
-            var secondaries = _viewModel?.RecentSecondarySorts;
-            if (secondaries != null)
-            {
-                for (var i = 0; i < secondaries.Count; i++)
-                {
-                    var (path, dir) = secondaries[i];
-                    var col = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == path);
-                    if (col != null) { col.SortDirection = dir; SetColumnSortLevel(grid, col, (i + 2).ToString()); }
-                }
-            }
+                AchievementSortSurface.SidebarRecentAchievements,
+                (sortPath, sortDirection) => RecentAchievementsDataGrid?.SetSortIndicator(sortPath, sortDirection));
         }
 
         private void ResetSidebarAllAchievementsSortDirection()
@@ -1776,17 +1732,18 @@ namespace PlayniteAchievements.Views
         private void ResetRecentAchievementsToDefaultSort()
         {
             if (_viewModel == null || RecentAchievementsDataGrid == null) return;
-            if (IsRecentDefaultSortApplied()) return;
-            _viewModel.SortDataGrid(RecentAchievementsDataGrid.InternalDataGrid, "UnlockTime", ListSortDirection.Descending);
+
+            if (!IsRecentDefaultSortApplied())
+            {
+                _viewModel.ApplyDefaultRecentSort();
+            }
+
             ResetRecentAchievementsSortDirection();
         }
 
         private bool IsRecentDefaultSortApplied()
         {
-            if (RecentAchievementsDataGrid?.InternalDataGrid.Columns == null) return false;
-            var unlockCol = RecentAchievementsDataGrid.InternalDataGrid.Columns.FirstOrDefault(c => c?.SortMemberPath == "UnlockTime");
-            if (unlockCol?.SortDirection != ListSortDirection.Descending) return false;
-            return RecentAchievementsDataGrid.InternalDataGrid.Columns.All(c => c == unlockCol || c.SortDirection == null);
+            return string.IsNullOrWhiteSpace(_viewModel?.RecentSortPath);
         }
 
         #endregion

@@ -115,7 +115,7 @@ namespace PlayniteAchievements.Providers.Exophase
         /// Searches for games on Exophase with optional platform filter.
         /// </summary>
         /// <param name="query">Game name to search for.</param>
-        /// <param name="platformSlug">Optional platform slug to filter by (e.g., "steam", "psn", "xbox").</param>
+        /// <param name="platformSlug">Optional platform slug to filter by (e.g., "steam", "ps4", "ps3", "xbox", "xbox-one", "xbox-360").</param>
         /// <param name="ct">Cancellation token.</param>
         public async Task<List<ExophaseGame>> SearchGamesAsync(string query, string platformSlug, CancellationToken ct)
         {
@@ -602,9 +602,9 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
             }
 
-            // Extract icon URL from img/@src
-            var imgNode = node.SelectSingleNode(".//img");
-            var iconUrl = imgNode?.GetAttributeValue("src", "") ?? "";
+            // Extract icon URL from Exophase image attributes. Blizzard/WoW pages put
+            // the real CDN URL in data-normal and often leave src empty.
+            var iconUrl = ResolveAchievementIconUrl(node);
 
             // Extract display name from a text or heading
             var nameNode = node.SelectSingleNode(".//a") ?? node.SelectSingleNode(".//h3") ?? node.SelectSingleNode(".//strong");
@@ -676,6 +676,48 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             return value;
+        }
+
+        internal static string ResolveAchievementIconUrl(HtmlNode node)
+        {
+            var imgNode = node?.SelectSingleNode(
+                    ".//img[contains(concat(' ', normalize-space(@class), ' '), ' award-image ')]") ??
+                node?.SelectSingleNode(".//img");
+
+            if (imgNode == null)
+            {
+                return string.Empty;
+            }
+
+            var iconUrl = NormalizeIconUrlCandidate(imgNode.GetAttributeValue("data-normal", string.Empty));
+            if (!string.IsNullOrWhiteSpace(iconUrl))
+            {
+                return iconUrl;
+            }
+
+            return NormalizeIconUrlCandidate(imgNode.GetAttributeValue("src", string.Empty));
+        }
+
+        private static string NormalizeIconUrlCandidate(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return string.Empty;
+            }
+
+            var normalized = WebUtility.HtmlDecode(url.Trim());
+            if (string.IsNullOrWhiteSpace(normalized) ||
+                normalized.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            if (normalized.StartsWith("//", StringComparison.Ordinal))
+            {
+                return "https:" + normalized;
+            }
+
+            return normalized;
         }
 
         private static int? ParseAwardPointsValue(HtmlNode awardPointsNode)

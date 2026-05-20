@@ -234,11 +234,8 @@
                                                 Binding="{Binding Name}"
                                                 Width="*">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="TextWrapping" Value="NoWrap"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -248,11 +245,8 @@
                                                 Width="120"
                                                 Visibility="{Binding DataContext.ShowPlatformColumn, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="TextWrapping" Value="Wrap"/>
-                                        <Setter Property="MaxHeight" Value="60"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
@@ -261,10 +255,8 @@
                                                 Binding="{Binding SourceGameId}"
                                                 Width="*">
                                 <DataGridTextColumn.ElementStyle>
-                                    <Style TargetType="TextBlock">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>

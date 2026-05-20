@@ -166,11 +166,11 @@ namespace PlayniteAchievements.Views.Controls
         /// </summary>
         public static readonly DependencyProperty DataGridMaxHeightProperty =
             DependencyProperty.Register(nameof(DataGridMaxHeight), typeof(double),
-                typeof(AchievementDataGridControl), new PropertyMetadata(double.NaN));
+                typeof(AchievementDataGridControl), new PropertyMetadata(PersistedSettings.DefaultAchievementDataGridMaxHeight));
 
         /// <summary>
         /// Gets or sets the maximum height of the internal DataGrid.
-        /// Default is double.NaN (unlimited).
+        /// Default is PersistedSettings.DefaultAchievementDataGridMaxHeight.
         /// </summary>
         public double DataGridMaxHeight
         {
@@ -310,15 +310,38 @@ namespace PlayniteAchievements.Views.Controls
             var statusColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "StatusColumn") as DataGridTemplateColumn;
             if (statusColumn != null)
             {
-                statusColumn.Visibility = HideStatusColumn ? Visibility.Collapsed : Visibility.Visible;
+                SetFixedColumnVisibility(statusColumn, !HideStatusColumn, 36);
             }
 
             // Update Game column visibility - force collapsed when ShowGameColumn is false
             var gameColumn = AchievementsDataGrid.Columns.FirstOrDefault(c => c.GetValue(FrameworkElement.NameProperty) as string == "GameColumn") as DataGridTemplateColumn;
             if (gameColumn != null)
             {
-                gameColumn.Visibility = ShowGameColumn ? Visibility.Visible : Visibility.Collapsed;
+                SetFixedColumnVisibility(gameColumn, ShowGameColumn, 64);
             }
+        }
+
+        private static void SetFixedColumnVisibility(DataGridColumn column, bool isVisible, double width)
+        {
+            if (column == null)
+            {
+                return;
+            }
+
+            if (isVisible)
+            {
+                var roundedWidth = ColumnWidthNormalization.RoundPixelWidth(width);
+                column.MinWidth = roundedWidth;
+                column.MaxWidth = roundedWidth;
+                column.Width = new DataGridLength(roundedWidth, DataGridLengthUnitType.Pixel);
+                column.Visibility = Visibility.Visible;
+                return;
+            }
+
+            column.Visibility = Visibility.Collapsed;
+            column.MinWidth = 0;
+            column.MaxWidth = 0;
+            column.Width = new DataGridLength(0, DataGridLengthUnitType.Pixel);
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)

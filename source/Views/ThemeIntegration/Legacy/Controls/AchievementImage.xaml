@@ -7,7 +7,9 @@
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
-             mc:Ignorable="d" d:DesignHeight="48" d:DesignWidth="48">
+             mc:Ignorable="d" d:DesignHeight="48" d:DesignWidth="48"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -22,7 +24,9 @@
 
     <Grid Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
           Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
-          ClipToBounds="False">
+          ClipToBounds="False"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="auto" />
@@ -30,12 +34,17 @@
 
         <!-- Border for image container -->
         <Border>
-            <Grid ClipToBounds="False">
-                <Image Stretch="UniformToFill"
-                       RenderOptions.BitmapScalingMode="Fant"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       IsHitTestVisible="False">
+            <Grid ClipToBounds="False"
+                  UseLayoutRounding="True"
+                  SnapsToDevicePixels="True">
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       helpers:AsyncImage.DecodePixel="256"
+                       SnapsToDevicePixels="True"
+                       IsHitTestVisible="False"
+                       Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+                       Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center">
                     <helpers:AsyncImage.Uri>
                         <MultiBinding Converter="{StaticResource LockedIconSelectorConverter}">
                             <Binding RelativeSource="{RelativeSource AncestorType=UserControl}" Path="IsLocked" />
@@ -61,7 +70,14 @@
                         </Style>
                     </Image.Style>
                 </Image>
-                <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant" x:Name="PART_Image"
+
+                <Image Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       helpers:AsyncImage.DecodePixel="256"
+                       SnapsToDevicePixels="True"
+                       Width="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Width}"
+                       Height="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=Height}"
+                       x:Name="PART_Image"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Loaded="Image_Loaded" ImageFailed="Image_ImageFailed">
                     <helpers:AsyncImage.Uri>

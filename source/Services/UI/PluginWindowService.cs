@@ -10,6 +10,7 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Manual;
@@ -833,6 +834,8 @@ namespace PlayniteAchievements.Services.UI
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/AchievementTemplates.xaml");
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Providers/ProviderIcons.xaml");
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/MigrationStyles.xaml");
+                    PercentRarityHelper.ApplyBadgeApplicationResources(
+                        _settings?.Persisted?.UseUniformRarityBadges ?? false);
 
                     // Defensive fallbacks for themes missing these keys: templates depend on them.
                     if (app.TryFindResource("BaseTextBlockStyle") == null)

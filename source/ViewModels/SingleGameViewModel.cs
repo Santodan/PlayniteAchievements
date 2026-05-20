@@ -919,7 +919,16 @@ namespace PlayniteAchievements.ViewModels
             CollectionHelper.SynchronizeCollection(Achievements, items);
         }
 
-        private void ApplySearchFilter()
+        public void ResetSortToDefault()
+        {
+            _currentSortPath = null;
+            _currentSortDirection = AchievementSortHelper.GetConfiguredDefaultSort(
+                _settings?.Persisted,
+                AchievementSortSurface.SingleGame).Direction;
+            ApplySearchFilter(skipDefaultSort: true);
+        }
+
+        private void ApplySearchFilter(bool skipDefaultSort = false)
         {
             IEnumerable<AchievementDisplayItem> filtered = _allAchievements;
 
@@ -976,7 +985,7 @@ namespace PlayniteAchievements.ViewModels
                         ref _currentSortPath,
                         ref currentSortDirection);
                 }
-                else
+                else if (!skipDefaultSort)
                 {
                     AchievementSortHelper.ApplyConfiguredDefaultSort(
                         filteredItems,

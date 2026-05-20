@@ -68,6 +68,7 @@ namespace PlayniteAchievements.Models.Settings
                 ? new HashSet<Guid>(source.SeparateLockedIconEnabledGameIds)
                 : new HashSet<Guid>();
             target.ShowRarityGlow = source.ShowRarityGlow;
+            target.UseUniformRarityBadges = source.UseUniformRarityBadges;
             target.UseCoverImages = source.UseCoverImages;
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
             target.ShowSidebarPieCharts = source.ShowSidebarPieCharts;

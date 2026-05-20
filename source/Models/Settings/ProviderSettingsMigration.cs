@@ -253,8 +253,10 @@ namespace PlayniteAchievements.Models.Settings
             // Skip if already migrated
             if (providerSettings["Exophase"] != null) return;
 
-            var managedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var managedArr = persisted["ExophaseManagedProviders"] as JArray;
+            var managedProviders = managedArr == null
+                ? ExophaseSettings.CreateDefaultManagedProviders()
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (managedArr != null)
             {
                 foreach (var item in managedArr)
@@ -291,7 +293,7 @@ namespace PlayniteAchievements.Models.Settings
 
             var settings = new ExophaseSettings
             {
-                IsEnabled = persisted["ExophaseEnabled"]?.Value<bool>() ?? false,
+                IsEnabled = persisted["ExophaseEnabled"]?.Value<bool>() ?? true,
                 UserId = persisted["ExophaseUserId"]?.ToString(),
                 ManagedProviders = managedProviders,
                 IncludedGames = includedGames,

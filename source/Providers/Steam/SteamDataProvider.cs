@@ -41,6 +41,8 @@ namespace PlayniteAchievements.Providers.Steam
 
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
+            _sessionManager.SetClearInMemoryAuthState(_steamClient.ClearInMemoryAuthState);
+            _sessionManager.SetWebApiTokenResolver(_steamClient.ResolveWebApiTokenWithoutSessionProbeAsync);
             var steamApiClient = new SteamApiClient(_steamClient.ApiHttpClient, logger);
             var tokenResolver = new SteamWebApiTokenResolver(_sessionManager, _steamClient.GetWebApiTokenAsync, logger);
             _scanner = new SteamScanner(settings, _steamClient, steamApiClient, tokenResolver, api, logger);

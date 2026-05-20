@@ -14,8 +14,6 @@ namespace PlayniteAchievements.Services.Sidebar
 {
     public sealed class SidebarDataBuilder
     {
-        private const int InitialRecentAchievementMaterializationLimit = 250;
-
         private sealed class GamePresentation
         {
             public string SortingName { get; set; }
@@ -61,7 +59,7 @@ namespace PlayniteAchievements.Services.Sidebar
             revealedKeys ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             var providerLookup = BuildProviderLookup();
-            var queryData = _achievementDataService.GetCachedSummaryDataForSidebar(InitialRecentAchievementMaterializationLimit);
+            var queryData = _achievementDataService.GetCachedSummaryDataForSidebar(0);
             if (queryData != null)
             {
                 return BuildFromCachedSummaryData(settings, revealedKeys, queryData, providerLookup, cancel);
@@ -231,7 +229,6 @@ namespace PlayniteAchievements.Services.Sidebar
                 UnlockCountsByDateByGame = CloneCountsByGame(queryData.UnlockCountsByDateByGame),
                 UnlockedByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 TotalByProvider = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
-                HasDeferredRecentAchievements = queryData.HasMoreRecentUnlocks
             };
 
             var games = queryData.Games ?? new List<CachedGameSummaryData>();
@@ -386,7 +383,7 @@ namespace PlayniteAchievements.Services.Sidebar
         {
             settings ??= new PlayniteAchievementsSettings();
 
-            var recentAchievements = _achievementDataService.GetCachedRecentUnlocksForSidebar();
+            var recentAchievements = _achievementDataService.GetCachedSummaryDataForSidebar()?.RecentUnlocks;
             if (recentAchievements != null)
             {
                 var presentationByGameId = BuildGamePresentationCache(
@@ -426,7 +423,6 @@ namespace PlayniteAchievements.Services.Sidebar
                 hydratedRecent,
                 AchievementSortScope.RecentAchievements);
         }
-
         public SidebarGameFragment BuildGameFragment(
             PlayniteAchievementsSettings settings,
             ISet<string> revealedKeys,

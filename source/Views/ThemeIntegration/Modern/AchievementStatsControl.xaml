@@ -35,7 +35,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Grid.Column="0"
-                   Source="{StaticResource BadgePlatinumHexagon}"
+                   Source="{DynamicResource BadgeRarityUltraRare}"
                    Width="18" Height="18"
                    Effect="{StaticResource BadgeShadow}"
                    Style="{StaticResource RarityIcon}"
@@ -64,7 +64,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Grid.Column="0"
-                   Source="{StaticResource BadgeGoldPentagon}"
+                   Source="{DynamicResource BadgeRarityRare}"
                    Width="18" Height="18"
                    Effect="{StaticResource BadgeShadow}"
                    Style="{StaticResource RarityIcon}"
@@ -93,7 +93,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Grid.Column="0"
-                   Source="{StaticResource BadgeSilverSquare}"
+                   Source="{DynamicResource BadgeRarityUncommon}"
                    Width="18" Height="18"
                    Effect="{StaticResource BadgeShadow}"
                    Style="{StaticResource RarityIcon}"
@@ -122,7 +122,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Grid.Column="0"
-                   Source="{StaticResource BadgeBronzeTriangle}"
+                   Source="{DynamicResource BadgeRarityCommon}"
                    Width="18" Height="18"
                    Effect="{StaticResource BadgeShadow}"
                    Style="{StaticResource RarityIcon}"

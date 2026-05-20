@@ -126,4 +126,30 @@ namespace PlayniteAchievements.Providers.Exophase
             CookieLoader?.Invoke(cookieJar);
         }
     }
+
+    internal sealed class ExophaseRarityEnricher
+    {
+        public ExophaseRarityEnricher(
+            IPlayniteAPI playniteApi,
+            ILogger logger,
+            PlayniteAchievementsSettings settings,
+            string pluginUserDataPath)
+        {
+        }
+
+        public Task InitializeAsync(CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task EnrichAsync(
+            Game game,
+            IList<AchievementDetail> achievements,
+            string fallbackPlatformSlug,
+            string providerPlatformKey,
+            CancellationToken ct)
+        {
+            return Task.CompletedTask;
+        }
+    }
 }

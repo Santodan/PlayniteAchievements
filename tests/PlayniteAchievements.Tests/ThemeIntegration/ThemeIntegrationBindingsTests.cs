@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Windows.Threading;
 
 namespace PlayniteAchievements.ThemeIntegration.Tests
 {
@@ -424,6 +425,47 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(2, settings.Achievements.Count);
             AssertAchievementNames(settings.Achievements, "Visible", "Visible Too");
             Assert.AreEqual(50d, settings.ProgressPercentage);
+        }
+
+        [TestMethod]
+        public void RequestUpdate_BeforeSynchronousPopulate_DoesNotClearPublishedCachedSelection()
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            using var context = CreateServiceContext(dispatcher);
+            var gameId = Guid.NewGuid();
+            var hasAchievementStates = new List<bool>();
+
+            context.Settings.PropertyChanged += (_, args) =>
+            {
+                if (args?.PropertyName == nameof(PlayniteAchievementsSettings.HasAchievements))
+                {
+                    hasAchievementStates.Add(context.Settings.HasAchievements);
+                }
+            };
+
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = new Game { Id = gameId, Name = "Queued Reconcile Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Ready One", 75.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 1, 9, 0, 0)),
+                    Achievement("Ready Two", 25.0, unlocked: false)
+                }
+            };
+
+            context.Service.RequestUpdate(gameId);
+            context.Service.PopulateSingleGameDataSync(gameId);
+
+            Assert.IsTrue(context.Settings.HasAchievements);
+            Assert.AreEqual(2, context.Settings.Achievements.Count);
+
+            DrainDispatcher(dispatcher);
+
+            Assert.IsTrue(context.Settings.HasAchievements);
+            Assert.AreEqual(2, context.Settings.Achievements.Count);
+            CollectionAssert.DoesNotContain(hasAchievementStates, false);
         }
 
         [TestMethod]
@@ -983,7 +1025,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.AchievementsRarityDesc)));
         }
 
-        private static ServiceTestContext CreateServiceContext()
+        private static ServiceTestContext CreateServiceContext(Dispatcher dispatcher = null)
         {
             var settings = new PlayniteAchievementsSettings();
             var plugin = new PlayniteAchievementsPlugin
@@ -992,7 +1034,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
             PlayniteAchievementsPlugin.Instance = plugin;
 
-            var api = new FakePlayniteApi();
+            var api = new FakePlayniteApi(dispatcher != null ? new FakeMainView(dispatcher) : null);
             var refreshRuntime = new RefreshRuntime();
             var achievementDataService = new AchievementDataService();
             var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
@@ -1001,6 +1043,17 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
 
             return new ServiceTestContext(settings, achievementDataService, logger, service);
+        }
+
+        private static void DrainDispatcher(Dispatcher dispatcher)
+        {
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            dispatcher.Invoke(new Action(() => { }), DispatcherPriority.Background);
+            dispatcher.Invoke(new Action(() => { }), DispatcherPriority.ApplicationIdle);
         }
 
         private static HashSet<string> TrackPropertyChanges(INotifyPropertyChanged source)
@@ -1196,7 +1249,14 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
         private sealed class FakePlayniteApi : IPlayniteAPI
         {
-            public IMainViewAPI MainView => null;
+            private readonly IMainViewAPI _mainView;
+
+            public FakePlayniteApi(IMainViewAPI mainView = null)
+            {
+                _mainView = mainView;
+            }
+
+            public IMainViewAPI MainView => _mainView;
 
             public IGameDatabaseAPI Database => null;
 
@@ -1256,6 +1316,99 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             }
 
             public void AddConvertersSupport(Plugin plugin, AddConvertersSupportArgs args)
+            {
+            }
+        }
+
+        private sealed class FakeMainView : IMainViewAPI
+        {
+            private readonly Dispatcher _dispatcher;
+
+            public FakeMainView(Dispatcher dispatcher)
+            {
+                _dispatcher = dispatcher;
+            }
+
+            public DesktopView ActiveDesktopView { get; set; }
+
+            public FullscreenView ActiveFullscreenView { get; set; }
+
+            public SortOrder SortOrder { get; set; }
+
+            public SortOrderDirection SortOrderDirection { get; set; }
+
+            public GroupableField Grouping { get; set; }
+
+            public Dispatcher UIDispatcher => _dispatcher;
+
+            public IEnumerable<Game> SelectedGames => Enumerable.Empty<Game>();
+
+            public List<Game> FilteredGames => new List<Game>();
+
+            public bool OpenPluginSettings(Guid pluginId)
+            {
+                return false;
+            }
+
+            public void SwitchToLibraryView()
+            {
+            }
+
+            public void SelectGame(Guid gameId)
+            {
+            }
+
+            public void SelectGames(IEnumerable<Guid> gameIds)
+            {
+            }
+
+            public void ApplyFilterPreset(Guid filterId)
+            {
+            }
+
+            public void ApplyFilterPreset(FilterPreset preset)
+            {
+            }
+
+            public Guid GetActiveFilterPreset()
+            {
+                return Guid.Empty;
+            }
+
+            public FilterPresetSettings GetCurrentFilterSettings()
+            {
+                return null;
+            }
+
+            public void OpenSearch(string searchTerm)
+            {
+            }
+
+            public void OpenSearch(SearchContext context, string searchTerm)
+            {
+            }
+
+            public bool? OpenEditDialog(Guid gameId)
+            {
+                return null;
+            }
+
+            public bool? OpenEditDialog(List<Guid> gameIds)
+            {
+                return null;
+            }
+
+            public List<FilterPreset> GetSortedFilterPresets()
+            {
+                return new List<FilterPreset>();
+            }
+
+            public List<FilterPreset> GetSortedFilterFullscreenPresets()
+            {
+                return new List<FilterPreset>();
+            }
+
+            public void ToggleFullscreenView()
             {
             }
         }

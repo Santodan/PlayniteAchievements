@@ -35,9 +35,14 @@ namespace PlayniteAchievements.Steam.Tests
         [TestMethod]
         public async Task ResolveAsync_ReturnsTrimmedToken_WhenSessionAndTokenSucceed()
         {
+            var tokenCalls = 0;
             var resolver = new SteamWebApiTokenResolver(
                 new FakeSessionManager { ProbeResult = AuthProbeResult.AlreadyAuthenticated("76561198000000000") },
-                _ => Task.FromResult("  store-token  "),
+                _ =>
+                {
+                    tokenCalls++;
+                    return Task.FromResult("  store-token  ");
+                },
                 logger: null);
 
             var result = await resolver.ResolveAsync(CancellationToken.None).ConfigureAwait(false);
@@ -45,6 +50,7 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.IsTrue(result.IsSuccess);
             Assert.AreEqual("76561198000000000", result.UserId);
             Assert.AreEqual("store-token", result.Token);
+            Assert.AreEqual(1, tokenCalls);
         }
 
         [TestMethod]

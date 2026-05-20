@@ -8,7 +8,9 @@
                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    mc:Ignorable="d"
-                   d:DesignHeight="82" d:DesignWidth="600">
+                   d:DesignHeight="82" d:DesignWidth="600"
+                   UseLayoutRounding="True"
+                   SnapsToDevicePixels="True">
 
     <modern:AchievementCompactListControlBase.Resources>
         <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility"/>
@@ -130,34 +132,13 @@
 
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
+                        <!-- Use shared compact item control -->
                         <controls:AchievementCompactItemControl
                             IconSize="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                            Margin="4,4,8,4"/>
+                            Margin="4"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-
-            <TextBlock Grid.Column="1"
-                       Margin="8,0,0,0"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextBrush}"
-                       FontSize="16"
-                       FontWeight="SemiBold"
-                       Text="{Binding OverflowCount, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}, StringFormat=+{0}}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasOverflow, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
-                                         Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
         </Grid>
     </StackPanel>
 </modern:AchievementCompactListControlBase>
-
-

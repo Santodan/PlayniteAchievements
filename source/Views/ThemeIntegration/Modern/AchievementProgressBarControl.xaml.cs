@@ -1,4 +1,5 @@
 using PlayniteAchievements.Views.ThemeIntegration.Base;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
@@ -30,6 +31,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
                    propertyName == nameof(ModernThemeBindings.Rare) ||
                    propertyName == nameof(ModernThemeBindings.Uncommon) ||
                    propertyName == nameof(ModernThemeBindings.Common);
+        }
+
+        protected override bool ShouldHandleSettingsDataChange(string propertyName)
+        {
+            return propertyName == nameof(PersistedSettings.UseUniformRarityBadges);
         }
 
         /// <summary>

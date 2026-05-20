@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.ThemeIntegration;
@@ -84,16 +86,16 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         private List<AchievementDetail> _lastSourceAchievements;
         private int _lastAppliedVisibleCount = int.MinValue;
 
-        private List<AchievementDisplayItem> _displayItems = new List<AchievementDisplayItem>();
+        private ObservableCollection<AchievementDisplayItem> _displayItems = new ObservableCollection<AchievementDisplayItem>();
         /// <summary>
         /// Gets or sets the display items for the list.
         /// </summary>
-        public List<AchievementDisplayItem> DisplayItems
+        public ObservableCollection<AchievementDisplayItem> DisplayItems
         {
             get => _displayItems;
             protected set
             {
-                _displayItems = value ?? new List<AchievementDisplayItem>();
+                _displayItems = value ?? new ObservableCollection<AchievementDisplayItem>();
             }
         }
 
@@ -212,6 +214,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected virtual void LoadData()
         {
             var theme = EffectiveTheme;
+            if (!IsEffectiveModernThemeCurrentForContext())
+            {
+                return;
+            }
+
             if (theme == null || !theme.HasAchievements)
             {
                 _lastAllItems = null;
@@ -271,13 +278,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
             if (effectiveVisibleCount > 0 && displayItems.Count > effectiveVisibleCount)
             {
-                DisplayItems = displayItems.Take(effectiveVisibleCount).ToList();
+                SynchronizeDisplayItems(displayItems.Take(effectiveVisibleCount).ToList());
                 OverflowCount = displayItems.Count - effectiveVisibleCount;
                 HasOverflow = true;
             }
             else
             {
-                DisplayItems = displayItems;
+                SynchronizeDisplayItems(displayItems);
                 OverflowCount = 0;
                 HasOverflow = false;
             }
@@ -325,7 +332,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastAllAchievements = null;
             _lastSourceAchievements = null;
             _lastAppliedVisibleCount = int.MinValue;
-            DisplayItems = new List<AchievementDisplayItem>();
+            SynchronizeDisplayItems(Array.Empty<AchievementDisplayItem>());
             OverflowCount = 0;
             HasOverflow = false;
             RefreshItemsSource();
@@ -439,7 +446,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         protected override bool ShouldHandleThemeDataChange(string propertyName)
         {
             // Refresh when achievement data changes
-            return propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
+            return propertyName == nameof(ModernThemeBindings.SelectedGameId) ||
+                   propertyName == nameof(ModernThemeBindings.HasAchievements) ||
+                   propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
                    propertyName == nameof(ModernThemeBindings.AllAchievements) ||
                    AchievementSortHelper.IsSelectedGameAchievementsPropertyName(propertyName);
         }
@@ -474,11 +483,15 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
         /// </summary>
         public override void GameContextChanged(Game oldContext, Game newContext)
         {
-            // Modern theme bindings are already populated by OnGameSelected in the plugin
-            if (_isLoaded)
-            {
-                LoadData();
-            }
+            UpdateCurrentGameContext(newContext);
+        }
+
+        private void SynchronizeDisplayItems(IList<AchievementDisplayItem> source)
+        {
+            CollectionHelper.SynchronizeReferenceCollectionByPosition(
+                DisplayItems,
+                source,
+                (target, item) => target.UpdateFrom(item));
         }
     }
 }

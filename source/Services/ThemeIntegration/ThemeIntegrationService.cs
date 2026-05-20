@@ -238,15 +238,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     _updateRunner = RunUpdateLoopAsync();
                 }
             }
-
-            if (gameId.HasValue && (!_appliedGameId.HasValue || _appliedGameId.Value != gameId.Value))
-            {
-                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                _ = dispatcher?.BeginInvoke(new Action(() =>
-                {
-                    try { ClearSingleGameThemeProperties(); } catch { }
-                }), DispatcherPriority.Background);
-            }
         }
 
         public void EnsureAllGamesThemeDataLoaded(bool includeHeavyAchievementLists = true)
@@ -464,7 +455,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                 if (gameData == null || !gameData.HasAchievements)
                 {
-                    await ApplyClearAsync(version).ConfigureAwait(false);
+                    await ApplyClearAsync(version, gameId).ConfigureAwait(false);
                     continue;
                 }
 
@@ -511,7 +502,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     if (state == null || !state.HasAchievements)
                     {
-                        ClearSingleGameThemeProperties();
+                        ClearSingleGameThemeProperties(gameId);
                         return;
                     }
 
@@ -522,12 +513,12 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
         }
 
-        private Task ApplyClearAsync(int version)
+        private Task ApplyClearAsync(int version, Guid? selectedGameId = null)
         {
             var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
             if (dispatcher == null)
             {
-                ClearSingleGameThemeProperties();
+                ClearSingleGameThemeProperties(selectedGameId);
                 return Task.CompletedTask;
             }
 
@@ -538,7 +529,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     return;
                 }
 
-                ClearSingleGameThemeProperties();
+                ClearSingleGameThemeProperties(selectedGameId);
             }, DispatcherPriority.Background).Task;
         }
 
@@ -846,13 +837,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
                 else
                 {
-                    ClearSingleGameThemeProperties();
+                    ClearSingleGameThemeProperties(gameId);
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed to populate single-game data synchronously for game {gameId}.");
-                ClearSingleGameThemeProperties();
+                ClearSingleGameThemeProperties(gameId);
             }
         }
 
@@ -1017,6 +1008,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             _runtimeState.SelectedGame = state;
             _settings.ModernTheme.HasAchievements = true;
+            _settings.ModernTheme.SelectedGameId = state.GameId;
             _settings.ModernTheme.HasCustomAchievementOrder = state.HasCustomAchievementOrder;
             _settings.ModernTheme.IsCompleted = state.IsCompleted;
             _settings.ModernTheme.AchievementCount = state.AchievementCount;
@@ -1056,10 +1048,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         /// <summary>
         /// Clear per-game theme properties when no game is selected or game has no achievements.
         /// </summary>
-        public void ClearSingleGameThemeProperties()
+        public void ClearSingleGameThemeProperties(Guid? selectedGameId = null)
         {
             _runtimeState.SelectedGame = SelectedGameRuntimeState.Empty;
             _settings.ModernTheme.HasAchievements = false;
+            _settings.ModernTheme.SelectedGameId = selectedGameId;
             _settings.ModernTheme.HasCustomAchievementOrder = false;
             _settings.ModernTheme.IsCompleted = false;
             _settings.ModernTheme.AchievementCount = 0;

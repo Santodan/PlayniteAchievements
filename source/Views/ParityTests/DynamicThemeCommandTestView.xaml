@@ -111,6 +111,11 @@
                                   Height="230"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False">
+                            <DataGrid.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
                                 <DataGridCheckBoxColumn Header="Unlocked" Binding="{Binding Unlocked}" Width="95" />
@@ -166,6 +171,11 @@
                                   Height="230"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False">
+                            <DataGrid.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
                                 <DataGridTextColumn Header="Game" Binding="{Binding Game.Name}" Width="1.6*" />
@@ -221,6 +231,11 @@
                                   Height="230"
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False">
+                            <DataGrid.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Game" Binding="{Binding Name}" Width="2*" />
                                 <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="1.2*" />

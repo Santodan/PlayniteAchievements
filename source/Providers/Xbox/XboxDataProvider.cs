@@ -39,7 +39,7 @@ namespace PlayniteAchievements.Providers.Xbox
 
             _providerSettings = ProviderRegistry.Settings<XboxSettings>();
             _apiClient = new XboxApiClient(logger, settings.Persisted.GlobalLanguage);
-            _scanner = new XboxScanner(settings, _providerSettings, _sessionManager, _apiClient, logger);
+            _scanner = new XboxScanner(settings, _providerSettings, _sessionManager, _apiClient, logger, playniteApi, pluginUserDataPath);
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xbox");

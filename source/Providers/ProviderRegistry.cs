@@ -218,6 +218,26 @@ namespace PlayniteAchievements.Providers
             return string.IsNullOrWhiteSpace(value) ? providerKey : value;
         }
 
+        public bool TryGetProviderVisuals(string providerKey, out string iconKey, out string colorHex)
+        {
+            iconKey = null;
+            colorHex = null;
+
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return false;
+            }
+
+            if (_providersByKey.TryGetValue(providerKey, out var provider) && provider != null)
+            {
+                iconKey = provider.ProviderIconKey;
+                colorHex = provider.ProviderColorHex;
+                return !string.IsNullOrWhiteSpace(iconKey) || !string.IsNullOrWhiteSpace(colorHex);
+            }
+
+            return false;
+        }
+
         // ===================== ENABLED STATE =====================
 
         public event EventHandler<ProviderEnabledChangedEventArgs> ProviderEnabledChanged;

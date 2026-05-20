@@ -98,4 +98,11 @@
         </PathGeometry>
     </GeometryGroup>
 
+    <Geometry x:Key="GeoExophase">
+        M0,0 L76,0 L76,76 L0,76 Z
+        M102,0 L178,0 L178,76 L102,76 Z
+        M0,102 L76,102 L76,178 L0,178 Z
+        M102,102 L178,102 L178,178 L102,178 Z
+    </Geometry>
+
 </ResourceDictionary>

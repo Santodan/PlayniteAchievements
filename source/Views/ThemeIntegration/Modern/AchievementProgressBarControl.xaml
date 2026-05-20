@@ -87,6 +87,7 @@
             <shared:RarityBadgesControl x:Name="Badges"
                                         Grid.Column="1"
                                         BadgeSize="14"
+                                        UseUniformRarityBadges="{Binding DataContext.Persisted.UseUniformRarityBadges, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                                         Margin="8,0,0,0"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"/>

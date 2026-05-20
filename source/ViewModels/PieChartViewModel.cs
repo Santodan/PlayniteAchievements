@@ -187,7 +187,8 @@ namespace PlayniteAchievements.ViewModels
         public void SetRarityData(
             int commonUnlocked, int uncommonUnlocked, int rareUnlocked, int ultraRareUnlocked, int locked,
             int commonTotal, int uncommonTotal, int rareTotal, int ultraRareTotal,
-            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel)
+            string commonLabel, string uncommonLabel, string rareLabel, string ultraRareLabel, string lockedLabel,
+            bool useUniformRarityBadges = false)
         {
             var dataPoints = new List<PieSliceInputData>();
 
@@ -197,7 +198,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = ultraRareLabel,
                     Count = ultraRareUnlocked,
-                    IconKey = "BadgePlatinumHexagon",
+                    IconKey = RarityTier.UltraRare.ToIconKey(useUniformRarityBadges),
                     Color = UltraRarePieColor,
                     OriginalColorHex = string.Empty,
                     UnlockedCount = ultraRareUnlocked,
@@ -212,7 +213,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = rareLabel,
                     Count = rareUnlocked,
-                    IconKey = "BadgeGoldPentagon",
+                    IconKey = RarityTier.Rare.ToIconKey(useUniformRarityBadges),
                     Color = RarePieColor,
                     OriginalColorHex = string.Empty,
                     UnlockedCount = rareUnlocked,
@@ -227,7 +228,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = uncommonLabel,
                     Count = uncommonUnlocked,
-                    IconKey = "BadgeSilverSquare",
+                    IconKey = RarityTier.Uncommon.ToIconKey(useUniformRarityBadges),
                     Color = UncommonPieColor,
                     OriginalColorHex = string.Empty,
                     UnlockedCount = uncommonUnlocked,
@@ -242,7 +243,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     Label = commonLabel,
                     Count = commonUnlocked,
-                    IconKey = "BadgeBronzeTriangle",
+                    IconKey = RarityTier.Common.ToIconKey(useUniformRarityBadges),
                     Color = CommonPieColor,
                     OriginalColorHex = string.Empty,
                     UnlockedCount = commonUnlocked,

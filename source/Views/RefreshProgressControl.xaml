@@ -28,7 +28,7 @@
 
                 <!-- Badge Icon -->
                 <Image Grid.Column="0"
-                       Source="{StaticResource BadgePlatinumHexagon}"
+                       Source="{DynamicResource BadgeRarityUltraRare}"
                        Width="28"
                        Height="28"
                        Margin="0,0,12,0"

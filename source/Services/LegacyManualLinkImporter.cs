@@ -66,6 +66,7 @@ namespace PlayniteAchievements.Services
         private readonly Func<PersistedSettings> _getPersistedSettings;
         private readonly Func<Guid, bool> _gameExists;
         private readonly Func<Guid, bool> _hasCachedProviderData;
+        private readonly Func<LegacyManualImportGameMetadata, Guid?> _resolveMissingGameId;
         private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly ILogger _logger;
         private readonly IReadOnlyDictionary<string, string> _sourceResolver;
@@ -76,14 +77,16 @@ namespace PlayniteAchievements.Services
             Func<Guid, bool> hasCachedProviderData,
             ILogger logger = null,
             IReadOnlyDictionary<string, string> sourceResolver = null,
-            GameCustomDataStore gameCustomDataStore = null)
+            GameCustomDataStore gameCustomDataStore = null,
+            Func<LegacyManualImportGameMetadata, Guid?> resolveMissingGameId = null)
             : this(
                   () => persistedSettings,
                   gameExists,
                   hasCachedProviderData,
                   logger,
                   sourceResolver,
-                  gameCustomDataStore)
+                  gameCustomDataStore,
+                  resolveMissingGameId)
         {
         }
 
@@ -93,11 +96,13 @@ namespace PlayniteAchievements.Services
             Func<Guid, bool> hasCachedProviderData,
             ILogger logger = null,
             IReadOnlyDictionary<string, string> sourceResolver = null,
-            GameCustomDataStore gameCustomDataStore = null)
+            GameCustomDataStore gameCustomDataStore = null,
+            Func<LegacyManualImportGameMetadata, Guid?> resolveMissingGameId = null)
         {
             _getPersistedSettings = getPersistedSettings ?? throw new ArgumentNullException(nameof(getPersistedSettings));
             _gameExists = gameExists ?? throw new ArgumentNullException(nameof(gameExists));
             _hasCachedProviderData = hasCachedProviderData ?? throw new ArgumentNullException(nameof(hasCachedProviderData));
+            _resolveMissingGameId = resolveMissingGameId;
             _gameCustomDataStore = gameCustomDataStore;
             _logger = logger;
             _sourceResolver = sourceResolver ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -162,7 +167,9 @@ namespace PlayniteAchievements.Services
                         continue;
                     }
 
-                    if (!_gameExists(gameId))
+                    var hasSourceGameId = TryResolveSourceGameId(payload.SourceUrl, payload.Items, out var sourceGameId);
+                    if (!_gameExists(gameId) &&
+                        !TryResolveMissingGameId(gameId, payload, sourceGameId, out gameId))
                     {
                         result.SkippedGameMissing++;
                         continue;
@@ -193,7 +200,7 @@ namespace PlayniteAchievements.Services
                         continue;
                     }
 
-                    if (!TryResolveSourceGameId(payload.SourceUrl, payload.Items, out var sourceGameId))
+                    if (!hasSourceGameId)
                     {
                         result.SkippedUnresolvedSourceGameId++;
                         continue;
@@ -225,6 +232,40 @@ namespace PlayniteAchievements.Services
 
             ProviderRegistry.Write(manualSettings, persistToDisk: true);
             return result;
+        }
+
+        private bool TryResolveMissingGameId(
+            Guid legacyGameId,
+            LegacyPayload payload,
+            string sourceGameId,
+            out Guid resolvedGameId)
+        {
+            resolvedGameId = legacyGameId;
+            if (_resolveMissingGameId == null || payload == null)
+            {
+                return false;
+            }
+
+            var metadata = new LegacyManualImportGameMetadata
+            {
+                LegacyGameId = legacyGameId,
+                GameName = payload.GameName,
+                SourceGameName = payload.SourceGameName,
+                SourceName = payload.SourceName,
+                SourceUrl = payload.SourceUrl,
+                SourceGameId = sourceGameId
+            };
+
+            var candidate = _resolveMissingGameId(metadata);
+            if (!candidate.HasValue ||
+                candidate.Value == Guid.Empty ||
+                !_gameExists(candidate.Value))
+            {
+                return false;
+            }
+
+            resolvedGameId = candidate.Value;
+            return true;
         }
 
         private bool TryResolveSourceKey(string sourceName, out string sourceKey)
@@ -362,19 +403,10 @@ namespace PlayniteAchievements.Services
 
             foreach (var item in items)
             {
-                if (item == null || string.IsNullOrWhiteSpace(item.ApiName))
+                var apiName = ResolveLegacyAchievementApiName(item, sourceKey);
+                if (string.IsNullOrWhiteSpace(apiName))
                 {
                     continue;
-                }
-
-                var apiName = item.ApiName.Trim();
-                if (string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-                {
-                    var normalizedExophaseApiName = ExophaseApiClient.NormalizeLegacyManualApiName(apiName);
-                    if (!string.IsNullOrWhiteSpace(normalizedExophaseApiName))
-                    {
-                        apiName = normalizedExophaseApiName;
-                    }
                 }
 
                 if (TryParseLegacyUnlock(item.DateUnlocked, out var unlockUtc))
@@ -386,6 +418,41 @@ namespace PlayniteAchievements.Services
                     }
                 }
             }
+        }
+
+        private static string ResolveLegacyAchievementApiName(
+            LegacyAchievementItem item,
+            string sourceKey)
+        {
+            if (item == null)
+            {
+                return null;
+            }
+
+            var apiName = item.ApiName;
+            var isExophase = string.Equals(sourceKey, "Exophase", StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrWhiteSpace(apiName) && isExophase)
+            {
+                // Exophase achievements in this plugin derive their ApiName from the display title.
+                // Some SuccessStory manual exports have blank ApiName but preserve Name.
+                apiName = item.Name;
+            }
+
+            if (string.IsNullOrWhiteSpace(apiName))
+            {
+                return null;
+            }
+
+            apiName = apiName.Trim();
+            if (!isExophase)
+            {
+                return apiName;
+            }
+
+            var normalizedExophaseApiName = ExophaseApiClient.NormalizeLegacyManualApiName(apiName);
+            return string.IsNullOrWhiteSpace(normalizedExophaseApiName)
+                ? null
+                : normalizedExophaseApiName;
         }
 
         private static bool TryResolveSourceGameId(
@@ -578,6 +645,7 @@ namespace PlayniteAchievements.Services
 
                     items.Add(new LegacyAchievementItem
                     {
+                        Name = itemObject.Value<string>("Name"),
                         ApiName = itemObject.Value<string>("ApiName"),
                         DateUnlocked = itemObject.Value<string>("DateUnlocked"),
                         UrlUnlocked = itemObject.Value<string>("UrlUnlocked"),
@@ -590,6 +658,8 @@ namespace PlayniteAchievements.Services
             {
                 IsManual = root.Value<bool?>("IsManual") == true,
                 IsIgnored = root.Value<bool?>("IsIgnored") == true,
+                GameName = root.Value<string>("Name"),
+                SourceGameName = sourcesLink?.Value<string>("GameName"),
                 SourceName = sourcesLink?.Value<string>("Name"),
                 SourceUrl = sourcesLink?.Value<string>("Url"),
                 Items = items
@@ -600,6 +670,8 @@ namespace PlayniteAchievements.Services
         {
             public bool IsManual { get; set; }
             public bool IsIgnored { get; set; }
+            public string GameName { get; set; }
+            public string SourceGameName { get; set; }
             public string SourceName { get; set; }
             public string SourceUrl { get; set; }
             public List<LegacyAchievementItem> Items { get; set; }
@@ -607,11 +679,22 @@ namespace PlayniteAchievements.Services
 
         private sealed class LegacyAchievementItem
         {
+            public string Name { get; set; }
             public string ApiName { get; set; }
             public string DateUnlocked { get; set; }
             public string UrlUnlocked { get; set; }
             public string UrlLocked { get; set; }
         }
+    }
+
+    internal sealed class LegacyManualImportGameMetadata
+    {
+        public Guid LegacyGameId { get; set; }
+        public string GameName { get; set; }
+        public string SourceGameName { get; set; }
+        public string SourceName { get; set; }
+        public string SourceUrl { get; set; }
+        public string SourceGameId { get; set; }
     }
 }
 

@@ -8,6 +8,7 @@ namespace PlayniteAchievements.Providers.Xbox
     public class XboxSettings : ProviderSettingsBase
     {
         private bool _lowResIcons;
+        private bool _useExophaseForRarity;
 
         /// <inheritdoc />
         public override string ProviderKey => "Xbox";
@@ -19,6 +20,15 @@ namespace PlayniteAchievements.Providers.Xbox
         {
             get => _lowResIcons;
             set => SetValue(ref _lowResIcons, value);
+        }
+
+        /// <summary>
+        /// When true, enriches Xbox achievement rarity from Exophase after native scanning.
+        /// </summary>
+        public bool UseExophaseForRarity
+        {
+            get => _useExophaseForRarity;
+            set => SetValue(ref _useExophaseForRarity, value);
         }
     }
 }

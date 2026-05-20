@@ -104,6 +104,46 @@ namespace PlayniteAchievements.Common
         }
 
         /// <summary>
+        /// Synchronizes by index so virtualized item containers can keep their existing view-model instances.
+        /// </summary>
+        public static void SynchronizeReferenceCollectionByPosition<T>(
+            IList<T> collection,
+            IList<T> source,
+            Action<T, T> updateExisting)
+            where T : class
+        {
+            if (collection == null)
+            {
+                return;
+            }
+
+            source ??= new List<T>();
+
+            var sharedCount = Math.Min(collection.Count, source.Count);
+            for (int i = 0; i < sharedCount; i++)
+            {
+                if (collection[i] != null && source[i] != null && updateExisting != null)
+                {
+                    updateExisting(collection[i], source[i]);
+                }
+                else
+                {
+                    collection[i] = source[i];
+                }
+            }
+
+            while (collection.Count > source.Count)
+            {
+                collection.RemoveAt(collection.Count - 1);
+            }
+
+            for (int i = collection.Count; i < source.Count; i++)
+            {
+                collection.Add(source[i]);
+            }
+        }
+
+        /// <summary>
         /// Efficiently synchronizes a collection of value types.
         /// </summary>
         public static void SynchronizeValueCollection<T>(IList<T> collection, IList<T> source)

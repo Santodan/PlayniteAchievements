@@ -21,6 +21,7 @@ namespace PlayniteAchievements.Services
         CompactUnlockedList,
         CompactLockedList,
         SidebarSelectedGame,
+        SidebarRecentAchievements,
         SingleGame,
         AchievementDataGrid
     }
@@ -55,6 +56,58 @@ namespace PlayniteAchievements.Services
         public bool PreservesSourceOrder => string.IsNullOrWhiteSpace(SortMemberPath);
     }
 
+    internal enum AchievementGridSortActionKind
+    {
+        None,
+        ApplySort,
+        ResetToDefault
+    }
+
+    internal readonly struct AchievementGridSortAction
+    {
+        private AchievementGridSortAction(
+            AchievementGridSortActionKind kind,
+            string sortMemberPath,
+            ListSortDirection? direction)
+        {
+            Kind = kind;
+            SortMemberPath = sortMemberPath;
+            Direction = direction;
+        }
+
+        public AchievementGridSortActionKind Kind { get; }
+
+        public string SortMemberPath { get; }
+
+        public ListSortDirection? Direction { get; }
+
+        public static AchievementGridSortAction None()
+        {
+            return new AchievementGridSortAction(
+                AchievementGridSortActionKind.None,
+                null,
+                null);
+        }
+
+        public static AchievementGridSortAction ApplySort(
+            string sortMemberPath,
+            ListSortDirection direction)
+        {
+            return new AchievementGridSortAction(
+                AchievementGridSortActionKind.ApplySort,
+                sortMemberPath,
+                direction);
+        }
+
+        public static AchievementGridSortAction ResetToDefault()
+        {
+            return new AchievementGridSortAction(
+                AchievementGridSortActionKind.ResetToDefault,
+                null,
+                null);
+        }
+    }
+
     /// <summary>
     /// Centralized sort logic for achievement lists and display items.
     /// </summary>
@@ -69,6 +122,7 @@ namespace PlayniteAchievements.Services
                 return surface switch
                 {
                     AchievementSortSurface.SidebarSelectedGame => new AchievementSortSpec(CompactListSortMode.UnlockTime, ListSortDirection.Descending),
+                    AchievementSortSurface.SidebarRecentAchievements => new AchievementSortSpec(CompactListSortMode.UnlockTime, ListSortDirection.Descending),
                     AchievementSortSurface.SingleGame => new AchievementSortSpec(CompactListSortMode.UnlockTime, ListSortDirection.Descending),
                     AchievementSortSurface.AchievementDataGrid => new AchievementSortSpec(CompactListSortMode.UnlockTime, ListSortDirection.Descending),
                     _ => new AchievementSortSpec(CompactListSortMode.None, ListSortDirection.Ascending)
@@ -94,6 +148,9 @@ namespace PlayniteAchievements.Services
                     settings.SidebarSelectedGameGridSortMode, settings.SidebarSelectedGameGridSortDescending,
                     settings.SidebarSelectedGameCustomSortPath,
                     settings.SidebarSelectedGameCustomSortDescending),
+                AchievementSortSurface.SidebarRecentAchievements => new AchievementSortSpec(
+                    CompactListSortMode.UnlockTime,
+                    ListSortDirection.Descending),
                 AchievementSortSurface.SingleGame => BuildSortSpec(
                     settings.DefaultAchievementSortMode, settings.DefaultAchievementSortDescending,
                     settings.SingleGameGridSortMode, settings.SingleGameGridSortDescending,
@@ -161,6 +218,37 @@ namespace PlayniteAchievements.Services
             applyIndicator(
                 configuredSort.SortMemberPath,
                 configuredSort.PreservesSourceOrder ? (ListSortDirection?)null : configuredSort.Direction);
+        }
+
+        internal static AchievementGridSortAction ResolveGridSortAction(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings,
+            AchievementSortSurface surface)
+        {
+            if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
+            {
+                return AchievementGridSortAction.None();
+            }
+
+            var cycleDirections = GetCycleDirections();
+
+            if (!currentSortDirection.HasValue ||
+                !string.Equals(currentSortPath, clickedSortMemberPath, StringComparison.Ordinal))
+            {
+                return AchievementGridSortAction.ApplySort(clickedSortMemberPath, cycleDirections[0]);
+            }
+
+            var currentDirectionIndex = cycleDirections.IndexOf(currentSortDirection.Value);
+            if (currentDirectionIndex < 0 || currentDirectionIndex == cycleDirections.Count - 1)
+            {
+                return AchievementGridSortAction.ResetToDefault();
+            }
+
+            return AchievementGridSortAction.ApplySort(
+                clickedSortMemberPath,
+                cycleDirections[currentDirectionIndex + 1]);
         }
 
         public static List<AchievementDetail> ResolveSelectedGameAchievements(
@@ -313,6 +401,7 @@ namespace PlayniteAchievements.Services
                     propertyName == nameof(PersistedSettings.DefaultAchievementSortDescending) ||
                     propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortPath) ||
                     propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortDescending),
+                AchievementSortSurface.SidebarRecentAchievements => false,
                 AchievementSortSurface.SingleGame =>
                     propertyName == nameof(PersistedSettings.SingleGameGridSortMode) ||
                     propertyName == nameof(PersistedSettings.SingleGameGridSortDescending) ||
@@ -596,6 +685,15 @@ namespace PlayniteAchievements.Services
 
             sorted.Sort((left, right) => CompareByDefaultGameOrder(left.SortProxy, right.SortProxy));
             return sorted.Select(entry => entry.Detail).ToList();
+        }
+
+        private static List<ListSortDirection> GetCycleDirections()
+        {
+            return new List<ListSortDirection>
+            {
+                ListSortDirection.Ascending,
+                ListSortDirection.Descending
+            };
         }
 
         public static int GetTrophyRank(string trophyType)

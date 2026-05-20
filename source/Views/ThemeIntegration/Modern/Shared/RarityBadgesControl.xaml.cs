@@ -14,8 +14,22 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
     public class BadgeItem : INotifyPropertyChanged
     {
         private bool _isVisible = true;
+        private ImageSource _badgeIcon;
 
-        public ImageSource BadgeIcon { get; set; }
+        public RarityTier Tier { get; set; }
+        public ImageSource BadgeIcon
+        {
+            get => _badgeIcon;
+            set
+            {
+                if (!ReferenceEquals(_badgeIcon, value))
+                {
+                    _badgeIcon = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(BadgeIcon)));
+                }
+            }
+        }
+
         public int Count { get; set; }
         public int Total { get; set; }
 
@@ -60,6 +74,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
             DependencyProperty.Register(nameof(DisplayMode), typeof(BadgesDisplayMode), typeof(RarityBadgesControl),
                 new PropertyMetadata(BadgesDisplayMode.Unlocked));
 
+        public static readonly DependencyProperty UseUniformRarityBadgesProperty =
+            DependencyProperty.Register(nameof(UseUniformRarityBadges), typeof(bool), typeof(RarityBadgesControl),
+                new PropertyMetadata(false, OnUseUniformRarityBadgesChanged));
+
         public bool ShowZeroCounts
         {
             get => (bool)GetValue(ShowZeroCountsProperty);
@@ -78,6 +96,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
             set => SetValue(DisplayModeProperty, value);
         }
 
+        public bool UseUniformRarityBadges
+        {
+            get => (bool)GetValue(UseUniformRarityBadgesProperty);
+            set => SetValue(UseUniformRarityBadgesProperty, value);
+        }
+
         public RarityBadgesControl()
         {
             InitializeComponent();
@@ -87,6 +111,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
         {
             var control = (RarityBadgesControl)d;
             control.UpdateVisibility();
+        }
+
+        private static void OnUseUniformRarityBadgesChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (RarityBadgesControl)d;
+            control.UpdateBadgeIcons();
         }
 
         private void UpdateVisibility()
@@ -127,24 +157,33 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
 
             BadgeItems.Clear();
 
-            var badges = new (ImageSource Icon, int Count, int Total)[]
+            var badges = new (RarityTier Tier, ImageSource Icon, int Count, int Total)[]
             {
-                (GetBadgeIcon("BadgePlatinumHexagon"), GetCount(ultraRare), ultraRare.Total),
-                (GetBadgeIcon("BadgeGoldPentagon"), GetCount(rare), rare.Total),
-                (GetBadgeIcon("BadgeSilverSquare"), GetCount(uncommon), uncommon.Total),
-                (GetBadgeIcon("BadgeBronzeTriangle"), GetCount(common), common.Total)
+                (RarityTier.UltraRare, GetBadgeIcon(RarityTier.UltraRare), GetCount(ultraRare), ultraRare.Total),
+                (RarityTier.Rare, GetBadgeIcon(RarityTier.Rare), GetCount(rare), rare.Total),
+                (RarityTier.Uncommon, GetBadgeIcon(RarityTier.Uncommon), GetCount(uncommon), uncommon.Total),
+                (RarityTier.Common, GetBadgeIcon(RarityTier.Common), GetCount(common), common.Total)
             };
 
-            foreach (var (icon, count, total) in badges)
+            foreach (var (tier, icon, count, total) in badges)
             {
                 var item = new BadgeItem
                 {
+                    Tier = tier,
                     BadgeIcon = icon,
                     Count = count,
                     Total = total,
                     IsVisible = ShowZeroCounts || total > 0
                 };
                 BadgeItems.Add(item);
+            }
+        }
+
+        private void UpdateBadgeIcons()
+        {
+            foreach (var item in BadgeItems)
+            {
+                item.BadgeIcon = GetBadgeIcon(item.Tier);
             }
         }
 
@@ -159,8 +198,9 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
             };
         }
 
-        private ImageSource GetBadgeIcon(string resourceKey)
+        private ImageSource GetBadgeIcon(RarityTier tier)
         {
+            var resourceKey = tier.ToIconKey(UseUniformRarityBadges);
             return TryGetImageSource(Resources, resourceKey) ??
                    TryGetApplicationImageSource(resourceKey) ??
                    TryGetImageSource(FallbackBadgeResources.Value, resourceKey);

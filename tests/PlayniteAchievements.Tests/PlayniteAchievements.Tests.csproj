@@ -88,6 +88,7 @@
     <Compile Include="..\..\source\Providers\Manual\ManualSettings.cs" Link="Source\Providers\Manual\ManualSettings.cs" />
     <Compile Include="..\..\source\Providers\Manual\IManualSource.cs" Link="Source\Providers\Manual\IManualSource.cs" />
     <Compile Include="..\..\source\Providers\Manual\ManualSourceAuthentication.cs" Link="Source\Providers\Manual\ManualSourceAuthentication.cs" />
+    <Compile Include="..\..\source\Providers\Manual\ManualLinkTransientStore.cs" Link="Source\Providers\Manual\ManualLinkTransientStore.cs" />
     <Compile Include="..\..\source\Providers\Manual\SteamManualSource.cs" Link="Source\Providers\Manual\SteamManualSource.cs" />
     <Compile Include="..\..\source\Providers\Manual\ExophaseManualSource.cs" Link="Source\Providers\Manual\ExophaseManualSource.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAPIClient.cs" Link="Source\Providers\Steam\SteamAPIClient.cs" />
@@ -99,7 +100,6 @@
     <Compile Include="..\..\source\Providers\PSN\PsnSessionManager.cs" Link="Source\Providers\PSN\PsnSessionManager.cs" />
     <Compile Include="..\..\source\Providers\PSN\PsnSettings.cs" Link="Source\Providers\PSN\PsnSettings.cs" />
     <Compile Include="..\..\source\Providers\Steam\Models\SteamApiResponseModels.cs" Link="Source\Providers\Steam\Models\SteamApiResponseModels.cs" />
-
     <Compile Include="..\..\source\Common\ObservableObject.cs" Link="Source\Common\ObservableObject.cs" />
     <Compile Include="..\..\source\Common\BulkObservableCollection.cs" Link="Source\Common\BulkObservableCollection.cs" />
     <Compile Include="..\..\source\Common\CommandBase.cs" Link="Source\Common\CommandBase.cs" />

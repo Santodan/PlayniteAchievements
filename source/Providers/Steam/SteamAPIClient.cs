@@ -118,24 +118,26 @@ namespace PlayniteAchievements.Providers.Steam
 
                     foreach (var ach in achievements)
                     {
+                        var normalizedInternalName = NormalizeApiText(ach.InternalName);
+
                         schemaAchievements.Add(new SchemaAchievement
                         {
-                            Name = ach.InternalName,
-                            DisplayName = ach.LocalizedName,
-                            Description = ach.LocalizedDesc,
-                            Icon = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.Icon}",
-                            IconGray = $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{ach.IconGray}",
+                            Name = normalizedInternalName,
+                            DisplayName = NormalizeApiText(ach.LocalizedName),
+                            Description = NormalizeApiText(ach.LocalizedDesc),
+                            Icon = BuildAchievementIconUrl(appId, ach.Icon),
+                            IconGray = BuildAchievementIconUrl(appId, ach.IconGray),
                             Hidden = ach.Hidden ? 1 : 0
                         });
 
-                        if (!string.IsNullOrWhiteSpace(ach.InternalName) &&
+                        if (!string.IsNullOrWhiteSpace(normalizedInternalName) &&
                             double.TryParse(
                                 ach.PlayerPercentUnlocked,
                                 System.Globalization.NumberStyles.Any,
                                 System.Globalization.CultureInfo.InvariantCulture,
                                 out var percent))
                         {
-                            globalPercentages[ach.InternalName] = percent;
+                            globalPercentages[normalizedInternalName] = percent;
                         }
                     }
 
@@ -288,6 +290,24 @@ namespace PlayniteAchievements.Providers.Steam
                 "arabic" or "ar" or "ar-sa" => "arabic",
                 _ => normalized
             };
+        }
+
+        private static string NormalizeApiText(string value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? string.Empty
+                : value.Trim();
+        }
+
+        private static string BuildAchievementIconUrl(int appId, string iconFile)
+        {
+            var normalizedIconFile = NormalizeApiText(iconFile);
+            if (string.IsNullOrWhiteSpace(normalizedIconFile))
+            {
+                return string.Empty;
+            }
+
+            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{normalizedIconFile}";
         }
     }
 }

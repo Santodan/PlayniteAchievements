@@ -306,7 +306,8 @@ namespace PlayniteAchievements.ViewModels
 
         public static string MakeRevealKey(Guid? playniteGameId, string apiName, string gameName)
         {
-            return string.Empty;
+            var gamePart = playniteGameId?.ToString() ?? (gameName ?? string.Empty);
+            return $"{gamePart}\u001f{apiName ?? string.Empty}";
         }
 
         public static void AccumulateRarity(

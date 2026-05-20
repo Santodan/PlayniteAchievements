@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.RPCS3.Models;
 using PlayniteAchievements.Services;
@@ -41,14 +42,16 @@ namespace PlayniteAchievements.Providers.RPCS3
         private readonly Rpcs3Settings _providerSettings;
         private readonly Rpcs3DataProvider _provider;
         private readonly IPlayniteAPI _playniteApi;
+        private readonly string _pluginUserDataPath;
 
-        public Rpcs3Scanner(ILogger logger, PlayniteAchievementsSettings settings, Rpcs3Settings providerSettings, Rpcs3DataProvider provider = null, IPlayniteAPI playniteApi = null)
+        public Rpcs3Scanner(ILogger logger, PlayniteAchievementsSettings settings, Rpcs3Settings providerSettings, Rpcs3DataProvider provider = null, IPlayniteAPI playniteApi = null, string pluginUserDataPath = null)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _provider = provider;
             _playniteApi = playniteApi;
+            _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
         }
 
         public async Task<RebuildPayload> RefreshAsync(
@@ -81,6 +84,8 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             _logger?.Info($"[RPCS3] Scanning {trophyFolderCache.Count} cached trophy folders.");
 
+            var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
+
             var payload = await ProviderRefreshExecutor.RunProviderGamesAsync(
                 gamesToRefresh,
                 game =>
@@ -90,6 +95,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 async (game, token) =>
                 {
                     var data = await FetchGameDataAsync(game, trophyFolderCache, token).ConfigureAwait(false);
+                    await EnrichRarityAsync(game, data, rarityEnricher, token).ConfigureAwait(false);
                     return new ProviderRefreshExecutor.ProviderGameResult
                     {
                         Data = data
@@ -106,6 +112,32 @@ namespace PlayniteAchievements.Providers.RPCS3
                 cancel).ConfigureAwait(false);
 
             return payload ?? new RebuildPayload { Summary = new RebuildSummary() };
+        }
+
+        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        {
+            if (_providerSettings?.UseExophaseForRarity != true)
+            {
+                return null;
+            }
+
+            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
+            return enricher;
+        }
+
+        private static async Task EnrichRarityAsync(
+            Game game,
+            GameAchievementData data,
+            ExophaseRarityEnricher rarityEnricher,
+            CancellationToken cancel)
+        {
+            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            await rarityEnricher.EnrichAsync(game, data.Achievements, "ps3", "PSN", cancel).ConfigureAwait(false);
         }
 
         /// <summary>

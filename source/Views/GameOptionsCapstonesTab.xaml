@@ -130,6 +130,7 @@
                   CanUserResizeColumns="True"
                   CanUserReorderColumns="False"
                   CanUserSortColumns="True"
+                  RowHeight="96"
                   EnableRowVirtualization="True"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
                   VirtualizingStackPanel.ScrollUnit="Pixel"
@@ -146,6 +147,7 @@
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
                     <Setter Property="MinHeight" Value="76"/>
+                    <Setter Property="ClipToBounds" Value="True"/>
                 </Style>
             </DataGrid.RowStyle>
 

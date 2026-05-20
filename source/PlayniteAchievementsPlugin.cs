@@ -63,7 +63,7 @@ namespace PlayniteAchievements
 
         private static readonly string[] ProviderDisplayOrder =
         {
-            "Steam", "Epic", "GOG", "BattleNet", "GooglePlay", "Apple", "EA", "PSN", "Xbox", "RetroAchievements", "ShadPS4", "Xenia", "RPCS3", "Local", "Manual", "Exophase",
+            "Steam", "Epic", "GOG", "BattleNet", "EA", "Ubisoft", "PSN", "Xbox", "GooglePlay", "Apple", "RetroAchievements", "RPCS3", "ShadPS4", "Xenia", "Local", "Manual", "Exophase",
         };
 
         private static readonly string[] ProviderRefreshOrder =
@@ -563,8 +563,8 @@ namespace PlayniteAchievements
                         {
                             var game = selectedGames[0];
                             _logger.Debug($"Populating initial theme data for selected game: {game.Name}");
-                            _settingsViewModel.Settings.SetSelectedGame(game);
                             _themeIntegrationService?.PopulateSingleGameDataSync(game.Id);
+                            _settingsViewModel.Settings.SetSelectedGame(game);
                             _themeIntegrationService?.RequestUpdate(game.Id);
                         }
                     }
@@ -608,6 +608,13 @@ namespace PlayniteAchievements
             {
                 RestartBackgroundUpdater();
             }
+
+            if (e.PropertyName == nameof(PersistedSettings.UseUniformRarityBadges))
+            {
+                PercentRarityHelper.ApplyBadgeApplicationResources(
+                    _settingsViewModel?.Settings?.Persisted?.UseUniformRarityBadges ?? false);
+            }
+
             _tagSyncService?.HandlePersistedSettingsPropertyChanged(e);
         }
 
@@ -759,10 +766,10 @@ namespace PlayniteAchievements
                         return;
                     }
 
-                    _settingsViewModel.Settings.SetSelectedGame(game);
                     _themeIntegrationService?.NotifySelectionChanged(game.Id);
                     // Populate cached single-game data immediately, then let the async pass reconcile if needed.
                     _themeIntegrationService?.PopulateSingleGameDataSync(game.Id);
+                    _settingsViewModel.Settings.SetSelectedGame(game);
                     _themeIntegrationService?.RequestUpdate(game.Id);
                 }
                 else
@@ -788,7 +795,7 @@ namespace PlayniteAchievements
             {
                 if (args?.Button == ControllerInput.B && args.State == ControllerInputState.Pressed)
                 {
-                    _fullscreenWindowService?.CloseOverlayWindowIfOpen();
+                    _fullscreenWindowService?.HandleControllerBackPressed();
                 }
             }
             catch (Exception ex)

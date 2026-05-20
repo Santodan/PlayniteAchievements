@@ -573,8 +573,6 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            var precheckHasAchievements = await SelectedResultHasAchievementsAsync(selectedResult);
-
             _pendingInheritedUnlocks = CaptureInheritedUnlocksFromCurrentProvider();
 
             var link = new ManualAchievementLink
@@ -593,11 +591,28 @@ namespace PlayniteAchievements.ViewModels
             var rollbackLink = existingLink?.Clone();
             var rollbackCacheData = _achievementDataService?.GetRawGameAchievementData(_playniteGame.Id);
             var rollbackPending = true;
+            var durableSaveAttempted = false;
 
-            SetLinkInMemory(link);
+            var transientLinkSnapshot = ManualLinkTransientStore.Register(_playniteGame.Id, link);
 
             var refreshCts = new CancellationTokenSource();
             _refreshCts = refreshCts;
+
+            void Rollback()
+            {
+                if (!rollbackPending)
+                {
+                    return;
+                }
+
+                RollbackManualRefreshState(
+                    hadExistingLink,
+                    rollbackLink,
+                    rollbackCacheData,
+                    transientLinkSnapshot,
+                    durableSaveAttempted);
+                rollbackPending = false;
+            }
 
             try
             {
@@ -609,45 +624,37 @@ namespace PlayniteAchievements.ViewModels
 
                 if (refreshCts.IsCancellationRequested)
                 {
-                    RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
-                    rollbackPending = false;
+                    Rollback();
                     ResetToSearchStage();
                     return;
                 }
 
-                if (!TransitionToEditing(link, requireManualProviderData: true))
+                if (!TransitionToEditing(link, requireManualProviderData: true, persistInheritedFallback: false))
                 {
-                    RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
-                    rollbackPending = false;
-                    await HandleRefreshFailureAsync(
-                        precheckHasAchievements == false
-                            ? (ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Schema_NoAchievements") ??
-                               "The selected game has no achievements.")
-                            : null);
+                    var failureMessage = ResolveManualRefreshFailureMessage();
+                    Rollback();
+                    await HandleRefreshFailureAsync(failureMessage);
                     return;
                 }
 
                 // Persist the link only after we have confirmed editable manual schema data.
+                durableSaveAttempted = true;
                 SaveLink(link);
+                if (GameCustomDataStore != null)
+                {
+                    ManualLinkTransientStore.Remove(_playniteGame.Id);
+                }
+
                 rollbackPending = false;
             }
             catch (OperationCanceledException)
             {
-                if (rollbackPending)
-                {
-                    RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
-                    rollbackPending = false;
-                }
-
+                Rollback();
                 ResetToSearchStage();
             }
             catch (Exception ex)
             {
-                if (rollbackPending)
-                {
-                    RollbackTransientLink(hadExistingLink, rollbackLink, rollbackCacheData, persist: false);
-                    rollbackPending = false;
-                }
+                Rollback();
 
                 _logger?.Error(ex, "Manual achievement refresh failed");
                 if (ex is ManualSourceAuthenticationException authException)
@@ -693,21 +700,19 @@ namespace PlayniteAchievements.ViewModels
 
         private async Task ExecuteRefreshRequestAsync(RefreshRequest request, CancellationToken cancellationToken)
         {
-            var coordinator = PlayniteAchievementsPlugin.Instance?.RefreshEntryPoint;
-            if (coordinator == null)
+            var manualProvider = _refreshService?.Providers?
+                .FirstOrDefault(provider =>
+                    provider != null &&
+                    string.Equals(provider.ProviderKey, "Manual", StringComparison.OrdinalIgnoreCase));
+            if (manualProvider == null)
             {
-                throw new InvalidOperationException("RefreshEntryPoint is not available.");
+                throw new InvalidOperationException("Manual provider is not available.");
             }
 
-            await coordinator.ExecuteAsync(
+            await _refreshService.ExecuteRefreshAsync(
                 request,
-                new RefreshExecutionPolicy
-                {
-                    ValidateAuthentication = true,
-                    UseProgressWindow = false,
-                    SwallowExceptions = false,
-                    ExternalCancellationToken = cancellationToken
-                });
+                new[] { manualProvider },
+                cancellationToken);
         }
 
         private RefreshRequest BuildManualProviderRefreshRequest()
@@ -819,7 +824,10 @@ namespace PlayniteAchievements.ViewModels
 
         #region Edit Logic
 
-        private bool TransitionToEditing(ManualAchievementLink link, bool requireManualProviderData = false)
+        private bool TransitionToEditing(
+            ManualAchievementLink link,
+            bool requireManualProviderData = false,
+            bool persistInheritedFallback = true)
         {
             var cachedData = _achievementDataService.GetRawGameAchievementData(_playniteGame.Id);
             var hydratedData = _achievementDataService.GetGameAchievementData(_playniteGame.Id);
@@ -862,7 +870,10 @@ namespace PlayniteAchievements.ViewModels
             if (inheritedFallbackApplied > 0)
             {
                 link.LastModifiedUtc = DateTime.UtcNow;
-                SaveLink(link);
+                if (persistInheritedFallback)
+                {
+                    SaveLink(link);
+                }
             }
             _pendingInheritedUnlocks = null;
 
@@ -952,33 +963,24 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private async Task<bool?> SelectedResultHasAchievementsAsync(ManualGameSearchResult selectedResult)
+        private string ResolveManualRefreshFailureMessage()
         {
-            if (selectedResult == null || string.IsNullOrWhiteSpace(selectedResult.SourceGameId))
+            var cachedData = _achievementDataService?.GetRawGameAchievementData(_playniteGame.Id);
+            if (cachedData == null ||
+                !string.Equals(cachedData.ProviderKey, "Manual", StringComparison.OrdinalIgnoreCase))
             {
-                return false;
-            }
-
-            try
-            {
-                var achievements = await _source.GetAchievementsAsync(
-                    selectedResult.SourceGameId,
-                    _language,
-                    CancellationToken.None);
-
-                var hasAchievements = achievements != null && achievements.Count > 0;
-                selectedResult.HasAchievements = hasAchievements;
-                return hasAchievements;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, $"Manual pre-check failed for source game '{selectedResult.SourceGameId}'");
                 return null;
             }
+
+            if (cachedData.HasAchievements == false ||
+                cachedData.Achievements == null ||
+                cachedData.Achievements.Count == 0)
+            {
+                return ResourceProvider.GetString("LOCPlayAch_ManualAchievements_Schema_NoAchievements") ??
+                       "The selected game has no achievements.";
+            }
+
+            return null;
         }
 
         private List<InheritedUnlockEntry> CaptureInheritedUnlocksFromCurrentProvider()
@@ -1175,34 +1177,54 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void RollbackTransientLink(
+        private void RollbackManualRefreshState(
             bool hadExistingLink,
             ManualAchievementLink previousLink,
             GameAchievementData previousCacheData,
-            bool persist = true)
+            ManualLinkTransientStore.Snapshot transientLinkSnapshot,
+            bool restoreDurableLink)
         {
             try
             {
-                if (GameCustomDataStore != null)
+                if (restoreDurableLink)
                 {
-                    GameCustomDataStore.Update(_playniteGame.Id, customData =>
-                    {
-                        customData.ManualLink = hadExistingLink && previousLink != null
-                            ? previousLink.Clone()
-                            : null;
-                    });
+                    RestoreDurableManualLink(hadExistingLink ? previousLink : null);
                 }
                 else
                 {
-                    var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-                    if (manualSettings?.AchievementLinks == null)
+                    ManualLinkTransientStore.Restore(_playniteGame.Id, transientLinkSnapshot);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to rollback manual link state after refresh did not complete.");
+            }
+
+            RestorePreviousCacheData(previousCacheData);
+        }
+
+        private void RestoreDurableManualLink(ManualAchievementLink link)
+        {
+            if (GameCustomDataStore != null)
+            {
+                GameCustomDataStore.Update(_playniteGame.Id, customData =>
+                {
+                    customData.ManualLink = link?.Clone();
+                });
+            }
+            else
+            {
+                var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+                if (manualSettings != null)
+                {
+                    if (manualSettings.AchievementLinks == null)
                     {
-                        return;
+                        manualSettings.AchievementLinks = new Dictionary<Guid, ManualAchievementLink>();
                     }
 
-                    if (hadExistingLink && previousLink != null)
+                    if (link != null)
                     {
-                        manualSettings.AchievementLinks[_playniteGame.Id] = previousLink;
+                        manualSettings.AchievementLinks[_playniteGame.Id] = link.Clone();
                     }
                     else
                     {
@@ -1211,17 +1233,11 @@ namespace PlayniteAchievements.ViewModels
 
                     ProviderRegistry.Write(manualSettings);
                 }
-
-                if (persist)
-                {
-                    _saveSettings(_settings);
-                }
             }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "Failed to rollback transient manual link after refresh did not complete.");
-            }
+        }
 
+        private void RestorePreviousCacheData(GameAchievementData previousCacheData)
+        {
             try
             {
                 var cache = _cacheManager;

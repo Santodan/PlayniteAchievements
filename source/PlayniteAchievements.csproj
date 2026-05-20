@@ -162,5 +162,10 @@ if exist "$(LocalAppData)\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playni
     "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
 )</PostBuildEvent>
   </PropertyGroup>
+  <PropertyGroup>
+    <WinFxTargetsPath Condition="'$(WinFxTargetsPath)' == '' and Exists('$(WINDIR)\Microsoft.NET\Framework64\v4.0.30319\Microsoft.WinFX.targets')">$(WINDIR)\Microsoft.NET\Framework64\v4.0.30319\Microsoft.WinFX.targets</WinFxTargetsPath>
+    <WinFxTargetsPath Condition="'$(WinFxTargetsPath)' == '' and Exists('$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\Microsoft.WinFX.targets')">$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\Microsoft.WinFX.targets</WinFxTargetsPath>
+  </PropertyGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(WinFxTargetsPath)" Condition="'$(MSBuildRuntimeType)' == 'Core' and '$(WinFxTargetsPath)' != ''" />
 </Project>

@@ -24,6 +24,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         private bool _themeUpdateQueued;
 
         /// <summary>
+        /// Gets the most recent Playnite game context associated with this control.
+        /// </summary>
+        protected Guid? CurrentGameContextId { get; private set; }
+
+        /// <summary>
         /// Gets the plugin instance for this control.
         /// </summary>
         protected PlayniteAchievementsPlugin Plugin { get; }
@@ -186,6 +191,43 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 DataContext = settings;
             }
+        }
+
+        protected void UpdateCurrentGameContext(Game gameContext)
+        {
+            CurrentGameContextId = gameContext != null && gameContext.Id != Guid.Empty
+                ? gameContext.Id
+                : (Guid?)null;
+        }
+
+        protected Guid? GetExpectedSelectedGameId()
+        {
+            if (CurrentGameContextId.HasValue)
+            {
+                return CurrentGameContextId;
+            }
+
+            var selectedGame = EffectiveSettings?.SelectedGame;
+            return selectedGame != null && selectedGame.Id != Guid.Empty
+                ? selectedGame.Id
+                : (Guid?)null;
+        }
+
+        protected bool IsEffectiveModernThemeCurrentForContext()
+        {
+            if (ThemeDataOverride != null)
+            {
+                return true;
+            }
+
+            var expectedGameId = GetExpectedSelectedGameId();
+            if (!expectedGameId.HasValue)
+            {
+                return true;
+            }
+
+            var actualGameId = EffectiveTheme?.SelectedGameId;
+            return actualGameId.HasValue && actualGameId.Value == expectedGameId.Value;
         }
 
         #endregion
@@ -447,6 +489,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// <param name="newContext">The new game context.</param>
         public override void GameContextChanged(Game oldContext, Game newContext)
         {
+            UpdateCurrentGameContext(newContext);
             Plugin.RequestThemeUpdate(newContext);
         }
     }

@@ -18,6 +18,7 @@ namespace PlayniteAchievements.Providers.Xenia
     {
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
+        private readonly PlayniteAchievementsSettings _settings;
         private readonly string _pluginUserDataPath;
         private XeniaSettings _providerSettings;
 
@@ -25,7 +26,7 @@ namespace PlayniteAchievements.Providers.Xenia
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _playniteApi = playniteApi;
-            _ = settings ?? throw new ArgumentNullException(nameof(settings));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
             _providerSettings = ProviderRegistry.Settings<XeniaSettings>();
         }
@@ -107,7 +108,7 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            return new XeniaScanner(_logger, _playniteApi, _providerSettings, _pluginUserDataPath)
+            return new XeniaScanner(_logger, _playniteApi, _providerSettings, _pluginUserDataPath, _settings)
                 .RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
         }
 

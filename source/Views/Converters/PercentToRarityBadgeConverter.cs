@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using PlayniteAchievements.Models.Achievements;
 
 namespace PlayniteAchievements.Views.Converters
 {
@@ -12,9 +13,9 @@ namespace PlayniteAchievements.Views.Converters
     ///
     /// Rarity tiers:
     /// - Ultra Rare (< UltraRareThreshold): BadgePlatinumHexagon
-    /// - Rare (< RareThreshold): BadgeGoldPentagon
-    /// - Uncommon (< UncommonThreshold): BadgeSilverSquare
-    /// - Common (>= UncommonThreshold): BadgeBronzeTriangle
+    /// - Rare (< RareThreshold): gold badge
+    /// - Uncommon (< UncommonThreshold): silver badge
+    /// - Common (>= UncommonThreshold): bronze badge
     /// </summary>
     public class PercentToRarityBadgeConverter : IMultiValueConverter
     {
@@ -40,16 +41,20 @@ namespace PlayniteAchievements.Views.Converters
                 values[2] is double rareThreshold &&
                 values[3] is double uncommonThreshold)
             {
-                string badgeResourceKey;
+                RarityTier rarity;
 
                 if (percent.Value < ultraRareThreshold)
-                    badgeResourceKey = "BadgePlatinumHexagon";
+                    rarity = RarityTier.UltraRare;
                 else if (percent.Value < rareThreshold)
-                    badgeResourceKey = "BadgeGoldPentagon";
+                    rarity = RarityTier.Rare;
                 else if (percent.Value < uncommonThreshold)
-                    badgeResourceKey = "BadgeSilverSquare";
+                    rarity = RarityTier.Uncommon;
                 else
-                    badgeResourceKey = "BadgeBronzeTriangle";
+                    rarity = RarityTier.Common;
+
+                var useUniformRarityBadges =
+                    PlayniteAchievementsPlugin.Instance?.Settings?.Persisted?.UseUniformRarityBadges ?? false;
+                var badgeResourceKey = rarity.ToIconKey(useUniformRarityBadges);
 
                 // Try to find the resource in the application resources
                 try

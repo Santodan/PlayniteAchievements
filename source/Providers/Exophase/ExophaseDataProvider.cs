@@ -31,7 +31,8 @@ namespace PlayniteAchievements.Providers.Exophase
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
         private static readonly string[] KnownExophasePlatformTokens =
         {
-            "steam", "gog", "epic", "blizzard", "origin", "psn", "xbox", "retro", "android", "apple", "ubisoft", "uplay"
+            "steam", "gog", "epic", "blizzard", "origin", "psn", "ps3", "ps4", "ps5", "vita",
+            "xbox", "xbox-one", "xbox-360", "retro", "android", "apple", "ubisoft", "uplay"
         };
         private readonly Dictionary<Guid, DateTime> _slugCacheTimestamps = new Dictionary<Guid, DateTime>();
         private ExophaseSettings _providerSettings;
@@ -43,7 +44,7 @@ namespace PlayniteAchievements.Providers.Exophase
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Exophase");
         public string ProviderKey => "Exophase";
         public string ProviderIconKey => "ProviderIconExophase";
-        public string ProviderColorHex => "#FF6B35";
+        public string ProviderColorHex => "#2f8ab3";
 
         /// <summary>
         /// Checks if Exophase session is authenticated.
@@ -658,6 +659,18 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "ubisoft":
                 case "uplay":
                     return "uplay";
+                case "xbox360":
+                case "xbox 360":
+                    return "xbox-360";
+                case "xboxone":
+                case "xbox one":
+                    return "xbox-one";
+                case "playstation 3":
+                case "playstation3":
+                    return "ps3";
+                case "playstation 4":
+                case "playstation4":
+                    return "ps4";
                 default:
                     return platformToken.Trim().ToLowerInvariant();
             }
@@ -890,6 +903,7 @@ namespace PlayniteAchievements.Providers.Exophase
             if (id.StartsWith("sony_playstation") || id == "sony_vita") return "psn";
 
             // Xbox platforms
+            if (id.Contains("360")) return "xbox-360";
             if (id.StartsWith("xbox")) return "xbox";
 
             return null;
@@ -917,6 +931,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
 
             // Xbox (360, One, Series)
+            if (name.Contains("xbox 360") || name.Contains("xbox360")) return "xbox-360";
             if (name.Contains("xbox")) return "xbox";
 
             // RetroAchievements
@@ -946,7 +961,13 @@ namespace PlayniteAchievements.Providers.Exophase
                 case "blizzard": return "BattleNet";
                 case "origin": return "EA";
                 case "xbox": return "Xbox";
+                case "xbox-one": return "Xbox";
+                case "xbox-360": return "Xbox";
                 case "psn": return "PSN";
+                case "ps3": return "PSN";
+                case "ps4": return "PSN";
+                case "ps5": return "PSN";
+                case "vita": return "PSN";
                 case "retro": return "RetroAchievements";
                 case "android": return "GooglePlay";
                 case "apple": return "Apple";

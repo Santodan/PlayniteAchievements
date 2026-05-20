@@ -104,6 +104,21 @@
     </DrawingImage.Drawing>
   </DrawingImage>
 
+  <!-- Bronze hexagon -->
+  <DrawingImage x:Key="BadgeBronzeHexagon">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource FillBronze}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimBronze}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource ShineOverlay}"/>
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
   <!-- Silver square (diamond) -->
   <DrawingImage x:Key="BadgeSilverSquare">
     <DrawingImage.Drawing>
@@ -116,6 +131,21 @@
 
         <GeometryDrawing Geometry="{StaticResource GeoSquareDiamond}" Brush="{StaticResource ShineOverlay}"/>
         <!-- <GeometryDrawing Geometry="{StaticResource GeoGlint1}" Brush="#8CFFFFFF"/> -->
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
+  <!-- Silver hexagon -->
+  <DrawingImage x:Key="BadgeSilverHexagon">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource FillSilver}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimSilver}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource ShineOverlay}"/>
       </DrawingGroup>
     </DrawingImage.Drawing>
   </DrawingImage>
@@ -133,6 +163,21 @@
         <GeometryDrawing Geometry="{StaticResource GeoPentagon}" Brush="{StaticResource ShineOverlay}"/>
         <!-- <GeometryDrawing Geometry="{StaticResource GeoGlint1}" Brush="#A6FFFFFF"/> -->
         <!-- <GeometryDrawing Geometry="{StaticResource GeoGlint2}" Brush="#8CFFFFFF"/> -->
+      </DrawingGroup>
+    </DrawingImage.Drawing>
+  </DrawingImage>
+
+  <!-- Gold hexagon -->
+  <DrawingImage x:Key="BadgeGoldHexagon">
+    <DrawingImage.Drawing>
+      <DrawingGroup>
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource FillGold}">
+          <GeometryDrawing.Pen>
+            <Pen Brush="{StaticResource RimGold}" Thickness="3" LineJoin="Round"/>
+          </GeometryDrawing.Pen>
+        </GeometryDrawing>
+
+        <GeometryDrawing Geometry="{StaticResource GeoHexagon}" Brush="{StaticResource ShineOverlay}"/>
       </DrawingGroup>
     </DrawingImage.Drawing>
   </DrawingImage>

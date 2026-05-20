@@ -140,6 +140,7 @@
                   CanUserResizeColumns="True"
                   CanUserReorderColumns="False"
                   CanUserSortColumns="False"
+                  RowHeight="112"
                   EnableRowVirtualization="True"
                   EnableColumnVirtualization="True"
                   VirtualizingStackPanel.VirtualizationMode="Recycling"
@@ -164,6 +165,7 @@
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
                     <Setter Property="MinHeight" Value="76" />
+                    <Setter Property="ClipToBounds" Value="True" />
                     <Setter Property="Cursor" Value="Arrow" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding CanReveal}" Value="True">

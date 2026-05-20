@@ -9,6 +9,8 @@
              mc:Ignorable="d"
              d:DesignHeight="300" d:DesignWidth="600"
              d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
              Loaded="OnLoaded">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -28,6 +30,7 @@
               SelectionMode="Single"
               SelectionUnit="FullRow"
               HeadersVisibility="Column"
+              RowHeaderWidth="0"
               GridLinesVisibility="None"
               RowBackground="Transparent"
               BorderThickness="1"
@@ -46,8 +49,26 @@
               ScrollViewer.IsDeferredScrollingEnabled="False"
               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
               Padding="0"
+              UseLayoutRounding="True"
+              SnapsToDevicePixels="True"
               ColumnHeaderStyle="{StaticResource AchievementColumnHeaderWithMenuStyle}"
               PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
+
+        <DataGrid.RowHeaderStyle>
+            <Style TargetType="DataGridRowHeader">
+                <Setter Property="Width" Value="0"/>
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="MaxWidth" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Margin" Value="0"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridRowHeader"/>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </DataGrid.RowHeaderStyle>
 
         <DataGrid.CellStyle>
             <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}"/>
@@ -83,6 +104,7 @@
                                     Width="36" MinWidth="36" MaxWidth="36" CanUserSort="False" CanUserResize="False"
                                     Header=" "
                                     helpers:ColumnVisibilityHelper.ColumnKey="Status"
+                                    CellStyle="{StaticResource AchievementStatusCellStyle}"
                                     CellTemplate="{StaticResource AchievementStatusTemplate}"/>
 
             <!-- Achievement Icon -->

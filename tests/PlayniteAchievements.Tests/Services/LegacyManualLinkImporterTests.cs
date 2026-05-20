@@ -159,6 +159,98 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void Import_UsesExophaseNameWhenLegacyApiNameIsBlank()
+        {
+            var gameId = Guid.NewGuid();
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                WriteLegacyFile(
+                    tempDir,
+                    gameId,
+                    CreateLegacyPayload(
+                        isManual: true,
+                        isIgnored: false,
+                        sourceName: "Exophase",
+                        sourceUrl: "https://www.exophase.com/game/baldur-s-gate-3-gog/achievements/",
+                        items: new[]
+                        {
+                            CreateItem("", "1982-12-15T00:00:00", name: "A Grym Fate"),
+                            CreateItem("", "0001-01-01T00:00:00", name: "Absolute Power Corrupts")
+                        }));
+
+                var settings = new PersistedSettings();
+                var importer = CreateImporter(settings, new HashSet<Guid> { gameId }, new HashSet<Guid>());
+
+                var result = importer.Import(tempDir);
+
+                Assert.AreEqual(1, result.Imported);
+
+                var link = GetManualLinks(settings)[gameId];
+                Assert.AreEqual("baldur-s-gate-3-gog", link.SourceGameId);
+                Assert.IsTrue(link.UnlockStates.ContainsKey("exophase_a_grym_fate"));
+                Assert.IsTrue(link.UnlockStates["exophase_a_grym_fate"]);
+                Assert.IsFalse(link.UnlockStates.ContainsKey("exophase_absolute_power_corrupts"));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Import_UsesResolvedGameIdWhenLegacyGuidIsMissing()
+        {
+            var legacyGameId = Guid.NewGuid();
+            var localGameId = Guid.NewGuid();
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                WriteLegacyFile(
+                    tempDir,
+                    legacyGameId,
+                    CreateLegacyPayload(
+                        isManual: true,
+                        isIgnored: false,
+                        sourceName: "Exophase",
+                        sourceUrl: "https://www.exophase.com/game/baldur-s-gate-3-gog/achievements/",
+                        items: new[] { CreateItem("", "1982-12-15T00:00:00", name: "A Grym Fate") },
+                        gameName: "Baldur's Gate 3",
+                        sourceGameName: "Baldur's Gate 3"));
+
+                var settings = new PersistedSettings();
+                var importer = CreateImporter(
+                    settings,
+                    new HashSet<Guid> { localGameId },
+                    new HashSet<Guid>(),
+                    metadata =>
+                    {
+                        Assert.AreEqual(legacyGameId, metadata.LegacyGameId);
+                        Assert.AreEqual("Baldur's Gate 3", metadata.GameName);
+                        Assert.AreEqual("Baldur's Gate 3", metadata.SourceGameName);
+                        Assert.AreEqual("Exophase", metadata.SourceName);
+                        Assert.AreEqual("baldur-s-gate-3-gog", metadata.SourceGameId);
+                        return localGameId;
+                    });
+
+                var result = importer.Import(tempDir);
+
+                Assert.AreEqual(1, result.Scanned);
+                Assert.AreEqual(1, result.Imported);
+                Assert.AreEqual(0, result.SkippedGameMissing);
+                Assert.AreEqual(localGameId, result.ImportedGameIds[0]);
+                Assert.IsFalse(GetManualLinks(settings).ContainsKey(legacyGameId));
+                Assert.IsTrue(GetManualLinks(settings).ContainsKey(localGameId));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Import_SkipsNonManualAndIgnored()
         {
             var nonManualGameId = Guid.NewGuid();
@@ -726,14 +818,16 @@ namespace PlayniteAchievements.Services.Tests
         private static LegacyManualLinkImporter CreateImporter(
             PersistedSettings settings,
             HashSet<Guid> existingGames,
-            HashSet<Guid> cachedGames)
+            HashSet<Guid> cachedGames,
+            Func<LegacyManualImportGameMetadata, Guid?> resolveMissingGameId = null)
         {
             ProviderSettingsHelper.Bind(settings);
             return new LegacyManualLinkImporter(
                 settings,
                 gameId => existingGames.Contains(gameId),
                 gameId => cachedGames.Contains(gameId),
-                logger: null);
+                logger: null,
+                resolveMissingGameId: resolveMissingGameId);
         }
 
         private static Dictionary<Guid, ManualAchievementLink> GetManualLinks(PersistedSettings settings)
@@ -768,12 +862,18 @@ namespace PlayniteAchievements.Services.Tests
             string apiName,
             string dateUnlocked = null,
             string urlUnlocked = null,
-            string urlLocked = null)
+            string urlLocked = null,
+            string name = null)
         {
             var item = new JObject
             {
                 ["ApiName"] = apiName
             };
+
+            if (name != null)
+            {
+                item["Name"] = name;
+            }
 
             if (dateUnlocked != null)
             {
@@ -798,7 +898,9 @@ namespace PlayniteAchievements.Services.Tests
             bool isIgnored,
             string sourceName,
             string sourceUrl,
-            IEnumerable<JObject> items)
+            IEnumerable<JObject> items,
+            string gameName = null,
+            string sourceGameName = null)
         {
             var payload = new JObject
             {
@@ -811,6 +913,16 @@ namespace PlayniteAchievements.Services.Tests
                 },
                 ["Items"] = new JArray(items ?? Enumerable.Empty<JObject>())
             };
+
+            if (gameName != null)
+            {
+                payload["Name"] = gameName;
+            }
+
+            if (sourceGameName != null)
+            {
+                ((JObject)payload["SourcesLink"])["GameName"] = sourceGameName;
+            }
 
             return payload.ToString();
         }

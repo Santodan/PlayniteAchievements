@@ -20,6 +20,16 @@ namespace PlayniteAchievements.Views.Helpers
             return !double.IsNaN(width) && !double.IsInfinity(width) && width > 0;
         }
 
+        public static double RoundPixelWidth(double width)
+        {
+            if (!IsValidWidth(width))
+            {
+                return 0;
+            }
+
+            return Math.Max(1, Math.Round(width, MidpointRounding.AwayFromZero));
+        }
+
         public static string GetColumnKey(DataGridColumn column)
         {
             if (column == null)
@@ -99,7 +109,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return 1;
             }
 
-            return Math.Max(1, Math.Round(availableWidth * MinimumColumnWidthRatio, 2));
+            return RoundPixelWidth(availableWidth * MinimumColumnWidthRatio);
         }
 
         public static double ResolveResizableMinimumColumnWidth(
@@ -492,7 +502,7 @@ namespace PlayniteAchievements.Views.Helpers
             normalized = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < keys.Count; i++)
             {
-                normalized[keys[i]] = Math.Max(floorWidths[i], widths[i]);
+                normalized[keys[i]] = Math.Max(RoundPixelWidth(floorWidths[i]), RoundPixelWidth(widths[i]));
             }
 
             return true;
@@ -534,7 +544,7 @@ namespace PlayniteAchievements.Views.Helpers
                         continue;
                     }
 
-                    column.Width = new DataGridLength(width, DataGridLengthUnitType.Pixel);
+                    column.Width = new DataGridLength(RoundPixelWidth(width), DataGridLengthUnitType.Pixel);
                 }
             }
             finally

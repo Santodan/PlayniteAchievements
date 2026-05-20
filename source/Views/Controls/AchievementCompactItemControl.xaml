@@ -8,7 +8,9 @@
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              mc:Ignorable="d"
              d:DesignHeight="48" d:DesignWidth="48"
-             d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}">
+             d:DataContext="{d:DesignInstance vm:AchievementDisplayItem}"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -23,7 +25,9 @@
     <Grid x:Name="RootGrid"
           Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
           Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-          ClipToBounds="False">
+          ClipToBounds="False"
+          UseLayoutRounding="True"
+          SnapsToDevicePixels="True">
         <Grid.ToolTip>
             <ToolTip x:Name="ItemToolTip"
                      MaxWidth="300"
@@ -100,14 +104,17 @@
         <!-- Achievement icon with glow effect - keep glow on a backing layer so the front icon stays sharp -->
         <Grid Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
               Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
-              ClipToBounds="False">
+              ClipToBounds="False"
+              UseLayoutRounding="True"
+              SnapsToDevicePixels="True">
             <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="Fant"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
                    Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    IsHitTestVisible="False"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="64">
+                   helpers:AsyncImage.DecodePixel="256">
                 <Image.Style>
                     <Style TargetType="Image">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -126,11 +133,12 @@
                 </Image.Style>
             </Image>
             <Image Stretch="Uniform"
-                   RenderOptions.BitmapScalingMode="Fant"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
                    Width="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    Height="{Binding IconSize, RelativeSource={RelativeSource AncestorType=UserControl}}"
                    helpers:AsyncImage.Uri="{Binding DisplayIcon, Mode=OneWay}"
-                   helpers:AsyncImage.DecodePixel="64"/>
+                   helpers:AsyncImage.DecodePixel="256"/>
         </Grid>
 
         <!-- Rarity bar overlay at bottom - shows global unlock percentage -->

@@ -39,6 +39,58 @@ namespace PlayniteAchievements.Services
         };
     }
 
+    internal enum GamesOverviewGridSortActionKind
+    {
+        None,
+        ApplySort,
+        ResetToDefault
+    }
+
+    internal readonly struct GamesOverviewGridSortAction
+    {
+        private GamesOverviewGridSortAction(
+            GamesOverviewGridSortActionKind kind,
+            string sortMemberPath,
+            ListSortDirection? direction)
+        {
+            Kind = kind;
+            SortMemberPath = sortMemberPath;
+            Direction = direction;
+        }
+
+        public GamesOverviewGridSortActionKind Kind { get; }
+
+        public string SortMemberPath { get; }
+
+        public ListSortDirection? Direction { get; }
+
+        public static GamesOverviewGridSortAction None()
+        {
+            return new GamesOverviewGridSortAction(
+                GamesOverviewGridSortActionKind.None,
+                null,
+                null);
+        }
+
+        public static GamesOverviewGridSortAction ApplySort(
+            string sortMemberPath,
+            ListSortDirection direction)
+        {
+            return new GamesOverviewGridSortAction(
+                GamesOverviewGridSortActionKind.ApplySort,
+                sortMemberPath,
+                direction);
+        }
+
+        public static GamesOverviewGridSortAction ResetToDefault()
+        {
+            return new GamesOverviewGridSortAction(
+                GamesOverviewGridSortActionKind.ResetToDefault,
+                null,
+                null);
+        }
+    }
+
     public static class GamesOverviewSortHelper
     {
         public static GamesOverviewSortSpec GetConfiguredDefaultSort(PersistedSettings settings)
@@ -92,6 +144,41 @@ namespace PlayniteAchievements.Services
         {
             var configuredSort = GetConfiguredDefaultSort(settings);
             Sort(items, configuredSort.SortMemberPath, configuredSort.Direction);
+        }
+
+        internal static GamesOverviewGridSortAction ResolveGridSortAction(
+            string clickedSortMemberPath,
+            string currentSortPath,
+            ListSortDirection? currentSortDirection,
+            PersistedSettings settings)
+        {
+            if (string.IsNullOrWhiteSpace(clickedSortMemberPath))
+            {
+                return GamesOverviewGridSortAction.None();
+            }
+
+            var configuredSort = GetConfiguredDefaultSort(settings);
+            var cycleDirections = GetCycleDirections(clickedSortMemberPath, configuredSort);
+            if (cycleDirections.Count == 0)
+            {
+                return GamesOverviewGridSortAction.ResetToDefault();
+            }
+
+            if (!currentSortDirection.HasValue ||
+                !string.Equals(currentSortPath, clickedSortMemberPath, StringComparison.Ordinal))
+            {
+                return GamesOverviewGridSortAction.ApplySort(clickedSortMemberPath, cycleDirections[0]);
+            }
+
+            var currentDirectionIndex = cycleDirections.IndexOf(currentSortDirection.Value);
+            if (currentDirectionIndex < 0 || currentDirectionIndex == cycleDirections.Count - 1)
+            {
+                return GamesOverviewGridSortAction.ResetToDefault();
+            }
+
+            return GamesOverviewGridSortAction.ApplySort(
+                clickedSortMemberPath,
+                cycleDirections[currentDirectionIndex + 1]);
         }
 
         public static bool TrySortItems(
@@ -170,6 +257,24 @@ namespace PlayniteAchievements.Services
             items.Reverse();
             currentSortDirection = direction;
             return true;
+        }
+
+        private static List<ListSortDirection> GetCycleDirections(
+            string clickedSortMemberPath,
+            GamesOverviewSortSpec configuredSort)
+        {
+            var directions = new List<ListSortDirection>
+            {
+                ListSortDirection.Ascending,
+                ListSortDirection.Descending
+            };
+
+            if (string.Equals(configuredSort.SortMemberPath, clickedSortMemberPath, StringComparison.Ordinal))
+            {
+                directions.Remove(configuredSort.Direction);
+            }
+
+            return directions;
         }
 
         private static Comparison<GameOverviewItem> CreateComparison(string sortMemberPath, ListSortDirection direction)

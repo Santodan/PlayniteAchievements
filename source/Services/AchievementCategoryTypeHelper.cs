@@ -9,6 +9,7 @@ namespace PlayniteAchievements.Services
         public const string DefaultCategoryType = "Default";
         public const string DefaultCategoryLabel = "Default";
         public const string IgnoredCategoryType = "Ignored";
+        public const string SummaryIgnoredCategoryType = "SummaryIgnored";
 
         private static readonly string[] CanonicalOrder =
         {
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.Services
             "Missable",
             "Difficulty",
             "Stackable",
+            SummaryIgnoredCategoryType,
             IgnoredCategoryType
         };
 
@@ -46,7 +48,11 @@ namespace PlayniteAchievements.Services
                 ["stack"] = "Stackable",
                 ["stacking"] = "Stackable",
                 ["ignored"] = IgnoredCategoryType,
-                ["ignore"] = IgnoredCategoryType
+                ["ignore"] = IgnoredCategoryType,
+                ["summaryignored"] = SummaryIgnoredCategoryType,
+                ["summary_ignored"] = SummaryIgnoredCategoryType,
+                ["summary ignored"] = SummaryIgnoredCategoryType,
+                ["si"] = SummaryIgnoredCategoryType
             };
 
         public static IReadOnlyList<string> AllowedCategoryTypes => CanonicalOrder;
@@ -134,6 +140,20 @@ namespace PlayniteAchievements.Services
         {
             return ParseValues(rawValue)
                 .Any(value => string.Equals(value, IgnoredCategoryType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static bool IsSummaryIgnored(string rawValue)
+        {
+            return ParseValues(rawValue)
+                .Any(value => string.Equals(value, SummaryIgnoredCategoryType, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static bool IsExcludedFromSummary(string rawValue)
+        {
+            var values = ParseValues(rawValue);
+            return values.Any(value =>
+                string.Equals(value, IgnoredCategoryType, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, SummaryIgnoredCategoryType, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool TryCanonicalize(string rawValue, out string canonical)

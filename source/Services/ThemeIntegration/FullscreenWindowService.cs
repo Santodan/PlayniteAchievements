@@ -18,6 +18,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
     /// </summary>
     public sealed class FullscreenWindowService : IDisposable
     {
+        private static readonly TimeSpan ControllerBackReactivationIgnoreWindow = TimeSpan.FromMilliseconds(500);
+
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action<Guid?> _requestSingleGameThemeUpdate;
@@ -26,6 +28,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private Window _achievementsWindow;
         private Guid? _originalSelectedGameId;
         private bool _isTransitioning;
+        private bool _overlayWasDeactivated;
+        private DateTimeOffset? _ignoreControllerBackUntilUtc;
         public bool IsOverlayWindowOpen => _achievementsWindow?.IsVisible == true;
 
         public FullscreenWindowService(
@@ -104,6 +108,52 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 // Ignore errors when closing window
             }
+        }
+
+        public void HandleControllerBackPressed()
+        {
+            try
+            {
+                var dispatcher = UiDispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess())
+                {
+                    TryCloseOverlayForControllerBackOnUiThread();
+                }
+                else
+                {
+                    dispatcher.BeginInvoke(new Action(TryCloseOverlayForControllerBackOnUiThread), DispatcherPriority.Background);
+                }
+            }
+            catch
+            {
+                // Ignore errors when handling global controller input.
+            }
+        }
+
+        private void TryCloseOverlayForControllerBackOnUiThread()
+        {
+            if (_achievementsWindow?.IsVisible != true)
+            {
+                return;
+            }
+
+            var activeWindow = Application.Current?.Windows?
+                .OfType<Window>()
+                .FirstOrDefault(w => w.IsActive);
+
+            if (!ReferenceEquals(activeWindow, _achievementsWindow))
+            {
+                return;
+            }
+
+            if (_ignoreControllerBackUntilUtc.HasValue &&
+                DateTimeOffset.UtcNow < _ignoreControllerBackUntilUtc.Value)
+            {
+                return;
+            }
+
+            _ignoreControllerBackUntilUtc = null;
+            try { _achievementsWindow.Close(); } catch { }
         }
 
         private void SelectGame(Guid gameId)
@@ -239,11 +289,31 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 }
             };
 
+            window.Activated += (_, __) =>
+            {
+                if (ReferenceEquals(_achievementsWindow, window) && _overlayWasDeactivated)
+                {
+                    _ignoreControllerBackUntilUtc = DateTimeOffset.UtcNow.Add(
+                        ControllerBackReactivationIgnoreWindow);
+                    _overlayWasDeactivated = false;
+                }
+            };
+
+            window.Deactivated += (_, __) =>
+            {
+                if (ReferenceEquals(_achievementsWindow, window) && window.IsVisible)
+                {
+                    _overlayWasDeactivated = true;
+                }
+            };
+
             window.Closed += (_, __) =>
             {
                 if (ReferenceEquals(_achievementsWindow, window))
                 {
                     _achievementsWindow = null;
+                    _overlayWasDeactivated = false;
+                    _ignoreControllerBackUntilUtc = null;
                 }
 
                 // Restore original selection when window closes (but not during transitions)

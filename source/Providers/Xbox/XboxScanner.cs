@@ -3,6 +3,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Xbox.Models;
 using PlayniteAchievements.Services;
 using System;
@@ -26,11 +27,20 @@ namespace PlayniteAchievements.Providers.Xbox
             public XboxTransientException(string message, Exception innerException) : base(message, innerException) { }
         }
 
+        private enum XboxAchievementSource
+        {
+            Unknown,
+            Modern,
+            Xbox360
+        }
+
         private readonly PlayniteAchievementsSettings _settings;
         private readonly XboxSettings _providerSettings;
         private readonly XboxSessionManager _sessionManager;
         private readonly XboxApiClient _apiClient;
         private readonly ILogger _logger;
+        private readonly IPlayniteAPI _playniteApi;
+        private readonly string _pluginUserDataPath;
 
         // Xbox library plugin ID from Playnite
         internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5b-4594-4c5a-8a69-1e3f41b39c52");
@@ -40,13 +50,17 @@ namespace PlayniteAchievements.Providers.Xbox
             XboxSettings providerSettings,
             XboxSessionManager sessionManager,
             XboxApiClient apiClient,
-            ILogger logger)
+            ILogger logger,
+            IPlayniteAPI playniteApi,
+            string pluginUserDataPath)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _providerSettings = providerSettings ?? throw new ArgumentNullException(nameof(providerSettings));
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
             _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _playniteApi = playniteApi;
+            _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
         }
 
         public async Task<RebuildPayload> RefreshAsync(
@@ -83,6 +97,8 @@ namespace PlayniteAchievements.Providers.Xbox
                     return new RebuildPayload { Summary = new RebuildSummary(), AuthRequired = true };
                 }
 
+                var rarityEnricher = await CreateRarityEnricherAsync(cancel).ConfigureAwait(false);
+
                 var rateLimiter = new RateLimiter(
                     _settings.Persisted.ScanDelayMs,
                     _settings.Persisted.MaxRetryAttempts);
@@ -93,7 +109,7 @@ namespace PlayniteAchievements.Providers.Xbox
                     async (game, token) =>
                     {
                         var data = await rateLimiter.ExecuteWithRetryAsync(
-                            () => FetchGameDataAsync(game, authData, xuid, token),
+                            () => FetchGameDataAsync(game, authData, xuid, rarityEnricher, token),
                             IsTransientError,
                             token).ConfigureAwait(false);
 
@@ -159,6 +175,7 @@ namespace PlayniteAchievements.Providers.Xbox
             Game game,
             AuthorizationData authData,
             string xuid,
+            ExophaseRarityEnricher rarityEnricher,
             CancellationToken cancel)
         {
             cancel.ThrowIfCancellationRequested();
@@ -177,21 +194,40 @@ namespace PlayniteAchievements.Providers.Xbox
 
             // Try fetching achievements - Xbox 360 first if platform matches, otherwise Xbox One first
             List<AchievementDetail> achievements = null;
+            var achievementSource = XboxAchievementSource.Unknown;
 
             if (isXbox360)
             {
                 achievements = await TryGetXbox360AchievementsAsync(xuid, titleId, authData, cancel).ConfigureAwait(false);
+                if (achievements != null && achievements.Count > 0)
+                {
+                    achievementSource = XboxAchievementSource.Xbox360;
+                }
+
                 if (achievements == null || achievements.Count == 0)
                 {
                     achievements = await TryGetXboxOneAchievementsAsync(xuid, titleId, game.Name, authData, cancel).ConfigureAwait(false);
+                    if (achievements != null && achievements.Count > 0)
+                    {
+                        achievementSource = XboxAchievementSource.Modern;
+                    }
                 }
             }
             else
             {
                 achievements = await TryGetXboxOneAchievementsAsync(xuid, titleId, game.Name, authData, cancel).ConfigureAwait(false);
+                if (achievements != null && achievements.Count > 0)
+                {
+                    achievementSource = XboxAchievementSource.Modern;
+                }
+
                 if (achievements == null || achievements.Count == 0)
                 {
                     achievements = await TryGetXbox360AchievementsAsync(xuid, titleId, authData, cancel).ConfigureAwait(false);
+                    if (achievements != null && achievements.Count > 0)
+                    {
+                        achievementSource = XboxAchievementSource.Xbox360;
+                    }
                 }
             }
 
@@ -202,7 +238,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 appId = parsedId;
             }
 
-            return new GameAchievementData
+            var data = new GameAchievementData
             {
                 AppId = appId,
                 GameName = game.Name,
@@ -213,6 +249,36 @@ namespace PlayniteAchievements.Providers.Xbox
                 PlayniteGameId = game.Id,
                 Achievements = achievements ?? new List<AchievementDetail>()
             };
+
+            await EnrichRarityAsync(game, data, rarityEnricher, achievementSource, cancel).ConfigureAwait(false);
+            return data;
+        }
+
+        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        {
+            if (_providerSettings?.UseExophaseForRarity != true)
+            {
+                return null;
+            }
+
+            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            await enricher.InitializeAsync(cancel).ConfigureAwait(false);
+            return enricher;
+        }
+
+        private static async Task EnrichRarityAsync(
+            Game game,
+            GameAchievementData data,
+            ExophaseRarityEnricher rarityEnricher,
+            XboxAchievementSource achievementSource,
+            CancellationToken cancel)
+        {
+            if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)
+            {
+                return;
+            }
+
+            await rarityEnricher.EnrichAsync(game, data.Achievements, ResolveExophasePlatformSlug(game, achievementSource), "Xbox", cancel).ConfigureAwait(false);
         }
 
         private async Task<string> ResolveTitleIdAsync(Game game, AuthorizationData authData, CancellationToken cancel)
@@ -249,7 +315,22 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private static bool IsXbox360Game(Game game)
         {
-            return game.Platforms?.Any(p => p.SpecificationId == "xbox360") == true;
+            return game.Platforms?.Any(p =>
+                string.Equals(p?.SpecificationId, "xbox360", StringComparison.OrdinalIgnoreCase) ||
+                (p?.Name?.IndexOf("xbox 360", StringComparison.OrdinalIgnoreCase) >= 0)) == true;
+        }
+
+        private static string ResolveExophasePlatformSlug(Game game, XboxAchievementSource achievementSource)
+        {
+            switch (achievementSource)
+            {
+                case XboxAchievementSource.Xbox360:
+                    return "xbox-360";
+                case XboxAchievementSource.Modern:
+                    return "xbox";
+                default:
+                    return IsXbox360Game(game) ? "xbox-360" : "xbox";
+            }
         }
 
         private async Task<List<AchievementDetail>> TryGetXboxOneAchievementsAsync(
