@@ -236,6 +236,8 @@ namespace PlayniteAchievements.Providers.Local
         public async Task<GameAchievementData> GetAchievementsAsync(Game game, RefreshRequest request)
         {
             var appId = GetAppId(game, out var isAppIdOverridden);
+            var hasCustomSchemaPathOverride = game != null && TryGetCustomSchemaPathOverride(game.Id, out _);
+            var hasFolderOverride = game != null && TryGetFolderOverride(game.Id, out _);
             if (string.IsNullOrEmpty(appId))
             {
                 // If no app id is available from metadata, try to resolve it from a configured
@@ -280,8 +282,13 @@ namespace PlayniteAchievements.Providers.Local
 
             if (string.IsNullOrEmpty(appId))
             {
-                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
-                return null;
+                if (!hasCustomSchemaPathOverride && !hasFolderOverride)
+                {
+                    Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
+                    return null;
+                }
+
+                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only mode (customSchema={hasCustomSchemaPathOverride}, folderOverride={hasFolderOverride}).");
             }
 
             string localFolderPath = null;
@@ -361,6 +368,55 @@ namespace PlayniteAchievements.Providers.Local
                 if (steamSchemaAppIdInt != appIdInt)
                 {
                     Log($"SCHEMA APPID OVERRIDE: game={game?.Name} localAppId={appIdInt} steamSchemaAppId={steamSchemaAppIdInt}");
+                }
+            }
+
+            if (game != null && TryGetCustomSchemaPathOverride(game.Id, out var customSchemaPath))
+            {
+                var customSchemaAchievements = TryLoadCustomSchemaAchievements(customSchemaPath, out var customSchemaError);
+                if (customSchemaAchievements != null && customSchemaAchievements.Count > 0)
+                {
+                    if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
+                    {
+                        MergeSchemaMetadata(customSchemaAchievements, steamSchema.Achievements, preferSourceText: false);
+
+                        var existingNames = new HashSet<string>(
+                            customSchemaAchievements
+                                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.Name))
+                                .Select(achievement => achievement.Name),
+                            StringComparer.OrdinalIgnoreCase);
+
+                        foreach (var schemaAchievement in steamSchema.Achievements)
+                        {
+                            if (schemaAchievement == null || string.IsNullOrWhiteSpace(schemaAchievement.Name))
+                            {
+                                continue;
+                            }
+
+                            if (existingNames.Add(schemaAchievement.Name))
+                            {
+                                customSchemaAchievements.Add(schemaAchievement);
+                            }
+                        }
+                    }
+
+                    steamSchema ??= new SchemaAndPercentages();
+                    steamSchema.Achievements = customSchemaAchievements;
+                    steamSchemaSource = string.IsNullOrWhiteSpace(steamSchemaSource)
+                        ? "custom-schema"
+                        : $"custom-schema+{steamSchemaSource}";
+
+                    apiNameMap = steamSchema.Achievements
+                        .Where(a => !string.IsNullOrWhiteSpace(a.Name))
+                        .ToDictionary(a => a.Name, a => a, StringComparer.OrdinalIgnoreCase);
+                    schemaLookupByText = BuildSchemaLookupByText(steamSchema.Achievements);
+                    schemaLookupByTitle = BuildSchemaLookupByTitle(steamSchema.Achievements);
+
+                    Log($"CUSTOM SCHEMA: game={game?.Name} loaded={customSchemaAchievements.Count} file={customSchemaPath}");
+                }
+                else
+                {
+                    Log($"CUSTOM SCHEMA: game={game?.Name} failed file={customSchemaPath} reason={customSchemaError}");
                 }
             }
 
@@ -655,6 +711,25 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(folderPath);
         }
 
+        internal static bool TryGetCustomSchemaPathOverride(Guid gameId, out string schemaPath)
+        {
+            schemaPath = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.CustomSchemaPathOverrides == null ||
+                !settings.CustomSchemaPathOverrides.TryGetValue(gameId, out var configuredPath))
+            {
+                return false;
+            }
+
+            schemaPath = configuredPath?.Trim();
+            return !string.IsNullOrWhiteSpace(schemaPath);
+        }
+
         internal static bool TryGetLumaPlayAppIdOverride(Guid gameId, out int appId)
         {
             appId = 0;
@@ -788,6 +863,23 @@ namespace PlayniteAchievements.Providers.Local
             return true;
         }
 
+        internal static bool TrySetCustomSchemaPathOverride(Guid gameId, string schemaPath, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty || string.IsNullOrWhiteSpace(schemaPath))
+            {
+                return false;
+            }
+
+            var normalizedPath = schemaPath.Trim();
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            settings.CustomSchemaPathOverrides ??= new Dictionary<Guid, string>();
+            settings.CustomSchemaPathOverrides[gameId] = normalizedPath;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local custom schema override for '{gameName}' to '{normalizedPath}'");
+            return true;
+        }
+
         internal static bool TrySetLumaPlayAppIdOverride(Guid gameId, int appId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
             if (gameId == Guid.Empty || appId <= 0)
@@ -873,6 +965,25 @@ namespace PlayniteAchievements.Providers.Local
             ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Cleared Local folder override for '{gameName}'");
+            return true;
+        }
+
+        internal static bool TryClearCustomSchemaPathOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.CustomSchemaPathOverrides == null || !settings.CustomSchemaPathOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local custom schema override for '{gameName}'");
             return true;
         }
 
@@ -1518,6 +1629,7 @@ namespace PlayniteAchievements.Providers.Local
 
             if (TryGetAppIdOverride(game.Id, out _) ||
                 TryGetFolderOverride(game.Id, out _) ||
+                TryGetCustomSchemaPathOverride(game.Id, out _) ||
                 TryGetLumaPlayAppIdOverride(game.Id, out _) ||
                 TryGetLumaPlayIniPathOverride(game.Id, out _))
             {
@@ -4167,13 +4279,15 @@ namespace PlayniteAchievements.Providers.Local
                     ? localDescription
                     : schemaDescription ?? "Local achievement from Local");
 
-            var unlockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.Icon) && IsLowQualityIconPath(entry.icon, isLockedIcon: false)
+            var unlockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.Icon) &&
+                               (IsLowQualityIconPath(entry.icon, isLockedIcon: false) || IsUnresolvedLocalIconPath(entry.icon))
                 ? schemaAch.Icon
                 : (!string.IsNullOrWhiteSpace(entry.icon)
                     ? entry.icon
                     : schemaAch?.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon());
 
-            var lockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.IconGray) && IsLowQualityIconPath(entry.iconGray, isLockedIcon: true)
+            var lockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.IconGray) &&
+                             (IsLowQualityIconPath(entry.iconGray, isLockedIcon: true) || IsUnresolvedLocalIconPath(entry.iconGray))
                 ? schemaAch.IconGray
                 : (!string.IsNullOrWhiteSpace(entry.iconGray)
                     ? entry.iconGray
@@ -4409,6 +4523,300 @@ namespace PlayniteAchievements.Providers.Local
             return string.IsNullOrWhiteSpace(iconValue)
                 ? null
                 : iconValue.ToLowerInvariant();
+        }
+
+        private static List<SchemaAchievement> TryLoadCustomSchemaAchievements(string schemaPath, out string error)
+        {
+            error = null;
+            var normalizedPath = schemaPath?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedPath))
+            {
+                error = "empty path";
+                return null;
+            }
+
+            if (!File.Exists(normalizedPath))
+            {
+                error = "file not found";
+                return null;
+            }
+
+            try
+            {
+                var json = File.ReadAllText(normalizedPath, Encoding.UTF8);
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    error = "empty file";
+                    return null;
+                }
+
+                var root = JToken.Parse(json);
+                var schemaDirectory = Path.GetDirectoryName(normalizedPath);
+                var parsed = ExtractCustomSchemaAchievements(root, schemaDirectory);
+                if (parsed.Count == 0)
+                {
+                    error = "no schema rows";
+                    return null;
+                }
+
+                return parsed;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null;
+            }
+        }
+
+        private static List<SchemaAchievement> ExtractCustomSchemaAchievements(JToken root, string schemaDirectory)
+        {
+            var result = new List<SchemaAchievement>();
+            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (root == null)
+            {
+                return result;
+            }
+
+            void AddIfUnique(SchemaAchievement achievement)
+            {
+                if (achievement == null || string.IsNullOrWhiteSpace(achievement.Name))
+                {
+                    return;
+                }
+
+                if (seenNames.Add(achievement.Name))
+                {
+                    result.Add(achievement);
+                }
+            }
+
+            if (root is JArray array)
+            {
+                foreach (var token in array.OfType<JObject>())
+                {
+                    AddIfUnique(TryParseCustomSchemaAchievement(token, null, schemaDirectory));
+                }
+
+                return result;
+            }
+
+            if (!(root is JObject obj))
+            {
+                return result;
+            }
+
+            if (obj["achievements"] is JArray wrappedArray)
+            {
+                foreach (var token in wrappedArray.OfType<JObject>())
+                {
+                    AddIfUnique(TryParseCustomSchemaAchievement(token, null, schemaDirectory));
+                }
+            }
+
+            if (TryParseCustomSchemaAchievement(obj, null, schemaDirectory) is SchemaAchievement directAchievement)
+            {
+                AddIfUnique(directAchievement);
+            }
+
+            foreach (var property in obj.Properties())
+            {
+                if (!(property.Value is JObject propertyObject))
+                {
+                    continue;
+                }
+
+                AddIfUnique(TryParseCustomSchemaAchievement(propertyObject, property.Name, schemaDirectory));
+            }
+
+            return result;
+        }
+
+        private static SchemaAchievement TryParseCustomSchemaAchievement(JObject source, string fallbackName, string schemaDirectory)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var name = source["name"]?.Value<string>()?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = source["apiName"]?.Value<string>()?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = source["api_name"]?.Value<string>()?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = source["id"]?.Value<string>()?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = source["key"]?.Value<string>()?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = fallbackName?.Trim();
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            var displayName = ResolveCustomSchemaText(source["displayName"] ?? source["display_name"] ?? source["title"]);
+            var description = ResolveCustomSchemaText(source["description"] ?? source["desc"]);
+            var icon = ResolveCustomSchemaText(source["icon"] ?? source["unlockedIcon"] ?? source["image"]);
+            var iconGray = ResolveCustomSchemaText(source["icon_gray"] ?? source["icongray"] ?? source["lockedIcon"]);
+
+            icon = NormalizeCustomSchemaIconPath(icon, schemaDirectory);
+            iconGray = NormalizeCustomSchemaIconPath(iconGray, schemaDirectory);
+
+            return new SchemaAchievement
+            {
+                Name = name,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? name : displayName,
+                Description = description ?? string.Empty,
+                Icon = icon ?? string.Empty,
+                IconGray = iconGray ?? string.Empty,
+                Hidden = TryParseCustomSchemaHidden(source["hidden"]),
+                GlobalPercent = TryParseCustomSchemaPercent(source["globalPercent"] ?? source["percent"])
+            };
+        }
+
+        private static string ResolveCustomSchemaText(JToken token)
+        {
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.String)
+            {
+                var value = token.Value<string>()?.Trim();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+
+            if (!(token is JObject localizedObject))
+            {
+                return token.ToString().Trim();
+            }
+
+            var preferredKeys = new[]
+            {
+                "english",
+                "en-US",
+                "en_US",
+                "en",
+                "default",
+                "token"
+            };
+
+            foreach (var key in preferredKeys)
+            {
+                var value = localizedObject[key]?.Value<string>()?.Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            foreach (var property in localizedObject.Properties())
+            {
+                var value = property.Value?.Value<string>()?.Trim();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private static int TryParseCustomSchemaHidden(JToken token)
+        {
+            if (token == null)
+            {
+                return 0;
+            }
+
+            if (token.Type == JTokenType.Boolean)
+            {
+                return token.Value<bool>() ? 1 : 0;
+            }
+
+            if (token.Type == JTokenType.Integer)
+            {
+                return token.Value<int>() > 0 ? 1 : 0;
+            }
+
+            if (token.Type == JTokenType.String && bool.TryParse(token.Value<string>(), out var boolValue))
+            {
+                return boolValue ? 1 : 0;
+            }
+
+            return 0;
+        }
+
+        private static double? TryParseCustomSchemaPercent(JToken token)
+        {
+            if (token == null)
+            {
+                return null;
+            }
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+            {
+                return token.Value<double>();
+            }
+
+            if (token.Type == JTokenType.String &&
+                double.TryParse(token.Value<string>(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
+
+            return null;
+        }
+
+        private static string NormalizeCustomSchemaIconPath(string rawPath, string schemaDirectory)
+        {
+            var iconPath = rawPath?.Trim();
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return null;
+            }
+
+            if (Uri.TryCreate(iconPath, UriKind.Absolute, out var absoluteUri) &&
+                (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps || absoluteUri.Scheme == Uri.UriSchemeFile))
+            {
+                return iconPath;
+            }
+
+            if (Path.IsPathRooted(iconPath))
+            {
+                return iconPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(schemaDirectory))
+            {
+                return iconPath;
+            }
+
+            try
+            {
+                var normalizedRelative = iconPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+                return Path.GetFullPath(Path.Combine(schemaDirectory, normalizedRelative));
+            }
+            catch
+            {
+                return iconPath;
+            }
         }
 
         private static bool ShouldExpandSchemaAchievementsForLocalEntries(string schemaSource)
@@ -4974,6 +5382,22 @@ namespace PlayniteAchievements.Providers.Local
 
             return string.Equals(iconPath, legacyDefaultIcon, StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(normalizedIconPath, defaultIcon, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsUnresolvedLocalIconPath(string iconPath)
+        {
+            var value = iconPath?.Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return true;
+            }
+
+            if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
+            {
+                return !(uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeFile);
+            }
+
+            return !Path.IsPathRooted(value);
         }
 
         private static bool IsWindowsPlatform()
@@ -5702,9 +6126,10 @@ namespace PlayniteAchievements.Providers.Local
                 var jsonEntries = JsonConvert.DeserializeObject<Dictionary<string, LocalEntry>>(json);
                 if (jsonEntries != null)
                 {
+                    var jsonDirectory = Path.GetDirectoryName(jsonPath);
                     foreach (var entry in jsonEntries.Where(e => !string.IsNullOrWhiteSpace(e.Key)))
                     {
-                        merged[entry.Key] = entry.Value;
+                        merged[entry.Key] = NormalizeLocalEntryIconPaths(entry.Value, jsonDirectory);
                     }
                 }
             }
@@ -5763,6 +6188,13 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return merged;
+        }
+
+        private static LocalEntry NormalizeLocalEntryIconPaths(LocalEntry entry, string baseDirectory)
+        {
+            entry.icon = NormalizeCustomSchemaIconPath(entry.icon, baseDirectory);
+            entry.iconGray = NormalizeCustomSchemaIconPath(entry.iconGray, baseDirectory);
+            return entry;
         }
 
         private static IEnumerable<string> SerializeLocalEntriesToIni(IReadOnlyDictionary<string, LocalEntry> entries)
@@ -8820,7 +9252,17 @@ namespace PlayniteAchievements.Providers.Local
             public string displayName { get; set; }
             public string description { get; set; }
             public string icon { get; set; }
+
+            [JsonProperty("iconGray")]
             public string iconGray { get; set; }
+
+            [JsonProperty("icon_gray")]
+            private string iconGrayAlias
+            {
+                get => iconGray;
+                set => iconGray = value;
+            }
+
             public bool hidden { get; set; }
             public double? percent { get; set; }
         }

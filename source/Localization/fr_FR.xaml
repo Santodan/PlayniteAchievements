@@ -193,6 +193,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAuto">Dossier détecté automatiquement : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAmbiguous">Plusieurs dossiers locaux trouvés. Utilisation de : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderOverrideValue">Dossier forcé : {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideNone">Aucun remplacement de schéma personnalisé défini</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideValue">Schéma personnalisé : {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">Aucune liaison manuelle configurée.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_Source">Source manuelle</sys:String>
@@ -230,8 +232,13 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalSteamUser_Automatic">Automatique (tous les utilisateurs détectés)</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHeader">Remplacement du dossier de sauvegarde local</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHint">Si plusieurs dossiers d'émulateur existent pour le même App ID Steam, choisissez le dossier qui contient les bonnes données de sauvegarde pour ce jeu.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHeader">Remplacement de schéma personnalisé local</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHint">Sélectionnez un fichier JSON de schéma personnalisé pour ce jeu. Le fournisseur Local fusionnera ce schéma avec les métadonnées détectées et corrélera les icônes via le nom API, le titre/description et le hash d'icône quand disponible.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_Invalid">Veuillez saisir un chemin de dossier local valide.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_NotFound">Le dossier local sélectionné n'existe pas.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_Invalid">Veuillez saisir un chemin JSON de schéma personnalisé valide.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_NotFound">Le fichier de schéma personnalisé sélectionné n'existe pas.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_InvalidExtension">Le fichier de schéma personnalisé doit être un fichier .json.</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Apply">Appliquer</sys:String>
     <sys:String x:Key="LOCPlayAch_Button_Browse">Parcourir</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">Le remplacement RetroAchievements n'est pas disponible pour ce jeu.</sys:String>

@@ -78,6 +78,9 @@ namespace PlayniteAchievements.ViewModels
         private string _localFolderAutoPath;
         private string _localFolderCandidatesSummary;
         private bool _hasAmbiguousLocalFolders;
+        private bool _hasLocalCustomSchemaOverride;
+        private string _localCustomSchemaOverrideValue;
+        private string _localCustomSchemaOverrideInput;
         private bool _hasLocalRefreshOnGameCloseOverride;
         private bool _localRefreshOnGameCloseOverrideValue;
         private bool _localRefreshOnGameCloseOverrideInput;
@@ -131,6 +134,9 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ApplyLocalFolderOverrideCommand { get; }
         public RelayCommand ClearLocalFolderOverrideCommand { get; }
         public RelayCommand BrowseLocalFolderOverrideCommand { get; }
+        public RelayCommand ApplyLocalCustomSchemaOverrideCommand { get; }
+        public RelayCommand ClearLocalCustomSchemaOverrideCommand { get; }
+        public RelayCommand BrowseLocalCustomSchemaOverrideCommand { get; }
         public RelayCommand ApplyLocalRefreshOnGameCloseOverrideCommand { get; }
         public RelayCommand ClearLocalRefreshOnGameCloseOverrideCommand { get; }
         public RelayCommand ApplyXeniaTitleIdOverrideCommand { get; }
@@ -191,6 +197,9 @@ namespace PlayniteAchievements.ViewModels
             ApplyLocalFolderOverrideCommand = new RelayCommand(_ => ApplyLocalFolderOverride(), _ => HasGame);
             ClearLocalFolderOverrideCommand = new RelayCommand(_ => ClearLocalFolderOverride(), _ => HasGame && HasLocalFolderOverride);
             BrowseLocalFolderOverrideCommand = new RelayCommand(_ => BrowseLocalFolderOverride(), _ => HasGame);
+            ApplyLocalCustomSchemaOverrideCommand = new RelayCommand(_ => ApplyLocalCustomSchemaOverride(), _ => HasGame);
+            ClearLocalCustomSchemaOverrideCommand = new RelayCommand(_ => ClearLocalCustomSchemaOverride(), _ => HasGame && HasLocalCustomSchemaOverride);
+            BrowseLocalCustomSchemaOverrideCommand = new RelayCommand(_ => BrowseLocalCustomSchemaOverride(), _ => HasGame);
             ApplyLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ApplyLocalRefreshOnGameCloseOverride(), _ => HasGame);
             ClearLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ClearLocalRefreshOnGameCloseOverride(), _ => HasGame && HasLocalRefreshOnGameCloseOverride);
             ApplyXeniaTitleIdOverrideCommand = new RelayCommand(_ => ApplyXeniaTitleIdOverride(), _ => HasGame && ShowXeniaTitleIdOverride);
@@ -988,6 +997,58 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public bool HasLocalCustomSchemaOverride
+        {
+            get => _hasLocalCustomSchemaOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasLocalCustomSchemaOverride, value))
+                {
+                    OnPropertyChanged(nameof(LocalCustomSchemaStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalCustomSchemaOverrideValue
+        {
+            get => _localCustomSchemaOverrideValue;
+            private set
+            {
+                if (SetValueAndReturn(ref _localCustomSchemaOverrideValue, value))
+                {
+                    OnPropertyChanged(nameof(LocalCustomSchemaStatusText));
+                }
+            }
+        }
+
+        public string LocalCustomSchemaOverrideInput
+        {
+            get => _localCustomSchemaOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _localCustomSchemaOverrideInput, value ?? string.Empty))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string LocalCustomSchemaStatusText
+        {
+            get
+            {
+                if (!HasLocalCustomSchemaOverride)
+                {
+                    return L("LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideNone", "No custom schema override set");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideValue", "Custom schema: {0}"),
+                    LocalCustomSchemaOverrideValue);
+            }
+        }
+
         public bool HasLocalRefreshOnGameCloseOverride
         {
             get => _hasLocalRefreshOnGameCloseOverride;
@@ -1438,6 +1499,19 @@ namespace PlayniteAchievements.ViewModels
                     LocalFolderCandidatesSummary = string.Empty;
                 }
 
+                if (LocalSavesProvider.TryGetCustomSchemaPathOverride(_gameId, out var localCustomSchemaPath))
+                {
+                    HasLocalCustomSchemaOverride = true;
+                    LocalCustomSchemaOverrideValue = localCustomSchemaPath;
+                    LocalCustomSchemaOverrideInput = localCustomSchemaPath;
+                }
+                else
+                {
+                    HasLocalCustomSchemaOverride = false;
+                    LocalCustomSchemaOverrideValue = string.Empty;
+                    LocalCustomSchemaOverrideInput = string.Empty;
+                }
+
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
                 LocalRefreshOnGameCloseGlobalValue = localSettings?.RefreshAchievementsOnGameClose == true;
                 if (LocalSavesProvider.TryGetRefreshOnGameCloseOverride(_gameId, out var localRefreshOnCloseOverride))
@@ -1783,6 +1857,68 @@ namespace PlayniteAchievements.ViewModels
             }
 
             LocalFolderOverrideInput = selectedPath;
+        }
+
+        private void ApplyLocalCustomSchemaOverride()
+        {
+            var text = (LocalCustomSchemaOverrideInput ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_LocalCustomSchema_Invalid", "Please enter a valid custom schema JSON path."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!File.Exists(text))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_LocalCustomSchema_NotFound", "The selected custom schema file does not exist."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (!string.Equals(Path.GetExtension(text), ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_LocalCustomSchema_InvalidExtension", "Custom schema file must be a .json file."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (TrySetLocalCustomSchemaOverride(text))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearLocalCustomSchemaOverride()
+        {
+            if (TryClearLocalCustomSchemaOverride())
+            {
+                Reload();
+            }
+        }
+
+        private void BrowseLocalCustomSchemaOverride()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                LocalCustomSchemaOverrideInput = dialog.FileName;
+            }
         }
 
         private void ApplyLocalRefreshOnGameCloseOverride()
@@ -2390,6 +2526,24 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        private bool TrySetLocalCustomSchemaOverride(string schemaPath)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null || string.IsNullOrWhiteSpace(schemaPath))
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TrySetCustomSchemaPathOverride(_gameId, schemaPath, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
         private bool TryClearLocalFolderOverride()
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -2399,6 +2553,24 @@ namespace PlayniteAchievements.ViewModels
             }
 
             if (!LocalSavesProvider.TryClearFolderOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
+            {
+                return false;
+            }
+
+            _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TryClearLocalCustomSchemaOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (!LocalSavesProvider.TryClearCustomSchemaPathOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
             {
                 return false;
             }
@@ -2675,6 +2847,9 @@ namespace PlayniteAchievements.ViewModels
             ApplyLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
             BrowseLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
+            ApplyLocalCustomSchemaOverrideCommand?.RaiseCanExecuteChanged();
+            ClearLocalCustomSchemaOverrideCommand?.RaiseCanExecuteChanged();
+            BrowseLocalCustomSchemaOverrideCommand?.RaiseCanExecuteChanged();
             ApplyLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged();
             ApplyXeniaTitleIdOverrideCommand?.RaiseCanExecuteChanged();

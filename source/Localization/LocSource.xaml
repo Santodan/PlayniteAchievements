@@ -215,6 +215,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAuto">Auto-detected folder: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderAmbiguous">Multiple local folders found. Using: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderOverrideValue">Forced folder: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideNone">No custom schema override set</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideValue">Custom schema: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalEnabled">Using global setting: enabled</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalDisabled">Using global setting: disabled</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseOverrideEnabled">Override set: enabled</sys:String>
@@ -237,10 +239,15 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalSteamUser_Automatic">Automatic (all detected users)</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHeader">Local save folder override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHint">If multiple emulator folders exist for the same Steam App ID, choose the folder that contains the correct save data for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHeader">Local custom schema override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHint">Select a custom schema JSON for this game. The Local provider will merge this schema with detected metadata and correlate icons by API name, title/description, and icon hash when available.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHeader">Refresh when game closes</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHint">Override whether this game should trigger a refresh right after it closes. Clear to use the global setting from Achievement Notifications.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_Invalid">Please enter a valid local folder path.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_NotFound">The selected local folder does not exist.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_Invalid">Please enter a valid custom schema JSON path.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_NotFound">The selected custom schema file does not exist.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_LocalCustomSchema_InvalidExtension">Custom schema file must be a .json file.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_BulkHint">Expand to bulk edit selected achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelHint">Enter a category label for the selected achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Context_SetLabelTitle">Set Category Label</sys:String>
