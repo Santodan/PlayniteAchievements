@@ -1,4 +1,4 @@
-using Playnite.SDK;
+﻿using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
@@ -707,6 +707,37 @@ namespace PlayniteAchievements.Providers.Local
             return !string.IsNullOrWhiteSpace(userId);
         }
 
+        internal static bool TryGetRefreshOnGameCloseOverride(Guid gameId, out bool shouldRefresh)
+        {
+            shouldRefresh = false;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            return settings?.RefreshOnGameCloseOverrides != null &&
+                   settings.RefreshOnGameCloseOverrides.TryGetValue(gameId, out shouldRefresh);
+        }
+
+        internal static bool ShouldRefreshAchievementsOnGameClose(Guid gameId)
+        {
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings == null)
+            {
+                return false;
+            }
+
+            if (gameId != Guid.Empty &&
+                settings.RefreshOnGameCloseOverrides != null &&
+                settings.RefreshOnGameCloseOverrides.TryGetValue(gameId, out var overrideValue))
+            {
+                return overrideValue;
+            }
+
+            return settings.RefreshAchievementsOnGameClose;
+        }
+
         internal static bool TrySetAppIdOverride(Guid gameId, int appId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
             if (gameId == Guid.Empty || appId <= 0)
@@ -862,6 +893,22 @@ namespace PlayniteAchievements.Providers.Local
             return true;
         }
 
+        internal static bool TrySetRefreshOnGameCloseOverride(Guid gameId, bool shouldRefresh, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            settings.RefreshOnGameCloseOverrides ??= new Dictionary<Guid, bool>();
+            settings.RefreshOnGameCloseOverrides[gameId] = shouldRefresh;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local refresh-on-game-close override for '{gameName}' to '{shouldRefresh}'.");
+            return true;
+        }
+
         internal static bool TryClearSteamAppCacheUserOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
         {
             if (gameId == Guid.Empty)
@@ -878,6 +925,25 @@ namespace PlayniteAchievements.Providers.Local
             ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Cleared Local Steam appcache user override for '{gameName}'");
+            return true;
+        }
+
+        internal static bool TryClearRefreshOnGameCloseOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.RefreshOnGameCloseOverrides == null || !settings.RefreshOnGameCloseOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local refresh-on-game-close override for '{gameName}'.");
             return true;
         }
 

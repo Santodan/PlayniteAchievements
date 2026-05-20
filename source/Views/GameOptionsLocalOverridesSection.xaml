@@ -239,6 +239,44 @@
             </StackPanel>
         </Border>
 
+        <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHeader}"
+                           Style="{StaticResource SectionHeaderStyle}" />
+                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHint}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0" />
+                <TextBlock Text="{Binding LocalRefreshOnGameCloseStatusText}"
+                           Foreground="{DynamicResource TextBrush}"
+                           Margin="0,8,0,0"
+                           TextWrapping="Wrap" />
+
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MaxWidth="420" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <CheckBox Grid.Column="0"
+                              Content="Refresh this game when it closes"
+                              IsChecked="{Binding LocalRefreshOnGameCloseOverrideInput, Mode=TwoWay}" />
+                    <Button Grid.Column="1"
+                            Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                            Command="{Binding ApplyLocalRefreshOnGameCloseOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                    <Button Grid.Column="2"
+                            Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                            Command="{Binding ClearLocalRefreshOnGameCloseOverrideCommand}"
+                            Padding="12,6"
+                            Margin="8,0,0,0" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
         
     </StackPanel>
 </UserControl>

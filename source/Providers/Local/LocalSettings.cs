@@ -135,8 +135,10 @@ namespace PlayniteAchievements.Providers.Local
         private Dictionary<Guid, string> _lumaPlayIniPathOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _steamAppCacheUserOverrides = new Dictionary<Guid, string>();
+        private Dictionary<Guid, bool> _refreshOnGameCloseOverrides = new Dictionary<Guid, bool>();
         private string _steamUserdataPath = string.Empty;
         private bool _enableActiveGameMonitoring;
+        private bool _refreshAchievementsOnGameClose;
         private int _activeGameMonitoringIntervalSeconds = 5;
         private bool _enableUnlockScreenshots;
         private string _screenshotSaveFolder = string.Empty;
@@ -587,6 +589,18 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _steamAppCacheUserOverrides;
             set => SetValue(ref _steamAppCacheUserOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public bool RefreshAchievementsOnGameClose
+        {
+            get => _refreshAchievementsOnGameClose;
+            set => SetValue(ref _refreshAchievementsOnGameClose, value);
+        }
+
+        public Dictionary<Guid, bool> RefreshOnGameCloseOverrides
+        {
+            get => _refreshOnGameCloseOverrides;
+            set => SetValue(ref _refreshOnGameCloseOverrides, value ?? new Dictionary<Guid, bool>());
         }
 
         public LocalSteamSchemaPreference SteamSchemaPreference

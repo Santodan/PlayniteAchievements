@@ -508,9 +508,21 @@ namespace PlayniteAchievements
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            if (args?.Game == null)
+            {
+                return;
+            }
+
             _activeGameAchievementMonitor?.Stop();
             _exophaseGameAchievementMonitor?.Stop();
             _ = _activeGameAchievementMonitor?.TryDetectMissedUnlocksAfterStopAsync(args.Game);
+
+            if (!LocalSavesProvider.ShouldRefreshAchievementsOnGameClose(args.Game.Id))
+            {
+                _logger.Info($"Game stopped: {args.Game.Name}. Refresh-on-close is disabled.");
+                return;
+            }
+
             _logger.Info($"Game stopped: {args.Game.Name}. Triggering refresh.");
             _ = _refreshCoordinator.ExecuteAsync(new RefreshRequest
             {

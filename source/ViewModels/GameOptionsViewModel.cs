@@ -78,6 +78,10 @@ namespace PlayniteAchievements.ViewModels
         private string _localFolderAutoPath;
         private string _localFolderCandidatesSummary;
         private bool _hasAmbiguousLocalFolders;
+        private bool _hasLocalRefreshOnGameCloseOverride;
+        private bool _localRefreshOnGameCloseOverrideValue;
+        private bool _localRefreshOnGameCloseOverrideInput;
+        private bool _localRefreshOnGameCloseGlobalValue;
         private bool _canEditLocalAchievements;
         private bool _showXeniaTitleIdOverride;
         private bool _hasXeniaTitleIdOverride;
@@ -127,6 +131,8 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ApplyLocalFolderOverrideCommand { get; }
         public RelayCommand ClearLocalFolderOverrideCommand { get; }
         public RelayCommand BrowseLocalFolderOverrideCommand { get; }
+        public RelayCommand ApplyLocalRefreshOnGameCloseOverrideCommand { get; }
+        public RelayCommand ClearLocalRefreshOnGameCloseOverrideCommand { get; }
         public RelayCommand ApplyXeniaTitleIdOverrideCommand { get; }
         public RelayCommand ClearXeniaTitleIdOverrideCommand { get; }
         public RelayCommand ApplyShadPS4MatchIdOverrideCommand { get; }
@@ -185,6 +191,8 @@ namespace PlayniteAchievements.ViewModels
             ApplyLocalFolderOverrideCommand = new RelayCommand(_ => ApplyLocalFolderOverride(), _ => HasGame);
             ClearLocalFolderOverrideCommand = new RelayCommand(_ => ClearLocalFolderOverride(), _ => HasGame && HasLocalFolderOverride);
             BrowseLocalFolderOverrideCommand = new RelayCommand(_ => BrowseLocalFolderOverride(), _ => HasGame);
+            ApplyLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ApplyLocalRefreshOnGameCloseOverride(), _ => HasGame);
+            ClearLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ClearLocalRefreshOnGameCloseOverride(), _ => HasGame && HasLocalRefreshOnGameCloseOverride);
             ApplyXeniaTitleIdOverrideCommand = new RelayCommand(_ => ApplyXeniaTitleIdOverride(), _ => HasGame && ShowXeniaTitleIdOverride);
             ClearXeniaTitleIdOverrideCommand = new RelayCommand(_ => ClearXeniaTitleIdOverride(), _ => HasGame && ShowXeniaTitleIdOverride && HasXeniaTitleIdOverride);
             ApplyShadPS4MatchIdOverrideCommand = new RelayCommand(_ => ApplyShadPS4MatchIdOverride(), _ => HasGame && ShowShadPS4MatchIdOverride);
@@ -980,6 +988,66 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        public bool HasLocalRefreshOnGameCloseOverride
+        {
+            get => _hasLocalRefreshOnGameCloseOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasLocalRefreshOnGameCloseOverride, value))
+                {
+                    OnPropertyChanged(nameof(LocalRefreshOnGameCloseStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public bool LocalRefreshOnGameCloseOverrideValue
+        {
+            get => _localRefreshOnGameCloseOverrideValue;
+            private set => SetValue(ref _localRefreshOnGameCloseOverrideValue, value);
+        }
+
+        public bool LocalRefreshOnGameCloseOverrideInput
+        {
+            get => _localRefreshOnGameCloseOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _localRefreshOnGameCloseOverrideInput, value))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public bool LocalRefreshOnGameCloseGlobalValue
+        {
+            get => _localRefreshOnGameCloseGlobalValue;
+            private set
+            {
+                if (SetValueAndReturn(ref _localRefreshOnGameCloseGlobalValue, value))
+                {
+                    OnPropertyChanged(nameof(LocalRefreshOnGameCloseStatusText));
+                }
+            }
+        }
+
+        public string LocalRefreshOnGameCloseStatusText
+        {
+            get
+            {
+                if (!HasLocalRefreshOnGameCloseOverride)
+                {
+                    return LocalRefreshOnGameCloseGlobalValue
+                        ? L("LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalEnabled", "Using global setting: enabled")
+                        : L("LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalDisabled", "Using global setting: disabled");
+                }
+
+                return LocalRefreshOnGameCloseOverrideValue
+                    ? L("LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseOverrideEnabled", "Override set: enabled")
+                    : L("LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseOverrideDisabled", "Override set: disabled");
+            }
+        }
+
         public bool ShowShadPS4MatchIdOverride
         {
             get => _showShadPS4MatchIdOverride;
@@ -1370,6 +1438,21 @@ namespace PlayniteAchievements.ViewModels
                     LocalFolderCandidatesSummary = string.Empty;
                 }
 
+                var localSettings = ProviderRegistry.Settings<LocalSettings>();
+                LocalRefreshOnGameCloseGlobalValue = localSettings?.RefreshAchievementsOnGameClose == true;
+                if (LocalSavesProvider.TryGetRefreshOnGameCloseOverride(_gameId, out var localRefreshOnCloseOverride))
+                {
+                    HasLocalRefreshOnGameCloseOverride = true;
+                    LocalRefreshOnGameCloseOverrideValue = localRefreshOnCloseOverride;
+                    LocalRefreshOnGameCloseOverrideInput = localRefreshOnCloseOverride;
+                }
+                else
+                {
+                    HasLocalRefreshOnGameCloseOverride = false;
+                    LocalRefreshOnGameCloseOverrideValue = false;
+                    LocalRefreshOnGameCloseOverrideInput = LocalRefreshOnGameCloseGlobalValue;
+                }
+
                 var effectiveProviderKey = gameData?.EffectiveProviderKey?.Trim();
                 if (XeniaDataProvider.TryGetTitleIdOverride(_gameId, out var xeniaTitleIdOverride))
                 {
@@ -1700,6 +1783,22 @@ namespace PlayniteAchievements.ViewModels
             }
 
             LocalFolderOverrideInput = selectedPath;
+        }
+
+        private void ApplyLocalRefreshOnGameCloseOverride()
+        {
+            if (TrySetLocalRefreshOnGameCloseOverride(LocalRefreshOnGameCloseOverrideInput))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearLocalRefreshOnGameCloseOverride()
+        {
+            if (TryClearLocalRefreshOnGameCloseOverride())
+            {
+                Reload();
+            }
         }
 
         private void ApplyXeniaTitleIdOverride()
@@ -2309,6 +2408,28 @@ namespace PlayniteAchievements.ViewModels
             return true;
         }
 
+        private bool TrySetLocalRefreshOnGameCloseOverride(bool shouldRefresh)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            return LocalSavesProvider.TrySetRefreshOnGameCloseOverride(_gameId, shouldRefresh, game.Name, _persistSettingsForUi, _logger);
+        }
+
+        private bool TryClearLocalRefreshOnGameCloseOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            return LocalSavesProvider.TryClearRefreshOnGameCloseOverride(_gameId, game.Name, _persistSettingsForUi, _logger);
+        }
+
         private bool TrySetShadPS4MatchIdOverride(string matchId)
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -2554,6 +2675,8 @@ namespace PlayniteAchievements.ViewModels
             ApplyLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
             ClearLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
             BrowseLocalFolderOverrideCommand?.RaiseCanExecuteChanged();
+            ApplyLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged();
+            ClearLocalRefreshOnGameCloseOverrideCommand?.RaiseCanExecuteChanged();
             ApplyXeniaTitleIdOverrideCommand?.RaiseCanExecuteChanged();
             ClearXeniaTitleIdOverrideCommand?.RaiseCanExecuteChanged();
             ApplyShadPS4MatchIdOverrideCommand?.RaiseCanExecuteChanged();

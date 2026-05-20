@@ -112,6 +112,15 @@
                                Style="{StaticResource SectionHeaderStyle}"
                                Margin="0,0,0,6"/>
 
+                    <!-- Refresh achievements when game closes -->
+                    <CheckBox Content="Refresh achievements when a game closes"
+                              IsChecked="{Binding Settings.RefreshAchievementsOnGameClose, Mode=TwoWay}"
+                              Margin="0,0,0,4"/>
+                    <TextBlock Text="When enabled, achievements are refreshed right after the game process exits."
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="18,0,0,12"
+                               TextWrapping="Wrap"/>
+
                     <!-- Multiple folder detection warning -->
                     <CheckBox Content="Warn when multiple folders are detected for the same game"
                               IsChecked="{Binding Settings.WarnOnAmbiguousLocalFolder, Mode=TwoWay}"
