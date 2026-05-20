@@ -90,6 +90,19 @@
                     <TextBlock x:Name="LocalProviderIconStatusTextBlock"
                                Style="{StaticResource MutedTextStyle}"
                                TextWrapping="Wrap"/>
+
+                    <TextBlock Text="Or use a platform icon:"
+                               Foreground="{DynamicResource TextBrush}"
+                               FontWeight="SemiBold"
+                               Margin="0,10,0,4"/>
+                    <ComboBox x:Name="BorrowedProviderIconComboBox"
+                              DisplayMemberPath="DisplayName"
+                              SelectedValuePath="ProviderKey"
+                              Margin="0,0,0,4"
+                              SelectionChanged="BorrowedProviderIcon_SelectionChanged"/>
+                    <TextBlock Text="Select a platform to use its icon for the Local provider badge and charts. A custom image file (above) takes precedence if both are set."
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

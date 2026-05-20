@@ -202,6 +202,7 @@ namespace PlayniteAchievements.Providers.Local
         private int _iconRateLimitRetryRounds = 2;
         private string _steamAppCacheUserId = string.Empty;
         private string _customProviderIconPath = string.Empty;
+        private string _borrowedProviderIconKey = string.Empty;
         private bool _warnOnAmbiguousLocalFolder = true;
         private bool _enableGameCoverInOverlay = false;
         private LocalOverlayCoverPosition _gameCoverPosition = LocalOverlayCoverPosition.Right;
@@ -682,6 +683,17 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _customProviderIconPath;
             set => SetValue(ref _customProviderIconPath, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// When set to a non-empty provider key (e.g. "Steam"), the Local provider will borrow that
+        /// platform's vector icon and colour instead of the built-in Local icon.
+        /// A custom image file (<see cref="CustomProviderIconPath"/>) takes precedence over this.
+        /// </summary>
+        public string BorrowedProviderIconKey
+        {
+            get => _borrowedProviderIconKey;
+            set => SetValue(ref _borrowedProviderIconKey, value ?? string.Empty);
         }
 
         /// <summary>

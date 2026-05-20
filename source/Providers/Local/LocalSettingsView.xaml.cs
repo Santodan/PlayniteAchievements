@@ -91,6 +91,14 @@ namespace PlayniteAchievements.Providers.Local
             public string DisplayName { get; set; } = string.Empty;
         }
 
+        public sealed class LocalProviderIconPlatformOption
+        {
+            public string ProviderKey { get; set; } = string.Empty;
+            public string DisplayName { get; set; } = string.Empty;
+            public string IconKey { get; set; } = string.Empty;
+            public string ColorHex { get; set; } = string.Empty;
+        }
+
         private const string LocalProviderIconFileName = "local.png";
         private const string LocalProviderIconResourceKey = "GeoLocal";
         private const string LocalProviderColorHex = "#FF8A00";
@@ -122,6 +130,7 @@ namespace PlayniteAchievements.Providers.Local
         public ObservableCollection<LocalSteamAppCacheUserOption> AvailableSteamAppCacheUsers { get; } = new ObservableCollection<LocalSteamAppCacheUserOption>();
         public ObservableCollection<SuccessStoryCategorySelectionOption> SuccessStoryImportCategoryOptions { get; } = new ObservableCollection<SuccessStoryCategorySelectionOption>();
         public ObservableCollection<SuccessStorySourceTargetOption> AvailableSuccessStorySourceTargets { get; } = new ObservableCollection<SuccessStorySourceTargetOption>();
+        public ObservableCollection<LocalProviderIconPlatformOption> AvailableProviderIconPlatforms { get; } = new ObservableCollection<LocalProviderIconPlatformOption>();
 
         public new LocalSettings Settings => _localSettings;
 
@@ -155,6 +164,7 @@ namespace PlayniteAchievements.Providers.Local
             RefreshAvailableMetadataSources();
             RefreshAvailableSteamAppCacheUsers();
             RefreshAvailableSuccessStorySourceTargets();
+            RefreshAvailableProviderIconPlatforms();
             RefreshLocalProviderIconControls();
             RefreshExtraLocalPathEntries();
             RefreshExcludedLocalPathEntries();
@@ -177,7 +187,8 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
-            if (e.PropertyName == nameof(LocalSettings.CustomProviderIconPath))
+            if (e.PropertyName == nameof(LocalSettings.CustomProviderIconPath) ||
+                e.PropertyName == nameof(LocalSettings.BorrowedProviderIconKey))
             {
                 RefreshLocalProviderIconControls();
             }
@@ -313,6 +324,8 @@ namespace PlayniteAchievements.Providers.Local
 
             var customPath = _localSettings?.CustomProviderIconPath?.Trim() ?? string.Empty;
             var hasCustomIcon = !string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath);
+            var borrowedKey = _localSettings?.BorrowedProviderIconKey?.Trim() ?? string.Empty;
+            var hasBorrowedPlatform = !string.IsNullOrWhiteSpace(borrowedKey);
 
             LocalProviderIconPathTextBox.Text = hasCustomIcon ? customPath : string.Empty;
             if (ClearLocalProviderIconButton != null)
@@ -322,15 +335,162 @@ namespace PlayniteAchievements.Providers.Local
 
             if (LocalProviderIconPreviewImage != null)
             {
-                LocalProviderIconPreviewImage.Source = CreatePreviewImageSource(customPath);
+                if (hasCustomIcon)
+                {
+                    LocalProviderIconPreviewImage.Source = CreatePreviewImageSource(customPath);
+                }
+                else if (hasBorrowedPlatform)
+                {
+                    var platform = AvailableProviderIconPlatforms.FirstOrDefault(p => string.Equals(p.ProviderKey, borrowedKey, StringComparison.OrdinalIgnoreCase));
+                    LocalProviderIconPreviewImage.Source = platform != null
+                        ? CreateVectorProviderImageSource(platform.IconKey, platform.ColorHex)
+                        : CreateDefaultLocalProviderImageSource();
+                }
+                else
+                {
+                    LocalProviderIconPreviewImage.Source = CreateDefaultLocalProviderImageSource();
+                }
+            }
+
+            // Sync the platform ComboBox selection without triggering the SelectionChanged handler
+            if (BorrowedProviderIconComboBox != null)
+            {
+                BorrowedProviderIconComboBox.SelectionChanged -= BorrowedProviderIcon_SelectionChanged;
+                BorrowedProviderIconComboBox.SelectedValue = hasBorrowedPlatform ? borrowedKey : string.Empty;
+                BorrowedProviderIconComboBox.SelectionChanged += BorrowedProviderIcon_SelectionChanged;
             }
 
             if (LocalProviderIconStatusTextBlock != null)
             {
-                LocalProviderIconStatusTextBlock.Text = statusMessage ??
-                    (hasCustomIcon
-                        ? "Custom icon is active for the Local provider."
-                        : "No custom Local icon is set. The built-in Local icon will be used.");
+                if (statusMessage != null)
+                {
+                    LocalProviderIconStatusTextBlock.Text = statusMessage;
+                }
+                else if (hasCustomIcon)
+                {
+                    LocalProviderIconStatusTextBlock.Text = "Custom icon is active for the Local provider.";
+                }
+                else if (hasBorrowedPlatform)
+                {
+                    var platform = AvailableProviderIconPlatforms.FirstOrDefault(p => string.Equals(p.ProviderKey, borrowedKey, StringComparison.OrdinalIgnoreCase));
+                    LocalProviderIconStatusTextBlock.Text = platform != null
+                        ? $"Using the {platform.DisplayName} platform icon for the Local provider."
+                        : "No custom Local icon is set. The built-in Local icon will be used.";
+                }
+                else
+                {
+                    LocalProviderIconStatusTextBlock.Text = "No custom Local icon is set. The built-in Local icon will be used.";
+                }
+            }
+        }
+
+        private void RefreshAvailableProviderIconPlatforms()
+        {
+            AvailableProviderIconPlatforms.Clear();
+
+            // First entry: "None" clears any borrowed platform
+            AvailableProviderIconPlatforms.Add(new LocalProviderIconPlatformOption
+            {
+                ProviderKey = string.Empty,
+                DisplayName = "None (use default / custom image)",
+                IconKey = LocalProviderIconResourceKey,
+                ColorHex = LocalProviderColorHex
+            });
+
+            var registry = _pluginSettings?._plugin?.ProviderRegistry;
+            if (registry == null)
+            {
+                return;
+            }
+
+            foreach (var key in registry.GetSettingsViewProviderKeys())
+            {
+                if (string.Equals(key, "Local", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                registry.TryGetProviderVisuals(key, out var iconKey, out var colorHex);
+                if (string.IsNullOrWhiteSpace(iconKey))
+                {
+                    continue;
+                }
+
+                AvailableProviderIconPlatforms.Add(new LocalProviderIconPlatformOption
+                {
+                    ProviderKey = key,
+                    DisplayName = ProviderRegistry.GetLocalizedName(key),
+                    IconKey = iconKey,
+                    ColorHex = colorHex ?? string.Empty
+                });
+            }
+
+            if (BorrowedProviderIconComboBox != null)
+            {
+                BorrowedProviderIconComboBox.ItemsSource = AvailableProviderIconPlatforms;
+                var borrowedKey = _localSettings?.BorrowedProviderIconKey?.Trim() ?? string.Empty;
+                BorrowedProviderIconComboBox.SelectionChanged -= BorrowedProviderIcon_SelectionChanged;
+                BorrowedProviderIconComboBox.SelectedValue = string.IsNullOrEmpty(borrowedKey) ? string.Empty : borrowedKey;
+                BorrowedProviderIconComboBox.SelectionChanged += BorrowedProviderIcon_SelectionChanged;
+            }
+        }
+
+        private void BorrowedProviderIcon_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_localSettings == null)
+            {
+                return;
+            }
+
+            var selected = BorrowedProviderIconComboBox?.SelectedItem as LocalProviderIconPlatformOption;
+            _localSettings.BorrowedProviderIconKey = selected?.ProviderKey ?? string.Empty;
+        }
+
+        private static ImageSource CreateVectorProviderImageSource(string iconKey, string colorHex)
+        {
+            try
+            {
+                // If the iconKey is a file path, load it as a bitmap (custom provider image)
+                if (!string.IsNullOrWhiteSpace(iconKey) && Path.IsPathRooted(iconKey) && File.Exists(iconKey))
+                {
+                    return CreatePreviewImageSource(iconKey);
+                }
+
+                // Map "ProviderIconSteam" → "GeoSteam" (same pattern as ProviderIconConverter).
+                // Keys that already start with "Geo" (e.g. "GeoLocal") are used as-is.
+                var geoKey = (iconKey ?? string.Empty).StartsWith("Geo", StringComparison.Ordinal)
+                    ? iconKey
+                    : "Geo" + iconKey.Replace("ProviderIcon", string.Empty);
+                var geometry = Application.Current?.TryFindResource(geoKey) as Geometry;
+                if (geometry == null)
+                {
+                    return null;
+                }
+
+                Color color;
+                try
+                {
+                    color = !string.IsNullOrWhiteSpace(colorHex) && ColorConverter.ConvertFromString(colorHex) is Color c ? c : Colors.White;
+                }
+                catch
+                {
+                    color = Colors.White;
+                }
+
+                var drawing = new GeometryDrawing
+                {
+                    Geometry = geometry,
+                    Brush = new SolidColorBrush(color)
+                };
+                drawing.Freeze();
+
+                var drawingImage = new DrawingImage(drawing);
+                drawingImage.Freeze();
+                return drawingImage;
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -376,36 +536,7 @@ namespace PlayniteAchievements.Providers.Local
         }
 
         private static ImageSource CreateDefaultLocalProviderImageSource()
-        {
-            try
-            {
-                var geometry = Application.Current?.TryFindResource(LocalProviderIconResourceKey) as Geometry;
-                if (geometry == null)
-                {
-                    return null;
-                }
-
-                if (!(ColorConverter.ConvertFromString(LocalProviderColorHex) is Color color))
-                {
-                    return null;
-                }
-
-                var drawing = new GeometryDrawing
-                {
-                    Geometry = geometry,
-                    Brush = new SolidColorBrush(color)
-                };
-                drawing.Freeze();
-
-                var drawingImage = new DrawingImage(drawing);
-                drawingImage.Freeze();
-                return drawingImage;
-            }
-            catch
-            {
-                return null;
-            }
-        }
+            => CreateVectorProviderImageSource(LocalProviderIconResourceKey, LocalProviderColorHex);
 
         private void TryDeleteManagedLocalProviderIcon(string path)
         {

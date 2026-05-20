@@ -99,17 +99,46 @@ namespace PlayniteAchievements.Providers.Local
         {
             get
             {
-                var customIconPath = ProviderRegistry.Settings<LocalSettings>()?.CustomProviderIconPath;
-                return !string.IsNullOrWhiteSpace(customIconPath) && File.Exists(customIconPath)
-                    ? customIconPath
-                    : "ProviderIconLocal";
+                var localSettings = ProviderRegistry.Settings<LocalSettings>();
+                var customIconPath = localSettings?.CustomProviderIconPath;
+                if (!string.IsNullOrWhiteSpace(customIconPath) && File.Exists(customIconPath))
+                    return customIconPath;
+
+                var borrowedKey = localSettings?.BorrowedProviderIconKey?.Trim();
+                if (!string.IsNullOrWhiteSpace(borrowedKey))
+                {
+                    var borrowedProvider = ProviderRegistry.Instance?.GetProvider(borrowedKey);
+                    if (borrowedProvider != null && !string.IsNullOrWhiteSpace(borrowedProvider.ProviderIconKey))
+                        return borrowedProvider.ProviderIconKey;
+                }
+
+                return "ProviderIconLocal";
             }
         }
 
         public string ProviderKey => "Local";
         public string ProviderName => "Local"; 
         public string ProviderIconKey => ResolvedProviderIconKey;
-        public string ProviderColorHex => "#FF8A00";
+        public string ProviderColorHex
+        {
+            get
+            {
+                var localSettings = ProviderRegistry.Settings<LocalSettings>();
+                var customIconPath = localSettings?.CustomProviderIconPath;
+                if (!string.IsNullOrWhiteSpace(customIconPath) && File.Exists(customIconPath))
+                    return "#FF8A00";
+
+                var borrowedKey = localSettings?.BorrowedProviderIconKey?.Trim();
+                if (!string.IsNullOrWhiteSpace(borrowedKey))
+                {
+                    var borrowedProvider = ProviderRegistry.Instance?.GetProvider(borrowedKey);
+                    if (borrowedProvider != null && !string.IsNullOrWhiteSpace(borrowedProvider.ProviderColorHex))
+                        return borrowedProvider.ProviderColorHex;
+                }
+
+                return "#FF8A00";
+            }
+        }
 
         public bool IsAuthenticated => true;
         public ISessionManager AuthSession => null;

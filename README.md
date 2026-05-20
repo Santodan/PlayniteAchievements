@@ -107,6 +107,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the option to overwritting existing achievements when using the `SuccessStory` import
 - Added the possibility to exclude sources when using the `SuccessStory` import
 - Added the possibility to edit the achievements through the `View Achievements` view in the game options
+- Added the possibility to change the `Local` icon to one of the others platforms
 
 ## 2026-05-09 - v2.1.3.3
 
