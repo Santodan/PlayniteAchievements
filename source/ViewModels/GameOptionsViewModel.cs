@@ -2636,8 +2636,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            EnsurePreferredProviderIsLocal();
+
             _achievementOverridesService?.ClearGameData(_gameId, game.Name);
-            TriggerRefresh();
+            TriggerRefreshForProvider(LocalProviderKey);
             return true;
         }
 
@@ -2918,6 +2920,48 @@ namespace PlayniteAchievements.ViewModels
                     ForceIconRefresh = forceIconRefresh
                 },
                 RefreshExecutionPolicy.ProgressWindow(_gameId));
+        }
+
+        private const string LocalProviderKey = "Local";
+
+        private void EnsurePreferredProviderIsLocal()
+        {
+            var result = _achievementOverridesService?.SetPreferredProviderOverride(_gameId, LocalProviderKey);
+            if (result?.Success != true)
+            {
+                _logger?.Warn($"Failed to auto-set preferred provider to Local for gameId={_gameId}.");
+            }
+        }
+
+        private void TriggerRefreshForProvider(string providerKey, bool forceIconRefresh = false)
+        {
+            var normalizedProviderKey = (providerKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedProviderKey))
+            {
+                TriggerRefresh(forceIconRefresh);
+                return;
+            }
+
+            _ = _plugin?.RefreshEntryPoint?.ExecuteAsync(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.Custom,
+                    ForceIconRefresh = forceIconRefresh,
+                    CustomOptions = new CustomRefreshOptions
+                    {
+                        ProviderKeys = new[] { normalizedProviderKey },
+                        Scope = CustomGameScope.Explicit,
+                        IncludeGameIds = new[] { _gameId },
+                        RespectUserExclusions = false,
+                        ForceBypassExclusionsForExplicitIncludes = true
+                    }
+                },
+                new RefreshExecutionPolicy
+                {
+                    UseProgressWindow = true,
+                    SwallowExceptions = true,
+                    ProgressSingleGameId = _gameId
+                });
         }
 
         private void UnlinkManualTracking()

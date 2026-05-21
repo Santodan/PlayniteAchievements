@@ -1737,6 +1737,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
+                    Log($"STEAM APPCACHE KV SCHEMA READ: appId={appId} path={schemaPath}");
                     if (!File.Exists(schemaPath))
                     {
                         continue;
@@ -1756,6 +1757,7 @@ namespace PlayniteAchievements.Providers.Local
                     var userStatsByStatId = new Dictionary<int, SteamKvUserStatData>();
                     foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId, game))
                     {
+                        Log($"STEAM APPCACHE KV USERSTATS READ: appId={appId} path={userStatsPath}");
                         if (!File.Exists(userStatsPath))
                         {
                             continue;
@@ -2596,6 +2598,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
+                    Log($"STEAM APPCACHE DIRECT USERSTATS READ: appId={appId} path={userStatsPath}");
                     if (!File.Exists(userStatsPath))
                         continue;
 
@@ -2973,6 +2976,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
+                    Log($"STEAM APPCACHE UNLOCKTIMES READ: appId={appId} path={userStatsPath}");
                     if (!File.Exists(userStatsPath))
                     {
                         continue;
@@ -3450,6 +3454,11 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
+            if (isExplicitUser && candidates.Count == 0)
+            {
+                Log($"STEAM APPCACHE USERSTATS: no files matched explicit user '{selectedUserId}' for appId={appId}.");
+            }
+
             return candidates
                 .Select(path => new
                 {
@@ -3545,6 +3554,14 @@ namespace PlayniteAchievements.Providers.Local
             if (Regex.IsMatch(trimmed, @"^\d+$"))
             {
                 candidates.Add(trimmed);
+
+                // Steam appcache stats files can use either accountId32 or steamId64.
+                // Expand both directions so a forced user ID always finds matching files.
+                if (uint.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var accountId32))
+                {
+                    var steamId64 = 76561197960265728UL + accountId32;
+                    candidates.Add(steamId64.ToString(CultureInfo.InvariantCulture));
+                }
 
                 if (ulong.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var steamIdValue) &&
                     steamIdValue >= 76561197960265728UL)
@@ -6729,6 +6746,24 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
+            foreach (var statsRoot in GetSteamAppCacheStatsRoots())
+            {
+                if (string.IsNullOrWhiteSpace(statsRoot))
+                {
+                    continue;
+                }
+
+                if (IsPathExcludedFromLocalScan(statsRoot, excludedLocalPaths))
+                {
+                    continue;
+                }
+
+                if (HasSteamAppCacheFilesForAppId(statsRoot, appId))
+                {
+                    TryAddLocalFolderCandidate(folders, statsRoot, requireLocalAchievementFiles: false);
+                }
+            }
+
             var resolvedFolders = folders
                 .Where(path => !string.IsNullOrWhiteSpace(path))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -6743,17 +6778,33 @@ namespace PlayniteAchievements.Providers.Local
             return resolvedFolders.ToList();
         }
 
-        private static void TryAddLocalFolderCandidate(ICollection<string> folders, string folderPath)
+        private static void TryAddLocalFolderCandidate(ICollection<string> folders, string folderPath, bool requireLocalAchievementFiles = true)
         {
             if (folders == null || string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
             {
                 return;
             }
 
-            if (HasLocalAchievementFiles(folderPath))
+            if (!requireLocalAchievementFiles || HasLocalAchievementFiles(folderPath))
             {
                 folders.Add(folderPath);
             }
+        }
+
+        private static bool HasSteamAppCacheFilesForAppId(string statsRoot, string appId)
+        {
+            if (string.IsNullOrWhiteSpace(statsRoot) || string.IsNullOrWhiteSpace(appId) || !Directory.Exists(statsRoot))
+            {
+                return false;
+            }
+
+            var schemaPath = Path.Combine(statsRoot, $"UserGameStatsSchema_{appId}.bin");
+            if (File.Exists(schemaPath))
+            {
+                return true;
+            }
+
+            return Directory.EnumerateFiles(statsRoot, $"UserGameStats_*_{appId}.bin", SearchOption.TopDirectoryOnly).Any();
         }
 
         private static bool HasLocalAchievementFiles(string folderPath)

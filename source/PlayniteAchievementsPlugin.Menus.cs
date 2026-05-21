@@ -1039,14 +1039,48 @@ namespace PlayniteAchievements
                 return;
             }
 
-            _achievementOverridesService?.ClearGameData(game.Id, game.Name);
-            _ = _refreshCoordinator.ExecuteAsync(
-                new RefreshRequest
+            if (!string.IsNullOrWhiteSpace(normalizedUserId))
+            {
+                var preferredProviderResult = _achievementOverridesService?.SetPreferredProviderOverride(game.Id, "Local");
+                if (preferredProviderResult?.Success != true)
                 {
-                    Mode = RefreshModeType.Single,
-                    SingleGameId = game.Id
-                },
-                RefreshExecutionPolicy.ProgressWindow(game.Id));
+                    _logger?.Warn($"Failed to auto-set preferred provider to Local for '{game.Name}' ({game.Id}) after Local Steam user override update.");
+                }
+            }
+
+            _achievementOverridesService?.ClearGameData(game.Id, game.Name);
+            if (!string.IsNullOrWhiteSpace(normalizedUserId))
+            {
+                _ = _refreshCoordinator.ExecuteAsync(
+                    new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Custom,
+                        CustomOptions = new CustomRefreshOptions
+                        {
+                            ProviderKeys = new[] { "Local" },
+                            Scope = CustomGameScope.Explicit,
+                            IncludeGameIds = new[] { game.Id },
+                            RespectUserExclusions = false,
+                            ForceBypassExclusionsForExplicitIncludes = true
+                        }
+                    },
+                    new RefreshExecutionPolicy
+                    {
+                        UseProgressWindow = true,
+                        SwallowExceptions = true,
+                        ProgressSingleGameId = game.Id
+                    });
+            }
+            else
+            {
+                _ = _refreshCoordinator.ExecuteAsync(
+                    new RefreshRequest
+                    {
+                        Mode = RefreshModeType.Single,
+                        SingleGameId = game.Id
+                    },
+                    RefreshExecutionPolicy.ProgressWindow(game.Id));
+            }
         }
 
         private void SetLocalFolderOverride(Game game)
