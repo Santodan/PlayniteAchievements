@@ -116,6 +116,10 @@ namespace PlayniteAchievements.ViewModels
         private string _exophaseSlugOverrideValue;
         private string _exophaseSlugInput;
         private bool _hasExophaseSlugOverride;
+        private bool _hasPreferredProviderOverride;
+        private string _preferredProviderOverrideValue;
+        private string _preferredProviderOverrideInput;
+        private IReadOnlyList<GameOptionsProviderOption> _availablePreferredProviders = Array.Empty<GameOptionsProviderOption>();
         private bool _canExportCustomJson;
         private bool _canClearCustomData;
         private int _customDataRevision;
@@ -153,6 +157,8 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ClearShadPS4MatchIdOverrideCommand { get; }
         public RelayCommand ApplyExophaseSlugOverrideCommand { get; }
         public RelayCommand ClearExophaseSlugOverrideCommand { get; }
+        public RelayCommand ApplyPreferredProviderOverrideCommand { get; }
+        public RelayCommand ClearPreferredProviderOverrideCommand { get; }
         public RelayCommand UnlinkManualTrackingCommand { get; }
         public RelayCommand RefreshStateCommand { get; }
         public AsyncCommand RefreshGameCommand { get; }
@@ -218,6 +224,8 @@ namespace PlayniteAchievements.ViewModels
             ClearShadPS4MatchIdOverrideCommand = new RelayCommand(_ => ClearShadPS4MatchIdOverride(), _ => HasGame && ShowShadPS4MatchIdOverride && HasShadPS4MatchIdOverride);
             ApplyExophaseSlugOverrideCommand = new RelayCommand(_ => ApplyExophaseSlugOverride(), _ => HasGame && ShowExophaseToggle);
             ClearExophaseSlugOverrideCommand = new RelayCommand(_ => ClearExophaseSlugOverride(), _ => HasGame && ShowExophaseToggle && HasExophaseSlugOverride);
+            ApplyPreferredProviderOverrideCommand = new RelayCommand(_ => ApplyPreferredProviderOverride(), _ => HasGame);
+            ClearPreferredProviderOverrideCommand = new RelayCommand(_ => ClearPreferredProviderOverride(), _ => HasGame && HasPreferredProviderOverride);
             UnlinkManualTrackingCommand = new RelayCommand(_ => UnlinkManualTracking(), _ => HasGame && HasManualTrackingLink);
             RefreshStateCommand = new RelayCommand(_ => Reload());
             RefreshGameCommand = new AsyncCommand(_ => RefreshGameAsync(), _ => HasGame && !IsRefreshing && !(_refreshService?.IsRebuilding ?? false));
@@ -530,6 +538,64 @@ namespace PlayniteAchievements.ViewModels
         {
             get => _hasExophaseSlugOverride;
             private set => SetValue(ref _hasExophaseSlugOverride, value);
+        }
+
+        public IReadOnlyList<GameOptionsProviderOption> AvailablePreferredProviders
+        {
+            get => _availablePreferredProviders;
+            private set => SetValue(ref _availablePreferredProviders, value ?? Array.Empty<GameOptionsProviderOption>());
+        }
+
+        public bool HasPreferredProviderOverride
+        {
+            get => _hasPreferredProviderOverride;
+            private set
+            {
+                if (SetValueAndReturn(ref _hasPreferredProviderOverride, value))
+                {
+                    OnPropertyChanged(nameof(PreferredProviderStatusText));
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string PreferredProviderOverrideValue
+        {
+            get => _preferredProviderOverrideValue;
+            private set
+            {
+                if (SetValueAndReturn(ref _preferredProviderOverrideValue, value))
+                {
+                    OnPropertyChanged(nameof(PreferredProviderStatusText));
+                }
+            }
+        }
+
+        public string PreferredProviderOverrideInput
+        {
+            get => _preferredProviderOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _preferredProviderOverrideInput, value ?? string.Empty))
+                {
+                    RaiseCommandStates();
+                }
+            }
+        }
+
+        public string PreferredProviderStatusText
+        {
+            get
+            {
+                if (!HasPreferredProviderOverride)
+                {
+                    return L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set");
+                }
+
+                return string.Format(
+                    L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"),
+                    GetProviderDisplayName(PreferredProviderOverrideValue));
+            }
         }
 
         public bool HasGame
@@ -1423,6 +1489,31 @@ namespace PlayniteAchievements.ViewModels
                 HasCachedData = gameData != null;
                 _cachedProviderKey = gameData?.ProviderKey?.Trim();
                 _cachedHasAchievements = gameData?.HasAchievements ?? false;
+
+                var preferredProviderOptions = BuildPreferredProviderOptions();
+                AvailablePreferredProviders = preferredProviderOptions;
+                var preferredProviderOverride = (_achievementOverridesService?.GetPreferredProviderOverride(_gameId) ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(preferredProviderOverride))
+                {
+                    HasPreferredProviderOverride = false;
+                    PreferredProviderOverrideValue = string.Empty;
+                    PreferredProviderOverrideInput = string.Empty;
+                }
+                else
+                {
+                    if (!preferredProviderOptions.Any(option => string.Equals(option.ProviderKey, preferredProviderOverride, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var customOption = new GameOptionsProviderOption(preferredProviderOverride, GetProviderDisplayName(preferredProviderOverride));
+                        AvailablePreferredProviders = preferredProviderOptions
+                            .Concat(new[] { customOption })
+                            .ToList();
+                    }
+
+                    HasPreferredProviderOverride = true;
+                    PreferredProviderOverrideValue = preferredProviderOverride;
+                    PreferredProviderOverrideInput = preferredProviderOverride;
+                }
+
                 var allowManualOverride = ManualAchievementsProvider.IsTrackingOverrideEnabled();
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
@@ -2876,6 +2967,33 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private void ApplyPreferredProviderOverride()
+        {
+            var selectedProviderKey = (PreferredProviderOverrideInput ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(selectedProviderKey))
+            {
+                if (TryClearPreferredProviderOverride())
+                {
+                    Reload();
+                }
+
+                return;
+            }
+
+            if (TrySetPreferredProviderOverride(selectedProviderKey))
+            {
+                Reload();
+            }
+        }
+
+        private void ClearPreferredProviderOverride()
+        {
+            if (TryClearPreferredProviderOverride())
+            {
+                Reload();
+            }
+        }
+
         private bool TrySetExophaseSlugOverride(string slug)
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
@@ -2903,6 +3021,53 @@ namespace PlayniteAchievements.ViewModels
 
             if (!ExophaseDataProvider.TryClearSlugOverride(_gameId, game.Name, _persistSettingsForUi, _logger))
             {
+                return false;
+            }
+
+            TriggerRefresh();
+            return true;
+        }
+
+        private bool TrySetPreferredProviderOverride(string providerKey)
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            var normalizedProviderKey = (providerKey ?? string.Empty).Trim();
+            if (game == null || string.IsNullOrWhiteSpace(normalizedProviderKey))
+            {
+                return false;
+            }
+
+            var result = _achievementOverridesService?.SetPreferredProviderOverride(_gameId, normalizedProviderKey);
+            if (result?.Success != true)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Menu_LocalProvider_SetFailed", "The preferred provider override could not be saved."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                return false;
+            }
+
+            TriggerRefreshForProvider(normalizedProviderKey);
+            return true;
+        }
+
+        private bool TryClearPreferredProviderOverride()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            var result = _achievementOverridesService?.ClearPreferredProviderOverride(_gameId);
+            if (result?.Success != true)
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_Menu_LocalProvider_ClearFailed", "The preferred provider override could not be cleared."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return false;
             }
 
@@ -3113,6 +3278,8 @@ namespace PlayniteAchievements.ViewModels
             ClearShadPS4MatchIdOverrideCommand?.RaiseCanExecuteChanged();
             ApplyExophaseSlugOverrideCommand?.RaiseCanExecuteChanged();
             ClearExophaseSlugOverrideCommand?.RaiseCanExecuteChanged();
+            ApplyPreferredProviderOverrideCommand?.RaiseCanExecuteChanged();
+            ClearPreferredProviderOverrideCommand?.RaiseCanExecuteChanged();
             UnlinkManualTrackingCommand?.RaiseCanExecuteChanged();
             RefreshStateCommand?.RaiseCanExecuteChanged();
             RefreshGameCommand?.RaiseCanExecuteChanged();
@@ -3192,6 +3359,38 @@ namespace PlayniteAchievements.ViewModels
             return string.IsNullOrWhiteSpace(displayName)
                 ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
                 : displayName;
+        }
+
+        private string GetProviderDisplayName(string providerKey)
+        {
+            var normalizedProviderKey = (providerKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedProviderKey))
+            {
+                return L("LOCPlayAch_Menu_LocalProvider_Automatic", "Automatic");
+            }
+
+            var localizedName = ProviderRegistry.GetLocalizedName(normalizedProviderKey);
+            return string.IsNullOrWhiteSpace(localizedName)
+                ? normalizedProviderKey
+                : localizedName;
+        }
+
+        private IReadOnlyList<GameOptionsProviderOption> BuildPreferredProviderOptions()
+        {
+            var options = new List<GameOptionsProviderOption>
+            {
+                new GameOptionsProviderOption(string.Empty, L("LOCPlayAch_Menu_LocalProvider_Automatic", "Automatic"))
+            };
+
+            var providerKeys = _refreshService?.Providers?
+                .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.ProviderKey))
+                .Select(provider => provider.ProviderKey.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(providerKey => GetProviderDisplayName(providerKey), StringComparer.CurrentCultureIgnoreCase)
+                .ToList() ?? new List<string>();
+
+            options.AddRange(providerKeys.Select(providerKey => new GameOptionsProviderOption(providerKey, GetProviderDisplayName(providerKey))));
+            return options;
         }
 
         private string ResolveLibrarySourceDisplayName(Playnite.SDK.Models.Game game, string cachedLibrarySource)
@@ -3427,6 +3626,19 @@ namespace PlayniteAchievements.ViewModels
             public bool RequiresRefresh { get; }
             public bool ForceIconRefresh { get; }
         }
+    }
+
+    public sealed class GameOptionsProviderOption
+    {
+        public GameOptionsProviderOption(string providerKey, string displayName)
+        {
+            ProviderKey = providerKey ?? string.Empty;
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? ProviderKey : displayName;
+        }
+
+        public string ProviderKey { get; }
+
+        public string DisplayName { get; }
     }
 }
 
