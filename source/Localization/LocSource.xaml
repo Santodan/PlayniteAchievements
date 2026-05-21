@@ -307,6 +307,11 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHeader">RetroAchievements Game ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaHint">Enter the RetroAchievements game ID to override automatic matching for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_RaNotCapable">RetroAchievements override is not available for this game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Tab_Main">Main</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_Tab_Local">Local</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSubTab_LocalSavesSchema">Local Saves &amp; Schema</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSubTab_Steam">Steam</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalSubTab_LumaPlay">LumaPlay</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaHeader">Xenia TitleID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaHint">Enter the Xbox 360 TitleID to override automatic matching for this game. This forces the game to be managed by Xenia.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ShadPS4Header">ShadPS4 Match ID Override</sys:String>

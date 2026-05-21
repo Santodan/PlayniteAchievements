@@ -39,6 +39,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
 
         private GameOptionsTab _selectedTab;
+        private GameOptionsOverrideTab _selectedOverridesTab = GameOptionsOverrideTab.Main;
+        private GameOptionsLocalOverrideTab _selectedLocalOverrideTab = GameOptionsLocalOverrideTab.LocalSavesSchema;
         private GameOptionsCustomSchemaTab _selectedCustomSchemaTab = GameOptionsCustomSchemaTab.SchemaJson;
         private bool _hasGame;
         private string _gameName;
@@ -342,6 +344,18 @@ namespace PlayniteAchievements.ViewModels
 
                 SetValue(ref _selectedCustomSchemaTab, value);
             }
+        }
+
+        public GameOptionsOverrideTab SelectedOverridesTab
+        {
+            get => _selectedOverridesTab;
+            set => SetValue(ref _selectedOverridesTab, value);
+        }
+
+        public GameOptionsLocalOverrideTab SelectedLocalOverrideTab
+        {
+            get => _selectedLocalOverrideTab;
+            set => SetValue(ref _selectedLocalOverrideTab, value);
         }
 
         public string CustomSchemaEditorText
