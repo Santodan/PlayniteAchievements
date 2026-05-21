@@ -4,6 +4,7 @@ namespace PlayniteAchievements.ViewModels
     {
         Overview,
         Overrides,
+        CustomSchema,
         Capstones,
         ManualTracking,
         AchievementOrder,

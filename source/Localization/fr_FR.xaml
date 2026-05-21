@@ -168,6 +168,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Suivi manuel</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_AchievementOrder">Ordre des succès</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Category">Catégorie</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomSchema">Schéma personnalisé</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/D</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Exclu</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_Included">Inclus</sys:String>
@@ -1271,6 +1272,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_AchievementOrder">Order</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Capstones">Capstones</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Category">Categories</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomSchema">Custom Schema</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_CustomIcons">Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Manual Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Overrides</sys:String>

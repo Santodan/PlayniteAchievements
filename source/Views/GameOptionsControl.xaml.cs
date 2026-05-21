@@ -139,6 +139,10 @@ namespace PlayniteAchievements.Views
             {
                 QueueEnsureSelectedTabContent();
             }
+            else if (e.PropertyName == nameof(GameOptionsViewModel.SelectedCustomSchemaTab))
+            {
+                QueueEnsureSelectedTabContent();
+            }
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
@@ -157,7 +161,8 @@ namespace PlayniteAchievements.Views
                 HandleCustomDataRevisionChanged();
             }
             else if (e.PropertyName == nameof(GameOptionsViewModel.HasCapstoneData) &&
-                     _viewModel.SelectedTab == GameOptionsTab.Capstones)
+                     _viewModel.SelectedTab == GameOptionsTab.CustomSchema &&
+                     _viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Capstones)
             {
                 EnsureCapstoneControl(forceRecreate: true);
             }
@@ -185,21 +190,7 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
-            if (_viewModel.SelectedTab == GameOptionsTab.Capstones)
-            {
-                var hadCapstoneControl = _capstoneControl != null;
-                EnsureCapstoneControl(forceRecreate: false);
-                if (_capstoneRefreshPending && _capstoneControl != null)
-                {
-                    if (hadCapstoneControl)
-                    {
-                        _capstoneControl.RefreshData();
-                    }
-
-                    _capstoneRefreshPending = false;
-                }
-            }
-            else if (_viewModel.SelectedTab == GameOptionsTab.ManualTracking)
+            if (_viewModel.SelectedTab == GameOptionsTab.ManualTracking)
             {
                 EnsureManualControl(forceRecreate: false);
                 if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
@@ -207,46 +198,63 @@ namespace PlayniteAchievements.Views
                     _manualRefreshPending = false;
                 }
             }
-            else if (_viewModel.SelectedTab == GameOptionsTab.AchievementOrder)
+            else if (_viewModel.SelectedTab == GameOptionsTab.CustomSchema)
             {
-                var hadAchievementOrderControl = _achievementOrderControl != null;
-                EnsureAchievementOrderControl(forceRecreate: false);
-                if (_achievementOrderRefreshPending)
+                if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Capstones)
                 {
-                    if (hadAchievementOrderControl)
+                    var hadCapstoneControl = _capstoneControl != null;
+                    EnsureCapstoneControl(forceRecreate: false);
+                    if (_capstoneRefreshPending && _capstoneControl != null)
                     {
-                        _achievementOrderControl?.RefreshData();
-                    }
+                        if (hadCapstoneControl)
+                        {
+                            _capstoneControl.RefreshData();
+                        }
 
-                    _achievementOrderRefreshPending = false;
+                        _capstoneRefreshPending = false;
+                    }
                 }
-            }
-            else if (_viewModel.SelectedTab == GameOptionsTab.Category)
-            {
-                var hadCategoryControl = _categoryControl != null;
-                EnsureCategoryControl(forceRecreate: false);
-                if (_categoryRefreshPending)
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.AchievementOrder)
                 {
-                    if (hadCategoryControl)
+                    var hadAchievementOrderControl = _achievementOrderControl != null;
+                    EnsureAchievementOrderControl(forceRecreate: false);
+                    if (_achievementOrderRefreshPending)
                     {
-                        _categoryViewModel?.ReloadData();
-                    }
+                        if (hadAchievementOrderControl)
+                        {
+                            _achievementOrderControl?.RefreshData();
+                        }
 
-                    _categoryRefreshPending = false;
+                        _achievementOrderRefreshPending = false;
+                    }
                 }
-            }
-            else if (_viewModel.SelectedTab == GameOptionsTab.CustomIcons)
-            {
-                var hadAchievementIconsControl = _achievementIconsControl != null;
-                EnsureAchievementIconsControl(forceRecreate: false);
-                if (_achievementIconsRefreshPending)
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Category)
                 {
-                    if (hadAchievementIconsControl)
+                    var hadCategoryControl = _categoryControl != null;
+                    EnsureCategoryControl(forceRecreate: false);
+                    if (_categoryRefreshPending)
                     {
-                        _achievementIconsControl?.RefreshData();
-                    }
+                        if (hadCategoryControl)
+                        {
+                            _categoryViewModel?.ReloadData();
+                        }
 
-                    _achievementIconsRefreshPending = false;
+                        _categoryRefreshPending = false;
+                    }
+                }
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.CustomIcons)
+                {
+                    var hadAchievementIconsControl = _achievementIconsControl != null;
+                    EnsureAchievementIconsControl(forceRecreate: false);
+                    if (_achievementIconsRefreshPending)
+                    {
+                        if (hadAchievementIconsControl)
+                        {
+                            _achievementIconsControl?.RefreshData();
+                        }
+
+                        _achievementIconsRefreshPending = false;
+                    }
                 }
             }
         }

@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
+using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -37,6 +39,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly ILogger _logger;
 
         private GameOptionsTab _selectedTab;
+        private GameOptionsCustomSchemaTab _selectedCustomSchemaTab = GameOptionsCustomSchemaTab.SchemaJson;
         private bool _hasGame;
         private string _gameName;
         private string _gameImagePath;
@@ -114,6 +117,9 @@ namespace PlayniteAchievements.ViewModels
         private bool _canExportCustomJson;
         private bool _canClearCustomData;
         private int _customDataRevision;
+        private string _customSchemaEditorText = string.Empty;
+        private string _customSchemaEditorStatus = string.Empty;
+        private bool _customSchemaEditorStatusIsError;
 
         public RelayCommand OpenAchievementsCommand { get; }
         public RelayCommand ToggleExclusionCommand { get; }
@@ -154,6 +160,8 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ImportCustomJsonCommand { get; }
         public RelayCommand ClearCustomDataCommand { get; }
         public RelayCommand OpenLocalAchievementsEditorCommand { get; }
+        public RelayCommand ReloadCustomSchemaEditorCommand { get; }
+        public RelayCommand SaveCustomSchemaEditorCommand { get; }
 
         public GameOptionsViewModel(
             Guid gameId,
@@ -217,6 +225,8 @@ namespace PlayniteAchievements.ViewModels
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
             OpenLocalAchievementsEditorCommand = new RelayCommand(_ => OpenLocalAchievementsEditor(), _ => HasGame && CanEditLocalAchievements);
+            ReloadCustomSchemaEditorCommand = new RelayCommand(_ => ReloadCustomSchemaEditor(), _ => HasGame && HasLocalCustomSchemaOverride);
+            SaveCustomSchemaEditorCommand = new RelayCommand(_ => SaveCustomSchemaEditor(), _ => HasGame && HasLocalCustomSchemaOverride);
 
             Reload();
         }
@@ -242,26 +252,51 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedTab;
             set
             {
-                if (_selectedTab == value)
+                var requestedTab = value;
+                var requestedCustomSchemaTab = _selectedCustomSchemaTab;
+
+                if (requestedTab == GameOptionsTab.Capstones)
+                {
+                    requestedTab = GameOptionsTab.CustomSchema;
+                    requestedCustomSchemaTab = GameOptionsCustomSchemaTab.Capstones;
+                }
+                else if (requestedTab == GameOptionsTab.Category)
+                {
+                    requestedTab = GameOptionsTab.CustomSchema;
+                    requestedCustomSchemaTab = GameOptionsCustomSchemaTab.Category;
+                }
+                else if (requestedTab == GameOptionsTab.AchievementOrder)
+                {
+                    requestedTab = GameOptionsTab.CustomSchema;
+                    requestedCustomSchemaTab = GameOptionsCustomSchemaTab.AchievementOrder;
+                }
+                else if (requestedTab == GameOptionsTab.CustomIcons)
+                {
+                    requestedTab = GameOptionsTab.CustomSchema;
+                    requestedCustomSchemaTab = GameOptionsCustomSchemaTab.CustomIcons;
+                }
+
+                if (_selectedTab == requestedTab)
+                {
+                    if (requestedTab == GameOptionsTab.CustomSchema)
+                    {
+                        SelectedCustomSchemaTab = requestedCustomSchemaTab;
+                    }
+
+                    return;
+                }
+
+                if (requestedTab == GameOptionsTab.ManualTracking && !ShowManualTrackingTab)
                 {
                     return;
                 }
 
-                if (value == GameOptionsTab.ManualTracking && !ShowManualTrackingTab)
+                if (requestedTab == GameOptionsTab.CustomSchema && !HasLocalCustomSchemaOverride)
                 {
                     return;
                 }
 
-                if (!HasCapstoneData &&
-                    (value == GameOptionsTab.Capstones ||
-                     value == GameOptionsTab.AchievementOrder ||
-                     value == GameOptionsTab.Category ||
-                     value == GameOptionsTab.CustomIcons))
-                {
-                    return;
-                }
-
-                if (value == GameOptionsTab.ManualTracking &&
+                if (requestedTab == GameOptionsTab.ManualTracking &&
                     ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
                     !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
                 {
@@ -286,8 +321,45 @@ namespace PlayniteAchievements.ViewModels
                     _manualTrackingWarningAcceptedForProvider = existingProviderKey;
                 }
 
-                SetValue(ref _selectedTab, value);
+                if (requestedTab == GameOptionsTab.CustomSchema)
+                {
+                    SelectedCustomSchemaTab = requestedCustomSchemaTab;
+                }
+
+                SetValue(ref _selectedTab, requestedTab);
             }
+        }
+
+        public GameOptionsCustomSchemaTab SelectedCustomSchemaTab
+        {
+            get => _selectedCustomSchemaTab;
+            set
+            {
+                if (!HasLocalCustomSchemaOverride)
+                {
+                    return;
+                }
+
+                SetValue(ref _selectedCustomSchemaTab, value);
+            }
+        }
+
+        public string CustomSchemaEditorText
+        {
+            get => _customSchemaEditorText;
+            set => SetValue(ref _customSchemaEditorText, value ?? string.Empty);
+        }
+
+        public string CustomSchemaEditorStatus
+        {
+            get => _customSchemaEditorStatus;
+            private set => SetValue(ref _customSchemaEditorStatus, value ?? string.Empty);
+        }
+
+        public bool CustomSchemaEditorStatusIsError
+        {
+            get => _customSchemaEditorStatusIsError;
+            private set => SetValue(ref _customSchemaEditorStatusIsError, value);
         }
 
         private void RefreshLocalAchievementEditorState()
@@ -1504,12 +1576,16 @@ namespace PlayniteAchievements.ViewModels
                     HasLocalCustomSchemaOverride = true;
                     LocalCustomSchemaOverrideValue = localCustomSchemaPath;
                     LocalCustomSchemaOverrideInput = localCustomSchemaPath;
+                    ReloadCustomSchemaEditor();
                 }
                 else
                 {
                     HasLocalCustomSchemaOverride = false;
                     LocalCustomSchemaOverrideValue = string.Empty;
                     LocalCustomSchemaOverrideInput = string.Empty;
+                    CustomSchemaEditorText = string.Empty;
+                    CustomSchemaEditorStatus = string.Empty;
+                    CustomSchemaEditorStatusIsError = false;
                 }
 
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
@@ -1591,11 +1667,23 @@ namespace PlayniteAchievements.ViewModels
                     SelectedTab = GameOptionsTab.Overview;
                 }
 
-                if (!HasCapstoneData &&
-                    (SelectedTab == GameOptionsTab.Capstones ||
-                     SelectedTab == GameOptionsTab.AchievementOrder ||
-                     SelectedTab == GameOptionsTab.Category ||
-                     SelectedTab == GameOptionsTab.CustomIcons))
+                if (SelectedTab == GameOptionsTab.Capstones ||
+                    SelectedTab == GameOptionsTab.Category ||
+                    SelectedTab == GameOptionsTab.AchievementOrder ||
+                    SelectedTab == GameOptionsTab.CustomIcons)
+                {
+                    if (!HasLocalCustomSchemaOverride)
+                    {
+                        SelectedTab = GameOptionsTab.Overview;
+                    }
+                    else
+                    {
+                        var legacyTab = SelectedTab;
+                        SelectedTab = legacyTab;
+                    }
+                }
+
+                if (!HasLocalCustomSchemaOverride && SelectedTab == GameOptionsTab.CustomSchema)
                 {
                     SelectedTab = GameOptionsTab.Overview;
                 }
@@ -1918,6 +2006,85 @@ namespace PlayniteAchievements.ViewModels
             if (dialog.ShowDialog() == true)
             {
                 LocalCustomSchemaOverrideInput = dialog.FileName;
+            }
+        }
+
+        private void ReloadCustomSchemaEditor()
+        {
+            if (!HasGame || !HasLocalCustomSchemaOverride || string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
+            {
+                CustomSchemaEditorText = string.Empty;
+                CustomSchemaEditorStatus = L("LOCPlayAch_GameOptions_CustomSchemaEditor_NoFile", "No custom schema file selected.");
+                CustomSchemaEditorStatusIsError = false;
+                return;
+            }
+
+            if (!File.Exists(LocalCustomSchemaOverrideValue))
+            {
+                CustomSchemaEditorText = string.Empty;
+                CustomSchemaEditorStatus = L("LOCPlayAch_GameOptions_CustomSchemaEditor_FileMissing", "Custom schema file was not found.");
+                CustomSchemaEditorStatusIsError = true;
+                return;
+            }
+
+            try
+            {
+                CustomSchemaEditorText = File.ReadAllText(LocalCustomSchemaOverrideValue, Encoding.UTF8);
+                CustomSchemaEditorStatus = string.Format(
+                    L("LOCPlayAch_GameOptions_CustomSchemaEditor_Loaded", "Loaded custom schema: {0}"),
+                    LocalCustomSchemaOverrideValue);
+                CustomSchemaEditorStatusIsError = false;
+            }
+            catch (Exception ex)
+            {
+                CustomSchemaEditorStatus = string.Format(
+                    L("LOCPlayAch_GameOptions_CustomSchemaEditor_LoadFailed", "Failed to load custom schema: {0}"),
+                    ex.Message);
+                CustomSchemaEditorStatusIsError = true;
+            }
+        }
+
+        private void SaveCustomSchemaEditor()
+        {
+            if (!HasGame || !HasLocalCustomSchemaOverride || string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
+            {
+                return;
+            }
+
+            var raw = CustomSchemaEditorText ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                _playniteApi?.Dialogs?.ShowMessage(
+                    L("LOCPlayAch_GameOptions_CustomSchemaEditor_Empty", "Custom schema content cannot be empty."),
+                    L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                var parsed = JToken.Parse(raw);
+                var formatted = parsed.ToString(Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(LocalCustomSchemaOverrideValue, formatted, Encoding.UTF8);
+                CustomSchemaEditorText = formatted;
+                CustomSchemaEditorStatus = L("LOCPlayAch_GameOptions_CustomSchemaEditor_SaveSuccess", "Custom schema saved successfully.");
+                CustomSchemaEditorStatusIsError = false;
+
+                var game = _playniteApi?.Database?.Games?.Get(_gameId);
+                if (game != null)
+                {
+                    _achievementOverridesService?.ClearGameData(_gameId, game.Name);
+                }
+
+                TriggerRefresh();
+            }
+            catch (Exception ex)
+            {
+                CustomSchemaEditorStatus = string.Format(
+                    L("LOCPlayAch_GameOptions_CustomSchemaEditor_SaveFailed", "Failed to save custom schema: {0}"),
+                    ex.Message);
+                CustomSchemaEditorStatusIsError = true;
             }
         }
 
@@ -2866,6 +3033,8 @@ namespace PlayniteAchievements.ViewModels
             ExportCustomPackageCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
             ClearCustomDataCommand?.RaiseCanExecuteChanged();
+            ReloadCustomSchemaEditorCommand?.RaiseCanExecuteChanged();
+            SaveCustomSchemaEditorCommand?.RaiseCanExecuteChanged();
         }
 
         private void RefreshCustomDataState()
