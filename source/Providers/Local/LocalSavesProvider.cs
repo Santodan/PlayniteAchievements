@@ -5394,10 +5394,25 @@ namespace PlayniteAchievements.Providers.Local
 
             if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
             {
-                return !(uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeFile);
+                if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                {
+                    return false;
+                }
+
+                if (uri.Scheme == Uri.UriSchemeFile)
+                {
+                    return !File.Exists(uri.LocalPath);
+                }
+
+                return true;
             }
 
-            return !Path.IsPathRooted(value);
+            if (Path.IsPathRooted(value))
+            {
+                return !File.Exists(value);
+            }
+
+            return true;
         }
 
         private static bool IsWindowsPlatform()
@@ -6618,8 +6633,14 @@ namespace PlayniteAchievements.Providers.Local
             {
                 if (Directory.Exists(overriddenFolderPath))
                 {
+                    var overrideCandidates = string.IsNullOrWhiteSpace(appId)
+                        ? new List<string>()
+                        : FindLocalFolders(appId);
+
                     folderPath = overriddenFolderPath;
+                    candidateFolders = overrideCandidates;
                     isOverridden = true;
+                    isAmbiguous = overrideCandidates.Count > 1;
                     return true;
                 }
 
@@ -8971,6 +8992,7 @@ namespace PlayniteAchievements.Providers.Local
 
             if (!string.IsNullOrWhiteSpace(documents))
             {
+                roots.Add(Path.Combine(documents, "OnlineFix"));
                 roots.Add(Path.Combine(documents, "SkidRow"));
             }
 

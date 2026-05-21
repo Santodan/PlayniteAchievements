@@ -110,6 +110,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the possibility to change the `Local` icon to one of the others platforms
 - Added the option to refresh the achievements when the game closes
 - Added the option to import custom achievements schemas
+- Changed the `Overrides` page to seperate this fork's options fromthe main fork
+- Added a dropdown in the `Local save folder override` when multiple folders are found
+- Fixed the issue of no icons when the achievement file has a broken icon path
 
 ## 2026-05-09 - v2.1.3.3
 

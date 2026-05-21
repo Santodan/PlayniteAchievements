@@ -1039,10 +1039,34 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+
+        private IReadOnlyList<string> _localFolderCandidates = Array.Empty<string>();
+        public IReadOnlyList<string> LocalFolderCandidates
+        {
+            get => _localFolderCandidates;
+            private set => SetValue(ref _localFolderCandidates, value ?? Array.Empty<string>());
+        }
+
         public string LocalFolderCandidatesSummary
         {
             get => _localFolderCandidatesSummary;
             private set => SetValue(ref _localFolderCandidatesSummary, value);
+        }
+
+        private string _selectedAmbiguousFolder;
+        public string SelectedAmbiguousFolder
+        {
+            get => _selectedAmbiguousFolder;
+            set
+            {
+                if (SetValueAndReturn(ref _selectedAmbiguousFolder, value))
+                {
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        LocalFolderOverrideInput = value;
+                    }
+                }
+            }
         }
 
         public bool HasAmbiguousLocalFolders
@@ -1562,9 +1586,11 @@ namespace PlayniteAchievements.ViewModels
                     LocalFolderOverrideInput = isFolderOverridden ? selectedFolder : string.Empty;
                     LocalFolderAutoPath = selectedFolder;
                     HasAmbiguousLocalFolders = isAmbiguousFolder;
+                    LocalFolderCandidates = candidateFolders ?? Array.Empty<string>();
                     LocalFolderCandidatesSummary = candidateFolders != null && candidateFolders.Count > 1
                         ? string.Join(Environment.NewLine, candidateFolders)
                         : string.Empty;
+                    SelectedAmbiguousFolder = null;
                 }
                 else if (LocalSavesProvider.TryGetFolderOverride(_gameId, out var overriddenFolder))
                 {
@@ -1573,7 +1599,9 @@ namespace PlayniteAchievements.ViewModels
                     LocalFolderOverrideInput = overriddenFolder;
                     LocalFolderAutoPath = overriddenFolder;
                     HasAmbiguousLocalFolders = false;
+                    LocalFolderCandidates = Array.Empty<string>();
                     LocalFolderCandidatesSummary = string.Empty;
+                    SelectedAmbiguousFolder = null;
                 }
                 else
                 {
@@ -1582,7 +1610,9 @@ namespace PlayniteAchievements.ViewModels
                     LocalFolderOverrideInput = string.Empty;
                     LocalFolderAutoPath = string.Empty;
                     HasAmbiguousLocalFolders = false;
+                    LocalFolderCandidates = Array.Empty<string>();
                     LocalFolderCandidatesSummary = string.Empty;
+                    SelectedAmbiguousFolder = null;
                 }
 
                 if (LocalSavesProvider.TryGetCustomSchemaPathOverride(_gameId, out var localCustomSchemaPath))

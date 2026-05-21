@@ -40,12 +40,23 @@
                            Foreground="{DynamicResource TextBrush}"
                            Margin="0,8,0,0"
                            TextWrapping="Wrap" />
-                <TextBlock Text="{Binding LocalFolderCandidatesSummary}"
-                           Visibility="{Binding HasAmbiguousLocalFolders, Converter={StaticResource BoolToVis}}"
+
+                <!-- Show ComboBox for ambiguous folder selection -->
+                <StackPanel Visibility="{Binding HasAmbiguousLocalFolders, Converter={StaticResource BoolToVis}}"
+                        Margin="0,6,0,0">
+                    <TextBlock Text="Select the correct folder:"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.75"
+                           Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding LocalFolderCandidates}"
+                          SelectedItem="{Binding SelectedAmbiguousFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          MinWidth="320"
+                          Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding LocalFolderCandidatesSummary}"
                            Foreground="{DynamicResource TextBrush}"
                            Opacity="0.65"
-                           Margin="0,6,0,0"
                            TextWrapping="Wrap" />
+                </StackPanel>
 
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
