@@ -94,7 +94,7 @@ There is also the `StartPage Compatability` so the `Local` achievements apepar i
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
-## Next Version Planned changes
+## 2026-05-21 - v2.1.5.1
 
 - v2.1.5 merge
 - Fixed local `Steam` achievements ( part 99 )
@@ -111,6 +111,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the option to refresh the achievements when the game closes
 - Added the option to import custom achievements schemas
 - Changed the `Overrides` page to seperate this fork's options fromthe main fork
+- `Change Provider` added to the `Overrides`
 - Added a dropdown in the `Local save folder override` when multiple folders are found
 - Fixed the issue of no icons when the achievement file has a broken icon path
 
