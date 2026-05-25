@@ -202,6 +202,21 @@ namespace PlayniteAchievements.Services
             _notifyCacheInvalidated(true);
         }
 
+        public void SetViewAchievementsIconFetchEnabled(Guid gameId, bool enabled)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.ViewAchievementsIconFetchEnabled = enabled;
+            });
+
+            _notifyCacheInvalidated(true);
+        }
+
         public void SetSeparateLockedIconOverride(Guid gameId, bool enabled)
         {
             if (gameId == Guid.Empty)

@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Local;
 using Playnite.SDK;
 using System;
 using System.Collections.Generic;
@@ -703,8 +704,9 @@ namespace PlayniteAchievements.Services
             {
             }
 
-            var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
-            var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
+            var _schemaDisabledForRefresh = LocalSavesProvider.TryGetCustomSchemaEnabledOverride(data.PlayniteGameId.Value, out var _csEnabledRefresh) && !_csEnabledRefresh;
+            var unlockedIconOverrides = _schemaDisabledForRefresh ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) : GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
+            var lockedIconOverrides = _schemaDisabledForRefresh ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) : GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
 
             await _achievementIconService.PopulateAchievementIconCacheAsync(
                 data,
@@ -752,15 +754,14 @@ namespace PlayniteAchievements.Services
             GameAchievementData data,
             CancellationToken cancel = default)
         {
-            var unlockedIconOverrides = data?.PlayniteGameId != null
+            var _schemaDisabledForDownload = data?.PlayniteGameId != null &&
+                LocalSavesProvider.TryGetCustomSchemaEnabledOverride(data.PlayniteGameId.Value, out var _csEnabledDownload) && !_csEnabledDownload;
+            var unlockedIconOverrides = (!_schemaDisabledForDownload && data?.PlayniteGameId != null)
                 ? GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value)
                 : null;
-            var lockedIconOverrides = data?.PlayniteGameId != null
+            var lockedIconOverrides = (!_schemaDisabledForDownload && data?.PlayniteGameId != null)
                 ? GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value)
                 : null;
-            await _achievementIconService
-                .DownloadAchievementIconsAsync(data, unlockedIconOverrides, lockedIconOverrides, cancel)
-                .ConfigureAwait(false);
         }
 
         private string ResolveFinalSuccessMessage(RebuildPayload payload, Func<RebuildPayload, string> finalMessage)

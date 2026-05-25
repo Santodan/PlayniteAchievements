@@ -218,6 +218,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalFolderOverrideValue">Forced folder: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideNone">No custom schema override set</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideValue">Custom schema: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideEnabled">Custom schema enabled: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideDisabled">Custom schema disabled: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalEnabled">Using global setting: enabled</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseGlobalDisabled">Using global setting: disabled</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalRefreshOnCloseOverrideEnabled">Override set: enabled</sys:String>
@@ -242,6 +244,10 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalFolderHint">If multiple emulator folders exist for the same Steam App ID, choose the folder that contains the correct save data for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHeader">Local custom schema override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalCustomSchemaHint">Select a custom schema JSON for this game. The Local provider will merge this schema with detected metadata and correlate icons by API name, title/description, and icon hash when available.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEnabled">Enable custom schema</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ViewAchievementsFetch">Fetch icon from Game</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_DefaultEntryTitle">Default icon</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_DefaultEntryDescription">Applied when an achievement does not have its own icon override.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHeader">Refresh when game closes</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHint">Override whether this game should trigger a refresh right after it closes. Clear to use the global setting from Achievement Notifications.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_LocalFolder_Invalid">Please enter a valid local folder path.</sys:String>
@@ -348,12 +354,14 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_NoFile">No custom schema file selected.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_NoFilePrompt">No custom schema file selected. Enter a path above and click Apply, or click Save to create one.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_FileMissing">Custom schema file was not found.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_Loaded">Loaded custom schema: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_LoadFailed">Failed to load custom schema: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_Empty">Custom schema content cannot be empty.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_SaveSuccess">Custom schema saved successfully.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_SaveFailed">Failed to save custom schema: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_CreateFailed">Failed to create a custom schema override path.</sys:String>
 
     <!-- ================================================================= -->
     <!-- 08 Manual Tracking and Linking -->

@@ -1280,6 +1280,21 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideEnabled">Custom schema enabled: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideDisabled">Custom schema disabled: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEnabled">Enable custom schema</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ViewAchievementsFetch">Récupérer l'icône du jeu</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_DefaultEntryTitle">Icône par défaut</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_DefaultEntryDescription">Appliqué lorsqu'un succès n'a pas son propre remplacement d'icône.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_NoFile">No custom schema file selected.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_NoFilePrompt">No custom schema file selected. Enter a path above and click Apply, or click Save to create one.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_FileMissing">Custom schema file was not found.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_Loaded">Loaded custom schema: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_LoadFailed">Failed to load custom schema: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_Empty">Custom schema content cannot be empty.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_SaveSuccess">Custom schema saved successfully.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_SaveFailed">Failed to save custom schema: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_CreateFailed">Failed to create a custom schema override path.</sys:String>
 
     <!-- ================================================================= -->
     <!-- 08 Manual Tracking and Linking -->

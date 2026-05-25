@@ -7,7 +7,12 @@ using System.Threading.Tasks;
 using System.Windows;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Local;
+using PlayniteAchievements.Providers.RetroAchievements;
+using PlayniteAchievements.Providers.ShadPS4;
+using PlayniteAchievements.Providers.Steam;
+using PlayniteAchievements.Providers.Xenia;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views;
@@ -754,14 +759,7 @@ namespace PlayniteAchievements
 
             try
             {
-                if (_achievementOverridesService != null)
-                {
-                    _achievementOverridesService.ClearGameData(game.Id, game.Name);
-                }
-                else
-                {
-                    _cacheManager.RemoveGameCache(game.Id);
-                }
+                ClearGameDataAndOverrides(game);
 
                 PlayniteApi?.Dialogs?.ShowMessage(
                     ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
@@ -809,14 +807,7 @@ namespace PlayniteAchievements
             {
                 try
                 {
-                    if (_achievementOverridesService != null)
-                    {
-                        _achievementOverridesService.ClearGameData(game.Id, game.Name);
-                    }
-                    else
-                    {
-                        _cacheManager.RemoveGameCache(game.Id);
-                    }
+                    ClearGameDataAndOverrides(game);
 
                     clearedCount++;
                 }
@@ -831,6 +822,41 @@ namespace PlayniteAchievements
                 ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
+        }
+
+        private void ClearGameDataAndOverrides(Game game)
+        {
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return;
+            }
+
+            _achievementOverridesService?.ClearPreferredProviderOverride(game.Id);
+
+            LocalSavesProvider.TryClearAppIdOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearLumaPlayAppIdOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearLumaPlayIniPathOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearSteamAppCacheUserOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearFolderOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearCustomSchemaPathOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearRefreshOnGameCloseOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+
+            SteamDataProvider.TryClearSteamAccountOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            RetroAchievementsDataProvider.TryClearGameIdOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            XeniaDataProvider.TryClearTitleIdOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            ShadPS4DataProvider.TryClearMatchIdOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+            ExophaseDataProvider.TryClearSlugOverride(game.Id, game.Name, PersistSettingsForUi, _logger);
+
+            _gameCustomDataStore?.Delete(game.Id);
+
+            if (_achievementOverridesService != null)
+            {
+                _achievementOverridesService.ClearGameData(game.Id, game.Name);
+            }
+            else
+            {
+                _cacheManager.RemoveGameCache(game.Id);
+            }
         }
 
         private void DownloadExpectedAchievementsJson(Game game)

@@ -431,6 +431,7 @@ namespace PlayniteAchievements.Views
             _achievementIconsViewModel = new GameOptionsAchievementIconsViewModel(
                 _viewModel.GameId,
                 _achievementOverridesService,
+                PlayniteAchievementsPlugin.Instance?.GameCustomDataStore,
                 _gameDataSnapshotProvider,
                 PlayniteAchievementsPlugin.Instance?.ManagedCustomIconService,
                 _settings,

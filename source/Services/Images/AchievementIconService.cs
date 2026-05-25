@@ -10,6 +10,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Services.Images
 {
@@ -44,7 +46,6 @@ namespace PlayniteAchievements.Services.Images
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
         }
-
         /// <summary>
         /// Downloads and caches achievement icons for a GameAchievementData object.
         /// Updates icon paths in-place to point to local cached files.
@@ -96,6 +97,8 @@ namespace PlayniteAchievements.Services.Images
 
             var preserveOriginalResolution = _settings.PreserveAchievementIconResolution;
             var useSeparateLockedIcons = GameCustomDataLookup.ShouldUseSeparateLockedIcons(data?.PlayniteGameId, _settings);
+            var fetchIconsFromGame = data?.PlayniteGameId.HasValue == true &&
+                GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(data.PlayniteGameId.Value);
             var decodeSize = preserveOriginalResolution ? 0 : OptimizedDecodeSize;
             var gameId = ResolveGameId(data);
             var fileStems = AchievementIconCachePathBuilder.BuildFileStems(
@@ -107,6 +110,7 @@ namespace PlayniteAchievements.Services.Images
                     data.Achievements,
                     fileStems,
                     gameId,
+                    data?.PlayniteGameId,
                     useSeparateLockedIcons,
                     unlockedOverrides,
                     lockedOverrides,
@@ -152,7 +156,6 @@ namespace PlayniteAchievements.Services.Images
                         onIconProgress?.Invoke(downloaded, total);
                     }
                 }).ToArray();
-
                 await Task.WhenAll(resolutionTasks).ConfigureAwait(false);
             }
 
@@ -161,13 +164,18 @@ namespace PlayniteAchievements.Services.Images
                 iconRequests,
                 resolvedPaths,
                 useSeparateLockedIcons,
-                gameId);
+                gameId,
+                fileStems,
+                preserveOriginalResolution,
+                fetchIconsFromGame,
+                forceRefreshExistingTargets);
         }
 
         private async Task PrepareSourcePathsAsync(
             IReadOnlyList<AchievementDetail> achievements,
             IReadOnlyDictionary<string, string> fileStems,
             string gameId,
+            Guid? playniteGameId,
             bool useSeparateLockedIcons,
             IReadOnlyDictionary<string, string> unlockedOverrides,
             IReadOnlyDictionary<string, string> lockedOverrides,
@@ -180,6 +188,8 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var hasOverrides = AchievementIconOverrideHelper.HasOverrides(unlockedOverrides, lockedOverrides);
+            var fetchIconsFromGame = playniteGameId.HasValue &&
+                GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(playniteGameId.Value);
 
             for (var i = 0; i < achievements.Count; i++)
             {
@@ -200,50 +210,116 @@ namespace PlayniteAchievements.Services.Images
                     fileStems.TryGetValue(apiName, out var fileStem) &&
                     !string.IsNullOrWhiteSpace(fileStem))
                 {
-                    var unlockedSource = AchievementIconOverrideHelper.GetOverrideValue(unlockedOverrides, apiName);
-                    if (!string.IsNullOrWhiteSpace(unlockedSource))
+                    var unlockedSource = default(string);
+                    var usedDefaultUnlockedOverride = false;
+                    if (!achievement.HasSourceUnlockedIcon)
                     {
-                        resolvedUnlockedOverride = await _managedCustomIconService
-                            .MaterializeCustomIconAsync(
-                                unlockedSource,
-                                gameId,
-                                fileStem,
-                                AchievementIconVariant.Unlocked,
-                                cancel,
-                                overwriteExistingTarget: overwriteExistingTargets)
-                            .ConfigureAwait(false);
-                        if (!string.IsNullOrWhiteSpace(resolvedUnlockedOverride))
+                        unlockedSource = AchievementIconOverrideHelper.GetExplicitOverrideValue(unlockedOverrides, apiName);
+                        if (string.IsNullOrWhiteSpace(unlockedSource) &&
+                            !fetchIconsFromGame &&
+                            AchievementIconOverrideHelper.ShouldApplyDefaultOverride(achievement.UnlockedIconPath, isLockedIcon: false))
                         {
-                            achievement.UnlockedIconPath = resolvedUnlockedOverride;
+                            unlockedSource = AchievementIconOverrideHelper.GetDefaultOverrideValue(unlockedOverrides);
+                            usedDefaultUnlockedOverride = !string.IsNullOrWhiteSpace(unlockedSource);
+                        }
+                        if (!string.IsNullOrWhiteSpace(unlockedSource))
+                        {
+                            resolvedUnlockedOverride = await _managedCustomIconService
+                                .MaterializeCustomIconAsync(
+                                    unlockedSource,
+                                    gameId,
+                                    fileStem,
+                                    AchievementIconVariant.Unlocked,
+                                    cancel,
+                                    overwriteExistingTarget: overwriteExistingTargets)
+                                .ConfigureAwait(false);
+                            if (!string.IsNullOrWhiteSpace(resolvedUnlockedOverride))
+                            {
+                                achievement.UnlockedIconPath = resolvedUnlockedOverride;
+                            }
                         }
                     }
 
-                    var lockedSource = AchievementIconOverrideHelper.GetOverrideValue(lockedOverrides, apiName);
-                    if (!string.IsNullOrWhiteSpace(lockedSource))
+                    var lockedSource = default(string);
+                    var shouldGenerateLockedGrayFromUnlocked = false;
+                    if (!achievement.HasSourceLockedIcon)
                     {
-                        resolvedLockedOverride = await _managedCustomIconService
-                            .MaterializeCustomIconAsync(
-                                lockedSource,
-                                gameId,
-                                fileStem,
-                                AchievementIconVariant.Locked,
-                                cancel,
-                                overwriteExistingTarget: overwriteExistingTargets)
-                            .ConfigureAwait(false);
-                        if (!string.IsNullOrWhiteSpace(resolvedLockedOverride))
+                        lockedSource = AchievementIconOverrideHelper.GetExplicitOverrideValue(lockedOverrides, apiName);
+                        if (string.IsNullOrWhiteSpace(lockedSource) &&
+                            !fetchIconsFromGame &&
+                            AchievementIconOverrideHelper.ShouldApplyDefaultOverride(achievement.LockedIconPath, isLockedIcon: true))
                         {
-                            achievement.LockedIconPath = resolvedLockedOverride;
+                            lockedSource = AchievementIconOverrideHelper.GetDefaultOverrideValue(lockedOverrides);
+                        }
+
+                        // If the locked override resolves to the same source as the unlocked override,
+                        // treat it as a shared icon source. This allows the locked display pipeline to
+                        // apply grayscale fallback immediately instead of forcing a colored explicit
+                        // locked icon on the first refresh pass.
+                        if (!string.IsNullOrWhiteSpace(lockedSource) &&
+                            !string.IsNullOrWhiteSpace(unlockedSource) &&
+                            string.Equals(NormalizeText(lockedSource), NormalizeText(unlockedSource), StringComparison.OrdinalIgnoreCase))
+                        {
+                            shouldGenerateLockedGrayFromUnlocked = true;
+                            lockedSource = null;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(lockedSource))
+                        {
+                            resolvedLockedOverride = await _managedCustomIconService
+                                .MaterializeCustomIconAsync(
+                                    lockedSource,
+                                    gameId,
+                                    fileStem,
+                                    AchievementIconVariant.Locked,
+                                    cancel,
+                                    overwriteExistingTarget: overwriteExistingTargets)
+                                .ConfigureAwait(false);
+                            if (!string.IsNullOrWhiteSpace(resolvedLockedOverride))
+                            {
+                                achievement.LockedIconPath = resolvedLockedOverride;
+                            }
+                        }
+
+                        // Persist a real grayscale locked icon when locked and unlocked share
+                        // the same source (including default override fallback). This ensures
+                        // themes that bind directly to locked icon file paths can resolve a
+                        // concrete grayscaled image on the first refresh pass.
+                        if (string.IsNullOrWhiteSpace(resolvedLockedOverride) &&
+                            !string.IsNullOrWhiteSpace(resolvedUnlockedOverride) &&
+                            (shouldGenerateLockedGrayFromUnlocked || usedDefaultUnlockedOverride))
+                        {
+                            resolvedLockedOverride = await _managedCustomIconService
+                                .MaterializeGrayscaleCustomIconAsync(
+                                    resolvedUnlockedOverride,
+                                    gameId,
+                                    fileStem,
+                                    AchievementIconVariant.Locked,
+                                    cancel,
+                                    overwriteExistingTarget: overwriteExistingTargets)
+                                .ConfigureAwait(false);
+                            if (!string.IsNullOrWhiteSpace(resolvedLockedOverride))
+                            {
+                                achievement.LockedIconPath = resolvedLockedOverride;
+                            }
                         }
                     }
                 }
 
                 var unlockedCandidate = ResolveUnlockedSourcePath(achievement);
-                achievement.UnlockedIconPath = unlockedCandidate;
+                // Only overwrite the icon path when we found a cacheable source.
+                // If ResolveUnlockedSourcePath returns null the achievement still has
+                // a JSON-defined path; nullifying it would cause the hydrator to
+                // treat the achievement as icon-less and apply the default override.
+                if (unlockedCandidate != null)
+                {
+                    achievement.UnlockedIconPath = unlockedCandidate;
+                }
                 var lockedCandidate = !string.IsNullOrWhiteSpace(resolvedLockedOverride)
                     ? resolvedLockedOverride
                     : achievement.LockedIconPath;
                 achievement.LockedIconPath = AchievementIconOverrideHelper.ResolveEffectiveLockedPath(
-                    unlockedCandidate,
+                    achievement.UnlockedIconPath,
                     lockedCandidate,
                     useSeparateLockedIcons,
                     !string.IsNullOrWhiteSpace(resolvedUnlockedOverride),
@@ -423,13 +499,31 @@ namespace PlayniteAchievements.Services.Images
             IReadOnlyList<AchievementIconRequest> requests,
             IReadOnlyDictionary<AchievementIconRequest, string> resolvedPaths,
             bool useSeparateLockedIcons,
-            string gameId)
+            string gameId,
+            IReadOnlyDictionary<string, string> fileStems,
+            bool preserveOriginalResolution,
+            bool fetchIconsFromGame,
+            bool forceRefreshExistingTargets)
         {
             var requestsByAchievement = requests
                 .GroupBy(request => request.Achievement)
                 .ToDictionary(
                     group => group.Key,
                     group => group.ToList());
+
+            // Pre-compute the single shared locked-icon path used for all fetch-mode achievements.
+            // One grayscale PNG (custom/__gameLock__.png) is generated the first time a valid
+            // unlocked file is found; every achievement then shares that same path.
+            var gameLockTargetPath = fetchIconsFromGame
+                ? _managedCustomIconService.GetAchievementCustomIconPath(
+                    gameId, "__game__", AchievementIconVariant.Locked)
+                : null;
+            var sharedFetchLockedPath = fetchIconsFromGame &&
+                !string.IsNullOrWhiteSpace(gameLockTargetPath) &&
+                !forceRefreshExistingTargets &&
+                File.Exists(gameLockTargetPath)
+                    ? gameLockTargetPath
+                    : null;
 
             for (var i = 0; i < achievements.Count; i++)
             {
@@ -455,6 +549,7 @@ namespace PlayniteAchievements.Services.Images
                         achievementRequests,
                         AchievementIconVariant.Locked,
                         resolvedPaths) ?? achievement.LockedIconPath;
+
                 var hasExplicitUnlockedIcon = _managedCustomIconService.IsManagedCustomIconPath(
                     finalUnlockedPath,
                     gameId);
@@ -462,12 +557,128 @@ namespace PlayniteAchievements.Services.Images
                         finalLockedCandidate,
                         gameId) &&
                     HasDistinctLockedSource(finalUnlockedPath, finalLockedCandidate);
+
+                // In fetch-from-game mode: if this achievement doesn't already have its own
+                // custom locked icon, point it at the single shared __gameLock__.png file.
+                // The shared file is generated (once, lazily) from the first valid unlocked PNG.
+                if (fetchIconsFromGame && !hasExplicitLockedIcon &&
+                    !string.IsNullOrWhiteSpace(finalUnlockedPath) &&
+                    File.Exists(finalUnlockedPath))
+                {
+                    if (string.IsNullOrWhiteSpace(sharedFetchLockedPath))
+                    {
+                        sharedFetchLockedPath = EnsureGrayscaleLockedCopy(
+                            finalUnlockedPath,
+                            gameLockTargetPath,
+                            overwriteExistingTarget: forceRefreshExistingTargets);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(sharedFetchLockedPath))
+                    {
+                        achievement.LockedIconPath = sharedFetchLockedPath;
+                        continue;
+                    }
+                }
+
                 achievement.LockedIconPath = AchievementIconOverrideHelper.ResolveEffectiveLockedPath(
                     finalUnlockedPath,
                     finalLockedCandidate,
                     useSeparateLockedIcons,
                     hasExplicitUnlockedIcon,
                     hasExplicitLockedIcon);
+            }
+        }
+
+        private static string EnsureGrayscaleLockedCopy(
+            string sourcePath,
+            string targetPath,
+            bool overwriteExistingTarget)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) ||
+                string.IsNullOrWhiteSpace(targetPath) ||
+                !File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                if (!overwriteExistingTarget && File.Exists(targetPath))
+                {
+                    return targetPath;
+                }
+
+                var targetDirectory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(targetDirectory))
+                {
+                    Directory.CreateDirectory(targetDirectory);
+                }
+
+                BitmapSource sourceBitmap;
+                using (var stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    sourceBitmap = bitmap;
+                }
+
+                if (sourceBitmap == null)
+                {
+                    return null;
+                }
+
+                var bgraSource = sourceBitmap;
+                if (bgraSource.Format != PixelFormats.Bgra32)
+                {
+                    bgraSource = new FormatConvertedBitmap(bgraSource, PixelFormats.Bgra32, null, 0);
+                    bgraSource.Freeze();
+                }
+
+                var width = bgraSource.PixelWidth;
+                var height = bgraSource.PixelHeight;
+                var stride = width * 4;
+                var pixels = new byte[stride * height];
+                bgraSource.CopyPixels(pixels, stride, 0);
+
+                for (var i = 0; i < pixels.Length; i += 4)
+                {
+                    var b = pixels[i + 0];
+                    var g = pixels[i + 1];
+                    var r = pixels[i + 2];
+                    var gray = (byte)Math.Min(255, (int)(0.114 * b + 0.587 * g + 0.299 * r));
+                    pixels[i + 0] = gray;
+                    pixels[i + 1] = gray;
+                    pixels[i + 2] = gray;
+                }
+
+                var grayBitmap = BitmapSource.Create(
+                    width,
+                    height,
+                    bgraSource.DpiX,
+                    bgraSource.DpiY,
+                    PixelFormats.Bgra32,
+                    null,
+                    pixels,
+                    stride);
+                grayBitmap.Freeze();
+
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(grayBitmap));
+                using (var output = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                {
+                    encoder.Save(output);
+                }
+
+                return targetPath;
+            }
+            catch
+            {
+                return null;
             }
         }
 

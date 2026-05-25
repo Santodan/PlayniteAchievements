@@ -19,9 +19,12 @@ namespace PlayniteAchievements.ViewModels
 {
     public sealed class GameOptionsAchievementIconsViewModel : ObservableObject
     {
+        private const string GameFetchPreviewStem = "__game__";
+
         private readonly Guid _gameId;
         private readonly string _gameIdText;
         private readonly AchievementOverridesService _achievementOverridesService;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly ManagedCustomIconService _managedCustomIconService;
         private readonly PlayniteAchievementsSettings _settings;
@@ -32,12 +35,17 @@ namespace PlayniteAchievements.ViewModels
         private bool _hasAnyOverrides;
         private bool _hasValidationErrors;
         private bool _isSaving;
+        private bool _viewAchievementsIconFetchEnabled;
+        private bool _baselineViewAchievementsIconFetchEnabled;
         private string _saveStatusText;
         private bool _saveStatusIsError;
+        private string _headerDefaultUnlockedPreviewPath;
+        private string _headerDefaultLockedPreviewPath;
 
         public GameOptionsAchievementIconsViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
+            GameCustomDataStore gameCustomDataStore,
             GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
             ManagedCustomIconService managedCustomIconService,
             PlayniteAchievementsSettings settings,
@@ -46,10 +54,14 @@ namespace PlayniteAchievements.ViewModels
             _gameId = gameId;
             _gameIdText = gameId.ToString("D");
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
+            _gameCustomDataStore = gameCustomDataStore;
             _gameDataSnapshotProvider = gameDataSnapshotProvider ?? throw new ArgumentNullException(nameof(gameDataSnapshotProvider));
             _managedCustomIconService = managedCustomIconService ?? throw new ArgumentNullException(nameof(managedCustomIconService));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _logger = logger;
+
+            _viewAchievementsIconFetchEnabled = GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(_gameId, _gameCustomDataStore);
+            _baselineViewAchievementsIconFetchEnabled = _viewAchievementsIconFetchEnabled;
 
             AchievementRows = new ObservableCollection<AchievementIconOverrideItem>();
             SaveCommand = new RelayCommand(_ => Save(), _ => CanSave);
@@ -136,6 +148,19 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasStatusText => !string.IsNullOrWhiteSpace(StatusText);
 
+        public bool ViewAchievementsIconFetchEnabled
+        {
+            get => _viewAchievementsIconFetchEnabled;
+            set
+            {
+                if (SetValueAndReturn(ref _viewAchievementsIconFetchEnabled, value))
+                {
+                    SetSaveStatus(null, isError: false);
+                    RefreshComputedState();
+                }
+            }
+        }
+
         public string StatusText
         {
             get
@@ -152,6 +177,10 @@ namespace PlayniteAchievements.ViewModels
         }
 
         public bool StatusIsError => HasValidationErrors || _saveStatusIsError;
+
+        public string HeaderDefaultUnlockedPreviewPath => _headerDefaultUnlockedPreviewPath;
+
+        public string HeaderDefaultLockedPreviewPath => _headerDefaultLockedPreviewPath;
 
         public void RefreshData()
         {
@@ -235,7 +264,7 @@ namespace PlayniteAchievements.ViewModels
         {
             try
             {
-                var hydratedGameData = _gameDataSnapshotProvider.GetHydratedGameData();
+                var hydratedGameData = ViewAchievementsIconFetchEnabled ? _gameDataSnapshotProvider.GetHydratedGameData() : null;
                 var rawGameData = _gameDataSnapshotProvider.GetRawGameData();
                 var displayGameData = hydratedGameData ?? rawGameData;
                 var orderedAchievements = BuildOrderedAchievements(rawGameData, hydratedGameData);
@@ -250,6 +279,21 @@ namespace PlayniteAchievements.ViewModels
                     orderedAchievements.Select(achievement => achievement?.ApiName));
 
                 var rows = new List<AchievementIconOverrideItem>();
+                var defaultUnlockedOverride = GetDefaultIconOverrideValue(unlockedOverrides, lockedOverrides);
+                var defaultLockedOverride = GetDefaultIconOverrideValue(lockedOverrides, unlockedOverrides);
+                var defaultUnlockedPreview = ResolveDefaultOverridePreviewPath(defaultUnlockedOverride);
+                var resolvedDefaultLockedPreview = ResolveDefaultOverridePreviewPath(defaultLockedOverride);
+                var defaultLockedPreview = AchievementIconResolver.GetLockedDisplayIcon(
+                    defaultUnlockedPreview,
+                    resolvedDefaultLockedPreview);
+                SetHeaderDefaultPreviewPaths(defaultUnlockedPreview, defaultLockedPreview);
+                rows.Add(AchievementIconOverrideItem.CreateDefault(
+                    _gameIdText,
+                    defaultUnlockedOverride,
+                    defaultLockedOverride,
+                    L("LOCPlayAch_GameOptions_CustomIcons_DefaultEntryTitle", "Default icon"),
+                    L("LOCPlayAch_GameOptions_CustomIcons_DefaultEntryDescription", "Applied when an achievement does not have its own icon override."),
+                    _managedCustomIconService));
                 for (var i = 0; i < orderedAchievements.Count; i++)
                 {
                     var achievement = orderedAchievements[i];
@@ -272,12 +316,39 @@ namespace PlayniteAchievements.ViewModels
                     unlockedOverrides.TryGetValue(apiName, out var unlockedOverride);
                     lockedOverrides.TryGetValue(apiName, out var lockedOverride);
                     rawByApiName.TryGetValue(apiName, out var rawAchievement);
-                    var unlockedSource = ExcludeManagedCustomSource(rawAchievement?.UnlockedIconPath);
-                    var lockedSource = ExcludeManagedCustomSource(rawAchievement?.LockedIconPath);
-                    var originalUnlockedPreview = ResolveDefaultCachedPreviewPath(fileStem, AchievementIconVariant.Unlocked) ??
+                    var originalUnlockedPreview = defaultUnlockedPreview;
+                    var originalLockedPreview = defaultLockedPreview;
+
+                    if (ViewAchievementsIconFetchEnabled)
+                    {
+                        var unlockedSource = ExcludeManagedCustomSource(rawAchievement?.UnlockedIconPath);
+                        var lockedSource = ExcludeManagedCustomSource(rawAchievement?.LockedIconPath);
+                        originalUnlockedPreview = ResolveDefaultCachedPreviewPath(fileStem, AchievementIconVariant.Unlocked) ??
                                                  AchievementIconResolver.GetUnlockedDisplayIcon(unlockedSource);
-                    var originalLockedPreview = ResolveDefaultCachedPreviewPath(fileStem, AchievementIconVariant.Locked) ??
+                        originalLockedPreview = ResolveDefaultCachedPreviewPath(fileStem, AchievementIconVariant.Locked) ??
                                                AchievementIconResolver.GetLockedDisplayIcon(originalUnlockedPreview, lockedSource);
+                    }
+                    else
+                    {
+                        // When fetch is disabled, still show the provider's raw icon if it is a
+                        // non-managed source path (e.g. from a local JSON definition).  This
+                        // prevents JSON-defined icons from incorrectly displaying the Default icon
+                        // in the preview.
+                        var unlockedSource = ExcludeManagedCustomSource(rawAchievement?.UnlockedIconPath);
+                        if (!string.IsNullOrWhiteSpace(unlockedSource))
+                        {
+                            var unlockedDisplay = AchievementIconResolver.GetUnlockedDisplayIcon(unlockedSource);
+                            if (!string.IsNullOrWhiteSpace(unlockedDisplay))
+                            {
+                                originalUnlockedPreview = unlockedDisplay;
+                                var lockedSource = ExcludeManagedCustomSource(rawAchievement?.LockedIconPath);
+                                originalLockedPreview = AchievementIconResolver.GetLockedDisplayIcon(originalUnlockedPreview, lockedSource);
+                            }
+                        }
+                    }
+
+                    originalUnlockedPreview ??= AchievementIconResolver.GetDefaultIcon();
+                    originalLockedPreview ??= AchievementIconResolver.GetLockedDisplayIcon(originalUnlockedPreview, null);
                     rows.Add(AchievementIconOverrideItem.Create(
                         projected,
                         unlockedOverride,
@@ -289,6 +360,8 @@ namespace PlayniteAchievements.ViewModels
                         _managedCustomIconService));
                 }
 
+                    UpdateHeaderFetchPreviewPaths(rows);
+
                 ReplaceRows(rows);
                 HasAchievements = rows.Count > 0;
                 SetSaveStatus(null, isError: false);
@@ -298,6 +371,9 @@ namespace PlayniteAchievements.ViewModels
             {
                 _logger?.Error(ex, $"Failed loading custom icon rows for gameId={_gameId}");
                 ReplaceRows(Array.Empty<AchievementIconOverrideItem>());
+                SetHeaderDefaultPreviewPaths(
+                    AchievementIconResolver.GetDefaultUnlockedIcon(),
+                    AchievementIconResolver.GetLockedDisplayIcon(AchievementIconResolver.GetDefaultUnlockedIcon(), null));
                 HasAchievements = false;
                 SetSaveStatus(
                     string.Format(L("LOCPlayAch_Status_Failed", "Error: {0}"), ex.Message),
@@ -323,7 +399,9 @@ namespace PlayniteAchievements.ViewModels
                 for (var i = 0; i < AchievementRows.Count; i++)
                 {
                     var row = AchievementRows[i];
-                    var apiName = NormalizeText(row?.ApiName);
+                    var apiName = row?.IsDefaultRow == true
+                        ? AchievementIconOverrideHelper.DefaultOverrideKey
+                        : NormalizeText(row?.ApiName);
                     if (string.IsNullOrWhiteSpace(apiName))
                     {
                         continue;
@@ -331,6 +409,7 @@ namespace PlayniteAchievements.ViewModels
 
                     var unlockedOverride = row.GetNormalizedUnlockedOverrideValue();
                     var lockedOverride = row.GetNormalizedLockedOverrideValue();
+
                     if (!string.IsNullOrWhiteSpace(unlockedOverride))
                     {
                         unlockedOverrides[apiName] = unlockedOverride;
@@ -345,12 +424,15 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 _achievementOverridesService.SetAchievementIconOverrides(_gameId, unlockedOverrides, lockedOverrides);
+                _achievementOverridesService.SetViewAchievementsIconFetchEnabled(_gameId, ViewAchievementsIconFetchEnabled);
                 _managedCustomIconService.PruneGameCustomCache(_gameIdText, retainedManagedPaths);
 
                 for (var i = 0; i < AchievementRows.Count; i++)
                 {
                     AchievementRows[i]?.CommitCurrentOverridesAsBaseline();
                 }
+
+                _baselineViewAchievementsIconFetchEnabled = ViewAchievementsIconFetchEnabled;
 
                 SetSaveStatus(
                     L("LOCPlayAch_Status_Succeeded", "Success!"),
@@ -373,6 +455,7 @@ namespace PlayniteAchievements.ViewModels
 
         private void RevertChanges()
         {
+            SetValue(ref _viewAchievementsIconFetchEnabled, _baselineViewAchievementsIconFetchEnabled);
             for (var i = 0; i < AchievementRows.Count; i++)
             {
                 AchievementRows[i]?.ResetToBaseline();
@@ -445,6 +528,11 @@ namespace PlayniteAchievements.ViewModels
                 row.PropertyChanged += Row_PropertyChanged;
                 AchievementRows.Add(row);
             }
+
+            if (!ViewAchievementsIconFetchEnabled)
+            {
+                RefreshHeaderDefaultPreviewsFromRows();
+            }
         }
 
         private void Row_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -460,12 +548,127 @@ namespace PlayniteAchievements.ViewModels
                 SetSaveStatus(null, isError: false);
             }
 
+            if (sender is AchievementIconOverrideItem row && row.IsDefaultRow)
+            {
+                if (ViewAchievementsIconFetchEnabled)
+                {
+                    UpdateHeaderFetchPreviewPaths(AchievementRows);
+                }
+                else
+                {
+                    RefreshHeaderDefaultPreviewsFromRows();
+                }
+            }
+
             RefreshComputedState();
+        }
+
+        private void RefreshHeaderDefaultPreviewsFromRows()
+        {
+            var defaultRow = AchievementRows.FirstOrDefault(row => row?.IsDefaultRow == true);
+            var unlockedPreview = defaultRow?.UnlockedPreviewPath;
+            var lockedPreview = defaultRow?.LockedPreviewPath;
+            SetHeaderDefaultPreviewPaths(unlockedPreview, lockedPreview);
+        }
+
+        private void SetHeaderDefaultPreviewPaths(string unlockedPreview, string lockedPreview)
+        {
+            var resolvedUnlocked = NormalizeText(unlockedPreview) ?? AchievementIconResolver.GetDefaultUnlockedIcon();
+            var resolvedLocked = NormalizeText(lockedPreview) ?? AchievementIconResolver.GetLockedDisplayIcon(resolvedUnlocked, null);
+
+            if (SetValueAndReturn(ref _headerDefaultUnlockedPreviewPath, resolvedUnlocked))
+            {
+                OnPropertyChanged(nameof(HeaderDefaultUnlockedPreviewPath));
+            }
+
+            if (SetValueAndReturn(ref _headerDefaultLockedPreviewPath, resolvedLocked))
+            {
+                OnPropertyChanged(nameof(HeaderDefaultLockedPreviewPath));
+            }
+        }
+
+        private void UpdateHeaderFetchPreviewPaths(IEnumerable<AchievementIconOverrideItem> rows)
+        {
+            if (!ViewAchievementsIconFetchEnabled)
+            {
+                RefreshHeaderDefaultPreviewsFromRows();
+                return;
+            }
+
+            var sourceRow = rows?
+                .FirstOrDefault(row => row != null && !row.IsDefaultRow &&
+                                       !string.IsNullOrWhiteSpace(AchievementIconResolver.NormalizeIconPath(row.UnlockedPreviewPath)));
+
+            var unlockedSource = AchievementIconResolver.NormalizeIconPath(sourceRow?.UnlockedPreviewPath);
+            var lockedSource = AchievementIconResolver.NormalizeIconPath(sourceRow?.LockedPreviewPath);
+            if (string.IsNullOrWhiteSpace(unlockedSource))
+            {
+                SetHeaderDefaultPreviewPaths(AchievementIconResolver.GetDefaultUnlockedIcon(), AchievementIconResolver.GetDefaultIcon());
+                return;
+            }
+
+            try
+            {
+                var managedUnlocked = _managedCustomIconService
+                    .MaterializeCustomIconAsync(
+                        unlockedSource,
+                        _gameIdText,
+                        GameFetchPreviewStem,
+                        AchievementIconVariant.Unlocked,
+                        CancellationToken.None,
+                        overwriteExistingTarget: true)
+                    .GetAwaiter()
+                    .GetResult();
+
+                var hasDistinctLockedSource = !string.IsNullOrWhiteSpace(lockedSource) &&
+                    !string.Equals(
+                        AchievementIconResolver.NormalizeIconPath(unlockedSource),
+                        AchievementIconResolver.NormalizeIconPath(lockedSource),
+                        StringComparison.OrdinalIgnoreCase);
+
+                string managedLocked = null;
+                if (hasDistinctLockedSource)
+                {
+                    managedLocked = _managedCustomIconService
+                        .MaterializeCustomIconAsync(
+                            lockedSource,
+                            _gameIdText,
+                            GameFetchPreviewStem,
+                            AchievementIconVariant.Locked,
+                            CancellationToken.None,
+                            overwriteExistingTarget: true)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                else if (!string.IsNullOrWhiteSpace(managedUnlocked) && File.Exists(managedUnlocked))
+                {
+                    managedLocked = _managedCustomIconService
+                        .MaterializeGrayscaleCustomIconAsync(
+                            managedUnlocked,
+                            _gameIdText,
+                            GameFetchPreviewStem,
+                            AchievementIconVariant.Locked,
+                            CancellationToken.None,
+                            overwriteExistingTarget: true)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+
+                SetHeaderDefaultPreviewPaths(
+                    managedUnlocked ?? AchievementIconResolver.GetUnlockedDisplayIcon(unlockedSource),
+                    managedLocked ?? AchievementIconResolver.GetLockedDisplayIcon(unlockedSource, lockedSource));
+            }
+            catch
+            {
+                SetHeaderDefaultPreviewPaths(
+                    AchievementIconResolver.GetUnlockedDisplayIcon(unlockedSource),
+                    AchievementIconResolver.GetLockedDisplayIcon(unlockedSource, lockedSource));
+            }
         }
 
         private void RefreshComputedState()
         {
-            var hasChanges = false;
+            var hasChanges = _viewAchievementsIconFetchEnabled != _baselineViewAchievementsIconFetchEnabled;
             var hasAnyOverrides = false;
             var hasValidationErrors = false;
 
@@ -593,7 +796,7 @@ namespace PlayniteAchievements.ViewModels
 
         private string ResolveDefaultCachedPreviewPath(string fileStem, AchievementIconVariant variant)
         {
-            if (string.IsNullOrWhiteSpace(fileStem))
+            if (!ViewAchievementsIconFetchEnabled || string.IsNullOrWhiteSpace(fileStem))
             {
                 return null;
             }
@@ -633,6 +836,36 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
+        private static string GetDefaultIconOverrideValue(
+            IReadOnlyDictionary<string, string> primaryOverrides,
+            IReadOnlyDictionary<string, string> fallbackOverrides)
+        {
+            if (primaryOverrides != null && primaryOverrides.TryGetValue(AchievementIconOverrideHelper.DefaultOverrideKey, out var primaryValue) &&
+                !string.IsNullOrWhiteSpace(primaryValue))
+            {
+                return primaryValue;
+            }
+
+            if (fallbackOverrides != null && fallbackOverrides.TryGetValue(AchievementIconOverrideHelper.DefaultOverrideKey, out var fallbackValue) &&
+                !string.IsNullOrWhiteSpace(fallbackValue))
+            {
+                return fallbackValue;
+            }
+
+            return null;
+        }
+
+        private string ResolveDefaultOverridePreviewPath(string overridePath)
+        {
+            var normalized = NormalizeText(overridePath);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            return _managedCustomIconService.ResolveManagedDisplayPath(normalized, _gameIdText) ?? normalized;
+        }
+
         private static string L(string key, string fallback)
         {
             var value = ResourceProvider.GetString(key);
@@ -663,6 +896,8 @@ namespace PlayniteAchievements.ViewModels
         private string _lockedBackupPath;
         private bool _restoreLockedBackupOnReset;
         private bool _hasLockedContentChange;
+
+        public bool IsDefaultRow { get; private set; }
 
         private AchievementIconOverrideItem(
             string gameIdText,
@@ -709,7 +944,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool HasUnlockedOverrideValidationError => !IsValidOverrideValueOrBlank(UnlockedOverrideValue);
 
-        public bool HasLockedOverrideValidationError => !IsValidOverrideValueOrBlank(LockedOverrideValue);
+        public bool HasLockedOverrideValidationError => !IsDefaultRow && !IsValidOverrideValueOrBlank(LockedOverrideValue);
 
         public bool HasValidationErrors => HasUnlockedOverrideValidationError || HasLockedOverrideValidationError;
 
@@ -738,6 +973,11 @@ namespace PlayniteAchievements.ViewModels
 
         public string GetNormalizedLockedOverrideValue()
         {
+            if (IsDefaultRow)
+            {
+                return NormalizeOverrideValue(_unlockedOverrideValue);
+            }
+
             return NormalizeOverrideValue(LockedOverrideValue);
         }
 
@@ -831,7 +1071,10 @@ namespace PlayniteAchievements.ViewModels
         public void ClearAllOverrides()
         {
             ClearOverride(AchievementIconVariant.Unlocked);
-            ClearOverride(AchievementIconVariant.Locked);
+            if (!IsDefaultRow)
+            {
+                ClearOverride(AchievementIconVariant.Locked);
+            }
         }
 
         public void CommitCurrentOverridesAsBaseline()
@@ -905,6 +1148,51 @@ namespace PlayniteAchievements.ViewModels
                 managedCustomIconService.ResolveManagedDisplayPath(normalizedLockedOverride, row._gameIdText));
             row._unlockedOverrideValue = row._baselineUnlockedOverrideValue ?? string.Empty;
             row._lockedOverrideValue = row._baselineLockedOverrideValue ?? string.Empty;
+            return row;
+        }
+
+        public static AchievementIconOverrideItem CreateDefault(
+            string gameIdText,
+            string unlockedOverride,
+            string lockedOverride,
+            string displayName,
+            string description,
+            ManagedCustomIconService managedCustomIconService)
+        {
+            var row = new AchievementIconOverrideItem(gameIdText, AchievementIconOverrideHelper.DefaultOverrideKey, managedCustomIconService)
+            {
+                IsDefaultRow = true,
+                ProviderKey = string.Empty,
+                GameName = string.Empty,
+                SortingName = string.Empty,
+                ApiName = AchievementIconOverrideHelper.DefaultOverrideKey,
+                DisplayName = displayName ?? "Default",
+                Description = description ?? "Applies to achievements without a specific icon override.",
+                UnlockedIconPath = unlockedOverride,
+                LockedIconPath = lockedOverride,
+                Unlocked = true,
+                Hidden = false,
+                ShowHiddenIcon = false,
+                ShowHiddenTitle = false,
+                ShowHiddenDescription = false,
+                ShowRarityGlow = false,
+                ShowRarityBar = false,
+                ShowHiddenSuffix = false,
+                ShowLockedIcon = false,
+                UseSeparateLockedIconsWhenAvailable = false,
+                IsRevealed = true,
+                CategoryType = string.Empty,
+                CategoryLabel = string.Empty,
+                GameIconPath = string.Empty,
+                GameCoverPath = string.Empty
+            };
+
+            var normalizedUnlockedOverride = NormalizeOverrideValue(unlockedOverride);
+            var normalizedLockedOverride = NormalizeOverrideValue(lockedOverride);
+            row._baselineUnlockedOverrideValue = normalizedUnlockedOverride;
+            row._baselineLockedOverrideValue = normalizedLockedOverride ?? normalizedUnlockedOverride;
+            row._unlockedOverrideValue = row._baselineUnlockedOverrideValue ?? string.Empty;
+            row._lockedOverrideValue = row._baselineLockedOverrideValue ?? row._unlockedOverrideValue;
             return row;
         }
 
@@ -1024,7 +1312,15 @@ namespace PlayniteAchievements.ViewModels
                 GetNormalizedLockedOverrideValue());
             if (!string.IsNullOrWhiteSpace(previewOverride))
             {
-                return previewOverride;
+                var unlockedPreviewForLockedOverride = ResolvePreviewOverrideValue(
+                    AchievementIconVariant.Unlocked,
+                    GetNormalizedUnlockedOverrideValue());
+                var lockedFromExplicit = AchievementIconResolver.GetLockedDisplayIcon(
+                    unlockedPreviewForLockedOverride,
+                    previewOverride);
+                return !string.IsNullOrWhiteSpace(lockedFromExplicit)
+                    ? lockedFromExplicit
+                    : AchievementIconResolver.GetDefaultIcon();
             }
 
             // Without an explicit locked override, mirror the normal locked-image behavior,
@@ -1135,6 +1431,11 @@ namespace PlayniteAchievements.ViewModels
 
         private string GetCurrentOverrideValue(AchievementIconVariant variant)
         {
+            if (IsDefaultRow)
+            {
+                return _unlockedOverrideValue;
+            }
+
             return variant == AchievementIconVariant.Locked ? _lockedOverrideValue : _unlockedOverrideValue;
         }
 
@@ -1143,6 +1444,13 @@ namespace PlayniteAchievements.ViewModels
             var nextValue = value ?? string.Empty;
             if (!notifyIfUnchanged && string.Equals(GetCurrentOverrideValue(variant), nextValue, StringComparison.Ordinal))
             {
+                return;
+            }
+
+            if (IsDefaultRow)
+            {
+                _unlockedOverrideValue = nextValue;
+                _lockedOverrideValue = nextValue;
                 return;
             }
 
@@ -1244,6 +1552,23 @@ namespace PlayniteAchievements.ViewModels
 
         private void NotifyOverrideStateChangedForVariant(AchievementIconVariant variant)
         {
+            if (IsDefaultRow)
+            {
+                NotifyOverrideStateChanged(
+                    nameof(UnlockedOverrideText),
+                    nameof(LockedOverrideText),
+                    nameof(UnlockedOverrideValue),
+                    nameof(LockedOverrideValue),
+                    nameof(UnlockedOverrideToolTip),
+                    nameof(LockedOverrideToolTip),
+                    nameof(HasUnlockedOverrideValidationError),
+                    nameof(HasLockedOverrideValidationError),
+                    nameof(HasAnyOverrideValue),
+                    nameof(UnlockedPreviewPath),
+                    nameof(LockedPreviewPath));
+                return;
+            }
+
             if (variant == AchievementIconVariant.Locked)
             {
                 NotifyOverrideStateChanged(

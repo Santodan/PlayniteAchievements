@@ -27,6 +27,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
 
+        public bool? ViewAchievementsIconFetchEnabled { get; set; }
+
         public int? RetroAchievementsGameIdOverride { get; set; }
 
         public string SteamAccountIdOverride { get; set; }
@@ -64,6 +66,7 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementLockedIconOverrides = AchievementLockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
+                ViewAchievementsIconFetchEnabled = ViewAchievementsIconFetchEnabled,
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 SteamAccountIdOverride = SteamAccountIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,

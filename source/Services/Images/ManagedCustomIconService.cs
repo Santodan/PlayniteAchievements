@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Services.Images
@@ -221,6 +223,75 @@ namespace PlayniteAchievements.Services.Images
                 .ConfigureAwait(false);
         }
 
+        public Task<string> MaterializeGrayscaleCustomIconAsync(
+            string sourcePath,
+            string gameId,
+            string fileStem,
+            AchievementIconVariant variant,
+            CancellationToken cancel,
+            bool overwriteExistingTarget = false)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) ||
+                !File.Exists(sourcePath) ||
+                string.IsNullOrWhiteSpace(fileStem))
+            {
+                return Task.FromResult<string>(null);
+            }
+
+            var targetPath = GetAchievementCustomIconPath(gameId, fileStem, variant);
+            if (!overwriteExistingTarget && File.Exists(targetPath))
+            {
+                return Task.FromResult(targetPath);
+            }
+
+            try
+            {
+                cancel.ThrowIfCancellationRequested();
+                var targetDirectory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(targetDirectory))
+                {
+                    Directory.CreateDirectory(targetDirectory);
+                }
+
+                BitmapSource sourceBitmap;
+                using (var stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                    bitmap.StreamSource = stream;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    sourceBitmap = bitmap;
+                }
+
+                if (sourceBitmap == null)
+                {
+                    return Task.FromResult<string>(null);
+                }
+
+                var grayBitmap = ConvertToGrayscale(sourceBitmap);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(grayBitmap));
+                using (var output = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.Read))
+                {
+                    encoder.Save(output);
+                }
+
+                return Task.FromResult(targetPath);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"Failed to materialize grayscale custom icon from '{sourcePath}'.");
+                return Task.FromResult<string>(null);
+            }
+        }
+
         public void ClearGameCustomCache(string gameId)
         {
             if (string.IsNullOrWhiteSpace(gameId))
@@ -317,6 +388,51 @@ namespace PlayniteAchievements.Services.Images
                 : directoryPath + Path.DirectorySeparatorChar;
 
             return candidatePath.StartsWith(normalizedDirectory, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static BitmapSource ConvertToGrayscale(BitmapSource source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            BitmapSource bgraSource = source;
+            if (bgraSource.Format != PixelFormats.Bgra32)
+            {
+                bgraSource = new FormatConvertedBitmap(bgraSource, PixelFormats.Bgra32, null, 0);
+                bgraSource.Freeze();
+            }
+
+            var width = bgraSource.PixelWidth;
+            var height = bgraSource.PixelHeight;
+            var stride = width * 4;
+            var pixels = new byte[stride * height];
+            bgraSource.CopyPixels(pixels, stride, 0);
+
+            for (var i = 0; i < pixels.Length; i += 4)
+            {
+                var b = pixels[i + 0];
+                var g = pixels[i + 1];
+                var r = pixels[i + 2];
+
+                var gray = (byte)Math.Min(255, (int)(0.114 * b + 0.587 * g + 0.299 * r));
+                pixels[i + 0] = gray;
+                pixels[i + 1] = gray;
+                pixels[i + 2] = gray;
+            }
+
+            var result = BitmapSource.Create(
+                width,
+                height,
+                bgraSource.DpiX,
+                bgraSource.DpiY,
+                PixelFormats.Bgra32,
+                null,
+                pixels,
+                stride);
+            result.Freeze();
+            return result;
         }
 
         private string GetCacheRootDirectory()

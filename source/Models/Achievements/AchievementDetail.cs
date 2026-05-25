@@ -22,6 +22,19 @@ namespace PlayniteAchievements.Models.Achievements
 
         public string LockedIconPath { get; set; }
 
+        /// <summary>
+        /// True when unlocked icon path came from local source payload metadata
+        /// (for example achievements.json icon field). Used to keep source icon
+        /// precedence over custom/fetched/default fallbacks.
+        /// </summary>
+        public bool HasSourceUnlockedIcon { get; set; }
+
+        /// <summary>
+        /// True when locked icon path came from local source payload metadata
+        /// (for example achievements.json icon_gray field).
+        /// </summary>
+        public bool HasSourceLockedIcon { get; set; }
+
         public int? Points { get; set; }
 
         /// <summary>

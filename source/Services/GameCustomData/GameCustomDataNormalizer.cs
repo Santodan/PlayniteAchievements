@@ -42,6 +42,7 @@ namespace PlayniteAchievements.Services
             normalized.AchievementCategoryTypeOverrides = NormalizeCategoryTypeOverrides(normalized.AchievementCategoryTypeOverrides);
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
+            normalized.ViewAchievementsIconFetchEnabled = normalized.ViewAchievementsIconFetchEnabled ?? true;
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             return normalized;
         }
@@ -67,6 +68,7 @@ namespace PlayniteAchievements.Services
             normalized.AchievementCategoryTypeOverrides = NormalizeCategoryTypeOverrides(normalized.AchievementCategoryTypeOverrides);
             normalized.AchievementUnlockedIconOverrides = NormalizeIconOverrides(normalized.AchievementUnlockedIconOverrides);
             normalized.AchievementLockedIconOverrides = NormalizeIconOverrides(normalized.AchievementLockedIconOverrides);
+            normalized.ViewAchievementsIconFetchEnabled = normalized.ViewAchievementsIconFetchEnabled ?? true;
             normalized.ManualLink = NormalizeManualLink(normalized.ManualLink);
             return normalized;
         }
@@ -87,6 +89,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
+                   data.ViewAchievementsIconFetchEnabled.HasValue ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
@@ -115,6 +118,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
+                   data.ViewAchievementsIconFetchEnabled.HasValue ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
@@ -138,6 +142,7 @@ namespace PlayniteAchievements.Services
                    (data.AchievementCategoryTypeOverrides != null && data.AchievementCategoryTypeOverrides.Count > 0) ||
                    (data.AchievementUnlockedIconOverrides != null && data.AchievementUnlockedIconOverrides.Count > 0) ||
                    (data.AchievementLockedIconOverrides != null && data.AchievementLockedIconOverrides.Count > 0) ||
+                   data.ViewAchievementsIconFetchEnabled.HasValue ||
                    (data.RetroAchievementsGameIdOverride.HasValue && data.RetroAchievementsGameIdOverride.Value > 0) ||
                    !string.IsNullOrWhiteSpace(data.SteamAccountIdOverride) ||
                    !string.IsNullOrWhiteSpace(data.XeniaTitleIdOverride) ||
@@ -194,6 +199,7 @@ namespace PlayniteAchievements.Services
                     : legacy.AchievementLockedIconOverrides != null && legacy.AchievementLockedIconOverrides.Count > 0
                         ? new Dictionary<string, string>(legacy.AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                         : null,
+                ViewAchievementsIconFetchEnabled = existing.ViewAchievementsIconFetchEnabled ?? legacy.ViewAchievementsIconFetchEnabled,
                 RetroAchievementsGameIdOverride = existing.RetroAchievementsGameIdOverride ?? legacy.RetroAchievementsGameIdOverride,
                 SteamAccountIdOverride = !string.IsNullOrWhiteSpace(existing.SteamAccountIdOverride)
                     ? existing.SteamAccountIdOverride

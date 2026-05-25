@@ -237,6 +237,14 @@ namespace PlayniteAchievements.Providers.Local
         {
             var appId = GetAppId(game, out var isAppIdOverridden);
             var hasCustomSchemaPathOverride = game != null && TryGetCustomSchemaPathOverride(game.Id, out _);
+            var hasEnabledCustomSchemaOverride = game != null &&
+                TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabled) &&
+                isCustomSchemaEnabled;
+            var shouldFetchIconsFromGame = game != null &&
+                GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(game.Id);
+            // Schema-defined icons from the active schema should always remain usable.
+            // Fetch toggle controls whether game/steam icon metadata gets injected upstream.
+            var includeSchemaIconFallback = true;
             var hasFolderOverride = game != null && TryGetFolderOverride(game.Id, out _);
             if (string.IsNullOrEmpty(appId))
             {
@@ -282,13 +290,13 @@ namespace PlayniteAchievements.Providers.Local
 
             if (string.IsNullOrEmpty(appId))
             {
-                if (!hasCustomSchemaPathOverride && !hasFolderOverride)
+                if (!hasEnabledCustomSchemaOverride && !hasFolderOverride)
                 {
                     Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
                     return null;
                 }
 
-                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only mode (customSchema={hasCustomSchemaPathOverride}, folderOverride={hasFolderOverride}).");
+                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only mode (customSchema={hasEnabledCustomSchemaOverride}, folderOverride={hasFolderOverride}).");
             }
 
             string localFolderPath = null;
@@ -371,14 +379,25 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            if (game != null && TryGetCustomSchemaPathOverride(game.Id, out var customSchemaPath))
+            if (game != null &&
+                hasEnabledCustomSchemaOverride &&
+                TryGetCustomSchemaPathOverride(game.Id, out var customSchemaPath))
             {
                 var customSchemaAchievements = TryLoadCustomSchemaAchievements(customSchemaPath, out var customSchemaError);
                 if (customSchemaAchievements != null && customSchemaAchievements.Count > 0)
                 {
+                    if (shouldFetchIconsFromGame)
+                    {
+                        ApplyCustomSchemaDefaultIcons(customSchemaAchievements, ResolveGameImagePath(game));
+                    }
+
                     if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                     {
-                        MergeSchemaMetadata(customSchemaAchievements, steamSchema.Achievements, preferSourceText: false);
+                        MergeSchemaMetadata(
+                            customSchemaAchievements,
+                            steamSchema.Achievements,
+                            preferSourceText: false,
+                            includeIconMetadata: shouldFetchIconsFromGame);
 
                         var existingNames = new HashSet<string>(
                             customSchemaAchievements
@@ -395,7 +414,14 @@ namespace PlayniteAchievements.Providers.Local
 
                             if (existingNames.Add(schemaAchievement.Name))
                             {
-                                customSchemaAchievements.Add(schemaAchievement);
+                                if (!shouldFetchIconsFromGame)
+                                {
+                                    customSchemaAchievements.Add(CloneSchemaAchievementWithoutIcons(schemaAchievement));
+                                }
+                                else
+                                {
+                                    customSchemaAchievements.Add(schemaAchievement);
+                                }
                             }
                         }
                     }
@@ -471,10 +497,10 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (hasAchievementsFile)
                 {
-                    // OnlineFix progress should come from Achievements.ini when present.
-                    // Do not merge achievements.json in this case.
-                    var hasIniSource = !string.IsNullOrWhiteSpace(iniPath) && File.Exists(iniPath);
-                    raw = await LoadLocalEntriesAsync(hasIniSource ? null : jsonPath, iniPath).ConfigureAwait(false);
+                    // Keep JSON metadata/icons when present, but let INI override progress fields.
+                    // This preserves custom local icon paths (for example img/*.png) even when
+                    // achievements.ini exists.
+                    raw = await LoadLocalEntriesAsync(jsonPath, iniPath).ConfigureAwait(false);
                 }
 
                 if ((raw == null || raw.Count == 0) && hasLumaRegistryEntries)
@@ -510,7 +536,7 @@ namespace PlayniteAchievements.Providers.Local
                             }
 
                             correlatedEntries.TryGetValue(schemaAch.Name, out var entry);
-                            data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText));
+                            data.Achievements.Add(CreateAchievementDetail(schemaAch.Name, entry, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
                         }
 
                         PreserveCachedLocalMetadata(data);
@@ -522,7 +548,7 @@ namespace PlayniteAchievements.Providers.Local
                     foreach (var kv in raw)
                     {
                         var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
-                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
                     }
 
                     FilterPlaceholderLocalAchievements(data);
@@ -547,7 +573,7 @@ namespace PlayniteAchievements.Providers.Local
                     foreach (var kv in steamAppCacheEntries)
                     {
                         var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
-                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
                         added.Add(kv.Key);
                     }
 
@@ -571,7 +597,7 @@ namespace PlayniteAchievements.Providers.Local
                     foreach (var kv in steamLibraryCacheEntries)
                     {
                         var schemaAch = ResolveSchemaAchievement(kv.Key, kv.Value, apiNameMap, schemaLookupByText, schemaLookupByTitle);
-                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText));
+                        data.Achievements.Add(CreateAchievementDetail(kv.Key, kv.Value, schemaAch, steamSchema, preferLocalizedSchemaText, includeSchemaIconFallback));
                         added.Add(kv.Key);
                     }
 
@@ -611,8 +637,14 @@ namespace PlayniteAchievements.Providers.Local
                             ApiName = schemaAch.Name,
                             DisplayName = schemaAch.DisplayName ?? schemaAch.Name,
                             Description = schemaAch.Description ?? "Local achievement from " + ProviderName,
-                            UnlockedIconPath = schemaAch.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon(),
-                            LockedIconPath = schemaAch.IconGray ?? AchievementIconResolver.GetDefaultIcon(),
+                            UnlockedIconPath = includeSchemaIconFallback
+                                ? schemaAch.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon()
+                                : AchievementIconResolver.GetDefaultUnlockedIcon(),
+                            LockedIconPath = includeSchemaIconFallback
+                                ? schemaAch.IconGray ?? AchievementIconResolver.GetDefaultIcon()
+                                : AchievementIconResolver.GetDefaultIcon(),
+                            HasSourceUnlockedIcon = includeSchemaIconFallback && IsLocalSourceIconPath(schemaAch.Icon),
+                            HasSourceLockedIcon = includeSchemaIconFallback && IsLocalSourceIconPath(schemaAch.IconGray),
                             Unlocked = false,
                             Hidden = schemaAch.Hidden == 1
                         };
@@ -728,6 +760,54 @@ namespace PlayniteAchievements.Providers.Local
 
             schemaPath = configuredPath?.Trim();
             return !string.IsNullOrWhiteSpace(schemaPath);
+        }
+
+        internal static bool TryGetCustomSchemaEnabledOverride(Guid gameId, out bool isEnabled)
+        {
+            isEnabled = false;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            return settings?.CustomSchemaEnabledOverrides != null &&
+                   settings.CustomSchemaEnabledOverrides.TryGetValue(gameId, out isEnabled);
+        }
+
+        internal static bool TrySetCustomSchemaEnabledOverride(Guid gameId, bool isEnabled, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            settings.CustomSchemaEnabledOverrides ??= new Dictionary<Guid, bool>();
+            settings.CustomSchemaEnabledOverrides[gameId] = isEnabled;
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set Local custom schema enabled override for '{gameName}' to '{isEnabled}'");
+            return true;
+        }
+
+        internal static bool TryClearCustomSchemaEnabledOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            var settings = ProviderRegistry.Settings<LocalSettings>();
+            if (settings?.CustomSchemaEnabledOverrides == null || !settings.CustomSchemaEnabledOverrides.Remove(gameId))
+            {
+                return false;
+            }
+
+            ProviderRegistry.Write(settings);
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared Local custom schema enabled override for '{gameName}'");
+            return true;
         }
 
         internal static bool TryGetLumaPlayAppIdOverride(Guid gameId, out int appId)
@@ -874,6 +954,8 @@ namespace PlayniteAchievements.Providers.Local
             var settings = ProviderRegistry.Settings<LocalSettings>();
             settings.CustomSchemaPathOverrides ??= new Dictionary<Guid, string>();
             settings.CustomSchemaPathOverrides[gameId] = normalizedPath;
+            settings.CustomSchemaEnabledOverrides ??= new Dictionary<Guid, bool>();
+            settings.CustomSchemaEnabledOverrides[gameId] = true;
             ProviderRegistry.Write(settings);
             persistSettingsForUi?.Invoke();
             logger?.Info($"Set Local custom schema override for '{gameName}' to '{normalizedPath}'");
@@ -976,7 +1058,9 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             var settings = ProviderRegistry.Settings<LocalSettings>();
-            if (settings?.CustomSchemaPathOverrides == null || !settings.CustomSchemaPathOverrides.Remove(gameId))
+            var removedPath = settings?.CustomSchemaPathOverrides != null && settings.CustomSchemaPathOverrides.Remove(gameId);
+            var removedEnabled = settings?.CustomSchemaEnabledOverrides != null && settings.CustomSchemaEnabledOverrides.Remove(gameId);
+            if (!removedPath && !removedEnabled)
             {
                 return false;
             }
@@ -1629,7 +1713,7 @@ namespace PlayniteAchievements.Providers.Local
 
             if (TryGetAppIdOverride(game.Id, out _) ||
                 TryGetFolderOverride(game.Id, out _) ||
-                TryGetCustomSchemaPathOverride(game.Id, out _) ||
+                (TryGetCustomSchemaPathOverride(game.Id, out _) && TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabledForFallback) && isCustomSchemaEnabledForFallback) ||
                 TryGetLumaPlayAppIdOverride(game.Id, out _) ||
                 TryGetLumaPlayIniPathOverride(game.Id, out _))
             {
@@ -1737,7 +1821,6 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
-                    Log($"STEAM APPCACHE KV SCHEMA READ: appId={appId} path={schemaPath}");
                     if (!File.Exists(schemaPath))
                     {
                         continue;
@@ -1757,7 +1840,6 @@ namespace PlayniteAchievements.Providers.Local
                     var userStatsByStatId = new Dictionary<int, SteamKvUserStatData>();
                     foreach (var userStatsPath in GetSteamAppCacheUserStatsFilePaths(appId, game))
                     {
-                        Log($"STEAM APPCACHE KV USERSTATS READ: appId={appId} path={userStatsPath}");
                         if (!File.Exists(userStatsPath))
                         {
                             continue;
@@ -2598,7 +2680,6 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
-                    Log($"STEAM APPCACHE DIRECT USERSTATS READ: appId={appId} path={userStatsPath}");
                     if (!File.Exists(userStatsPath))
                         continue;
 
@@ -2976,7 +3057,6 @@ namespace PlayniteAchievements.Providers.Local
             {
                 try
                 {
-                    Log($"STEAM APPCACHE UNLOCKTIMES READ: appId={appId} path={userStatsPath}");
                     if (!File.Exists(userStatsPath))
                     {
                         continue;
@@ -3454,11 +3534,6 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            if (isExplicitUser && candidates.Count == 0)
-            {
-                Log($"STEAM APPCACHE USERSTATS: no files matched explicit user '{selectedUserId}' for appId={appId}.");
-            }
-
             return candidates
                 .Select(path => new
                 {
@@ -3554,14 +3629,6 @@ namespace PlayniteAchievements.Providers.Local
             if (Regex.IsMatch(trimmed, @"^\d+$"))
             {
                 candidates.Add(trimmed);
-
-                // Steam appcache stats files can use either accountId32 or steamId64.
-                // Expand both directions so a forced user ID always finds matching files.
-                if (uint.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var accountId32))
-                {
-                    var steamId64 = 76561197960265728UL + accountId32;
-                    candidates.Add(steamId64.ToString(CultureInfo.InvariantCulture));
-                }
 
                 if (ulong.TryParse(trimmed, NumberStyles.Integer, CultureInfo.InvariantCulture, out var steamIdValue) &&
                     steamIdValue >= 76561197960265728UL)
@@ -4278,7 +4345,8 @@ namespace PlayniteAchievements.Providers.Local
             LocalEntry entry,
             SchemaAchievement schemaAch,
             SchemaAndPercentages steamSchema,
-            bool preferLocalizedSchemaText)
+            bool preferLocalizedSchemaText,
+            bool includeSchemaIconFallback)
         {
             var localDisplayName = entry.displayName?.Trim();
             var schemaDisplayName = schemaAch?.DisplayName?.Trim();
@@ -4296,19 +4364,31 @@ namespace PlayniteAchievements.Providers.Local
                     ? localDescription
                     : schemaDescription ?? "Local achievement from Local");
 
-            var unlockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.Icon) &&
+            var unlockedIcon = includeSchemaIconFallback &&
+                               !string.IsNullOrWhiteSpace(schemaAch?.Icon) &&
                                (IsLowQualityIconPath(entry.icon, isLockedIcon: false) || IsUnresolvedLocalIconPath(entry.icon))
                 ? schemaAch.Icon
                 : (!string.IsNullOrWhiteSpace(entry.icon)
                     ? entry.icon
-                    : schemaAch?.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon());
+                    : includeSchemaIconFallback
+                        ? schemaAch?.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon()
+                        : AchievementIconResolver.GetDefaultUnlockedIcon());
 
-            var lockedIcon = !string.IsNullOrWhiteSpace(schemaAch?.IconGray) &&
+            var lockedIcon = includeSchemaIconFallback &&
+                             !string.IsNullOrWhiteSpace(schemaAch?.IconGray) &&
                              (IsLowQualityIconPath(entry.iconGray, isLockedIcon: true) || IsUnresolvedLocalIconPath(entry.iconGray))
                 ? schemaAch.IconGray
                 : (!string.IsNullOrWhiteSpace(entry.iconGray)
                     ? entry.iconGray
-                    : schemaAch?.IconGray ?? AchievementIconResolver.GetDefaultIcon());
+                    : includeSchemaIconFallback
+                        ? schemaAch?.IconGray ?? AchievementIconResolver.GetDefaultIcon()
+                        : AchievementIconResolver.GetDefaultIcon());
+
+            // Mark as having a user-defined local source icon when the resolved icon is a local
+            // file path (not a CDN URL and not a pack:// placeholder). This prevents the Default
+            // icon override from replacing icons defined in local JSON/schema files.
+            var hasSourceUnlockedIcon = IsLocalSourceIconPath(unlockedIcon);
+            var hasSourceLockedIcon = IsLocalSourceIconPath(lockedIcon);
 
             var detail = new AchievementDetail
             {
@@ -4317,6 +4397,8 @@ namespace PlayniteAchievements.Providers.Local
                 Description = description,
                 UnlockedIconPath = unlockedIcon,
                 LockedIconPath = lockedIcon,
+                HasSourceUnlockedIcon = hasSourceUnlockedIcon,
+                HasSourceLockedIcon = hasSourceLockedIcon,
                 Unlocked = entry.earned,
                 Hidden = entry.hidden || (schemaAch?.Hidden == 1),
                 UnlockTimeUtc = entry.earned && entry.earned_time > 0
@@ -4585,6 +4667,86 @@ namespace PlayniteAchievements.Providers.Local
             }
         }
 
+        private string ResolveGameImagePath(Game game)
+        {
+            if (game == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(game.CoverImage))
+                {
+                    var coverPath = _api?.Database?.GetFullFilePath(game.CoverImage);
+                    if (!string.IsNullOrWhiteSpace(coverPath))
+                    {
+                        return coverPath;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(game.Icon))
+                {
+                    var iconPath = _api?.Database?.GetFullFilePath(game.Icon);
+                    if (!string.IsNullOrWhiteSpace(iconPath))
+                    {
+                        return iconPath;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore and fall back to provider defaults.
+            }
+
+            return null;
+        }
+
+        private static void ApplyCustomSchemaDefaultIcons(IReadOnlyList<SchemaAchievement> achievements, string defaultIconPath)
+        {
+            if (achievements == null || achievements.Count == 0 || string.IsNullOrWhiteSpace(defaultIconPath))
+            {
+                return;
+            }
+
+            foreach (var achievement in achievements)
+            {
+                if (achievement == null)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(achievement.Icon))
+                {
+                    achievement.Icon = defaultIconPath;
+                }
+
+                if (string.IsNullOrWhiteSpace(achievement.IconGray))
+                {
+                    achievement.IconGray = defaultIconPath;
+                }
+            }
+        }
+
+        private static SchemaAchievement CloneSchemaAchievementWithoutIcons(SchemaAchievement source)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            return new SchemaAchievement
+            {
+                Name = source.Name,
+                DisplayName = source.DisplayName,
+                Description = source.Description,
+                Hidden = source.Hidden,
+                Icon = null,
+                IconGray = null,
+                GlobalPercent = source.GlobalPercent
+            };
+        }
+
         private static List<SchemaAchievement> ExtractCustomSchemaAchievements(JToken root, string schemaDirectory)
         {
             var result = new List<SchemaAchievement>();
@@ -4828,7 +4990,26 @@ namespace PlayniteAchievements.Providers.Local
             try
             {
                 var normalizedRelative = iconPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-                return Path.GetFullPath(Path.Combine(schemaDirectory, normalizedRelative));
+                var resolved = Path.GetFullPath(Path.Combine(schemaDirectory, normalizedRelative));
+                if (File.Exists(resolved))
+                {
+                    return resolved;
+                }
+
+                // Some local achievement JSON files live in nested folders (for example "stats")
+                // while icon folders are relative to a parent folder. Probe ancestors before giving up.
+                var currentDirectory = new DirectoryInfo(schemaDirectory);
+                for (var i = 0; i < 12 && currentDirectory?.Parent != null; i++)
+                {
+                    currentDirectory = currentDirectory.Parent;
+                    var ancestorCandidate = Path.GetFullPath(Path.Combine(currentDirectory.FullName, normalizedRelative));
+                    if (File.Exists(ancestorCandidate))
+                    {
+                        return ancestorCandidate;
+                    }
+                }
+
+                return resolved;
             }
             catch
             {
@@ -4842,7 +5023,11 @@ namespace PlayniteAchievements.Providers.Local
                    !string.Equals(schemaSource, "completionist", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static void MergeSchemaMetadata(IReadOnlyList<SchemaAchievement> targetAchievements, IReadOnlyList<SchemaAchievement> sourceAchievements, bool preferSourceText = false)
+        private static void MergeSchemaMetadata(
+            IReadOnlyList<SchemaAchievement> targetAchievements,
+            IReadOnlyList<SchemaAchievement> sourceAchievements,
+            bool preferSourceText = false,
+            bool includeIconMetadata = true)
         {
             if (targetAchievements == null || sourceAchievements == null || targetAchievements.Count == 0 || sourceAchievements.Count == 0)
             {
@@ -4926,12 +5111,16 @@ namespace PlayniteAchievements.Providers.Local
                     target.Description = source.Description;
                 }
 
-                if (IsLowQualityIconPath(target.Icon, isLockedIcon: false) && !IsLowQualityIconPath(source.Icon, isLockedIcon: false))
+                if (includeIconMetadata &&
+                    IsLowQualityIconPath(target.Icon, isLockedIcon: false) &&
+                    !IsLowQualityIconPath(source.Icon, isLockedIcon: false))
                 {
                     target.Icon = source.Icon;
                 }
 
-                if (IsLowQualityIconPath(target.IconGray, isLockedIcon: true) && !IsLowQualityIconPath(source.IconGray, isLockedIcon: true))
+                if (includeIconMetadata &&
+                    IsLowQualityIconPath(target.IconGray, isLockedIcon: true) &&
+                    !IsLowQualityIconPath(source.IconGray, isLockedIcon: true))
                 {
                     target.IconGray = source.IconGray;
                 }
@@ -5430,6 +5619,29 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Returns true when <paramref name="iconPath"/> is a local file path that represents a
+        /// user-defined icon (e.g. from a local JSON or custom schema file).  CDN HTTP(S) URLs
+        /// and pack:// placeholder URIs return false.
+        /// </summary>
+        private static bool IsLocalSourceIconPath(string iconPath)
+        {
+            if (string.IsNullOrWhiteSpace(iconPath))
+            {
+                return false;
+            }
+
+            if (iconPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                iconPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var normalized = AchievementIconResolver.NormalizeIconPath(iconPath);
+            return !string.Equals(normalized, AchievementIconResolver.GetDefaultUnlockedIcon(), StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(normalized, AchievementIconResolver.GetDefaultIcon(), StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsWindowsPlatform()

@@ -135,6 +135,7 @@ namespace PlayniteAchievements.Providers.Local
         private Dictionary<Guid, string> _lumaPlayIniPathOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _localFolderOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, string> _customSchemaPathOverrides = new Dictionary<Guid, string>();
+        private Dictionary<Guid, bool> _customSchemaEnabledOverrides = new Dictionary<Guid, bool>();
         private Dictionary<Guid, string> _steamAppCacheUserOverrides = new Dictionary<Guid, string>();
         private Dictionary<Guid, bool> _refreshOnGameCloseOverrides = new Dictionary<Guid, bool>();
         private string _steamUserdataPath = string.Empty;
@@ -785,6 +786,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _customSchemaPathOverrides;
             set => SetValue(ref _customSchemaPathOverrides, value ?? new Dictionary<Guid, string>());
+        }
+
+        public Dictionary<Guid, bool> CustomSchemaEnabledOverrides
+        {
+            get => _customSchemaEnabledOverrides;
+            set => SetValue(ref _customSchemaEnabledOverrides, value ?? new Dictionary<Guid, bool>());
         }
 
         public LocalSettings()

@@ -765,6 +765,7 @@ namespace PlayniteAchievements.Services
 
                 var resolved = customization.Resolved ?? ResolvedGameCustomData.Empty;
                 recent.UseSeparateLockedIconsWhenAvailable = resolved.UseSeparateLockedIcons;
+                var fetchIconsFromGame = resolved.ViewAchievementsIconFetchEnabled;
 
                 var apiName = NormalizeText(recent.ApiName);
                 if (string.IsNullOrWhiteSpace(apiName))
@@ -792,16 +793,36 @@ namespace PlayniteAchievements.Services
                     recent.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(categoryTypeOverride);
                 }
 
-                var unlockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.UnlockedIconOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(unlockedOverride))
+                var unlockedOverride = default(string);
+                if (!recent.HasSourceUnlockedIcon)
                 {
-                    recent.UnlockedIconPath = ResolveCustomIconOverridePath(unlockedOverride, recent.PlayniteGameId.Value);
+                    unlockedOverride = AchievementIconOverrideHelper.GetExplicitOverrideValue(customization.UnlockedIconOverrides, apiName);
+                    if (string.IsNullOrWhiteSpace(unlockedOverride) &&
+                        !fetchIconsFromGame &&
+                        AchievementIconOverrideHelper.ShouldApplyDefaultOverride(recent.UnlockedIconPath, isLockedIcon: false))
+                    {
+                        unlockedOverride = AchievementIconOverrideHelper.GetDefaultOverrideValue(customization.UnlockedIconOverrides);
+                    }
+                    if (!string.IsNullOrWhiteSpace(unlockedOverride))
+                    {
+                        recent.UnlockedIconPath = ResolveCustomIconOverridePath(unlockedOverride, recent.PlayniteGameId.Value);
+                    }
                 }
 
-                var lockedOverride = AchievementIconOverrideHelper.GetOverrideValue(customization.LockedIconOverrides, apiName);
-                if (!string.IsNullOrWhiteSpace(lockedOverride))
+                var lockedOverride = default(string);
+                if (!recent.HasSourceLockedIcon)
                 {
-                    recent.LockedIconPath = ResolveCustomIconOverridePath(lockedOverride, recent.PlayniteGameId.Value);
+                    lockedOverride = AchievementIconOverrideHelper.GetExplicitOverrideValue(customization.LockedIconOverrides, apiName);
+                    if (string.IsNullOrWhiteSpace(lockedOverride) &&
+                        !fetchIconsFromGame &&
+                        AchievementIconOverrideHelper.ShouldApplyDefaultOverride(recent.LockedIconPath, isLockedIcon: true))
+                    {
+                        lockedOverride = AchievementIconOverrideHelper.GetDefaultOverrideValue(customization.LockedIconOverrides);
+                    }
+                    if (!string.IsNullOrWhiteSpace(lockedOverride))
+                    {
+                        recent.LockedIconPath = ResolveCustomIconOverridePath(lockedOverride, recent.PlayniteGameId.Value);
+                    }
                 }
             }
         }

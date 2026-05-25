@@ -18,6 +18,12 @@ namespace PlayniteAchievements.Services.Images
         private const string FallbackStem = "achievement";
         private const int MaxStemLength = 96;
         private const string CustomFolderName = "custom";
+        private const string DefaultOverrideStem = "__default__";
+        private const string DefaultUnlockStem = "__defaultUnlock__";
+        private const string DefaultLockStem = "__defaultLock__";
+        private const string GameFetchStem = "__game__";
+        private const string GameFetchUnlockStem = "__gameUnlock__";
+        private const string GameFetchLockStem = "__gameLock__";
         private static readonly HashSet<string> ReservedFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "CON",
@@ -129,6 +135,19 @@ namespace PlayniteAchievements.Services.Images
             var fileName = variant == AchievementIconVariant.Locked
                 ? stem + ".locked.png"
                 : stem + ".png";
+
+            if (string.Equals(stem, DefaultOverrideStem, StringComparison.OrdinalIgnoreCase))
+            {
+                fileName = variant == AchievementIconVariant.Locked
+                    ? DefaultLockStem + ".png"
+                    : DefaultUnlockStem + ".png";
+            }
+            else if (string.Equals(stem, GameFetchStem, StringComparison.OrdinalIgnoreCase))
+            {
+                fileName = variant == AchievementIconVariant.Locked
+                    ? GameFetchLockStem + ".png"
+                    : GameFetchUnlockStem + ".png";
+            }
 
             return Path.Combine(
                 "icon_cache",

@@ -84,6 +84,7 @@ namespace PlayniteAchievements.ViewModels
         private string _localFolderCandidatesSummary;
         private bool _hasAmbiguousLocalFolders;
         private bool _hasLocalCustomSchemaOverride;
+        private bool _localCustomSchemaEnabled;
         private string _localCustomSchemaOverrideValue;
         private string _localCustomSchemaOverrideInput;
         private bool _hasLocalRefreshOnGameCloseOverride;
@@ -149,6 +150,7 @@ namespace PlayniteAchievements.ViewModels
         public RelayCommand ApplyLocalCustomSchemaOverrideCommand { get; }
         public RelayCommand ClearLocalCustomSchemaOverrideCommand { get; }
         public RelayCommand BrowseLocalCustomSchemaOverrideCommand { get; }
+        public RelayCommand ToggleLocalCustomSchemaEnabledCommand { get; }
         public RelayCommand ApplyLocalRefreshOnGameCloseOverrideCommand { get; }
         public RelayCommand ClearLocalRefreshOnGameCloseOverrideCommand { get; }
         public RelayCommand ApplyXeniaTitleIdOverrideCommand { get; }
@@ -216,6 +218,7 @@ namespace PlayniteAchievements.ViewModels
             ApplyLocalCustomSchemaOverrideCommand = new RelayCommand(_ => ApplyLocalCustomSchemaOverride(), _ => HasGame);
             ClearLocalCustomSchemaOverrideCommand = new RelayCommand(_ => ClearLocalCustomSchemaOverride(), _ => HasGame && HasLocalCustomSchemaOverride);
             BrowseLocalCustomSchemaOverrideCommand = new RelayCommand(_ => BrowseLocalCustomSchemaOverride(), _ => HasGame);
+            ToggleLocalCustomSchemaEnabledCommand = new RelayCommand(_ => ToggleLocalCustomSchemaEnabled(), _ => HasGame);
             ApplyLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ApplyLocalRefreshOnGameCloseOverride(), _ => HasGame);
             ClearLocalRefreshOnGameCloseOverrideCommand = new RelayCommand(_ => ClearLocalRefreshOnGameCloseOverride(), _ => HasGame && HasLocalRefreshOnGameCloseOverride);
             ApplyXeniaTitleIdOverrideCommand = new RelayCommand(_ => ApplyXeniaTitleIdOverride(), _ => HasGame && ShowXeniaTitleIdOverride);
@@ -235,8 +238,8 @@ namespace PlayniteAchievements.ViewModels
             ImportCustomJsonCommand = new RelayCommand(_ => ImportCustomJson(), _ => HasGame);
             ClearCustomDataCommand = new RelayCommand(_ => ClearCustomData(), _ => HasGame && CanClearCustomData);
             OpenLocalAchievementsEditorCommand = new RelayCommand(_ => OpenLocalAchievementsEditor(), _ => HasGame && CanEditLocalAchievements);
-            ReloadCustomSchemaEditorCommand = new RelayCommand(_ => ReloadCustomSchemaEditor(), _ => HasGame && HasLocalCustomSchemaOverride);
-            SaveCustomSchemaEditorCommand = new RelayCommand(_ => SaveCustomSchemaEditor(), _ => HasGame && HasLocalCustomSchemaOverride);
+            ReloadCustomSchemaEditorCommand = new RelayCommand(_ => ReloadCustomSchemaEditor(), _ => HasGame);
+            SaveCustomSchemaEditorCommand = new RelayCommand(_ => SaveCustomSchemaEditor(), _ => HasGame);
 
             Reload();
         }
@@ -301,11 +304,6 @@ namespace PlayniteAchievements.ViewModels
                     return;
                 }
 
-                if (requestedTab == GameOptionsTab.CustomSchema && !HasLocalCustomSchemaOverride)
-                {
-                    return;
-                }
-
                 if (requestedTab == GameOptionsTab.ManualTracking &&
                     ShouldWarnAboutManualTrackingOverride(out var existingProviderKey) &&
                     !string.Equals(_manualTrackingWarningAcceptedForProvider, existingProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -345,12 +343,29 @@ namespace PlayniteAchievements.ViewModels
             get => _selectedCustomSchemaTab;
             set
             {
-                if (!HasLocalCustomSchemaOverride)
-                {
-                    return;
-                }
-
                 SetValue(ref _selectedCustomSchemaTab, value);
+            }
+        }
+
+        public bool LocalCustomSchemaEnabled
+        {
+            get => _localCustomSchemaEnabled;
+            set
+            {
+                if (SetValueAndReturn(ref _localCustomSchemaEnabled, value))
+                {
+                    if (value)
+                    {
+                        EnsurePreferredProviderIsLocal();
+                    }
+
+                    LocalSavesProvider.TrySetCustomSchemaEnabledOverride(_gameId, value, GameName, _persistSettingsForUi, _logger);
+                    var game = _playniteApi?.Database?.Games?.Get(_gameId);
+                    _achievementOverridesService?.ClearGameData(_gameId, game?.Name);
+                    OnPropertyChanged(nameof(LocalCustomSchemaStatusText));
+                    RaiseCommandStates();
+                    TriggerRefreshForProvider(LocalProviderKey);
+                }
             }
         }
 
@@ -1220,7 +1235,9 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 return string.Format(
-                    L("LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideValue", "Custom schema: {0}"),
+                    LocalCustomSchemaEnabled
+                        ? L("LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideEnabled", "Custom schema enabled: {0}")
+                        : L("LOCPlayAch_GameOptions_Status_LocalCustomSchemaOverrideDisabled", "Custom schema disabled: {0}"),
                     LocalCustomSchemaOverrideValue);
             }
         }
@@ -1711,17 +1728,26 @@ namespace PlayniteAchievements.ViewModels
                     HasLocalCustomSchemaOverride = true;
                     LocalCustomSchemaOverrideValue = localCustomSchemaPath;
                     LocalCustomSchemaOverrideInput = localCustomSchemaPath;
-                    ReloadCustomSchemaEditor();
                 }
                 else
                 {
                     HasLocalCustomSchemaOverride = false;
                     LocalCustomSchemaOverrideValue = string.Empty;
                     LocalCustomSchemaOverrideInput = string.Empty;
-                    CustomSchemaEditorText = string.Empty;
-                    CustomSchemaEditorStatus = string.Empty;
-                    CustomSchemaEditorStatusIsError = false;
                 }
+
+                if (LocalSavesProvider.TryGetCustomSchemaEnabledOverride(_gameId, out var localCustomSchemaEnabled))
+                {
+                    SetValue(ref _localCustomSchemaEnabled, localCustomSchemaEnabled);
+                }
+                else
+                {
+                    SetValue(ref _localCustomSchemaEnabled, false);
+                }
+
+                OnPropertyChanged(nameof(LocalCustomSchemaStatusText));
+
+                ReloadCustomSchemaEditor();
 
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
                 LocalRefreshOnGameCloseGlobalValue = localSettings?.RefreshAchievementsOnGameClose == true;
@@ -2117,8 +2143,15 @@ namespace PlayniteAchievements.ViewModels
 
             if (TrySetLocalCustomSchemaOverride(text))
             {
+                LocalCustomSchemaEnabled = true;
                 Reload();
             }
+        }
+
+        private void ToggleLocalCustomSchemaEnabled()
+        {
+            LocalCustomSchemaEnabled = !LocalCustomSchemaEnabled;
+            Reload();
         }
 
         private void ClearLocalCustomSchemaOverride()
@@ -2146,10 +2179,13 @@ namespace PlayniteAchievements.ViewModels
 
         private void ReloadCustomSchemaEditor()
         {
-            if (!HasGame || !HasLocalCustomSchemaOverride || string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
+            if (!HasGame || string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
             {
-                CustomSchemaEditorText = string.Empty;
-                CustomSchemaEditorStatus = L("LOCPlayAch_GameOptions_CustomSchemaEditor_NoFile", "No custom schema file selected.");
+                CustomSchemaEditorText = BuildDefaultCustomSchemaTemplate();
+
+                CustomSchemaEditorStatus = L(
+                    "LOCPlayAch_GameOptions_CustomSchemaEditor_NoFilePrompt",
+                    "No custom schema file selected. Enter a path above and click Apply, or click Save to create one.");
                 CustomSchemaEditorStatusIsError = false;
                 return;
             }
@@ -2181,9 +2217,47 @@ namespace PlayniteAchievements.ViewModels
 
         private void SaveCustomSchemaEditor()
         {
-            if (!HasGame || !HasLocalCustomSchemaOverride || string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
+            if (!HasGame)
             {
                 return;
+            }
+
+            var targetPath = LocalCustomSchemaOverrideValue?.Trim();
+            if (string.IsNullOrWhiteSpace(targetPath))
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                    AddExtension = true,
+                    DefaultExt = ".json",
+                    OverwritePrompt = true,
+                    FileName = BuildDefaultCustomSchemaFileName()
+                };
+
+                if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.FileName))
+                {
+                    return;
+                }
+
+                targetPath = dialog.FileName.Trim();
+                if (!string.Equals(Path.GetExtension(targetPath), ".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetPath += ".json";
+                }
+
+                if (!TrySetLocalCustomSchemaOverride(targetPath))
+                {
+                    CustomSchemaEditorStatus = L(
+                        "LOCPlayAch_GameOptions_CustomSchemaEditor_CreateFailed",
+                        "Failed to create a custom schema override path.");
+                    CustomSchemaEditorStatusIsError = true;
+                    return;
+                }
+
+                HasLocalCustomSchemaOverride = true;
+                LocalCustomSchemaOverrideValue = targetPath;
+                LocalCustomSchemaOverrideInput = targetPath;
+                LocalCustomSchemaEnabled = true;
             }
 
             var raw = CustomSchemaEditorText ?? string.Empty;
@@ -2201,7 +2275,13 @@ namespace PlayniteAchievements.ViewModels
             {
                 var parsed = JToken.Parse(raw);
                 var formatted = parsed.ToString(Newtonsoft.Json.Formatting.Indented);
-                File.WriteAllText(LocalCustomSchemaOverrideValue, formatted, Encoding.UTF8);
+                var directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrWhiteSpace(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                File.WriteAllText(targetPath, formatted, Encoding.UTF8);
                 CustomSchemaEditorText = formatted;
                 CustomSchemaEditorStatus = L("LOCPlayAch_GameOptions_CustomSchemaEditor_SaveSuccess", "Custom schema saved successfully.");
                 CustomSchemaEditorStatusIsError = false;
@@ -2221,6 +2301,85 @@ namespace PlayniteAchievements.ViewModels
                     ex.Message);
                 CustomSchemaEditorStatusIsError = true;
             }
+        }
+
+        private string BuildDefaultCustomSchemaFileName()
+        {
+            var rawName = (GameName ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                rawName = _gameId.ToString();
+            }
+
+            var invalidChars = Path.GetInvalidFileNameChars();
+            var sanitizedChars = rawName
+                .Select(ch => invalidChars.Contains(ch) ? '_' : ch)
+                .ToArray();
+            var sanitizedName = new string(sanitizedChars).Trim();
+            if (string.IsNullOrWhiteSpace(sanitizedName))
+            {
+                sanitizedName = _gameId.ToString();
+            }
+
+            return sanitizedName + "_custom_schema.json";
+        }
+
+        private string BuildDefaultCustomSchemaTemplate()
+        {
+            var rows = new JArray
+            {
+                new JObject
+                {
+                    ["name"] = "achievement_api_name_1",
+                    ["apiName"] = "achievement_api_name_1",
+                    ["api_name"] = "achievement_api_name_1",
+                    ["id"] = "achievement_api_name_1",
+                    ["key"] = "achievement_api_name_1",
+                    ["displayName"] = "Achievement Title 1",
+                    ["display_name"] = "Achievement Title 1",
+                    ["title"] = "Achievement Title 1",
+                    ["description"] = "Achievement description 1",
+                    ["desc"] = "Achievement description 1",
+                    ["icon"] = "",
+                    ["unlockedIcon"] = "",
+                    ["image"] = "",
+                    ["icon_gray"] = "",
+                    ["icongray"] = "",
+                    ["lockedIcon"] = "",
+                    ["hidden"] = 0,
+                    ["globalPercent"] = 0.0,
+                    ["percent"] = 0.0
+                },
+                new JObject
+                {
+                    ["name"] = "achievement_api_name_2",
+                    ["apiName"] = "achievement_api_name_2",
+                    ["api_name"] = "achievement_api_name_2",
+                    ["id"] = "achievement_api_name_2",
+                    ["key"] = "achievement_api_name_2",
+                    ["displayName"] = "Achievement Title 2",
+                    ["display_name"] = "Achievement Title 2",
+                    ["title"] = "Achievement Title 2",
+                    ["description"] = "Achievement description 2",
+                    ["desc"] = "Achievement description 2",
+                    ["icon"] = "",
+                    ["unlockedIcon"] = "",
+                    ["image"] = "",
+                    ["icon_gray"] = "",
+                    ["icongray"] = "",
+                    ["lockedIcon"] = "",
+                    ["hidden"] = 1,
+                    ["globalPercent"] = 12.34,
+                    ["percent"] = 12.34
+                }
+            };
+
+            var root = new JObject
+            {
+                ["achievements"] = rows
+            };
+
+            return root.ToString(Newtonsoft.Json.Formatting.Indented);
         }
 
         private void ApplyLocalRefreshOnGameCloseOverride()
@@ -2825,12 +2984,14 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            EnsurePreferredProviderIsLocal();
+
             _achievementOverridesService?.ClearGameData(_gameId, game.Name);
-            TriggerRefresh();
+            TriggerRefreshForProvider(LocalProviderKey);
             return true;
         }
 
-        private bool TrySetLocalCustomSchemaOverride(string schemaPath)
+        private bool TrySetLocalCustomSchemaOverride(string schemaPath, bool forceIconRefresh = false)
         {
             var game = _playniteApi?.Database?.Games?.Get(_gameId);
             if (game == null || string.IsNullOrWhiteSpace(schemaPath))
@@ -2843,8 +3004,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            EnsurePreferredProviderIsLocal();
+
             _achievementOverridesService?.ClearGameData(_gameId, game.Name);
-            TriggerRefresh();
+            TriggerRefreshForProvider(LocalProviderKey, forceIconRefresh);
             return true;
         }
 
@@ -2878,6 +3041,8 @@ namespace PlayniteAchievements.ViewModels
             {
                 return false;
             }
+
+            LocalSavesProvider.TryClearCustomSchemaEnabledOverride(_gameId, game.Name, _persistSettingsForUi, _logger);
 
             _achievementOverridesService?.ClearGameData(_gameId, game.Name);
             TriggerRefresh();
@@ -3216,6 +3381,8 @@ namespace PlayniteAchievements.ViewModels
 
             try
             {
+                ClearPerGameOverrides();
+
                 if (_achievementOverridesService != null)
                 {
                     _achievementOverridesService.ClearGameData(_gameId, GameName);
@@ -3244,6 +3411,30 @@ namespace PlayniteAchievements.ViewModels
             {
                 Reload();
             }
+        }
+
+        private void ClearPerGameOverrides()
+        {
+            var game = _playniteApi?.Database?.Games?.Get(_gameId);
+            var gameName = game?.Name ?? GameName;
+
+            _achievementOverridesService?.ClearPreferredProviderOverride(_gameId);
+
+            LocalSavesProvider.TryClearAppIdOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearLumaPlayAppIdOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearLumaPlayIniPathOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearSteamAppCacheUserOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearFolderOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearCustomSchemaPathOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            LocalSavesProvider.TryClearRefreshOnGameCloseOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+
+            SteamDataProvider.TryClearSteamAccountOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            RetroAchievementsDataProvider.TryClearGameIdOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            XeniaDataProvider.TryClearTitleIdOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            ShadPS4DataProvider.TryClearMatchIdOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+            ExophaseDataProvider.TryClearSlugOverride(_gameId, gameName, _persistSettingsForUi, _logger);
+
+            _plugin?.GameCustomDataStore?.Delete(_gameId);
         }
 
         private void RaiseCommandStates()
@@ -3333,6 +3524,14 @@ namespace PlayniteAchievements.ViewModels
             }
 
             RefreshCustomDataState();
+            if (LocalCustomSchemaEnabled && !string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue))
+            {
+                if (TrySetLocalCustomSchemaOverride(LocalCustomSchemaOverrideValue, forceIconRefresh: true))
+                {
+                    return;
+                }
+            }
+
             TriggerRefresh(forceIconRefresh: true);
         }
 

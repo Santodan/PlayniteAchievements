@@ -997,6 +997,10 @@ namespace PlayniteAchievements.Services
 
         public string LockedIconPath { get; set; }
 
+        public bool HasSourceUnlockedIcon { get; set; }
+
+        public bool HasSourceLockedIcon { get; set; }
+
         public int DisplayOrder { get; set; }
 
         public int? Points { get; set; }

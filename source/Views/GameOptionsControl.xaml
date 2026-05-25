@@ -104,7 +104,6 @@
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
                                  Style="{StaticResource NavTabRadioStyle}"
-                                 Visibility="{Binding HasLocalCustomSchemaOverride, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomSchema}" />
                     <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
                                  Style="{StaticResource NavTabRadioStyle}"
@@ -224,11 +223,55 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="8" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="8" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <TextBlock Grid.Row="0"
+                                       Text="{Binding LocalCustomSchemaStatusText}"
+                                       Foreground="{DynamicResource TextBrush}"
+                                       TextWrapping="Wrap" />
+
+                            <CheckBox Grid.Row="2"
+                                      Content="{DynamicResource LOCPlayAch_GameOptions_CustomSchemaEnabled}"
+                                      IsChecked="{Binding LocalCustomSchemaEnabled, Mode=TwoWay}"
+                                      Margin="0,0,0,0" />
+
+                            <Grid Grid.Row="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MaxWidth="520" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding LocalCustomSchemaOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Padding="8,6" />
+                                <Button Grid.Column="1"
+                                        Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                        Command="{Binding BrowseLocalCustomSchemaOverrideCommand}"
+                                        Padding="12,6"
+                                        Margin="8,0,0,0" />
+                                <Button Grid.Column="2"
+                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        Command="{Binding ApplyLocalCustomSchemaOverrideCommand}"
+                                        Padding="12,6"
+                                        Margin="8,0,0,0" />
+                                <Button Grid.Column="3"
+                                        Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                        Command="{Binding ClearLocalCustomSchemaOverrideCommand}"
+                                        Padding="12,6"
+                                        Margin="8,0,0,0" />
+                            </Grid>
+
+                                <StackPanel Grid.Row="6" Orientation="Horizontal">
                                 <Button Content="{DynamicResource LOCPlayAch_Button_Reload}"
                                         Command="{Binding ReloadCustomSchemaEditorCommand}"
                                         Padding="12,6"
@@ -238,7 +281,7 @@
                                         Padding="12,6" />
                             </StackPanel>
 
-                            <TextBox Grid.Row="2"
+                            <TextBox Grid.Row="8"
                                      Text="{Binding CustomSchemaEditorText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True"
                                      AcceptsTab="True"
@@ -249,7 +292,7 @@
                                      FontSize="12"
                                      Padding="8" />
 
-                            <TextBlock Grid.Row="3"
+                            <TextBlock Grid.Row="9"
                                        Text="{Binding CustomSchemaEditorStatus}"
                                        Foreground="{DynamicResource TextBrush}"
                                        Margin="0,8,0,0"

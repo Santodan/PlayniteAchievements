@@ -94,6 +94,17 @@ There is also the `StartPage Compatability` so the `Local` achievements apepar i
 
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
+## Next release - TBD
+
+- `Custom Schema` always visible
+- Fixed `Clear Data` not removing the `Custom Schema`
+- Added `Custom Schema` enabled / disabled option
+- Added the possibility to create the `Custom Schema` directly form the extension
+- Added the option of fetching the icon from `View Achievements` when there is no icon in the `Custom Schema` JSON
+- Added the option of setting a `Default` icon in the `Custom Schema`, in the `Icon` tab, that will be set for all the achievements that don't have an icon in the JSON.
+- Added more customizations to the `Achievement Notification`
+- Fixed the reset of the folder selection when multiple is found
+
 ## 2026-05-21 - v2.1.5.1
 
 - v2.1.5 merge

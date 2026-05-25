@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Services
 
         public bool UseSeparateLockedIcons { get; set; }
 
+        public bool ViewAchievementsIconFetchEnabled { get; set; }
+
         public string ManualCapstoneApiName { get; set; }
 
         public List<string> AchievementOrder { get; set; } = new List<string>();
@@ -80,6 +82,9 @@ namespace PlayniteAchievements.Services
                     (hasCustomData
                         ? customData?.UseSeparateLockedIconsOverride == true
                         : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
+                ViewAchievementsIconFetchEnabled = hasCustomData
+                    ? customData?.ViewAchievementsIconFetchEnabled == true
+                    : false,
                 ManualCapstoneApiName = hasCustomData
                     ? customData?.ManualCapstoneApiName
                                         : fallbackSettings?.ManualCapstones != null &&
@@ -299,6 +304,18 @@ namespace PlayniteAchievements.Services
             }
 
             return CloneStringMap(customData?.AchievementLockedIconOverrides);
+        }
+
+        public static bool IsViewAchievementsIconFetchEnabled(
+            Guid gameId,
+            GameCustomDataStore store = null)
+        {
+            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            {
+                return true;
+            }
+
+            return customData?.ViewAchievementsIconFetchEnabled ?? true;
         }
 
         public static bool TryGetManualLink(
