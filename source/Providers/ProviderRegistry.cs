@@ -57,7 +57,7 @@ namespace PlayniteAchievements.Providers
             _enabledState[settings.ProviderKey] = settings.IsEnabled;
             SaveToPersisted(settings);
             if (persistToDisk)
-                _settings._plugin?.SavePluginSettings(_settings);
+                _settings._plugin?.SaveSettingsSafely(_settings);
 
             if (_providersByKey.TryGetValue(settings.ProviderKey, out var provider))
                 provider.ApplySettings(settings);
@@ -100,7 +100,7 @@ namespace PlayniteAchievements.Providers
             }
 
             if (persistToDisk)
-                _settings._plugin?.SavePluginSettings(_settings);
+                _settings._plugin?.SaveSettingsSafely(_settings);
         }
 
         public void BeginEditSession()
@@ -125,7 +125,7 @@ namespace PlayniteAchievements.Providers
             if (!_editSessionActive)
             {
                 if (persistToDisk)
-                    _settings._plugin?.SavePluginSettings(_settings);
+                    _settings._plugin?.SaveSettingsSafely(_settings);
                 return;
             }
 
@@ -167,7 +167,7 @@ namespace PlayniteAchievements.Providers
             CancelEditSession();
 
             if (persistToDisk)
-                _settings._plugin?.SavePluginSettings(_settings);
+                _settings._plugin?.SaveSettingsSafely(_settings);
         }
 
         public IProviderSettings GetSettingsForEdit(string providerKey)

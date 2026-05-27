@@ -96,14 +96,16 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Added more customizations to the `Achievement Notification`
+- Fixed the reset of the configurations
+
+Added:
 - `Custom Schema` always visible
 - Fixed `Clear Data` not removing the `Custom Schema`
 - Added `Custom Schema` enabled / disabled option
 - Added the possibility to create the `Custom Schema` directly form the extension
 - Added the option of fetching the icon from `View Achievements` when there is no icon in the `Custom Schema` JSON
 - Added the option of setting a `Default` icon in the `Custom Schema`, in the `Icon` tab, that will be set for all the achievements that don't have an icon in the JSON.
-- Added more customizations to the `Achievement Notification`
-- Fixed the reset of the folder selection when multiple is found
 
 ## 2026-05-21 - v2.1.5.1
 

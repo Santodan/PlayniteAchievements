@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using PlayniteAchievements.Common;
@@ -14,7 +14,7 @@ namespace PlayniteAchievements.ViewModels
     /// <summary>
     /// ViewModel for plugin settings.
     /// Handles loading settings and providing them to the plugin.
-    /// Implements ISettings to integrate with Playnite's settings system and theme PluginSettings markup extension.
+    /// Implements ISettings to integrate with Playnite''s settings system and theme PluginSettings markup extension.
     /// </summary>
     public class PlayniteAchievementsSettingsViewModel : ObservableObject, ISettings
     {
@@ -62,6 +62,9 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Loads settings from storage, running migration if needed.
+        /// Falls back to backup files if config.json is missing, empty, unreadable, or malformed:
+        /// - config.json.bak (post-write mirror of latest successful config)
+        /// - config.json.pre.bak (pre-write safety backup)
         /// </summary>
         private PlayniteAchievementsSettings LoadSettingsWithMigration()
         {
@@ -70,15 +73,156 @@ namespace PlayniteAchievements.ViewModels
                 // Get the settings file path (Playnite uses config.json)
                 var pluginUserDataPath = _plugin.GetPluginUserDataPath();
                 var settingsFilePath = Path.Combine(pluginUserDataPath, "config.json");
+                var bakPath = settingsFilePath + ".bak";
+                var preBakPath = settingsFilePath + ".pre.bak";
 
                 if (!File.Exists(settingsFilePath))
                 {
-                    // Try loading directly as fallback
-                    return _plugin.LoadPluginSettings<PlayniteAchievementsSettings>();
+                    // No config.json – attempt recovery from backups.
+                    if (!TryRecoverFromBackups(
+                            reason: "config.json is missing",
+                            settingsFilePath,
+                            bakPath,
+                            preBakPath,
+                            out _))
+                    {
+                        // Genuinely first run (or no backup available) – try direct load.
+                        return _plugin.LoadPluginSettings<PlayniteAchievementsSettings>();
+                    }
                 }
 
-                // Read raw JSON and run migration
-                var rawJson = File.ReadAllText(settingsFilePath);
+                // Read raw JSON, with crash-recovery fallback to the rolling backup.
+                string rawJson;
+                try
+                {
+                    rawJson = ReadRequiredJson(settingsFilePath, "config.json");
+                }
+                catch (Exception readEx)
+                {
+                    _logger.Warn(readEx, "config.json read failed; attempting backup recovery.");
+                    if (!TryRecoverFromBackups(
+                            reason: "config.json is unreadable/empty",
+                            settingsFilePath,
+                            bakPath,
+                            preBakPath,
+                            out rawJson))
+                    {
+                        _logger.Error("No usable backup available; starting with defaults.");
+                        return null;
+                    }
+                }
+
+                // Parse/migration failures are also recoverable from .bak.
+                if (TryDeserializeAndMigrate(rawJson, settingsFilePath, pluginUserDataPath, out var loaded, out var parseEx))
+                {
+                    return loaded;
+                }
+
+                _logger.Warn(parseEx, "config.json parse/migration failed; attempting backup recovery.");
+                if (!TryRecoverFromBackups(
+                        reason: "config.json parse/migration failed",
+                        settingsFilePath,
+                        bakPath,
+                        preBakPath,
+                        out var bakJson))
+                {
+                    _logger.Error("No usable backup available after parse/migration failure; starting with defaults.");
+                    return null;
+                }
+
+                try
+                {
+                    if (!TryDeserializeAndMigrate(bakJson, settingsFilePath, pluginUserDataPath, out loaded, out var bakParseEx))
+                    {
+                        throw bakParseEx ?? new InvalidOperationException("Recovered backup parse/migration failed.");
+                    }
+
+                    _logger.Info("Recovered settings from backup after config.json parse/migration failure.");
+                    return loaded;
+                }
+                catch (Exception bakEx)
+                {
+                    _logger.Error(bakEx, "Recovery from backup failed after parse/migration failure; starting with defaults.");
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to load settings with migration, falling back to direct load.");
+                try { return _plugin.LoadPluginSettings<PlayniteAchievementsSettings>(); }
+                catch { return null; }
+            }
+        }
+
+        private static string ReadRequiredJson(string path, string label)
+        {
+            var json = File.ReadAllText(path);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                throw new InvalidOperationException($"{label} is empty.");
+            }
+
+            return json;
+        }
+
+        private bool TryRecoverFromBackups(
+            string reason,
+            string settingsFilePath,
+            string bakPath,
+            string preBakPath,
+            out string recoveredJson)
+        {
+            recoveredJson = null;
+
+            if (TryRecoverFromSingleBackup(reason, settingsFilePath, bakPath, "config.json.bak", out recoveredJson))
+            {
+                return true;
+            }
+
+            return TryRecoverFromSingleBackup(reason, settingsFilePath, preBakPath, "config.json.pre.bak", out recoveredJson);
+        }
+
+        private bool TryRecoverFromSingleBackup(
+            string reason,
+            string settingsFilePath,
+            string backupPath,
+            string backupLabel,
+            out string recoveredJson)
+        {
+            recoveredJson = null;
+            if (!File.Exists(backupPath))
+            {
+                _logger.Debug($"Backup not found: {backupLabel} (reason: {reason}).");
+                return false;
+            }
+
+            try
+            {
+                recoveredJson = ReadRequiredJson(backupPath, backupLabel);
+                File.Copy(backupPath, settingsFilePath, overwrite: true);
+                _logger.Info($"Recovered config.json from {backupLabel}. Reason: {reason}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, $"Failed recovering from {backupLabel}. Reason: {reason}");
+                recoveredJson = null;
+                return false;
+            }
+        }
+
+        private bool TryDeserializeAndMigrate(
+            string rawJson,
+            string settingsFilePath,
+            string pluginUserDataPath,
+            out PlayniteAchievementsSettings settings,
+            out Exception error)
+        {
+            settings = null;
+            error = null;
+
+            try
+            {
                 var migratedJson = ProviderSettingsMigration.MigrateFromJson(rawJson);
                 var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(migratedJson);
 
@@ -94,7 +238,9 @@ namespace PlayniteAchievements.ViewModels
                             "config-migration",
                             settingsFilePath);
                         _logger.Info($"Config migration backup created: {backupPath}");
+                        BackupHelper.WritePreWriteBackup(settingsFilePath);
                         File.WriteAllText(settingsFilePath, fullyMigratedJson);
+                        BackupHelper.WritePostWriteMirror(settingsFilePath);
                     }
                     catch (Exception ex)
                     {
@@ -104,13 +250,14 @@ namespace PlayniteAchievements.ViewModels
                     }
                 }
 
-                // Deserialize the (potentially migrated) JSON
-                return Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(fullyMigratedJson);
+                settings = Playnite.SDK.Data.Serialization.FromJson<PlayniteAchievementsSettings>(fullyMigratedJson);
+                return settings != null;
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to load settings with migration, falling back to direct load.");
-                return _plugin.LoadPluginSettings<PlayniteAchievementsSettings>();
+                error = ex;
+                settings = null;
+                return false;
             }
         }
 
@@ -131,6 +278,9 @@ namespace PlayniteAchievements.ViewModels
             // Revert to the cloned settings
             if (_editingClone != null)
             {
+                // Preserve provider settings that may have been updated by PersistSettingsForUi
+                // while the dialog was open (e.g. folder overrides set from GameOptions).
+                // Those are kept; only the non-provider persisted settings are reverted.
                 var currentProviderSettings = Settings.Persisted?.ProviderSettings != null
                     ? Settings.Persisted.Clone().ProviderSettings
                     : null;
@@ -146,6 +296,22 @@ namespace PlayniteAchievements.ViewModels
             _plugin.ProviderRegistry?.CancelEditSession();
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);
             GameCustomDataStore?.SyncRuntimeCaches();
+
+            // Save the reverted state to disk so that the in-memory state and the
+            // on-disk state are always in sync after a cancel.  Without this, any
+            // subsequent background save (column-width resize, ForkReleaseMonitor,
+            // etc.) would write the reverted (pre-dialog) in-memory state over
+            // whatever PersistSettingsForUi had already flushed to disk while the
+            // dialog was open, effectively undoing those changes.
+            try
+            {
+                _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
+                _plugin.SaveSettingsSafely(Settings);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to persist reverted settings after CancelEdit.");
+            }
         }
 
         public void EndEdit()
@@ -154,7 +320,7 @@ namespace PlayniteAchievements.ViewModels
             _plugin.ProviderRegistry?.PersistAllProviderSettings(false);
 
             // Save the settings via the plugin
-            _plugin.SavePluginSettings(Settings);
+            _plugin.SaveSettingsSafely(Settings);
 
             // Sync provider registry from the updated settings
             _plugin.ProviderRegistry?.SyncFromSettings(Settings.Persisted);

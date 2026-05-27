@@ -1145,6 +1145,12 @@ namespace PlayniteAchievements.ViewModels
                     if (!string.IsNullOrWhiteSpace(value))
                     {
                         LocalFolderOverrideInput = value;
+                        // Auto-persist the selection immediately so it survives restarts.
+                        // The user can remove it explicitly via the Clear button.
+                        if (Directory.Exists(value))
+                        {
+                            TrySetLocalFolderOverride(value);
+                        }
                     }
                 }
             }

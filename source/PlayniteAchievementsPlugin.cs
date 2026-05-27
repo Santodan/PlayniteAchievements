@@ -162,7 +162,7 @@ namespace PlayniteAchievements
             try
             {
                 _providerRegistry?.PersistAllProviderSettings(false);
-                SavePluginSettings(_settingsViewModel.Settings);
+                SaveSettingsSafely(_settingsViewModel.Settings);
             }
             catch (Exception ex)
             {
@@ -170,6 +170,38 @@ namespace PlayniteAchievements
             }
 
             NotifySettingsSaved();
+        }
+
+        internal void TryBackupSettings()
+        {
+            try
+            {
+                BackupHelper.WritePreWriteBackup(Path.Combine(GetPluginUserDataPath(), "config.json"));
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to create rolling settings backup.");
+            }
+        }
+
+        internal void TryMirrorSettingsBackup()
+        {
+            try
+            {
+                BackupHelper.WritePostWriteMirror(Path.Combine(GetPluginUserDataPath(), "config.json"));
+                _logger?.Debug("Updated config.json.bak post-write mirror.");
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to update post-write settings mirror backup.");
+            }
+        }
+
+        public void SaveSettingsSafely(PlayniteAchievementsSettings settings)
+        {
+            TryBackupSettings();
+            SavePluginSettings(settings);
+            TryMirrorSettingsBackup();
         }
 
         private void LoadLocalization()
@@ -297,7 +329,7 @@ namespace PlayniteAchievements
                         _cacheManager,
                         _settingsViewModel.Settings,
                         _logger,
-                        _ => SavePluginSettings(_settingsViewModel.Settings),
+                        _ => SaveSettingsSafely(_settingsViewModel.Settings),
                         force => _cacheManager.NotifyCacheInvalidated(),
                         gameIds =>
                         {
@@ -323,7 +355,7 @@ namespace PlayniteAchievements
                         api,
                         settings,
                         _notifications,
-                        () => SavePluginSettings(_settingsViewModel.Settings),
+                        () => SaveSettingsSafely(_settingsViewModel.Settings),
                         _logger);
                     _refreshCoordinator = new RefreshEntryPoint(
                         _refreshService,
@@ -369,7 +401,7 @@ namespace PlayniteAchievements
                         _logger,
                         PlayniteApi,
                         _settingsViewModel.Settings,
-                        () => SavePluginSettings(_settingsViewModel.Settings),
+                        () => SaveSettingsSafely(_settingsViewModel.Settings),
                         themeName => _notifications?.ShowThemeAutoMigrated(themeName));
 
                     SubscribePluginEventHandlers();
