@@ -29,7 +29,9 @@ using System.Windows.Navigation;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Views
 {
@@ -805,6 +807,7 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomAutoResizeToContent):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomWrapAllText):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowLine1):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowBorder):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowGameName):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowMeta):
@@ -815,6 +818,14 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomDetailColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaColor):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomBackgroundImagePath):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleTemplate):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomGameNameTemplate):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomAchievementTemplate):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaTemplate):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomIconSource):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomShowIconRarityGlow):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomCoverImagePath):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomBannerImagePath):
                 case nameof(Providers.Local.LocalSettings.EnableGameBannerAsBackground):
                 case nameof(Providers.Local.LocalSettings.GameBannerOpacity):
                 case nameof(Providers.Local.LocalSettings.GameBannerBlurRadius):
@@ -836,6 +847,8 @@ namespace PlayniteAchievements.Views
                 || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayFadeInMilliseconds), StringComparison.Ordinal)
                 || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayFadeOutMilliseconds), StringComparison.Ordinal)
                 || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayPosition), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlayTransitionStyle), StringComparison.Ordinal)
+                || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.UnlockOverlaySlideDistance), StringComparison.Ordinal)
                 || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.OverlayCustomOpacity), StringComparison.Ordinal)
                 || string.Equals(propertyName, nameof(Providers.Local.LocalSettings.OverlayCustomScale), StringComparison.Ordinal);
         }
@@ -1150,7 +1163,11 @@ namespace PlayniteAchievements.Views
                 providerKey: providerOption.ProviderKey,
                 forcedStyle: styleOption.StyleKey,
                 overrideLocalSettings: localSettings,
-                game: previewGame);
+                game: previewGame,
+                achievementDescription: "Win your first fight without taking damage.",
+                achievementPoints: 25,
+                achievementRarity: "12.7%",
+                achievementTrophy: "Gold");
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed {styleOption.DisplayName} style for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
         }
 
@@ -1179,7 +1196,11 @@ namespace PlayniteAchievements.Views
                     providerKey: providerOption.ProviderKey,
                     forcedStyle: style.StyleKey,
                     overrideLocalSettings: localSettings,
-                    game: previewGame);
+                    game: previewGame,
+                    achievementDescription: "Win your first fight without taking damage.",
+                    achievementPoints: 25,
+                    achievementRarity: "12.7%",
+                    achievementTrophy: "Gold");
             }
 
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed all styles for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
@@ -1251,52 +1272,43 @@ namespace PlayniteAchievements.Views
             localSettings.ScreenshotSaveFolder = selectedPath;
         }
 
-        private async void NotificationsTestUnlockSoundButton_Click(object sender, RoutedEventArgs e)
+        private void NotificationsTestUnlockSoundButton_Click(object sender, RoutedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
             if (localSettings == null)
                 return;
 
             var soundPath = localSettings.UnlockSoundPath?.Trim();
-            if (string.IsNullOrWhiteSpace(soundPath))
-                return;
-
-            soundPath = Services.NotificationPublisher.ResolveSoundPath(soundPath);
+            if (!string.IsNullOrWhiteSpace(soundPath))
+            {
+                soundPath = Services.NotificationPublisher.ResolveSoundPath(soundPath);
+            }
 
             try
             {
                 NotificationsTestUnlockSoundButton.IsEnabled = false;
                 NotificationsUnlockSoundStatusTextBlock.Text = "Sending test notification...";
 
-                if (localSettings.EnableInAppUnlockNotifications)
-                {
-                    _plugin?.PlayniteApi?.Notifications?.Add(new NotificationMessage(
-                        $"PlayniteAchievements-LocalUnlock-Test-{Guid.NewGuid()}",
-                        "Local Achievement Unlocked\nCurrent Game\nUnlocked: Test Achievement",
-                        NotificationType.Info));
-                }
-
+                var previewGame = GetSelectedNotificationPreviewGame();
+                var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+                var previewProviderKey = ResolveCurrentNotificationTestProviderKey();
+                var resolvedStyle = ResolveCurrentNotificationTestStyle(previewProviderKey);
                 var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
-                var resolvedStyle = (_settingsViewModel?.Settings?.Persisted?.ProviderUnlockNotificationStyles?.TryGetValue("Local", out var ps) == true && !string.IsNullOrWhiteSpace(ps))
-                    ? ps
-                    : _settingsViewModel?.Settings?.Persisted?.DefaultUnlockNotificationStyle;
-                publisher.SendUnlockPopup(
-                    "Current Game",
-                    "Test Achievement",
-                    providerKey: "Local",
+                publisher.ShowLocalAchievementUnlocked(
+                    previewGameName,
+                    new[] { "Test Achievement" },
+                    soundPath,
+                    unlockedAchievementIconPath: null,
+                    game: previewGame,
+                    achievementDescription: "Test description for preview.",
+                    achievementPoints: 25,
+                    achievementRarity: "Rare",
+                    achievementTrophy: "Gold",
                     forcedStyle: resolvedStyle,
-                    forcedDeliveryMode: LocalUnlockNotificationDeliveryMode.Overlay,
-                    overrideLocalSettings: localSettings);
+                    overrideLocalSettings: localSettings,
+                    notificationProviderKey: previewProviderKey);
 
-                await Task.Run(() =>
-                {
-                    using (var player = new System.Media.SoundPlayer(soundPath))
-                    {
-                        player.PlaySync();
-                    }
-                });
-
-                NotificationsUnlockSoundStatusTextBlock.Text = "Test notification sent and sound played successfully.";
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Test notification sent for {ProviderRegistry.GetLocalizedName(previewProviderKey)} using {localSettings.UnlockNotificationDeliveryMode}.";
                 if (NotificationsTestUnlockSoundButton != null)
                     NotificationsTestUnlockSoundButton.IsEnabled = true;
             }
@@ -1306,6 +1318,36 @@ namespace PlayniteAchievements.Views
                 if (NotificationsTestUnlockSoundButton != null)
                     NotificationsTestUnlockSoundButton.IsEnabled = true;
             }
+        }
+
+        private string ResolveCurrentNotificationTestProviderKey()
+        {
+            return (NotificationsProviderStyleProviderComboBox?.SelectedItem as NotificationProviderOption)?.ProviderKey ?? "Local";
+        }
+
+        private string ResolveCurrentNotificationTestStyle(string providerKey)
+        {
+            if (NotificationsProviderStyleProviderComboBox?.SelectedItem is NotificationProviderOption providerOption &&
+                string.Equals(providerOption.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase) &&
+                NotificationsProviderStyleComboBox?.SelectedItem is NotificationStyleOption selectedProviderStyle)
+            {
+                return selectedProviderStyle.StyleKey;
+            }
+
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted?.ProviderUnlockNotificationStyles != null &&
+                persisted.ProviderUnlockNotificationStyles.TryGetValue(providerKey, out var providerStyle) &&
+                !string.IsNullOrWhiteSpace(providerStyle))
+            {
+                return providerStyle;
+            }
+
+            if (NotificationsGlobalStyleComboBox?.SelectedItem is NotificationStyleOption selectedGlobalStyle)
+            {
+                return selectedGlobalStyle.StyleKey;
+            }
+
+            return persisted?.DefaultUnlockNotificationStyle;
         }
 
         private void MigrateLegacyCustomSoundPath(Providers.Local.LocalSettings localSettings)
@@ -1883,6 +1925,66 @@ namespace PlayniteAchievements.Views
             NotificationsUnlockSoundStatusTextBlock.Text = "Custom background image cleared.";
         }
 
+        private void NotificationsCustomCoverImageBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("Image files|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files|*.*");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomCoverImagePath = selectedPath;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom cover image selected.";
+        }
+
+        private void NotificationsCustomCoverImageClear_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomCoverImagePath = string.Empty;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom cover image cleared.";
+        }
+
+        private void NotificationsCustomBannerImageBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("Image files|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files|*.*");
+            if (string.IsNullOrWhiteSpace(selectedPath))
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomBannerImagePath = selectedPath;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom banner image selected.";
+        }
+
+        private void NotificationsCustomBannerImageClear_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            localSettings.OverlayCustomBannerImagePath = string.Empty;
+            NotificationsUnlockSoundStatusTextBlock.Text = "Custom banner image cleared.";
+        }
+
         private void NotificationsShowCustomPopupPreview_Click(object sender, RoutedEventArgs e)
         {
             ShowCustomPopupPreview(forceStatusMessage: true);
@@ -1909,7 +2011,11 @@ namespace PlayniteAchievements.Views
                 overrideLocalSettings: localSettings,
                 game: previewGame,
                 togglePersistentOverlay: forceStatusMessage,
-                refreshPersistentOverlay: !forceStatusMessage);
+                refreshPersistentOverlay: !forceStatusMessage,
+                achievementDescription: "Win your first fight without taking damage.",
+                achievementPoints: 25,
+                achievementRarity: "12.7%",
+                achievementTrophy: "Gold");
 
             if (forceStatusMessage)
             {
@@ -2051,6 +2157,7 @@ namespace PlayniteAchievements.Views
                     : currentName,
                 AutoResizeToContent = localSettings.OverlayCustomAutoResizeToContent,
                 WrapAllText = localSettings.OverlayCustomWrapAllText,
+                ShowLine1 = localSettings.OverlayCustomShowLine1,
                 ShowBorder = localSettings.OverlayCustomShowBorder,
                 ShowGameName = localSettings.OverlayCustomShowGameName,
                 ShowMeta = localSettings.OverlayCustomShowMeta,
@@ -2067,12 +2174,273 @@ namespace PlayniteAchievements.Views
                 TitleColor = localSettings.OverlayCustomTitleColor,
                 DetailColor = localSettings.OverlayCustomDetailColor,
                 MetaColor = localSettings.OverlayCustomMetaColor,
-                BackgroundImagePath = localSettings.OverlayCustomBackgroundImagePath
+                BackgroundImagePath = localSettings.OverlayCustomBackgroundImagePath,
+                TitleTemplate = localSettings.OverlayCustomTitleTemplate,
+                GameNameTemplate = localSettings.OverlayCustomGameNameTemplate,
+                AchievementTemplate = localSettings.OverlayCustomAchievementTemplate,
+                MetaTemplate = localSettings.OverlayCustomMetaTemplate,
+                IconSource = localSettings.OverlayCustomIconSource,
+                ShowIconRarityGlow = localSettings.OverlayCustomShowIconRarityGlow,
+                CustomCoverImagePath = localSettings.OverlayCustomCoverImagePath,
+                CustomBannerImagePath = localSettings.OverlayCustomBannerImagePath
             };
 
             localSettings.CustomOverlayStyleSlots = slots;
             RefreshCustomStyleSlotControls(localSettings);
             NotificationsUnlockSoundStatusTextBlock.Text = $"Saved current custom style to Slot {slotIndex + 1}.";
+        }
+
+        private void NotificationsExportCustomStyleTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var targetPath = _plugin?.PlayniteApi?.Dialogs?.SaveFile("JSON|*.json");
+                if (string.IsNullOrWhiteSpace(targetPath))
+                {
+                    return;
+                }
+
+                if (!string.Equals(Path.GetExtension(targetPath), ".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetPath += ".json";
+                }
+
+                var slots = EnsureCustomStyleSlots(localSettings);
+                var slotIndex = Math.Max(0, Math.Min(slots.Count - 1, localSettings.SelectedCustomStyleSlot - 1));
+                var slotName = NotificationsCustomStyleSlotComboBox?.Text?.Trim();
+
+                var template = new NotificationOverlayTemplateFile
+                {
+                    SchemaVersion = 1,
+                    TemplateName = string.IsNullOrWhiteSpace(slotName) ? $"Slot {slotIndex + 1}" : slotName,
+                    ExportedAtUtc = DateTime.UtcNow,
+                    CustomStyleSlot = new LocalCustomOverlayStyleSlot
+                    {
+                        Name = string.IsNullOrWhiteSpace(slotName)
+                            ? (string.IsNullOrWhiteSpace(slots[slotIndex]?.Name) ? $"Slot {slotIndex + 1}" : slots[slotIndex].Name)
+                            : slotName,
+                        AutoResizeToContent = localSettings.OverlayCustomAutoResizeToContent,
+                        WrapAllText = localSettings.OverlayCustomWrapAllText,
+                        ShowLine1 = localSettings.OverlayCustomShowLine1,
+                        ShowBorder = localSettings.OverlayCustomShowBorder,
+                        ShowGameName = localSettings.OverlayCustomShowGameName,
+                        ShowMeta = localSettings.OverlayCustomShowMeta,
+                        IconSize = localSettings.OverlayCustomIconSize,
+                        Width = localSettings.OverlayCustomWidth,
+                        Height = localSettings.OverlayCustomHeight,
+                        CornerRadius = localSettings.OverlayCustomCornerRadius,
+                        TitleFontSize = localSettings.OverlayCustomTitleFontSize,
+                        DetailFontSize = localSettings.OverlayCustomDetailFontSize,
+                        MetaFontSize = localSettings.OverlayCustomMetaFontSize,
+                        BackgroundColor = localSettings.OverlayCustomBackgroundColor,
+                        BorderColor = localSettings.OverlayCustomBorderColor,
+                        AccentColor = localSettings.OverlayCustomAccentColor,
+                        TitleColor = localSettings.OverlayCustomTitleColor,
+                        DetailColor = localSettings.OverlayCustomDetailColor,
+                        MetaColor = localSettings.OverlayCustomMetaColor,
+                        BackgroundImagePath = localSettings.OverlayCustomBackgroundImagePath,
+                        TitleTemplate = localSettings.OverlayCustomTitleTemplate,
+                        GameNameTemplate = localSettings.OverlayCustomGameNameTemplate,
+                        AchievementTemplate = localSettings.OverlayCustomAchievementTemplate,
+                        MetaTemplate = localSettings.OverlayCustomMetaTemplate,
+                        IconSource = localSettings.OverlayCustomIconSource,
+                        ShowIconRarityGlow = localSettings.OverlayCustomShowIconRarityGlow,
+                        CustomCoverImagePath = localSettings.OverlayCustomCoverImagePath,
+                        CustomBannerImagePath = localSettings.OverlayCustomBannerImagePath
+                    },
+                    Transition = new NotificationOverlayTransitionTemplate
+                    {
+                        DurationMilliseconds = localSettings.UnlockOverlayDurationMilliseconds,
+                        FadeInMilliseconds = localSettings.UnlockOverlayFadeInMilliseconds,
+                        FadeOutMilliseconds = localSettings.UnlockOverlayFadeOutMilliseconds,
+                        SoundLeadMilliseconds = localSettings.UnlockSoundLeadMilliseconds,
+                        OverlayPosition = localSettings.UnlockOverlayPosition.ToString(),
+                        TransitionStyle = localSettings.UnlockOverlayTransitionStyle.ToString(),
+                        SlideDistance = localSettings.UnlockOverlaySlideDistance,
+                        IconSource = localSettings.OverlayCustomIconSource.ToString(),
+                        EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
+                        GameCoverPosition = localSettings.GameCoverPosition.ToString(),
+                        GameCoverWidth = localSettings.GameCoverWidth,
+                        EnableGameBannerAsBackground = localSettings.EnableGameBannerAsBackground,
+                        GameBannerOpacity = localSettings.GameBannerOpacity,
+                        GameBannerBlurRadius = localSettings.GameBannerBlurRadius,
+                        ShowIconRarityGlow = localSettings.OverlayCustomShowIconRarityGlow,
+                        CustomCoverImagePath = localSettings.OverlayCustomCoverImagePath,
+                        CustomBannerImagePath = localSettings.OverlayCustomBannerImagePath
+                    }
+                };
+
+                var json = JsonConvert.SerializeObject(template, Newtonsoft.Json.Formatting.Indented);
+                File.WriteAllText(targetPath, json);
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Exported custom template to: {targetPath}";
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to export notification custom style template.");
+                NotificationsUnlockSoundStatusTextBlock.Text = "Failed to export custom template.";
+            }
+        }
+
+        private void NotificationsImportCustomStyleTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var selectedPath = _plugin?.PlayniteApi?.Dialogs?.SelectFile("JSON|*.json|All files|*.*");
+                if (string.IsNullOrWhiteSpace(selectedPath) || !File.Exists(selectedPath))
+                {
+                    return;
+                }
+
+                var rawJson = File.ReadAllText(selectedPath);
+                var imported = JsonConvert.DeserializeObject<NotificationOverlayTemplateFile>(rawJson);
+                if (imported?.CustomStyleSlot == null)
+                {
+                    NotificationsUnlockSoundStatusTextBlock.Text = "Invalid template file: missing custom style data.";
+                    return;
+                }
+
+                var slots = EnsureCustomStyleSlots(localSettings);
+                var slotIndex = Math.Max(0, Math.Min(slots.Count - 1, localSettings.SelectedCustomStyleSlot - 1));
+                var importedSlot = imported.CustomStyleSlot;
+                importedSlot.Name = string.IsNullOrWhiteSpace(importedSlot.Name)
+                    ? (string.IsNullOrWhiteSpace(imported.TemplateName) ? $"Slot {slotIndex + 1}" : imported.TemplateName.Trim())
+                    : importedSlot.Name.Trim();
+
+                slots[slotIndex] = importedSlot;
+                localSettings.CustomOverlayStyleSlots = slots;
+
+                ApplyCustomStyleSlotToEditor(localSettings, slots[slotIndex]);
+
+                if (imported.Transition != null)
+                {
+                    localSettings.UnlockOverlayDurationMilliseconds = imported.Transition.DurationMilliseconds;
+                    localSettings.UnlockOverlayFadeInMilliseconds = imported.Transition.FadeInMilliseconds;
+                    localSettings.UnlockOverlayFadeOutMilliseconds = imported.Transition.FadeOutMilliseconds;
+                    localSettings.UnlockSoundLeadMilliseconds = imported.Transition.SoundLeadMilliseconds;
+                    localSettings.UnlockOverlaySlideDistance = imported.Transition.SlideDistance;
+
+                    if (!string.IsNullOrWhiteSpace(imported.Transition.OverlayPosition) &&
+                        Enum.TryParse(imported.Transition.OverlayPosition, true, out LocalUnlockOverlayPosition parsedPosition))
+                    {
+                        localSettings.UnlockOverlayPosition = parsedPosition;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(imported.Transition.TransitionStyle) &&
+                        Enum.TryParse(imported.Transition.TransitionStyle, true, out LocalUnlockOverlayTransitionStyle parsedTransitionStyle))
+                    {
+                        localSettings.UnlockOverlayTransitionStyle = parsedTransitionStyle;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(imported.Transition.IconSource) &&
+                        Enum.TryParse(imported.Transition.IconSource, true, out LocalOverlayIconSource parsedIconSource))
+                    {
+                        localSettings.OverlayCustomIconSource = parsedIconSource;
+                    }
+
+                    localSettings.OverlayCustomShowIconRarityGlow = imported.Transition.ShowIconRarityGlow;
+                    localSettings.OverlayCustomCoverImagePath = imported.Transition.CustomCoverImagePath ?? string.Empty;
+                    localSettings.OverlayCustomBannerImagePath = imported.Transition.CustomBannerImagePath ?? string.Empty;
+
+                    localSettings.EnableGameCoverInOverlay = imported.Transition.EnableGameCoverInOverlay;
+                    localSettings.EnableGameBannerAsBackground = imported.Transition.EnableGameBannerAsBackground;
+                    localSettings.GameCoverWidth = imported.Transition.GameCoverWidth;
+                    localSettings.GameBannerOpacity = imported.Transition.GameBannerOpacity;
+                    localSettings.GameBannerBlurRadius = imported.Transition.GameBannerBlurRadius;
+
+                    if (!string.IsNullOrWhiteSpace(imported.Transition.GameCoverPosition) &&
+                        Enum.TryParse(imported.Transition.GameCoverPosition, true, out LocalOverlayCoverPosition parsedCoverPosition))
+                    {
+                        localSettings.GameCoverPosition = parsedCoverPosition;
+                    }
+                }
+
+                var persisted = _settingsViewModel?.Settings?.Persisted;
+                if (persisted != null)
+                {
+                    var updated = persisted.ProviderUnlockNotificationStyles != null
+                        ? new Dictionary<string, string>(persisted.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    updated["Local"] = NotificationPublisher.NotificationStyleCustom;
+                    persisted.ProviderUnlockNotificationStyles = updated;
+                }
+
+                RefreshCustomStyleSlotControls(localSettings);
+                RefreshNotificationStyleControls();
+                UpdateCustomStyleInlinePreview(localSettings);
+                NotificationsUnlockSoundStatusTextBlock.Text = $"Imported custom template into Slot {slotIndex + 1} and set Local style to Custom.";
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to import notification custom style template.");
+                NotificationsUnlockSoundStatusTextBlock.Text = "Failed to import custom template.";
+            }
+        }
+
+        private void NotificationsOpenTemplateBuilder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var builderPath = ResolveNotificationTemplateBuilderPath();
+                if (string.IsNullOrWhiteSpace(builderPath) || !File.Exists(builderPath))
+                {
+                    NotificationsUnlockSoundStatusTextBlock.Text = "Template builder file was not found.";
+                    _plugin?.PlayniteApi?.Dialogs?.ShowMessage(
+                        "The bundled notification template builder could not be found. Rebuild/reinstall the extension so Resources\\Tools\\notification-template-builder.html is included.",
+                        ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = builderPath,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+
+                NotificationsUnlockSoundStatusTextBlock.Text = "Opened notification template builder.";
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, "Failed to open notification template builder.");
+                NotificationsUnlockSoundStatusTextBlock.Text = "Failed to open notification template builder.";
+                _plugin?.PlayniteApi?.Dialogs?.ShowMessage(
+                    $"Failed to open notification template builder: {ex.Message}",
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private static string ResolveNotificationTemplateBuilderPath()
+        {
+            const string relativeBuilderPath = @"Resources\Tools\notification-template-builder.html";
+            var assemblyDir = Path.GetDirectoryName(typeof(SettingsControl).Assembly.Location) ?? string.Empty;
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory ?? string.Empty;
+
+            var candidates = new[]
+            {
+                Path.Combine(assemblyDir, relativeBuilderPath),
+                Path.Combine(baseDir, relativeBuilderPath),
+                Path.GetFullPath(Path.Combine(assemblyDir, @"..\..\..\tools\notification-template-builder.html")),
+                Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\tools\notification-template-builder.html")),
+                Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, @"tools\notification-template-builder.html"))
+            };
+
+            return candidates.FirstOrDefault(File.Exists);
         }
 
         private void NotificationsLoadCustomStyleSlot_Click(object sender, RoutedEventArgs e)
@@ -2098,6 +2466,20 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            ApplyCustomStyleSlotToEditor(localSettings, slot);
+
+            RefreshCustomStyleSlotControls(localSettings);
+            UpdateCustomStyleInlinePreview(localSettings);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Loaded custom style from Slot {slotIndex + 1}.";
+        }
+
+        private static void ApplyCustomStyleSlotToEditor(Providers.Local.LocalSettings localSettings, LocalCustomOverlayStyleSlot slot)
+        {
+            if (localSettings == null || slot == null)
+            {
+                return;
+            }
+
             localSettings.OverlayCustomWidth = slot.Width;
             localSettings.OverlayCustomHeight = slot.Height;
             localSettings.OverlayCustomCornerRadius = slot.CornerRadius;
@@ -2107,6 +2489,7 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomMetaFontSize = slot.MetaFontSize;
             localSettings.OverlayCustomAutoResizeToContent = slot.AutoResizeToContent;
             localSettings.OverlayCustomWrapAllText = slot.WrapAllText;
+            localSettings.OverlayCustomShowLine1 = slot.ShowLine1;
             localSettings.OverlayCustomShowBorder = slot.ShowBorder;
             localSettings.OverlayCustomShowGameName = slot.ShowGameName;
             localSettings.OverlayCustomShowMeta = slot.ShowMeta;
@@ -2117,10 +2500,14 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomDetailColor = slot.DetailColor;
             localSettings.OverlayCustomMetaColor = slot.MetaColor;
             localSettings.OverlayCustomBackgroundImagePath = slot.BackgroundImagePath;
-
-            RefreshCustomStyleSlotControls(localSettings);
-            UpdateCustomStyleInlinePreview(localSettings);
-            NotificationsUnlockSoundStatusTextBlock.Text = $"Loaded custom style from Slot {slotIndex + 1}.";
+            localSettings.OverlayCustomTitleTemplate = slot.TitleTemplate;
+            localSettings.OverlayCustomGameNameTemplate = slot.GameNameTemplate;
+            localSettings.OverlayCustomAchievementTemplate = slot.AchievementTemplate;
+            localSettings.OverlayCustomMetaTemplate = slot.MetaTemplate;
+            localSettings.OverlayCustomIconSource = slot.IconSource;
+            localSettings.OverlayCustomShowIconRarityGlow = slot.ShowIconRarityGlow;
+            localSettings.OverlayCustomCoverImagePath = slot.CustomCoverImagePath;
+            localSettings.OverlayCustomBannerImagePath = slot.CustomBannerImagePath;
         }
 
         private void NotificationsPickCustomColor_Click(object sender, RoutedEventArgs e)

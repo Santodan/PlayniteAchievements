@@ -96,8 +96,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-- Added more customizations to the `Achievement Notification`
-- Fixed the reset of the configurations
+- v2.2.0 merge
+- Added support for `user_data.ini`- https://github.com/Santodan/PlayniteAchievements/issues/26
+- `Custom Schema` not override when an online schema exists
 
 Added:
 - `Custom Schema` always visible
@@ -106,6 +107,9 @@ Added:
 - Added the possibility to create the `Custom Schema` directly form the extension
 - Added the option of fetching the icon from `View Achievements` when there is no icon in the `Custom Schema` JSON
 - Added the option of setting a `Default` icon in the `Custom Schema`, in the `Icon` tab, that will be set for all the achievements that don't have an icon in the JSON.
+- Added more customizations to the `Achievement Notification`
+- Added a template builder to create a JSON file that can be imported as the notification template
+- Workaround for the reset of the configurations
 
 ## 2026-05-21 - v2.1.5.1
 

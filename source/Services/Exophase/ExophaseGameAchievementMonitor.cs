@@ -145,6 +145,7 @@ namespace PlayniteAchievements.Services.Exophase
                     if (previousSnapshot != null && newlyUnlocked.Count > 0)
                     {
                         var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
+                        var firstUnlocked = newlyUnlocked.FirstOrDefault();
                         var firstIconPath = newlyUnlocked
                             .Select(i => i.UnlockedIconPath)
                             .FirstOrDefault(p => !string.IsNullOrWhiteSpace(p));
@@ -159,7 +160,17 @@ namespace PlayniteAchievements.Services.Exophase
                         {
                             var localSettings = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
                             var soundPath = localSettings?.UnlockSoundPath;
-                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath, game);
+                            _notifications.ShowLocalAchievementUnlocked(
+                                game.Name,
+                                unlockNames,
+                                soundPath,
+                                firstIconPath,
+                                game,
+                                firstUnlocked?.Description,
+                                firstUnlocked?.Points,
+                                firstUnlocked?.Rarity,
+                                firstUnlocked?.Trophy,
+                                notificationProviderKey: "Exophase");
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)
@@ -265,7 +276,11 @@ namespace PlayniteAchievements.Services.Exophase
                 if (string.IsNullOrWhiteSpace(key) || unlocked.ContainsKey(key)) continue;
                 unlocked[key] = new UnlockedAchievementInfo(
                     string.IsNullOrWhiteSpace(a.DisplayName) ? a.ApiName : a.DisplayName,
-                    a.UnlockedIconPath);
+                    a.UnlockedIconPath,
+                    a.Description,
+                    a.Points,
+                    a.RarityDetailText,
+                    a.TrophyType);
             }
 
             return new AchievementSnapshot(data.UnlockedCount, unlocked);
@@ -299,14 +314,22 @@ namespace PlayniteAchievements.Services.Exophase
 
         private sealed class UnlockedAchievementInfo
         {
-            public UnlockedAchievementInfo(string displayName, string unlockedIconPath)
+            public UnlockedAchievementInfo(string displayName, string unlockedIconPath, string description = null, int? points = null, string rarity = null, string trophy = null)
             {
                 DisplayName = displayName ?? string.Empty;
                 UnlockedIconPath = unlockedIconPath ?? string.Empty;
+                Description = description ?? string.Empty;
+                Points = points;
+                Rarity = rarity ?? string.Empty;
+                Trophy = trophy ?? string.Empty;
             }
 
             public string DisplayName { get; }
             public string UnlockedIconPath { get; }
+            public string Description { get; }
+            public int? Points { get; }
+            public string Rarity { get; }
+            public string Trophy { get; }
         }
     }
 }

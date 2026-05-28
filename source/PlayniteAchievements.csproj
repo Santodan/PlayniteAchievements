@@ -146,6 +146,10 @@
     <Content Include="Resources\Sounds\**\*.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\tools\notification-template-builder.html">
+      <Link>Resources\Tools\notification-template-builder.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Resources\StartPage\StartPagePlugin.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

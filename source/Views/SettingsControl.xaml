@@ -2197,6 +2197,185 @@
                                                              Click="NotificationsRemoveCustomStyleSlot_Click"/>
                                                  </Grid>
 
+                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                         <Button Content="Export Template"
+                                                             Margin="0,0,8,0"
+                                                             Click="NotificationsExportCustomStyleTemplate_Click"/>
+                                                         <Button Content="Import Template"
+                                                             Margin="0,0,8,0"
+                                                             Click="NotificationsImportCustomStyleTemplate_Click"/>
+                                                         <Button Content="Open Builder"
+                                                             Click="NotificationsOpenTemplateBuilder_Click"/>
+                                                     </StackPanel>
+
+                                                 <Border Style="{StaticResource SettingGroupCardStyle}" Margin="0,0,0,8">
+                                                     <StackPanel>
+                                                         <TextBlock Text="Custom transition"
+                                                                    Style="{StaticResource SubSectionHeaderStyle}"
+                                                                    Margin="0,0,0,6"/>
+                                                         <Grid Margin="0,0,0,8">
+                                                             <Grid.ColumnDefinitions>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="90"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="90"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="90"/>
+                                                             </Grid.ColumnDefinitions>
+                                                             <TextBlock Text="Duration (ms):"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Grid.Column="1"
+                                                                      Text="{Binding UnlockOverlayDurationMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                             <TextBlock Grid.Column="3"
+                                                                        Text="Fade in (ms):"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Grid.Column="4"
+                                                                      Text="{Binding UnlockOverlayFadeInMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                             <TextBlock Grid.Column="6"
+                                                                        Text="Fade out (ms):"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Grid.Column="7"
+                                                                      Text="{Binding UnlockOverlayFadeOutMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                         </Grid>
+
+                                                         <Grid>
+                                                             <Grid.ColumnDefinitions>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="120"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="140"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="90"/>
+                                                             </Grid.ColumnDefinitions>
+                                                             <TextBlock Text="Sound lead (ms):"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Grid.Column="1"
+                                                                      Text="{Binding UnlockSoundLeadMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                             <TextBlock Grid.Column="3"
+                                                                        Text="Transition style:"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <ComboBox Grid.Column="4"
+                                                                       SelectedValue="{Binding UnlockOverlayTransitionStyle, Mode=TwoWay}"
+                                                                       SelectedValuePath="Tag"
+                                                                       MinWidth="130">
+                                                                 <ComboBoxItem Content="Fade" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.Fade}"/>
+                                                                 <ComboBoxItem Content="Slide from right" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.SlideFromRight}"/>
+                                                                 <ComboBoxItem Content="Slide from left" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.SlideFromLeft}"/>
+                                                                 <ComboBoxItem Content="Slide from top" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.SlideFromTop}"/>
+                                                                 <ComboBoxItem Content="Slide from bottom" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.SlideFromBottom}"/>
+                                                                 <ComboBoxItem Content="Circle" Tag="{x:Static local:LocalUnlockOverlayTransitionStyle.Circle}"/>
+                                                             </ComboBox>
+                                                             <TextBlock Grid.Column="6"
+                                                                        Text="Slide px:"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Grid.Column="7"
+                                                                      Text="{Binding UnlockOverlaySlideDistance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                         </Grid>
+
+                                                         <Grid Margin="0,8,0,0">
+                                                             <Grid.ColumnDefinitions>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="120"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="120"/>
+                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                             </Grid.ColumnDefinitions>
+                                                             <TextBlock Text="Position:"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <ComboBox Grid.Column="1"
+                                                                       SelectedValue="{Binding UnlockOverlayPosition, Mode=TwoWay}"
+                                                                       SelectedValuePath="Tag"
+                                                                       MinWidth="120">
+                                                                 <ComboBoxItem Content="Top right" Tag="{x:Static local:LocalUnlockOverlayPosition.TopRight}"/>
+                                                                 <ComboBoxItem Content="Top left" Tag="{x:Static local:LocalUnlockOverlayPosition.TopLeft}"/>
+                                                                 <ComboBoxItem Content="Bottom right" Tag="{x:Static local:LocalUnlockOverlayPosition.BottomRight}"/>
+                                                                 <ComboBoxItem Content="Bottom left" Tag="{x:Static local:LocalUnlockOverlayPosition.BottomLeft}"/>
+                                                             </ComboBox>
+                                                             <TextBlock Grid.Column="3"
+                                                                        Text="Icon source:"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        FontWeight="SemiBold"/>
+                                                             <ComboBox Grid.Column="4"
+                                                                       SelectedValue="{Binding OverlayCustomIconSource, Mode=TwoWay}"
+                                                                       SelectedValuePath="Tag"
+                                                                       MinWidth="120">
+                                                                 <ComboBoxItem Content="Achievement icon" Tag="{x:Static local:LocalOverlayIconSource.AchievementIcon}"/>
+                                                                 <ComboBoxItem Content="Trophy icon" Tag="{x:Static local:LocalOverlayIconSource.TrophyIcon}"/>
+                                                                 <ComboBoxItem Content="Pentagon icon" Tag="{x:Static local:LocalOverlayIconSource.PentagonIcon}"/>
+                                                                 <ComboBoxItem Content="Provider icon" Tag="{x:Static local:LocalOverlayIconSource.ProviderIcon}"/>
+                                                             </ComboBox>
+                                                             <CheckBox Grid.Column="6"
+                                                                       Content="Rarity glow behind icon"
+                                                                       IsChecked="{Binding OverlayCustomShowIconRarityGlow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                       VerticalAlignment="Center"/>
+                                                         </Grid>
+                                                     </StackPanel>
+                                                 </Border>
+
+                                                 <Border Style="{StaticResource SettingGroupCardStyle}" Margin="0,0,0,8">
+                                                     <StackPanel>
+                                                         <TextBlock Text="Custom text templates (wildcards)"
+                                                                    Style="{StaticResource SubSectionHeaderStyle}"
+                                                                    Margin="0,0,0,6"/>
+                                                         <TextBlock Text="Supported tokens: &lt;title&gt; &lt;gameName&gt; &lt;achievementName&gt; &lt;achievementDescription&gt; &lt;points&gt; &lt;rarity&gt; &lt;trophy&gt; &lt;provider&gt; &lt;style&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;gameId&gt;"
+                                                                    Style="{StaticResource MutedTextStyle}"
+                                                                    TextWrapping="Wrap"
+                                                                    Margin="0,0,0,8"/>
+
+                                                         <DockPanel Margin="0,0,0,6" LastChildFill="True">
+                                                             <CheckBox Content="Line 1"
+                                                                       IsChecked="{Binding OverlayCustomShowLine1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        Width="120"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Text="{Binding OverlayCustomTitleTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                      ToolTip="Empty hides line 1."/>
+                                                         </DockPanel>
+
+                                                         <DockPanel Margin="0,0,0,6" LastChildFill="True">
+                                                             <CheckBox Content="Line 2"
+                                                                       IsChecked="{Binding OverlayCustomShowGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        Width="120"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Text="{Binding OverlayCustomGameNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                         </DockPanel>
+
+                                                         <DockPanel Margin="0,0,0,6" LastChildFill="True">
+                                                             <CheckBox Content="Line 3"
+                                                                       IsChecked="{Binding OverlayCustomShowMeta, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                        VerticalAlignment="Center"
+                                                                        Margin="0,0,8,0"
+                                                                        Width="120"
+                                                                        FontWeight="SemiBold"/>
+                                                             <TextBox Text="{Binding OverlayCustomAchievementTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                         </DockPanel>
+                                                     </StackPanel>
+                                                 </Border>
+
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>
                                                          <ColumnDefinition Width="Auto"/>
@@ -2238,14 +2417,14 @@
                                                      <TextBox Grid.Column="1"
                                                               Text="{Binding OverlayCustomCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                      <TextBlock Grid.Column="3"
-                                                                Text="Title size:"
+                                                                Text="Line 1 size:"
                                                                 VerticalAlignment="Center"
                                                                 Margin="0,0,8,0"
                                                                 FontWeight="SemiBold"/>
                                                      <TextBox Grid.Column="4"
                                                               Text="{Binding OverlayCustomTitleFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                      <TextBlock Grid.Column="6"
-                                                                Text="Text size:"
+                                                                Text="Line 2 size:"
                                                                 VerticalAlignment="Center"
                                                                 Margin="0,0,8,0"
                                                                 FontWeight="SemiBold"/>
@@ -2264,11 +2443,11 @@
                                                          <ColumnDefinition Width="Auto"/>
                                                          <ColumnDefinition Width="Auto"/>
                                                      </Grid.ColumnDefinitions>
-                                                     <CheckBox Content="Meta size:"
+                                                     <TextBlock Text="Line 3 size:"
                                                                VerticalAlignment="Center"
-                                                               IsChecked="{Binding OverlayCustomShowMeta, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                               FontWeight="SemiBold"
+                                                               Margin="0,0,8,0"/>
                                                      <TextBox Grid.Column="1"
-                                                              IsEnabled="{Binding OverlayCustomShowMeta}"
                                                               Text="{Binding OverlayCustomMetaFontSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                      <TextBlock Grid.Column="3"
                                                                 Text="Icon size:"
@@ -2307,9 +2486,6 @@
                                                  <StackPanel Margin="0,0,0,8">
                                                      <CheckBox Content="Show border"
                                                                IsChecked="{Binding OverlayCustomShowBorder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                                     <CheckBox Content="Show game name"
-                                                               Margin="0,4,0,0"
-                                                               IsChecked="{Binding OverlayCustomShowGameName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                  </StackPanel>
 
                                                  <StackPanel Margin="0,0,0,8">
@@ -2319,6 +2495,60 @@
                                                                Margin="0,4,0,0"
                                                                IsChecked="{Binding EnableGameCoverInOverlay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                  </StackPanel>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Custom cover image:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameCoverInOverlay}"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding OverlayCustomCoverImagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding EnableGameCoverInOverlay}"/>
+                                                     <Button Grid.Column="3"
+                                                             Content="Browse"
+                                                             IsEnabled="{Binding EnableGameCoverInOverlay}"
+                                                             Click="NotificationsCustomCoverImageBrowse_Click"/>
+                                                     <Button Grid.Column="5"
+                                                             Content="Clear"
+                                                             IsEnabled="{Binding EnableGameCoverInOverlay}"
+                                                             Click="NotificationsCustomCoverImageClear_Click"/>
+                                                 </Grid>
+
+                                                 <Grid Margin="0,0,0,8">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="*"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                         <ColumnDefinition Width="8"/>
+                                                         <ColumnDefinition Width="Auto"/>
+                                                     </Grid.ColumnDefinitions>
+                                                     <TextBlock Text="Custom banner image:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"
+                                                                IsEnabled="{Binding EnableGameBannerAsBackground}"/>
+                                                     <TextBox Grid.Column="1"
+                                                              Text="{Binding OverlayCustomBannerImagePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding EnableGameBannerAsBackground}"/>
+                                                     <Button Grid.Column="3"
+                                                             Content="Browse"
+                                                             IsEnabled="{Binding EnableGameBannerAsBackground}"
+                                                             Click="NotificationsCustomBannerImageBrowse_Click"/>
+                                                     <Button Grid.Column="5"
+                                                             Content="Clear"
+                                                             IsEnabled="{Binding EnableGameBannerAsBackground}"
+                                                             Click="NotificationsCustomBannerImageClear_Click"/>
+                                                 </Grid>
 
                                                  <Grid Margin="0,0,0,8">
                                                      <Grid.ColumnDefinitions>

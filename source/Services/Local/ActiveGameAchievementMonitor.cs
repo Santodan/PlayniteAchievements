@@ -141,6 +141,7 @@ namespace PlayniteAchievements.Services.Local
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
                 var soundPath = localSettings?.UnlockSoundPath;
                 var unlockNames = newlyUnlocked.Select(item => item.DisplayName).ToList();
+                var firstUnlocked = newlyUnlocked.FirstOrDefault();
                 var firstIconPath = newlyUnlocked
                     .Select(item => item.UnlockedIconPath)
                     .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
@@ -153,7 +154,16 @@ namespace PlayniteAchievements.Services.Local
                 }
                 else
                 {
-                    _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath);
+                    _notifications.ShowLocalAchievementUnlocked(
+                        game.Name,
+                        unlockNames,
+                        soundPath,
+                        firstIconPath,
+                        game,
+                        firstUnlocked?.Description,
+                        firstUnlocked?.Points,
+                        firstUnlocked?.Rarity,
+                        firstUnlocked?.Trophy);
                 }
 
                 _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
@@ -231,6 +241,7 @@ namespace PlayniteAchievements.Services.Local
                         var unlockNames = newlyUnlocked
                             .Select(item => item.DisplayName)
                             .ToList();
+                        var firstUnlocked = newlyUnlocked.FirstOrDefault();
                         var firstIconPath = newlyUnlocked
                             .Select(item => item.UnlockedIconPath)
                             .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
@@ -244,7 +255,16 @@ namespace PlayniteAchievements.Services.Local
                         }
                         else
                         {
-                            _notifications.ShowLocalAchievementUnlocked(game.Name, unlockNames, soundPath, firstIconPath, game);
+                            _notifications.ShowLocalAchievementUnlocked(
+                                game.Name,
+                                unlockNames,
+                                soundPath,
+                                firstIconPath,
+                                game,
+                                firstUnlocked?.Description,
+                                firstUnlocked?.Points,
+                                firstUnlocked?.Rarity,
+                                firstUnlocked?.Trophy);
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)
@@ -365,7 +385,11 @@ namespace PlayniteAchievements.Services.Local
 
                 unlocked[key] = new UnlockedAchievementInfo(
                     string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName,
-                    achievement.UnlockedIconPath);
+                    achievement.UnlockedIconPath,
+                    achievement.Description,
+                    achievement.Points,
+                    achievement.RarityDetailText,
+                    achievement.TrophyType);
             }
 
             return new AchievementSnapshot(data.UnlockedCount, unlocked);
@@ -457,15 +481,27 @@ namespace PlayniteAchievements.Services.Local
 
         private sealed class UnlockedAchievementInfo
         {
-            public UnlockedAchievementInfo(string displayName, string unlockedIconPath)
+            public UnlockedAchievementInfo(string displayName, string unlockedIconPath, string description = null, int? points = null, string rarity = null, string trophy = null)
             {
                 DisplayName = displayName ?? string.Empty;
                 UnlockedIconPath = unlockedIconPath ?? string.Empty;
+                Description = description ?? string.Empty;
+                Points = points;
+                Rarity = rarity ?? string.Empty;
+                Trophy = trophy ?? string.Empty;
             }
 
             public string DisplayName { get; }
 
             public string UnlockedIconPath { get; }
+
+            public string Description { get; }
+
+            public int? Points { get; }
+
+            public string Rarity { get; }
+
+            public string Trophy { get; }
         }
     }
 }

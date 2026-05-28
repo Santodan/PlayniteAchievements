@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playnite Notification Template Builder</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #101113;
+      --surface: #181a1f;
+      --surface-2: #20242a;
+      --surface-3: #282d34;
+      --border: #3a414a;
+      --border-soft: #2a3037;
+      --text: #eef1f4;
+      --muted: #a8b0ba;
+      --accent: #36c2b4;
+      --accent-2: #f5b84b;
+      --danger: #f47174;
+      --shadow: rgba(0, 0, 0, .42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(140deg, rgba(54, 194, 180, .08), transparent 34%),
+        linear-gradient(320deg, rgba(245, 184, 75, .08), transparent 36%),
+        var(--page);
+      color: var(--text);
+      font: 13px/1.4 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(440px, 520px) minmax(520px, 1fr);
+      gap: 14px;
+      min-height: 100vh;
+      padding: 14px;
+    }
+
+    .panel {
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      min-width: 0;
+      box-shadow: 0 18px 50px var(--shadow);
+    }
+
+    .editor {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: calc(100vh - 28px);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      padding: 10px;
+      border-bottom: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+
+    .tab {
+      min-height: 34px;
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .tab.active {
+      color: #051817;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .sections {
+      overflow: auto;
+      padding: 12px;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .group {
+      border: 1px solid var(--border-soft);
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .group h2 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .field {
+      min-width: 0;
+    }
+
+    .field label,
+    .check label {
+      display: block;
+      margin-bottom: 5px;
+      color: #d5dbe3;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      background: #111419;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(54, 194, 180, .18);
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      min-height: 16px;
+      height: 16px;
+      margin: 0 7px 0 0;
+      vertical-align: -3px;
+    }
+
+    input[type="color"] {
+      padding: 0;
+      cursor: pointer;
+    }
+
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+    }
+
+    .check {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border-soft);
+      background: #151920;
+      border-radius: 6px;
+      padding: 8px 9px;
+    }
+
+    .check label {
+      margin: 0;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .color-row {
+      display: grid;
+      grid-template-columns: 42px 1fr;
+      gap: 8px;
+    }
+
+    .token-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 8px 0 0;
+    }
+
+    .token {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 7px;
+      color: #e6ecef;
+      background: #151920;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      border-top: 1px solid var(--border-soft);
+      background: var(--surface);
+    }
+
+    button.action {
+      min-height: 34px;
+      border: 1px solid #1c948b;
+      border-radius: 6px;
+      padding: 7px 12px;
+      cursor: pointer;
+      background: var(--accent);
+      color: #061b19;
+      font-weight: 700;
+    }
+
+    button.secondary {
+      border-color: var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .preview {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-height: calc(100vh - 28px);
+      overflow: hidden;
+    }
+
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+
+    .preview-head h2 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 420px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)),
+        #12151a;
+    }
+
+    .stage-grid {
+      position: absolute;
+      inset: 0;
+      opacity: .28;
+      background-image:
+        linear-gradient(var(--border-soft) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-soft) 1px, transparent 1px);
+      background-size: 36px 36px;
+      pointer-events: none;
+    }
+
+    .toast {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+      box-shadow: 0 18px 40px rgba(0,0,0,.46);
+      transform-origin: center;
+    }
+
+    .toast .icon-wrap {
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      background: rgba(255,255,255,.12);
+      overflow: hidden;
+    }
+
+    .toast .copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .line {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: 0;
+    }
+
+    .cover {
+      display: none;
+      overflow: hidden;
+      background: #1b2028;
+      flex: 0 0 auto;
+    }
+
+    .cover img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .json-pane {
+      border-top: 1px solid var(--border-soft);
+      padding: 12px;
+      background: var(--surface);
+    }
+
+    .json-pane textarea {
+      min-height: 180px;
+      max-height: 34vh;
+    }
+
+    .sr-file {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .editor,
+      .preview {
+        min-height: auto;
+      }
+
+      .stage {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="panel editor">
+      <div class="header">
+        <h1>Custom Notification Builder</h1>
+        <div class="muted">Builds the JSON template format imported by the extension.</div>
+      </div>
+
+      <nav class="tabs" aria-label="Editor sections">
+        <button class="tab active" type="button" data-tab="text">Text</button>
+        <button class="tab" type="button" data-tab="layout">Layout</button>
+        <button class="tab" type="button" data-tab="media">Media</button>
+        <button class="tab" type="button" data-tab="motion">Motion</button>
+        <button class="tab" type="button" data-tab="sample">Sample</button>
+      </nav>
+
+      <div class="sections">
+        <section id="tab-text" class="section active">
+          <div class="group">
+            <h2>Template Identity</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="TemplateName">Template name</label>
+                <input id="TemplateName" value="My Custom Style">
+              </div>
+              <div class="field">
+                <label for="Name">Slot name</label>
+                <input id="Name" value="My Custom Style">
+              </div>
+            </div>
+          </div>
+
+          <div class="group">
+            <h2>Text Lines</h2>
+            <div class="muted">Click a token to insert it into the currently focused text field.</div>
+            <div class="token-bar" id="tokenBar"></div>
+          </div>
+
+          <div class="group">
+            <div class="grid">
+              <div class="check"><label><input id="ShowLine1" type="checkbox" checked> Show line 1</label></div>
+              <div class="field">
+                <label for="TitleFontSize">Line 1 size</label>
+                <input id="TitleFontSize" type="number" value="17">
+              </div>
+            </div>
+            <div class="field">
+              <label for="TitleTemplate">Line 1 template</label>
+              <input id="TitleTemplate" data-template-field value="<title>">
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="grid">
+              <div class="check"><label><input id="ShowGameName" type="checkbox" checked> Show line 2</label></div>
+              <div class="field">
+                <label for="DetailFontSize">Line 2 size</label>
+                <input id="DetailFontSize" type="number" value="13">
+              </div>
+            </div>
+            <div class="field">
+              <label for="GameNameTemplate">Line 2 template</label>
+              <input id="GameNameTemplate" data-template-field value="<gameName>">
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="grid">
+              <div class="check"><label><input id="ShowMeta" type="checkbox" checked> Show line 3</label></div>
+              <div class="field">
+                <label for="MetaFontSize">Line 3 size</label>
+                <input id="MetaFontSize" type="number" value="11">
+              </div>
+            </div>
+            <div class="field">
+              <label for="AchievementTemplate">Line 3 template</label>
+              <input id="AchievementTemplate" data-template-field value="Unlocked: <achievementName>">
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-layout" class="section">
+          <div class="group">
+            <h2>Dimensions</h2>
+            <div class="grid three">
+              <div class="field"><label for="Width">Width</label><input id="Width" type="number" value="460"></div>
+              <div class="field"><label for="Height">Height</label><input id="Height" type="number" value="128"></div>
+              <div class="field"><label for="CornerRadius">Corner radius</label><input id="CornerRadius" type="number" value="18"></div>
+              <div class="field"><label for="IconSize">Icon size</label><input id="IconSize" type="number" value="58"></div>
+              <div class="check"><label><input id="AutoResizeToContent" type="checkbox"> Auto height</label></div>
+              <div class="check"><label><input id="WrapAllText" type="checkbox"> Wrap text</label></div>
+              <div class="check"><label><input id="ShowBorder" type="checkbox" checked> Show border</label></div>
+              <div class="check"><label><input id="ShowIconRarityGlow" type="checkbox"> Icon rarity glow</label></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <h2>Icon Source</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="IconSource">Icon source</label>
+                <select id="IconSource">
+                  <option>AchievementIcon</option>
+                  <option>TrophyIcon</option>
+                  <option>PentagonIcon</option>
+                  <option>ProviderIcon</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="sampleProvider">Preview provider</label>
+                <select id="sampleProvider">
+                  <option>Local</option>
+                  <option>Steam</option>
+                  <option>Epic</option>
+                  <option>GOG</option>
+                  <option>PSN</option>
+                  <option>Xbox</option>
+                  <option>RetroAchievements</option>
+                  <option>Exophase</option>
+                  <option>RPCS3</option>
+                  <option>ShadPS4</option>
+                  <option>Manual</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="group">
+            <h2>Colors</h2>
+            <div class="grid">
+              <div class="field"><label for="BackgroundColor">Background</label><div class="color-row"><input id="BackgroundColorPicker" type="color" value="#1e2430"><input id="BackgroundColor" value="#1E2430"></div></div>
+              <div class="field"><label for="BorderColor">Border</label><div class="color-row"><input id="BorderColorPicker" type="color" value="#6fa3d8"><input id="BorderColor" value="#6FA3D8"></div></div>
+              <div class="field"><label for="AccentColor">Accent</label><div class="color-row"><input id="AccentColorPicker" type="color" value="#a7e0ff"><input id="AccentColor" value="#A7E0FF"></div></div>
+              <div class="field"><label for="TitleColor">Line 1</label><div class="color-row"><input id="TitleColorPicker" type="color" value="#ffffff"><input id="TitleColor" value="#FFFFFF"></div></div>
+              <div class="field"><label for="DetailColor">Line 2</label><div class="color-row"><input id="DetailColorPicker" type="color" value="#e7eef7"><input id="DetailColor" value="#E7EEF7"></div></div>
+              <div class="field"><label for="MetaColor">Line 3</label><div class="color-row"><input id="MetaColorPicker" type="color" value="#bcd0e5"><input id="MetaColor" value="#BCD0E5"></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-media" class="section">
+          <div class="group">
+            <h2>Cover</h2>
+            <div class="grid">
+              <div class="check"><label><input id="EnableGameCoverInOverlay" type="checkbox"> Show game cover</label></div>
+              <div class="field"><label for="GameCoverPosition">Cover position</label><select id="GameCoverPosition"><option>Left</option><option selected>Right</option></select></div>
+              <div class="field"><label for="GameCoverWidth">Cover width</label><input id="GameCoverWidth" type="number" value="80"></div>
+            </div>
+            <div class="field">
+              <label for="coverUrl">Cover image URL, file path, or data URI</label>
+              <input id="coverUrl" placeholder="https://.../cover.jpg or C:\Images\cover.jpg">
+            </div>
+            <button type="button" class="action secondary" id="browseCoverBtn">Browse Cover Image</button>
+            <input id="coverFile" class="sr-file" type="file" accept="image/*">
+          </div>
+
+          <div class="group">
+            <h2>Banner</h2>
+            <div class="grid">
+              <div class="check"><label><input id="EnableGameBannerAsBackground" type="checkbox"> Use banner background</label></div>
+              <div class="field"><label for="GameBannerOpacity">Banner opacity</label><input id="GameBannerOpacity" type="number" step="0.05" value="0.3"></div>
+              <div class="field"><label for="GameBannerBlurRadius">Banner blur radius</label><input id="GameBannerBlurRadius" type="number" value="8"></div>
+            </div>
+            <div class="field">
+              <label for="bannerUrl">Banner image URL, file path, or data URI</label>
+              <input id="bannerUrl" placeholder="https://.../banner.jpg or C:\Images\banner.jpg">
+            </div>
+            <button type="button" class="action secondary" id="browseBannerBtn">Browse Banner Image</button>
+            <input id="bannerFile" class="sr-file" type="file" accept="image/*">
+          </div>
+        </section>
+
+        <section id="tab-motion" class="section">
+          <div class="group">
+            <h2>Timing</h2>
+            <div class="grid">
+              <div class="field"><label for="DurationMilliseconds">Duration ms</label><input id="DurationMilliseconds" type="number" value="3400"></div>
+              <div class="field"><label for="FadeInMilliseconds">Fade in ms</label><input id="FadeInMilliseconds" type="number" value="180"></div>
+              <div class="field"><label for="FadeOutMilliseconds">Fade out ms</label><input id="FadeOutMilliseconds" type="number" value="280"></div>
+              <div class="field"><label for="SoundLeadMilliseconds">Sound lead ms</label><input id="SoundLeadMilliseconds" type="number" value="0"></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <h2>Placement</h2>
+            <div class="grid">
+              <div class="field"><label for="OverlayPosition">Position</label><select id="OverlayPosition"><option>TopRight</option><option>TopLeft</option><option>BottomRight</option><option>BottomLeft</option></select></div>
+              <div class="field"><label for="TransitionStyle">Transition style</label><select id="TransitionStyle"><option>Fade</option><option>SlideFromRight</option><option>SlideFromLeft</option><option>SlideFromTop</option><option>SlideFromBottom</option><option>Circle</option></select></div>
+              <div class="field"><label for="SlideDistance">Slide distance</label><input id="SlideDistance" type="number" value="72"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-sample" class="section">
+          <div class="group">
+            <h2>Sample Achievement</h2>
+            <div class="grid">
+              <div class="field"><label for="sampleGameName">Game name</label><input id="sampleGameName" value="Hades"></div>
+              <div class="field"><label for="sampleAchievementName">Achievement name</label><input id="sampleAchievementName" value="Blood Bound"></div>
+              <div class="field"><label for="sampleAchievementDescription">Description</label><input id="sampleAchievementDescription" value="Win your first run without taking damage."></div>
+              <div class="field"><label for="samplePoints">Points</label><input id="samplePoints" type="number" value="25"></div>
+              <div class="field"><label for="sampleRarity">Rarity</label><input id="sampleRarity" value="12.7%"></div>
+              <div class="field"><label for="sampleTrophy">Trophy</label><input id="sampleTrophy" value="Gold"></div>
+              <div class="field"><label for="sampleSource">Source</label><input id="sampleSource" value="Steam"></div>
+              <div class="field"><label for="sampleGameId">Game id</label><input id="sampleGameId" value="00000000-0000-0000-0000-000000000000"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="editor-actions">
+        <button id="downloadBtn" type="button" class="action">Download JSON</button>
+        <button id="copyBtn" type="button" class="action secondary">Copy JSON</button>
+        <button id="loadBtn" type="button" class="action secondary">Load JSON</button>
+        <input id="fileInput" class="sr-file" type="file" accept=".json">
+      </div>
+    </aside>
+
+    <main class="panel preview">
+      <div class="preview-head">
+        <div>
+          <h2>Preview</h2>
+          <div class="muted">Browser approximation of the extension overlay.</div>
+        </div>
+        <div class="muted" id="previewStatus"></div>
+      </div>
+
+      <div id="stage" class="stage">
+        <div class="stage-grid"></div>
+        <div id="toast" class="toast">
+          <div id="coverLeft" class="cover"></div>
+          <div id="iconWrap" class="icon-wrap"></div>
+          <div class="copy">
+            <div id="line1" class="line"></div>
+            <div id="line2" class="line"></div>
+            <div id="line3" class="line"></div>
+          </div>
+          <div id="coverRight" class="cover"></div>
+        </div>
+      </div>
+
+      <div class="json-pane">
+        <div class="field">
+          <label for="jsonOutput">Generated JSON</label>
+          <textarea id="jsonOutput" spellcheck="false"></textarea>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const tokens = [
+      '<title>', '<gameName>', '<achievementName>', '<achievementDescription>',
+      '<points>', '<rarity>', '<trophy>', '<provider>', '<style>', '<date>',
+      '<time>', '<dateTime>', '<source>', '<gameId>'
+    ];
+
+    const ids = [
+      'TemplateName', 'Name', 'AutoResizeToContent', 'WrapAllText', 'ShowLine1',
+      'ShowBorder', 'ShowGameName', 'ShowMeta', 'IconSize', 'Width', 'Height',
+      'CornerRadius', 'TitleFontSize', 'DetailFontSize', 'MetaFontSize',
+      'ShowIconRarityGlow', 'BackgroundColor', 'BorderColor', 'AccentColor',
+      'TitleColor', 'DetailColor', 'MetaColor', 'TitleTemplate',
+      'GameNameTemplate', 'AchievementTemplate', 'DurationMilliseconds',
+      'FadeInMilliseconds', 'FadeOutMilliseconds', 'SoundLeadMilliseconds',
+      'OverlayPosition', 'TransitionStyle', 'SlideDistance', 'IconSource',
+      'EnableGameCoverInOverlay', 'GameCoverPosition', 'GameCoverWidth',
+      'EnableGameBannerAsBackground', 'GameBannerOpacity', 'GameBannerBlurRadius',
+      'coverUrl', 'bannerUrl', 'sampleGameName', 'sampleAchievementName',
+      'sampleAchievementDescription', 'samplePoints', 'sampleRarity',
+      'sampleTrophy', 'sampleProvider', 'sampleSource', 'sampleGameId'
+    ];
+
+    const providerPreview = {
+      Local: { label: 'LOCAL', color: '#FF8A00' },
+      Steam: { label: 'STEAM', color: '#B0B0B0' },
+      Epic: { label: 'EPIC', color: '#26BBFF' },
+      GOG: { label: 'GOG', color: '#A855F7' },
+      PSN: { label: 'PSN', color: '#0070D1' },
+      Xbox: { label: 'XBOX', color: '#107C10' },
+      RetroAchievements: { label: 'RA', color: '#FFD700' },
+      Exophase: { label: 'EXO', color: '#2F8AB3' },
+      RPCS3: { label: 'PS3', color: '#686DE0' },
+      ShadPS4: { label: 'PS4', color: '#752BFD' },
+      Manual: { label: 'MAN', color: '#FF652C' }
+    };
+
+    const $ = id => document.getElementById(id);
+    const num = id => Number($(id).value || 0);
+    const bool = id => !!$(id).checked;
+    const hex = value => {
+      const text = (value || '').trim();
+      return (text.startsWith('#') ? text : '#' + text).toUpperCase();
+    };
+
+    let focusedTemplateField = null;
+
+    function initializeTabs() {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(item => item.classList.remove('active'));
+          document.querySelectorAll('.section').forEach(item => item.classList.remove('active'));
+          tab.classList.add('active');
+          $('tab-' + tab.dataset.tab).classList.add('active');
+        });
+      });
+    }
+
+    function initializeTokens() {
+      const bar = $('tokenBar');
+      tokens.forEach(token => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'token';
+        button.textContent = token;
+        button.addEventListener('click', () => insertToken(token));
+        bar.appendChild(button);
+      });
+
+      document.querySelectorAll('[data-template-field]').forEach(input => {
+        input.addEventListener('focus', () => focusedTemplateField = input);
+      });
+      focusedTemplateField = $('AchievementTemplate');
+    }
+
+    function insertToken(token) {
+      const target = focusedTemplateField || $('AchievementTemplate');
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      target.value = target.value.slice(0, start) + token + target.value.slice(end);
+      target.focus();
+      target.selectionStart = target.selectionEnd = start + token.length;
+      render();
+    }
+
+    function initializeColorInputs() {
+      [
+        ['BackgroundColor', 'BackgroundColorPicker'],
+        ['BorderColor', 'BorderColorPicker'],
+        ['AccentColor', 'AccentColorPicker'],
+        ['TitleColor', 'TitleColorPicker'],
+        ['DetailColor', 'DetailColorPicker'],
+        ['MetaColor', 'MetaColorPicker']
+      ].forEach(([textId, pickerId]) => {
+        const text = $(textId);
+        const picker = $(pickerId);
+        picker.addEventListener('input', () => {
+          text.value = picker.value.toUpperCase();
+          render();
+        });
+        text.addEventListener('input', () => {
+          const value = hex(text.value);
+          if (/^#[0-9A-F]{6}$/i.test(value)) {
+            picker.value = value;
+          }
+          render();
+        });
+      });
+    }
+
+    function normalizeImageInput(raw) {
+      const value = (raw || '').trim();
+      if (!value) return '';
+      if (/^(https?:|file:|data:)/i.test(value)) return value;
+      if (/^[a-zA-Z]:\\/.test(value)) return encodeURI('file:///' + value.replace(/\\/g, '/'));
+      if (value.startsWith('\\\\')) return encodeURI('file:' + value.replace(/\\/g, '/'));
+      return value;
+    }
+
+    function tokenReplace(template) {
+      const date = new Date();
+      const datePart = date.toISOString().slice(0, 10);
+      const timePart = date.toTimeString().slice(0, 8);
+      const map = {
+        title: 'Local Achievement Unlocked',
+        gamename: $('sampleGameName').value || '',
+        achievementname: $('sampleAchievementName').value || '',
+        achievementdescription: $('sampleAchievementDescription').value || '',
+        points: String($('samplePoints').value || ''),
+        rarity: $('sampleRarity').value || '',
+        trophy: $('sampleTrophy').value || '',
+        provider: $('sampleProvider').value || '',
+        style: 'Custom',
+        date: datePart,
+        time: timePart,
+        datetime: `${datePart} ${timePart}`,
+        source: $('sampleSource').value || '',
+        gameid: $('sampleGameId').value || ''
+      };
+
+      return (template || '')
+        .replace(/<([a-zA-Z0-9]+)>/g, (_, key) => map[(key || '').toLowerCase()] ?? `<${key}>`)
+        .trim();
+    }
+
+    function buildData() {
+      return {
+        SchemaVersion: 1,
+        TemplateName: $('TemplateName').value || 'Custom Template',
+        ExportedAtUtc: new Date().toISOString(),
+        CustomStyleSlot: {
+          Name: $('Name').value || 'Slot',
+          AutoResizeToContent: bool('AutoResizeToContent'),
+          WrapAllText: bool('WrapAllText'),
+          ShowLine1: bool('ShowLine1'),
+          ShowBorder: bool('ShowBorder'),
+          ShowGameName: bool('ShowGameName'),
+          ShowMeta: bool('ShowMeta'),
+          IconSize: num('IconSize'),
+          Width: num('Width'),
+          Height: num('Height'),
+          CornerRadius: num('CornerRadius'),
+          TitleFontSize: num('TitleFontSize'),
+          DetailFontSize: num('DetailFontSize'),
+          MetaFontSize: num('MetaFontSize'),
+          BackgroundColor: hex($('BackgroundColor').value),
+          BorderColor: hex($('BorderColor').value),
+          AccentColor: hex($('AccentColor').value),
+          TitleColor: hex($('TitleColor').value),
+          DetailColor: hex($('DetailColor').value),
+          MetaColor: hex($('MetaColor').value),
+          BackgroundImagePath: '',
+          TitleTemplate: $('TitleTemplate').value,
+          GameNameTemplate: $('GameNameTemplate').value,
+          AchievementTemplate: $('AchievementTemplate').value,
+          MetaTemplate: '<provider> / Custom',
+          IconSource: $('IconSource').value,
+          ShowIconRarityGlow: bool('ShowIconRarityGlow'),
+          CustomCoverImagePath: $('coverUrl').value || '',
+          CustomBannerImagePath: $('bannerUrl').value || ''
+        },
+        Transition: {
+          DurationMilliseconds: num('DurationMilliseconds'),
+          FadeInMilliseconds: num('FadeInMilliseconds'),
+          FadeOutMilliseconds: num('FadeOutMilliseconds'),
+          SoundLeadMilliseconds: num('SoundLeadMilliseconds'),
+          OverlayPosition: $('OverlayPosition').value,
+          TransitionStyle: $('TransitionStyle').value,
+          SlideDistance: num('SlideDistance'),
+          IconSource: $('IconSource').value,
+          EnableGameCoverInOverlay: bool('EnableGameCoverInOverlay'),
+          GameCoverPosition: $('GameCoverPosition').value,
+          GameCoverWidth: num('GameCoverWidth'),
+          EnableGameBannerAsBackground: bool('EnableGameBannerAsBackground'),
+          GameBannerOpacity: Number($('GameBannerOpacity').value || 0.3),
+          GameBannerBlurRadius: num('GameBannerBlurRadius'),
+          ShowIconRarityGlow: bool('ShowIconRarityGlow'),
+          CustomCoverImagePath: $('coverUrl').value || '',
+          CustomBannerImagePath: $('bannerUrl').value || ''
+        }
+      };
+    }
+
+    function setLine(element, text, size, color, enabled, wrap) {
+      element.textContent = text || '';
+      element.style.display = enabled && text ? 'block' : 'none';
+      element.style.fontSize = `${size}px`;
+      element.style.color = color;
+      element.style.whiteSpace = wrap ? 'normal' : 'nowrap';
+      element.style.textOverflow = wrap ? 'clip' : 'ellipsis';
+    }
+
+    function renderIcon(slot) {
+      const iconWrap = $('iconWrap');
+      const size = Math.max(24, slot.IconSize);
+      iconWrap.innerHTML = '';
+      iconWrap.style.width = `${size}px`;
+      iconWrap.style.height = `${size}px`;
+      iconWrap.style.borderRadius = `${Math.max(6, slot.CornerRadius / 2.5)}px`;
+      iconWrap.style.color = slot.TitleColor;
+      iconWrap.style.fontWeight = '800';
+
+      if (slot.IconSource === 'PentagonIcon') {
+        iconWrap.innerHTML = `<svg width="${size * .84}" height="${size * .84}" viewBox="0 0 100 100" aria-hidden="true"><polygon points="50,6 92,36 76,92 24,92 8,36" fill="${slot.TitleColor}"/></svg>`;
+      } else if (slot.IconSource === 'ProviderIcon') {
+        const provider = providerPreview[$('sampleProvider').value] || providerPreview.Local;
+        iconWrap.innerHTML = `<div style="display:grid;place-items:center;width:${size}px;height:${size}px;border-radius:${Math.max(6, slot.CornerRadius / 2.5)}px;background:${provider.color};color:#0b0d10;font-size:${Math.max(10, size / 4.8)}px;font-weight:900">${provider.label}</div>`;
+      } else if (slot.IconSource === 'TrophyIcon') {
+        iconWrap.innerHTML = `<svg width="${size * .72}" height="${size * .72}" viewBox="0 0 64 64" aria-hidden="true"><path fill="${slot.TitleColor}" d="M18 8h28v8h8v7c0 9-6 16-14 18-2 4-5 7-8 8v7h10v6H22v-6h10v-7c-4-1-7-4-8-8-8-2-14-9-14-18v-7h8V8Zm0 14h-4v1c0 5 3 9 8 11-2-4-4-8-4-12Zm28 0c0 4-1 8-4 12 5-2 8-6 8-11v-1h-4Z"/></svg>`;
+      } else {
+        iconWrap.innerHTML = `<svg width="${size * .7}" height="${size * .7}" viewBox="0 0 64 64" aria-hidden="true"><path fill="${slot.TitleColor}" d="m32 6 8 17 18 3-13 13 3 18-16-8-16 8 3-18L6 26l18-3 8-17Z"/></svg>`;
+      }
+    }
+
+    function positionToast(toast, stage, slot, position) {
+      const margin = 16;
+      const width = Math.max(280, slot.Width);
+      const height = Math.max(90, slot.Height);
+      const stageWidth = stage.clientWidth;
+      const stageHeight = stage.clientHeight;
+      let x = stageWidth - width - margin;
+      let y = margin;
+
+      if (position === 'TopLeft') {
+        x = margin;
+      } else if (position === 'BottomLeft') {
+        x = margin;
+        y = stageHeight - height - margin;
+      } else if (position === 'BottomRight') {
+        y = stageHeight - height - margin;
+      }
+
+      toast.style.left = `${Math.max(0, x)}px`;
+      toast.style.top = `${Math.max(0, y)}px`;
+    }
+
+    function applyAnimation(toast, transition) {
+      const fadeIn = Math.max(0, transition.FadeInMilliseconds);
+      const fadeOut = Math.max(0, transition.FadeOutMilliseconds);
+      const stay = Math.max(500, transition.DurationMilliseconds);
+      const total = Math.max(1, fadeIn + fadeOut + stay);
+      const fadeInPct = Math.max(1, Math.round((fadeIn / total) * 100));
+      const stayPct = Math.max(fadeInPct + 1, Math.round(((fadeIn + stay) / total) * 100));
+      const distance = Math.max(0, transition.SlideDistance || 72);
+
+      let start = 'translate(0,0) scale(1) rotate(0deg)';
+      let end = 'translate(0,0) scale(1) rotate(0deg)';
+      if (transition.TransitionStyle === 'SlideFromRight') {
+        start = `translate(${distance}px,0)`;
+        end = `translate(${-distance}px,0)`;
+      } else if (transition.TransitionStyle === 'SlideFromLeft') {
+        start = `translate(${-distance}px,0)`;
+        end = `translate(${distance}px,0)`;
+      } else if (transition.TransitionStyle === 'SlideFromTop') {
+        start = `translate(0,${-distance}px)`;
+        end = `translate(0,${distance}px)`;
+      } else if (transition.TransitionStyle === 'SlideFromBottom') {
+        start = `translate(0,${distance}px)`;
+        end = `translate(0,${-distance}px)`;
+      } else if (transition.TransitionStyle === 'Circle') {
+        start = 'translate(0,0) scale(.2) rotate(-14deg)';
+        end = 'translate(0,0) scale(.2) rotate(14deg)';
+      }
+
+      let keyframes = $('dynamicKeyframes');
+      if (!keyframes) {
+        keyframes = document.createElement('style');
+        keyframes.id = 'dynamicKeyframes';
+        document.head.appendChild(keyframes);
+      }
+      keyframes.textContent = `@keyframes toastPreview{0%{opacity:0;transform:${start}} ${fadeInPct}%{opacity:1;transform:translate(0,0) scale(1) rotate(0deg)} ${stayPct}%{opacity:1;transform:translate(0,0) scale(1) rotate(0deg)} 100%{opacity:0;transform:${end}}}`;
+
+      toast.style.animation = 'none';
+      void toast.offsetWidth;
+      toast.style.animation = `toastPreview ${total}ms linear infinite`;
+    }
+
+    function renderCover(target, url, width, height, radius) {
+      target.style.display = 'block';
+      target.style.width = `${Math.max(40, width)}px`;
+      target.style.height = `${Math.max(70, height)}px`;
+      target.style.borderRadius = `${Math.max(4, radius)}px`;
+      target.innerHTML = url
+        ? `<img src="${url}" alt="cover">`
+        : '<div style="display:grid;place-items:center;height:100%;color:#aeb8c4;font-weight:700">COVER</div>';
+    }
+
+    function render() {
+      const data = buildData();
+      const slot = data.CustomStyleSlot;
+      const transition = data.Transition;
+      const stage = $('stage');
+      const toast = $('toast');
+
+      stage.style.background = 'linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)), #12151a';
+      stage.style.backgroundImage = '';
+      stage.style.backgroundSize = '';
+      stage.style.backgroundPosition = '';
+
+      const banner = normalizeImageInput($('bannerUrl').value);
+      if (transition.EnableGameBannerAsBackground && banner) {
+        stage.style.backgroundImage = `linear-gradient(rgba(12,14,17,.42),rgba(12,14,17,.76)),url('${banner}')`;
+        stage.style.backgroundSize = 'cover';
+        stage.style.backgroundPosition = 'center';
+      }
+
+      const width = Math.max(280, slot.Width);
+      const height = Math.max(90, slot.Height);
+      toast.style.width = `${width}px`;
+      toast.style.minHeight = `${height}px`;
+      toast.style.padding = '14px 16px';
+      toast.style.background = slot.BackgroundColor;
+      toast.style.border = slot.ShowBorder ? `1.5px solid ${slot.BorderColor}` : '0';
+      toast.style.borderRadius = `${Math.max(0, slot.CornerRadius)}px`;
+
+      setLine($('line1'), tokenReplace(slot.TitleTemplate), slot.TitleFontSize, slot.TitleColor, slot.ShowLine1, slot.WrapAllText);
+      setLine($('line2'), tokenReplace(slot.GameNameTemplate), slot.DetailFontSize, slot.DetailColor, slot.ShowGameName, slot.WrapAllText);
+      setLine($('line3'), tokenReplace(slot.AchievementTemplate), slot.MetaFontSize, slot.AccentColor, slot.ShowMeta, slot.WrapAllText);
+      renderIcon(slot);
+
+      if (slot.ShowIconRarityGlow) {
+        const rarity = ($('sampleRarity').value || '').toLowerCase();
+        const glow = rarity.includes('ultra') ? '#7CD6FF' : rarity.includes('rare') ? '#FFDF85' : rarity.includes('uncommon') ? '#C2DDFF' : '#E6BA90';
+        $('iconWrap').style.boxShadow = `0 0 18px ${glow}`;
+      } else {
+        $('iconWrap').style.boxShadow = 'none';
+      }
+
+      const coverLeft = $('coverLeft');
+      const coverRight = $('coverRight');
+      [coverLeft, coverRight].forEach(cover => {
+        cover.style.display = 'none';
+        cover.innerHTML = '';
+      });
+
+      if (transition.EnableGameCoverInOverlay) {
+        const target = transition.GameCoverPosition === 'Left' ? coverLeft : coverRight;
+        const coverHeight = Math.max(slot.IconSize + 18, height - 24);
+        renderCover(target, normalizeImageInput($('coverUrl').value), transition.GameCoverWidth, coverHeight, Math.max(4, slot.CornerRadius / 2.5));
+      }
+
+      positionToast(toast, stage, slot, transition.OverlayPosition);
+      applyAnimation(toast, transition);
+      $('jsonOutput').value = JSON.stringify(data, null, 2);
+      $('previewStatus').textContent = `${width} x ${height} / ${transition.OverlayPosition}`;
+    }
+
+    function downloadJson() {
+      const blob = new Blob([$('jsonOutput').value], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = (($('TemplateName').value || 'template').replace(/[^a-z0-9-_]+/gi, '_')) + '.json';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function copyJson() {
+      navigator.clipboard?.writeText($('jsonOutput').value || '');
+    }
+
+    function loadFromObject(obj) {
+      if (!obj) return;
+      const slot = obj.CustomStyleSlot || {};
+      const transition = obj.Transition || {};
+      const assign = (id, value) => {
+        if (value !== undefined && $(id)) $(id).value = value;
+      };
+      const check = (id, value) => {
+        if (value !== undefined && $(id)) $(id).checked = !!value;
+      };
+
+      assign('TemplateName', obj.TemplateName);
+      assign('Name', slot.Name);
+      check('AutoResizeToContent', slot.AutoResizeToContent);
+      check('WrapAllText', slot.WrapAllText);
+      check('ShowLine1', slot.ShowLine1 !== false);
+      check('ShowBorder', slot.ShowBorder !== false);
+      check('ShowGameName', slot.ShowGameName !== false);
+      check('ShowMeta', slot.ShowMeta !== false);
+      check('ShowIconRarityGlow', slot.ShowIconRarityGlow === true || transition.ShowIconRarityGlow === true);
+
+      [
+        'IconSize', 'Width', 'Height', 'CornerRadius', 'TitleFontSize',
+        'DetailFontSize', 'MetaFontSize', 'BackgroundColor', 'BorderColor',
+        'AccentColor', 'TitleColor', 'DetailColor', 'MetaColor',
+        'TitleTemplate', 'GameNameTemplate', 'AchievementTemplate', 'IconSource'
+      ].forEach(key => assign(key, slot[key]));
+
+      [
+        'DurationMilliseconds', 'FadeInMilliseconds', 'FadeOutMilliseconds',
+        'SoundLeadMilliseconds', 'OverlayPosition', 'TransitionStyle',
+        'SlideDistance', 'GameCoverPosition', 'GameCoverWidth',
+        'GameBannerOpacity', 'GameBannerBlurRadius'
+      ].forEach(key => assign(key, transition[key]));
+
+      if (transition.IconSource && !slot.IconSource) assign('IconSource', transition.IconSource);
+      check('EnableGameCoverInOverlay', transition.EnableGameCoverInOverlay);
+      check('EnableGameBannerAsBackground', transition.EnableGameBannerAsBackground);
+      assign('coverUrl', slot.CustomCoverImagePath || transition.CustomCoverImagePath || $('coverUrl').value);
+      assign('bannerUrl', slot.CustomBannerImagePath || transition.CustomBannerImagePath || $('bannerUrl').value);
+      syncColorPickers();
+      render();
+    }
+
+    function syncColorPickers() {
+      [
+        ['BackgroundColor', 'BackgroundColorPicker'],
+        ['BorderColor', 'BorderColorPicker'],
+        ['AccentColor', 'AccentColorPicker'],
+        ['TitleColor', 'TitleColorPicker'],
+        ['DetailColor', 'DetailColorPicker'],
+        ['MetaColor', 'MetaColorPicker']
+      ].forEach(([textId, pickerId]) => {
+        const value = hex($(textId).value);
+        if (/^#[0-9A-F]{6}$/i.test(value)) {
+          $(pickerId).value = value;
+        }
+      });
+    }
+
+    async function fileToDataUri(file) {
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result || '');
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function initializeFileInputs() {
+      $('browseCoverBtn').addEventListener('click', () => $('coverFile').click());
+      $('browseBannerBtn').addEventListener('click', () => $('bannerFile').click());
+      $('coverFile').addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try { $('coverUrl').value = await fileToDataUri(file); } catch {}
+        event.target.value = '';
+        render();
+      });
+      $('bannerFile').addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try { $('bannerUrl').value = await fileToDataUri(file); } catch {}
+        event.target.value = '';
+        render();
+      });
+      $('fileInput').addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try { loadFromObject(JSON.parse(await file.text())); } catch {}
+        event.target.value = '';
+      });
+    }
+
+    ids.forEach(id => {
+      const element = $(id);
+      if (!element) return;
+      element.addEventListener('input', render);
+      element.addEventListener('change', render);
+    });
+
+    window.addEventListener('resize', render);
+    initializeTabs();
+    initializeTokens();
+    initializeColorInputs();
+    initializeFileInputs();
+    $('downloadBtn').addEventListener('click', downloadJson);
+    $('copyBtn').addEventListener('click', copyJson);
+    $('loadBtn').addEventListener('click', () => $('fileInput').click());
+    render();
+  </script>
+</body>
+</html>

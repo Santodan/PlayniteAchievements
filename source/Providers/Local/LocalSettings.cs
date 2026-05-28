@@ -69,6 +69,24 @@ namespace PlayniteAchievements.Providers.Local
         Right = 2
     }
 
+    public enum LocalUnlockOverlayTransitionStyle
+    {
+        Fade = 0,
+        SlideFromRight = 1,
+        SlideFromLeft = 2,
+        SlideFromTop = 3,
+        SlideFromBottom = 4,
+        Circle = 5
+    }
+
+    public enum LocalOverlayIconSource
+    {
+        AchievementIcon = 0,
+        TrophyIcon = 1,
+        PentagonIcon = 2,
+        ProviderIcon = 3
+    }
+
     public sealed class LocalMetadataSourceOption
     {
         public LocalMetadataSourceOption(string id, string displayName)
@@ -100,6 +118,7 @@ namespace PlayniteAchievements.Providers.Local
         public string Name { get; set; } = string.Empty;
         public bool AutoResizeToContent { get; set; }
         public bool WrapAllText { get; set; }
+        public bool ShowLine1 { get; set; } = true;
         public bool ShowBorder { get; set; } = true;
         public bool ShowGameName { get; set; } = true;
         public bool ShowMeta { get; set; } = true;
@@ -117,6 +136,14 @@ namespace PlayniteAchievements.Providers.Local
         public string DetailColor { get; set; } = "#E7EEF7";
         public string MetaColor { get; set; } = "#BCD0E5";
         public string BackgroundImagePath { get; set; } = string.Empty;
+        public string TitleTemplate { get; set; } = "<title>";
+        public string GameNameTemplate { get; set; } = "<gameName>";
+        public string AchievementTemplate { get; set; } = "Unlocked: <achievementName>";
+        public string MetaTemplate { get; set; } = "<provider> / Custom";
+        public LocalOverlayIconSource IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon;
+        public bool ShowIconRarityGlow { get; set; }
+        public string CustomCoverImagePath { get; set; } = string.Empty;
+        public string CustomBannerImagePath { get; set; } = string.Empty;
     }
 
     public class LocalSettings : ProviderSettingsBase
@@ -153,6 +180,8 @@ namespace PlayniteAchievements.Providers.Local
         private int _unlockOverlayDurationMilliseconds = 3400;
         private int _unlockOverlayFadeInMilliseconds = 180;
         private int _unlockOverlayFadeOutMilliseconds = 280;
+        private LocalUnlockOverlayTransitionStyle _unlockOverlayTransitionStyle = LocalUnlockOverlayTransitionStyle.Fade;
+        private int _unlockOverlaySlideDistance = 72;
         private int _unlockSoundLeadMilliseconds;
         private double _overlaySteamOpacity = 0.96;
         private double _overlayPlayStationOpacity = 0.96;
@@ -173,6 +202,7 @@ namespace PlayniteAchievements.Providers.Local
         private double _overlayCustomMetaFontSize = 11;
         private bool _overlayCustomAutoResizeToContent;
         private bool _overlayCustomWrapAllText;
+        private bool _overlayCustomShowLine1 = true;
         private bool _overlayCustomShowBorder = true;
         private bool _overlayCustomShowGameName = true;
         private bool _overlayCustomShowMeta = true;
@@ -183,6 +213,14 @@ namespace PlayniteAchievements.Providers.Local
         private string _overlayCustomDetailColor = "#E7EEF7";
         private string _overlayCustomMetaColor = "#BCD0E5";
         private string _overlayCustomBackgroundImagePath = string.Empty;
+        private string _overlayCustomTitleTemplate = "<title>";
+        private string _overlayCustomGameNameTemplate = "<gameName>";
+        private string _overlayCustomAchievementTemplate = "Unlocked: <achievementName>";
+        private string _overlayCustomMetaTemplate = "<provider> / Custom";
+        private LocalOverlayIconSource _overlayCustomIconSource = LocalOverlayIconSource.AchievementIcon;
+        private bool _overlayCustomShowIconRarityGlow;
+        private string _overlayCustomCoverImagePath = string.Empty;
+        private string _overlayCustomBannerImagePath = string.Empty;
         private int _selectedCustomStyleSlot = 1;
         private List<LocalCustomOverlayStyleSlot> _customOverlayStyleSlots = CreateDefaultCustomOverlayStyleSlots();
         private bool _enableInAppUnlockNotifications = true;
@@ -314,6 +352,18 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _unlockOverlayFadeOutMilliseconds, Math.Max(0, Math.Min(4000, value)));
         }
 
+        public LocalUnlockOverlayTransitionStyle UnlockOverlayTransitionStyle
+        {
+            get => _unlockOverlayTransitionStyle;
+            set => SetValue(ref _unlockOverlayTransitionStyle, value);
+        }
+
+        public int UnlockOverlaySlideDistance
+        {
+            get => _unlockOverlaySlideDistance;
+            set => SetValue(ref _unlockOverlaySlideDistance, Math.Max(0, Math.Min(450, value)));
+        }
+
         public int UnlockSoundLeadMilliseconds
         {
             get => _unlockSoundLeadMilliseconds;
@@ -434,6 +484,12 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _overlayCustomWrapAllText, value);
         }
 
+        public bool OverlayCustomShowLine1
+        {
+            get => _overlayCustomShowLine1;
+            set => SetValue(ref _overlayCustomShowLine1, value);
+        }
+
         public bool OverlayCustomShowBorder
         {
             get => _overlayCustomShowBorder;
@@ -492,6 +548,54 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _overlayCustomBackgroundImagePath;
             set => SetValue(ref _overlayCustomBackgroundImagePath, value ?? string.Empty);
+        }
+
+        public string OverlayCustomTitleTemplate
+        {
+            get => _overlayCustomTitleTemplate;
+            set => SetValue(ref _overlayCustomTitleTemplate, value ?? string.Empty);
+        }
+
+        public string OverlayCustomGameNameTemplate
+        {
+            get => _overlayCustomGameNameTemplate;
+            set => SetValue(ref _overlayCustomGameNameTemplate, value ?? string.Empty);
+        }
+
+        public string OverlayCustomAchievementTemplate
+        {
+            get => _overlayCustomAchievementTemplate;
+            set => SetValue(ref _overlayCustomAchievementTemplate, value ?? string.Empty);
+        }
+
+        public string OverlayCustomMetaTemplate
+        {
+            get => _overlayCustomMetaTemplate;
+            set => SetValue(ref _overlayCustomMetaTemplate, value ?? string.Empty);
+        }
+
+        public LocalOverlayIconSource OverlayCustomIconSource
+        {
+            get => _overlayCustomIconSource;
+            set => SetValue(ref _overlayCustomIconSource, value);
+        }
+
+        public bool OverlayCustomShowIconRarityGlow
+        {
+            get => _overlayCustomShowIconRarityGlow;
+            set => SetValue(ref _overlayCustomShowIconRarityGlow, value);
+        }
+
+        public string OverlayCustomCoverImagePath
+        {
+            get => _overlayCustomCoverImagePath;
+            set => SetValue(ref _overlayCustomCoverImagePath, value ?? string.Empty);
+        }
+
+        public string OverlayCustomBannerImagePath
+        {
+            get => _overlayCustomBannerImagePath;
+            set => SetValue(ref _overlayCustomBannerImagePath, value ?? string.Empty);
         }
 
         public int SelectedCustomStyleSlot
@@ -984,7 +1088,7 @@ namespace PlayniteAchievements.Providers.Local
         {
             return new List<LocalCustomOverlayStyleSlot>(1)
             {
-                new LocalCustomOverlayStyleSlot { Name = "Slot 1", IconSize = 58 }
+                new LocalCustomOverlayStyleSlot { Name = "Slot 1", IconSize = 58, TitleTemplate = "<title>", GameNameTemplate = "<gameName>", AchievementTemplate = "Unlocked: <achievementName>", MetaTemplate = "<provider> / Custom" }
             };
         }
 
@@ -1006,6 +1110,10 @@ namespace PlayniteAchievements.Providers.Local
                     Name = string.IsNullOrWhiteSpace(slot.Name) ? $"Slot {index + 1}" : slot.Name.Trim(),
                     AutoResizeToContent = slot.AutoResizeToContent,
                     WrapAllText = slot.WrapAllText,
+                    ShowLine1 = slot.ShowLine1,
+                    ShowBorder = slot.ShowBorder,
+                    ShowGameName = slot.ShowGameName,
+                    ShowMeta = slot.ShowMeta,
                     IconSize = Math.Max(24, Math.Min(220, slot.IconSize <= 0 ? 58 : slot.IconSize)),
                     Width = Math.Max(280, Math.Min(900, slot.Width)),
                     Height = Math.Max(90, Math.Min(320, slot.Height)),
@@ -1019,7 +1127,15 @@ namespace PlayniteAchievements.Providers.Local
                     TitleColor = NormalizeColorSetting(slot.TitleColor, "#FFFFFF"),
                     DetailColor = NormalizeColorSetting(slot.DetailColor, "#E7EEF7"),
                     MetaColor = NormalizeColorSetting(slot.MetaColor, "#BCD0E5"),
-                    BackgroundImagePath = slot.BackgroundImagePath ?? string.Empty
+                    BackgroundImagePath = slot.BackgroundImagePath ?? string.Empty,
+                    TitleTemplate = slot.TitleTemplate ?? "<title>",
+                    GameNameTemplate = slot.GameNameTemplate ?? "<gameName>",
+                    AchievementTemplate = slot.AchievementTemplate ?? "Unlocked: <achievementName>",
+                    MetaTemplate = slot.MetaTemplate ?? "<provider> / Custom",
+                    IconSource = slot.IconSource,
+                    ShowIconRarityGlow = slot.ShowIconRarityGlow,
+                    CustomCoverImagePath = slot.CustomCoverImagePath ?? string.Empty,
+                    CustomBannerImagePath = slot.CustomBannerImagePath ?? string.Empty
                 });
             }
 
