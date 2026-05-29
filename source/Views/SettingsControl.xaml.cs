@@ -2574,7 +2574,11 @@ namespace PlayniteAchievements.Views
                 forcedStyle: NotificationPublisher.NotificationStyleCustom,
                 providerKey: "Local",
                 overrideLocalSettings: localSettings,
-                game: previewGame);
+                game: previewGame,
+                achievementDescription: "Win your first fight without taking damage.",
+                achievementPoints: 25,
+                achievementRarity: "12.7%",
+                achievementTrophy: "Gold");
         }
 
         private static Brush ResolveInlinePreviewBackground(Providers.Local.LocalSettings localSettings)

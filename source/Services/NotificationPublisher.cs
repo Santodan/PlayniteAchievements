@@ -365,7 +365,31 @@ namespace PlayniteAchievements.Services
             var safeAchievement = string.IsNullOrWhiteSpace(achievementName) ? "Achievement unlocked" : achievementName.Trim();
             var overlayScale = GetOverlayScale(localSettings, style);
 
-            return BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+            var content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+            if (!string.Equals(style, NotificationStyleCustom, StringComparison.OrdinalIgnoreCase))
+            {
+                return content;
+            }
+
+            var width = Math.Max(280, localSettings?.OverlayCustomWidth ?? 460);
+            var height = Math.Max(90, localSettings?.OverlayCustomHeight ?? 128);
+            var frame = new Grid
+            {
+                Width = width,
+                MinHeight = height
+            };
+
+            if (localSettings?.OverlayCustomAutoResizeToContent == true)
+            {
+                frame.MaxHeight = Math.Max(height, 520);
+            }
+            else
+            {
+                frame.Height = height;
+            }
+
+            frame.Children.Add(content);
+            return frame;
         }
 
         public static void ClosePersistentSettingsPreview()
