@@ -2,19 +2,22 @@ AddonId: PlayniteAchievementsSantodan
 Packages:
   - Version: 2.2.0.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-05-24
+    ReleaseDate: 2026-05-29
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.2.0.1/PlayniteAchievementsSantodan_2_2_0_1.pext
     Changelog:
-    - "Merge from original v2.2.0 - https://github.com/justin-delano/PlayniteAchievements/releases/tag/v2.2.0"
-    - "Added native support for World of Warcraft achievements. This now allows for localized achievements that Exophase does not provide. Seeking beta testers for other Battle.net games!"
-    - "Redesigned the platform settings tab."
-    - "Added experimental fullscreen controller support for the Achievement Overview (sidebar), Single Game view, and Game Options window. This is still a work in progress, but should allow for basic navigation and interaction."
-    - "Added a Source Page button in the Game Options Overview tab, which links to the web page where achievement data is sourced for that game."
-    - "Added .cue file support for RetroAchievements."
-    - "Improved Steam authentication."
-    - "Fixed issue where sidebar grids did not take the full window height."
-    - "Fixed issue where RetroAchievements override was not being respected."
-    - "Added German localization! Thanks to @afroemberg for the contribution!"
+    - "v2.2.0 merge"
+    - "`Custom Schema` always visible"
+    - "Fixed `Clear Data` not removing the `Custom Schema`"
+    - "Added `Custom Schema` enabled / disabled option"
+    - "Added the possibility to create the `Custom Schema` directly form the extension"
+    - "Added the option of fetching the icon from `View Achievements` when there is no icon in the `Custom Schema` JSON"
+    - "Added the option of setting a `Default` icon in the `Custom Schema`, in the `Icon` tab, that will be set for all the achievements that don't have an icon in the JSON."
+    - "Added more customizations to the `Achievement Notification`"
+    - "Added a template builder to create a JSON file that can be imported as the notification template"
+    - "Workaround for the reset of the configurations"
+    - "`Platform` filter also applies to `All Achievements` tab"
+    - "Added support to `TENOKE` achievements"
+    - "`Custom Schema` will now take priority over online schema when enabled"
 
   - Version: 2.1.5.1
     RequiredApiVersion: 6.14.0
