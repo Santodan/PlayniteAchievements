@@ -9,6 +9,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
@@ -219,29 +221,16 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (_playniteApi?.ApplicationInfo?.Mode == ApplicationMode.Fullscreen)
                     {
-                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-                        {
-                            var window = System.Windows.Window.GetWindow(
-                                System.Windows.Application.Current?.MainWindow);
-                            // Walk up from any focused element to find our popup window
-                            var focused = System.Windows.Input.Keyboard.FocusedElement as System.Windows.DependencyObject;
-                            while (focused != null)
-                            {
-                                if (focused is System.Windows.Window w)
-                                {
-                                    window = w;
-                                    break;
-                                }
-                                focused = System.Windows.Media.VisualTreeHelper.GetParent(focused);
-                            }
-                            window?.Close();
-                        }));
+                        CloseFullscreenWindow();
                         return;
                     }
-                }
-                catch { }
 
-                PlayniteUiProvider.RestoreMainView();
+                    PlayniteUiProvider.RestoreMainView();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to close sidebar view.");
+                }
             });
             ClearGameSelectionCommand = new RelayCommand(_ => ClearGameSelection());
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameOverviewItem));
@@ -259,6 +248,172 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+        }
+
+        private void CloseFullscreenWindow()
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            dispatcher.BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    var sidebarWindow = ResolveSidebarWindow();
+                    if (sidebarWindow == null)
+                    {
+                        _logger?.Debug("Fullscreen sidebar close requested, but no sidebar window was found.");
+                        return;
+                    }
+
+                    sidebarWindow.Close();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to close fullscreen sidebar window.");
+                }
+            }));
+        }
+
+        private static Window ResolveSidebarWindow()
+        {
+            var focusedOrActiveWindow = ResolveFocusedOrActiveWindow();
+            if (IsSidebarWindow(focusedOrActiveWindow))
+            {
+                return focusedOrActiveWindow;
+            }
+
+            var application = Application.Current;
+            return application?.Windows
+                .OfType<Window>()
+                .Where(window => !ReferenceEquals(window, application.MainWindow))
+                .FirstOrDefault(IsSidebarWindow);
+        }
+
+        private static bool IsSidebarWindow(Window window)
+        {
+            if (window == null ||
+                ReferenceEquals(window, Application.Current?.MainWindow))
+            {
+                return false;
+            }
+
+            var visited = new HashSet<DependencyObject>();
+            return ContainsSidebarControl(window, visited) ||
+                   ContainsSidebarControl(window.Content as DependencyObject, visited);
+        }
+
+        private static bool ContainsSidebarControl(DependencyObject root, ISet<DependencyObject> visited)
+        {
+            if (root == null || !visited.Add(root))
+            {
+                return false;
+            }
+
+            if (root is SidebarControl)
+            {
+                return true;
+            }
+
+            if (root is FullscreenOverlayContainer overlay &&
+                ContainsSidebarControl(overlay.HostedContent, visited))
+            {
+                return true;
+            }
+
+            if (root is ContentControl contentControl &&
+                ContainsSidebarControl(contentControl.Content as DependencyObject, visited))
+            {
+                return true;
+            }
+
+            foreach (var logicalChild in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+            {
+                if (ContainsSidebarControl(logicalChild, visited))
+                {
+                    return true;
+                }
+            }
+
+            if (!(root is Visual || root is Visual3D))
+            {
+                return false;
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+            {
+                if (ContainsSidebarControl(VisualTreeHelper.GetChild(root, i), visited))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static Window ResolveFocusedOrActiveWindow()
+        {
+            var focused = Keyboard.FocusedElement as DependencyObject;
+            while (focused != null)
+            {
+                if (focused is Window focusedWindow)
+                {
+                    return focusedWindow;
+                }
+
+                var window = Window.GetWindow(focused);
+                if (window != null)
+                {
+                    return window;
+                }
+
+                focused = GetDependencyObjectParent(focused);
+            }
+
+            var application = Application.Current;
+            var activeWindow = application?.Windows
+                .OfType<Window>()
+                .FirstOrDefault(window => window.IsActive);
+
+            return activeWindow ?? application?.MainWindow;
+        }
+
+        private static DependencyObject GetDependencyObjectParent(DependencyObject current)
+        {
+            if (current == null)
+            {
+                return null;
+            }
+
+            if (current is ContextMenu contextMenu && contextMenu.PlacementTarget != null)
+            {
+                return contextMenu.PlacementTarget;
+            }
+
+            if (current is System.Windows.Controls.Primitives.Popup popup && popup.PlacementTarget != null)
+            {
+                return popup.PlacementTarget;
+            }
+
+            if (current is System.Windows.Media.Visual || current is System.Windows.Media.Media3D.Visual3D)
+            {
+                var visualParent = System.Windows.Media.VisualTreeHelper.GetParent(current);
+                if (visualParent != null)
+                {
+                    return visualParent;
+                }
+            }
+
+            if (current is FrameworkContentElement contentElement)
+            {
+                return contentElement.Parent ?? ContentOperations.GetParent(contentElement);
+            }
+
+            return LogicalTreeHelper.GetParent(current) ?? (current as FrameworkElement)?.Parent;
         }
 
         #region Collections

@@ -317,10 +317,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         /// <param name="count">The number of bytes to read.</param>
         /// <param name="cancel">Cancellation token for the operation.</param>
         /// <returns>True if the sector was successfully read; otherwise, false.</returns>
-        public static async Task<bool> TryReadSectorAsync(FileStream stream, int sectorIndex, int sectorSize, byte[] buffer, int count, CancellationToken cancel)
+        public static Task<bool> TryReadSectorAsync(FileStream stream, int sectorIndex, int sectorSize, byte[] buffer, int count, CancellationToken cancel)
+        {
+            return TryReadSectorAsync((Stream)stream, sectorIndex, sectorSize, buffer, count, cancel);
+        }
+
+        public static async Task<bool> TryReadSectorAsync(Stream stream, int sectorIndex, int sectorSize, byte[] buffer, int count, CancellationToken cancel)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (!stream.CanSeek) throw new ArgumentException("Stream must be seekable.", nameof(stream));
 
             var offset = (long)sectorIndex * sectorSize;
             if (offset < 0 || offset + count > stream.Length) return false;
@@ -339,10 +345,16 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         /// <param name="buffer">The buffer to read data into (must be sized to sectorSize).</param>
         /// <param name="cancel">Cancellation token for the operation.</param>
         /// <returns>True if the sector was successfully read; otherwise, false.</returns>
-        public static async Task<bool> TryReadSectorAsync(FileStream stream, int sectorSize, int sectorIndex, byte[] buffer, CancellationToken cancel)
+        public static Task<bool> TryReadSectorAsync(FileStream stream, int sectorSize, int sectorIndex, byte[] buffer, CancellationToken cancel)
+        {
+            return TryReadSectorAsync((Stream)stream, sectorSize, sectorIndex, buffer, cancel);
+        }
+
+        public static async Task<bool> TryReadSectorAsync(Stream stream, int sectorSize, int sectorIndex, byte[] buffer, CancellationToken cancel)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
             if (buffer == null) throw new ArgumentNullException(nameof(buffer));
+            if (!stream.CanSeek) throw new ArgumentException("Stream must be seekable.", nameof(stream));
 
             var offset = (long)sectorIndex * sectorSize;
             if (offset < 0 || offset + sectorSize > stream.Length) return false;
@@ -353,4 +365,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         }
     }
 }
-

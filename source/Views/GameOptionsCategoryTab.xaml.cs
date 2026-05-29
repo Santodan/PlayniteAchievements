@@ -3,15 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Playnite.SDK;
+using Playnite.SDK.Events;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views
 {
-    public partial class GameOptionsCategoryTab : UserControl
+    public partial class GameOptionsCategoryTab : UserControl, IFullscreenControllerNavigable
     {
         private DataGridRow _pendingRightClickRow;
 
@@ -235,22 +238,162 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void OpenContextMenuForRow(DataGridRow row)
+        public bool HandleFullscreenControllerInput(ControllerInput input)
+        {
+            if (CategoryDataGrid?.IsKeyboardFocusWithin != true)
+            {
+                return false;
+            }
+
+            if (FullscreenControllerNavigationService.IsFocusWithinDataGridColumnHeader(CategoryDataGrid))
+            {
+                if (FullscreenControllerNavigationService.IsAcceptInput(input))
+                {
+                    return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(CategoryDataGrid);
+                }
+
+                return false;
+            }
+
+            if (FullscreenControllerNavigationService.IsSecondaryClickInput(input))
+            {
+                return TryOpenSelectedRowContextMenu();
+            }
+
+            return false;
+        }
+
+        public IList<UIElement> GetControllerElements()
+        {
+            var elements = new List<UIElement>
+            {
+                ResetCategoryButton,
+                SearchTextBox,
+                ClearSearchButton,
+                FilterTypeSelectionButton,
+                CategoryLabelFilterSelectionButton,
+                SelectAllButton,
+                DeselectAllButton,
+                CategoryDataGrid,
+                BulkEditExpander
+            };
+
+            if (BulkEditExpander?.IsExpanded == true)
+            {
+                elements.Add(TypeSelectionButton);
+                elements.Add(ClearSelectedButton);
+                elements.Add(CategoryInputTextBox);
+                elements.Add(ApplyBulkButton);
+                elements.Add(RenameCategoryButton);
+            }
+
+            return elements
+                .Where(IsControllerElementAvailable)
+                .ToList();
+        }
+
+        private static bool IsControllerElementAvailable(UIElement element)
+        {
+            if (element == null || !element.IsVisible || !element.IsEnabled)
+            {
+                return false;
+            }
+
+            if (element is Button button &&
+                ReferenceEquals(button.Style, button.TryFindResource("ClearSearchButtonStyle")))
+            {
+                return !string.IsNullOrEmpty(button.Tag as string);
+            }
+
+            return true;
+        }
+
+        private bool TryActivateSelectedRow()
+        {
+            if (FullscreenControllerNavigationService.FindAncestor<ButtonBase>(
+                    Keyboard.FocusedElement as DependencyObject) != null)
+            {
+                return false;
+            }
+
+            var item = CategoryDataGrid?.SelectedItem as GameOptionsCategoryItem
+                       ?? CategoryDataGrid?.CurrentItem as GameOptionsCategoryItem;
+            if (item == null || !item.CanReveal)
+            {
+                return false;
+            }
+
+            item.ToggleReveal();
+            return true;
+        }
+
+        private bool TryOpenSelectedRowContextMenu()
+        {
+            var row = GetControllerTargetRow();
+            if (row == null)
+            {
+                return false;
+            }
+
+            return OpenContextMenuForRow(row, useControllerPlacement: true);
+        }
+
+        private DataGridRow GetControllerTargetRow()
+        {
+            var focusedRow = VisualTreeHelpers.FindVisualParent<DataGridRow>(
+                Keyboard.FocusedElement as DependencyObject);
+            if (focusedRow != null &&
+                ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(focusedRow), CategoryDataGrid))
+            {
+                return focusedRow;
+            }
+
+            var index = CategoryDataGrid?.SelectedIndex ?? -1;
+            if (index < 0 && CategoryDataGrid?.Items.Count > 0)
+            {
+                index = 0;
+                CategoryDataGrid.SelectedIndex = index;
+            }
+
+            if (CategoryDataGrid == null || index < 0)
+            {
+                return null;
+            }
+
+            CategoryDataGrid.UpdateLayout();
+            var row = CategoryDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
+            if (row == null)
+            {
+                CategoryDataGrid.ScrollIntoView(CategoryDataGrid.Items[index]);
+                CategoryDataGrid.UpdateLayout();
+                row = CategoryDataGrid.ItemContainerGenerator.ContainerFromIndex(index) as DataGridRow;
+            }
+
+            return row;
+        }
+
+        private bool OpenContextMenuForRow(DataGridRow row, bool useControllerPlacement = false)
         {
             if (!(row?.DataContext is GameOptionsCategoryItem item))
             {
-                return;
+                return false;
             }
 
             var menu = BuildRowContextMenu(item);
             if (menu == null || menu.Items.Count == 0)
             {
-                return;
+                return false;
             }
 
             row.ContextMenu = menu;
+            if (useControllerPlacement)
+            {
+                return FullscreenControllerNavigationService.OpenContextMenu(row, menu);
+            }
+
             menu.PlacementTarget = row;
             menu.IsOpen = true;
+            return true;
         }
 
         private ContextMenu BuildRowContextMenu(GameOptionsCategoryItem contextItem)
@@ -469,7 +612,17 @@ namespace PlayniteAchievements.Views
 
             menu.Closed += onClosed;
             menu.PlacementTarget = button;
-            menu.IsOpen = true;
+            menu.Placement = PlacementMode.Bottom;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 0;
+            if (button.IsKeyboardFocusWithin)
+            {
+                FullscreenControllerNavigationService.OpenContextMenu(button, menu);
+            }
+            else
+            {
+                menu.IsOpen = true;
+            }
         }
 
         private static void OpenCategoryTypeContextMenu(

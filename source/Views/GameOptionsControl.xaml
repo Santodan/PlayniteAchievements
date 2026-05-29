@@ -44,6 +44,9 @@
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="BorderRoot" Property="Background" Value="#14FFFFFF" />
                                 </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="BorderRoot" Property="Background" Value="#20FFFFFF" />
+                                </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -95,31 +98,56 @@
                            Margin="0,0,0,8" />
 
                 <StackPanel Grid.Row="5">
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overview}"
+                    <RadioButton x:Name="OverviewTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overview}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overview}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
+                    <RadioButton x:Name="ManualTrackingTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_ManualTracking}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  Visibility="{Binding ShowManualTrackingTab, Converter={StaticResource BoolToVis}}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=ManualTracking}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
+                    <RadioButton x:Name="CustomSchemaTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomSchema}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomSchema}" />
-                    <RadioButton Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
+                    <RadioButton x:Name="CapstonesTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Capstones}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Capstones}" />
+                    <RadioButton x:Name="CategoryTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Category}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Category}" />
+                    <RadioButton x:Name="AchievementOrderTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_AchievementOrder}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=AchievementOrder}" />
+                    <RadioButton x:Name="CustomIconsTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_CustomIcons}"
+                                 Style="{StaticResource NavTabRadioStyle}"
+                                 Visibility="{Binding HasCapstoneData, Converter={StaticResource BoolToVis}}"
+                                 IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=CustomIcons}" />
+                    <RadioButton x:Name="OverridesTabButton"
+                                 Content="{DynamicResource LOCPlayAch_GameOptions_Tab_Overrides}"
                                  Style="{StaticResource NavTabRadioStyle}"
                                  IsChecked="{Binding SelectedTab, Mode=TwoWay, Converter={StaticResource EnumToBool}, ConverterParameter=Overrides}" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Border Grid.Column="2"
+        <Border x:Name="GameOptionsContentHost"
+                Grid.Column="2"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 BorderBrush="{DynamicResource NormalBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="6"
                 Padding="12">
             <Grid>
-                <views:GameOptionsOverviewTab>
+                <views:GameOptionsOverviewTab x:Name="OverviewTabControl">
                     <views:GameOptionsOverviewTab.Style>
                         <Style TargetType="{x:Type views:GameOptionsOverviewTab}">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -132,7 +160,7 @@
                     </views:GameOptionsOverviewTab.Style>
                 </views:GameOptionsOverviewTab>
 
-                <views:GameOptionsOverridesTab>
+                <views:GameOptionsOverridesTab x:Name="OverridesTabControl">
                     <views:GameOptionsOverridesTab.Style>
                         <Style TargetType="{x:Type views:GameOptionsOverridesTab}">
                             <Setter Property="Visibility" Value="Collapsed" />

@@ -45,7 +45,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 language = NormalizeSteamLanguage(language);
                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
-                          $"?key={Uri.EscapeDataString(accessToken)}" +
+                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
                           $"&appid={appId}" +
                           $"&language={Uri.EscapeDataString(language)}";
 
@@ -88,7 +88,7 @@ namespace PlayniteAchievements.Providers.Steam
             {
                 language = NormalizeSteamLanguage(language);
                 var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
-                          $"?key={Uri.EscapeDataString(accessToken)}" +
+                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
                           $"&appid={appId}" +
                           $"&language={Uri.EscapeDataString(language)}";
 

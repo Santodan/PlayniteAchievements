@@ -8,6 +8,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -15,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
-    internal sealed class RetroAchievementsDataProvider : IDataProvider, IDisposable
+    internal sealed class RetroAchievementsDataProvider : IDataProvider, IAchievementPageLinkProvider, IDisposable
     {
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -97,9 +98,88 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return false;
             }
 
-            return _pathResolver.ResolveCandidateFilePaths(game).Any(p =>
-                !string.IsNullOrWhiteSpace(p) &&
-                (File.Exists(p) || ArchiveUtils.IsArchivePath(p)));
+            return _pathResolver.ResolveCandidateFilePaths(game).Any(IsReadableHashCandidate);
+        }
+
+        private static bool IsReadableHashCandidate(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            if (CueTrackReader.IsCuePath(path))
+            {
+                return CueTrackReader.HasReadableDataTrack(path);
+            }
+
+            return File.Exists(path) || ArchiveUtils.IsArchivePath(path);
+        }
+
+        public bool CanResolveAchievementPageUrl(AchievementPageLinkContext context)
+        {
+            return TryBuildAchievementPageUrl(context, out _);
+        }
+
+        public Task<string> GetAchievementPageUrlAsync(
+            AchievementPageLinkContext context,
+            CancellationToken cancel)
+        {
+            return Task.FromResult(
+                TryBuildAchievementPageUrl(context, out var url)
+                    ? url
+                    : null);
+        }
+
+        internal static bool TryBuildAchievementPageUrl(
+            AchievementPageLinkContext context,
+            out string url)
+        {
+            url = null;
+            if (context?.Game != null &&
+                TryGetGameIdOverride(context.Game.Id, out var overrideId) &&
+                overrideId > 0)
+            {
+                url = BuildAchievementPageUrl(overrideId);
+                return true;
+            }
+
+            if (string.Equals(context?.ManualLink?.SourceKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase) &&
+                TryGetPositiveId(context.ManualLink.SourceGameId, out var manualId))
+            {
+                url = BuildAchievementPageUrl(manualId);
+                return true;
+            }
+
+            var cachedId = context?.BestGameData?.AppId ?? 0;
+            if (cachedId > 0)
+            {
+                url = BuildAchievementPageUrl(cachedId);
+                return true;
+            }
+
+            if (TryGetPositiveId(context?.Game?.GameId, out var gameId))
+            {
+                url = BuildAchievementPageUrl(gameId);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string BuildAchievementPageUrl(int gameId)
+        {
+            return $"https://retroachievements.org/game/{gameId.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        private static bool TryGetPositiveId(string value, out int id)
+        {
+            return int.TryParse(
+                       (value ?? string.Empty).Trim(),
+                       NumberStyles.Integer,
+                       CultureInfo.InvariantCulture,
+                       out id) &&
+                   id > 0;
         }
 
         public Task<RebuildPayload> RefreshAsync(

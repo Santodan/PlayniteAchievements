@@ -10,41 +10,54 @@ namespace PlayniteAchievements.Providers.Steam
     internal sealed class SteamWebApiTokenResolver
     {
         private readonly ISessionManager _sessionManager;
-        private readonly Func<CancellationToken, Task<string>> _resolveTokenAsync;
+        private readonly Func<CancellationToken, Task<SteamWebAuthSession>> _resolveSessionAsync;
         private readonly ILogger _logger;
 
         public ISessionManager SessionManager => _sessionManager;
 
+#if !TEST
         public SteamWebApiTokenResolver(
+            SteamSessionManager sessionManager,
+            ILogger logger)
+        {
+            if (sessionManager == null) throw new ArgumentNullException(nameof(sessionManager));
+
+            _sessionManager = sessionManager;
+            _resolveSessionAsync = sessionManager.ResolveWebAuthSessionAsync;
+            _logger = logger;
+        }
+#endif
+
+        internal SteamWebApiTokenResolver(
             ISessionManager sessionManager,
-            Func<CancellationToken, Task<string>> resolveTokenAsync,
+            Func<CancellationToken, Task<SteamWebAuthSession>> resolveSessionAsync,
             ILogger logger)
         {
             _sessionManager = sessionManager ?? throw new ArgumentNullException(nameof(sessionManager));
-            _resolveTokenAsync = resolveTokenAsync ?? throw new ArgumentNullException(nameof(resolveTokenAsync));
+            _resolveSessionAsync = resolveSessionAsync ?? throw new ArgumentNullException(nameof(resolveSessionAsync));
             _logger = logger;
         }
 
         public async Task<SteamWebApiTokenResolution> ResolveAsync(CancellationToken ct)
         {
-            var probeResult = await _sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
-            var steamUserId = probeResult?.UserId?.Trim();
-            if (probeResult?.IsSuccess != true || string.IsNullOrWhiteSpace(steamUserId))
+            var session = await _resolveSessionAsync(ct).ConfigureAwait(false);
+            if (session?.IsComplete == true)
             {
-                return SteamWebApiTokenResolution.Fail(probeResult ?? AuthProbeResult.NotAuthenticated());
+                return SteamWebApiTokenResolution.Success(
+                    AuthProbeResult.AlreadyAuthenticated(session.SteamId64),
+                    session.WebApiToken);
             }
 
-            var token = await _resolveTokenAsync(ct).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(token))
+            if (!string.IsNullOrWhiteSpace(session?.SteamId64))
             {
-                _logger?.Warn("[SteamAch] Steam session is active, but the store web API token could not be resolved.");
+                _logger?.Warn("[SteamAch] Steam session has a user ID, but the web API token could not be resolved.");
                 return SteamWebApiTokenResolution.Fail(AuthProbeResult.Create(
                     AuthOutcome.ProbeFailed,
                     "LOCPlayAch_Common_NotAuthenticated",
-                    userId: steamUserId));
+                    userId: session.SteamId64));
             }
 
-            return SteamWebApiTokenResolution.Success(probeResult, token.Trim());
+            return SteamWebApiTokenResolution.Fail(AuthProbeResult.NotAuthenticated());
         }
     }
 

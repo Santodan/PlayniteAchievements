@@ -52,7 +52,6 @@ namespace PlayniteAchievements.Providers
         private static readonly HashSet<string> ExophaseServicedProviders =
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
-                "BattleNet",
                 "GooglePlay",
                 "Apple",
                 "EA",

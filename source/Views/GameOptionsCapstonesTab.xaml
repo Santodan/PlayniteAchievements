@@ -11,38 +11,6 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <!-- Checkbox style for marker selection -->
-            <Style x:Key="MarkerCheckBoxStyle" TargetType="CheckBox">
-                <Setter Property="HorizontalAlignment" Value="Center"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="Cursor" Value="Hand"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="CheckBox">
-                            <Grid Background="Transparent">
-                                <Ellipse x:Name="OuterEllipse"
-                                         Width="20" Height="20"
-                                         Stroke="{DynamicResource TextBrush}"
-                                         StrokeThickness="2"
-                                         Fill="Transparent"/>
-                                <Ellipse x:Name="InnerCheck"
-                                         Width="12" Height="12"
-                                         Fill="{DynamicResource GlyphBrush}"
-                                         Visibility="Collapsed"/>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="InnerCheck" Property="Visibility" Value="Visible"/>
-                                    <Setter TargetName="OuterEllipse" Property="Stroke" Value="{DynamicResource GlyphBrush}"/>
-                                </Trigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="OuterEllipse" Property="StrokeThickness" Value="3"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -81,7 +49,8 @@
                 Margin="0,0,0,12">
             <Grid>
                 <Grid>
-                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox x:Name="SearchTextBox"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Common_FilterAchievementsPlaceholder}"
                                VerticalAlignment="Center"
@@ -104,7 +73,8 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Button Tag="{Binding SearchText}"
+                    <Button x:Name="ClearSearchButton"
+                            Tag="{Binding SearchText}"
                             Command="{Binding ClearSearchCommand}"
                             Style="{StaticResource ClearSearchButtonStyle}"/>
                 </Grid>
@@ -119,6 +89,7 @@
                   IsReadOnly="True"
                   SelectionMode="Single"
                   SelectionUnit="FullRow"
+                  KeyboardNavigation.DirectionalNavigation="Continue"
                   HeadersVisibility="Column"
                   GridLinesVisibility="None"
                   RowBackground="Transparent"
@@ -137,15 +108,16 @@
                   ScrollViewer.CanContentScroll="True"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                  Tag="ControllerCellFocus"
                   PreviewMouseLeftButtonDown="DataGrid_PreviewMouseLeftButtonDown"
                   Sorting="DataGrid_Sorting">
 
             <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}"/>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource GameOptionsControllerCellStyle}"/>
             </DataGrid.CellStyle>
 
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource GameOptionsDataGridRowStyle}">
                     <Setter Property="MinHeight" Value="76"/>
                     <Setter Property="ClipToBounds" Value="True"/>
                 </Style>
@@ -153,11 +125,19 @@
 
             <DataGrid.Columns>
                 <!-- Marker Selection Checkbox -->
-                <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserSort="False" CanUserResize="False">
+                <DataGridTemplateColumn Width="44"
+                                        MinWidth="44"
+                                        MaxWidth="44"
+                                        CanUserSort="False"
+                                        CanUserResize="False"
+                                        CellStyle="{StaticResource GameOptionsCheckBoxCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <CheckBox Style="{StaticResource MarkerCheckBoxStyle}"
-                                      IsChecked="{Binding IsCurrentMarker, Mode=OneWay}"
+                            <CheckBox IsChecked="{Binding IsCurrentMarker, Mode=OneWay}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Focusable="False"
+                                      IsTabStop="False"
                                       Click="MarkerCheckBox_Click"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>

@@ -1,5 +1,21 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.2.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-05-24
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.2.0.1/PlayniteAchievementsSantodan_2_2_0_1.pext
+    Changelog:
+    - "Merge from original v2.2.0 - https://github.com/justin-delano/PlayniteAchievements/releases/tag/v2.2.0"
+    - "Added native support for World of Warcraft achievements. This now allows for localized achievements that Exophase does not provide. Seeking beta testers for other Battle.net games!"
+    - "Redesigned the platform settings tab."
+    - "Added experimental fullscreen controller support for the Achievement Overview (sidebar), Single Game view, and Game Options window. This is still a work in progress, but should allow for basic navigation and interaction."
+    - "Added a Source Page button in the Game Options Overview tab, which links to the web page where achievement data is sourced for that game."
+    - "Added .cue file support for RetroAchievements."
+    - "Improved Steam authentication."
+    - "Fixed issue where sidebar grids did not take the full window height."
+    - "Fixed issue where RetroAchievements override was not being respected."
+    - "Added German localization! Thanks to @afroemberg for the contribution!"
+
   - Version: 2.1.5.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-05-21

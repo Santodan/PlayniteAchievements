@@ -8,21 +8,21 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
 {
     internal sealed class DiscUtilsFacade : IDisposable
     {
-        private readonly FileStream _isoStream;
+        private readonly DiscImageReader _image;
         private readonly CDReader _cd;
 
         public DiscUtilsFacade(string isoPath)
         {
             if (string.IsNullOrWhiteSpace(isoPath)) throw new ArgumentException("ISO path is required.", nameof(isoPath));
 
-            _isoStream = new FileStream(isoPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            _cd = new CDReader(_isoStream, true);
+            _image = DiscImageReader.Open(isoPath);
+            _cd = new CDReader(_image.Stream, true);
         }
 
         public void Dispose()
         {
             _cd?.Dispose();
-            _isoStream?.Dispose();
+            _image?.Dispose();
         }
 
         public Stream OpenFileOrNull(string pathInsideIso)

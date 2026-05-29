@@ -18,12 +18,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
         {
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var image = DiscImageReader.Open(filePath))
             using (var md5 = MD5.Create())
             {
                 // PC-FX marker in sector 0.
                 var markerBuf = new byte[32];
-                if (!await HashUtils.TryReadSectorAsync(stream, sectorIndex: 0, sectorSize: 2048, markerBuf, markerBuf.Length, cancel).ConfigureAwait(false))
+                if (!await image.TryReadSectorAsync(sectorIndex: 0, markerBuf, markerBuf.Length, cancel).ConfigureAwait(false))
                 {
                     return Array.Empty<string>();
                 }
@@ -37,7 +37,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
                 // First 128 bytes of sector 1 are hashed.
                 var header = new byte[128];
-                if (!await HashUtils.TryReadSectorAsync(stream, sectorIndex: 1, sectorSize: 2048, header, header.Length, cancel).ConfigureAwait(false))
+                if (!await image.TryReadSectorAsync(sectorIndex: 1, header, header.Length, cancel).ConfigureAwait(false))
                 {
                     return Array.Empty<string>();
                 }
@@ -52,7 +52,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 for (var i = 0; i < numSectors; i++)
                 {
                     cancel.ThrowIfCancellationRequested();
-                    if (!await HashUtils.TryReadSectorAsync(stream, sectorIndex: programSector + i, sectorSize: 2048, sectorBuf, sectorBuf.Length, cancel).ConfigureAwait(false))
+                    if (!await image.TryReadSectorAsync(sectorIndex: programSector + i, sectorBuf, sectorBuf.Length, cancel).ConfigureAwait(false))
                     {
                         return Array.Empty<string>();
                     }
@@ -66,4 +66,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         }
     }
 }
-

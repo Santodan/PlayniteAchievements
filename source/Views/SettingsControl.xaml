@@ -185,6 +185,66 @@
                 </Style.Triggers>
             </Style>
 
+            <!-- Tab header with icon -->
+            <Style x:Key="TabHeaderWithIconStyle" TargetType="StackPanel">
+                <Setter Property="Orientation" Value="Horizontal"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="0"/>
+            </Style>
+
+            <Style x:Key="HeaderIconStyle" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{DynamicResource FontIcoFont}"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Prominent link button shown at top of General tab -->
+            <Style x:Key="ProminentLinkButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="Padding" Value="16,12"/>
+                <Setter Property="Margin" Value="6,0"/>
+                <Setter Property="MinWidth" Value="120"/>
+                <Setter Property="MinHeight" Value="64"/>
+                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#000000" Opacity="0.06" BlurRadius="8" ShadowDepth="1"/>
+                                </Border.Effect>
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#12FFFFFF"/>
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#10FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.55"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- Section container style with shadow -->
             <Style x:Key="SectionBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
@@ -255,7 +315,13 @@
     <Grid Margin="24,20,24,24">
         <TabControl x:Name="SettingsTabControl" SelectionChanged="TabControl_SelectionChanged" BorderThickness="0">
             <!-- ================== TAB: GENERAL SETTINGS ================== -->
-            <TabItem x:Name="GeneralTab" Header="{DynamicResource LOCPlayAch_Common_General}">
+            <TabItem x:Name="GeneralTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Common_General}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEF39;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">
@@ -268,6 +334,48 @@
                                        Style="{StaticResource SectionHeaderStyle}"
                                        Margin="0"/>
                         </Border>
+
+                        <!-- Prominent quick links to other settings tabs -->
+                        <Grid Margin="0,12,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0" Style="{StaticResource ProminentLinkButtonStyle}"
+                                    Click="JumpToDisplay_Click"
+                                    ToolTip="{DynamicResource LOCPlayAch_Settings_TabDisplay}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock FontFamily="{DynamicResource FontIcoFont}"
+                                               FontSize="20" Margin="0,0,10,0" Text="&#xEFB3;" Foreground="{DynamicResource HighlightGlyphBrush}"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Grid.Column="1" Style="{StaticResource ProminentLinkButtonStyle}"
+                                    Click="JumpToProviders_Click"
+                                    ToolTip="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock FontFamily="{DynamicResource FontIcoFont}"
+                                               FontSize="20" Margin="0,0,10,0" Text="&#xEF7B;" Foreground="{DynamicResource HighlightGlyphBrush}"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button Grid.Column="2" Style="{StaticResource ProminentLinkButtonStyle}"
+                                    Click="JumpToThemeMigration_Click"
+                                    ToolTip="{DynamicResource LOCPlayAch_ThemeMigration_Title}"
+                                    AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock FontFamily="{DynamicResource FontIcoFont}"
+                                               FontSize="20" Margin="0,0,10,0" Text="&#xEFD2;" Foreground="{DynamicResource HighlightGlyphBrush}"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
 
                         <!-- ================== LANGUAGE ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
@@ -897,7 +1005,13 @@
             </TabItem>
 
             <!-- ================== TAB: DISPLAY ================== -->
-            <TabItem x:Name="DisplayTab" Header="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
+            <TabItem x:Name="DisplayTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_Settings_TabDisplay}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFB3;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_TabDisplay}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">
@@ -2934,7 +3048,13 @@
             </TabItem>
 
             <!-- ================== TAB: PROVIDERS ================== -->
-            <TabItem x:Name="ProvidersTab" Header="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
+            <TabItem x:Name="ProvidersTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xef7b;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ProvidersHeader}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <Grid Background="{DynamicResource PanelBackgroundBrush}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220" MinWidth="190" MaxWidth="260"/>
@@ -3054,7 +3174,13 @@
                 </Grid>
             </TabItem>
 
-            <TabItem x:Name="ThemeMigrationTab" Header="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
+            <TabItem x:Name="ThemeMigrationTab" AutomationProperties.Name="{DynamicResource LOCPlayAch_ThemeMigration_Title}">
+                <TabItem.Header>
+                    <StackPanel Style="{StaticResource TabHeaderWithIconStyle}">
+                        <TextBlock Style="{StaticResource HeaderIconStyle}" Text="&#xEFD2;"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Title}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="20">

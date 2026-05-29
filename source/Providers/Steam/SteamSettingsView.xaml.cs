@@ -554,6 +554,13 @@ namespace PlayniteAchievements.Providers.Steam
             var hasWebAuth = authenticatedAccount != null;
             var hasManualApiConfiguration = HasManualApiConfiguration();
 
+            if (_steamSettings != null &&
+                !string.IsNullOrWhiteSpace(result?.UserId) &&
+                !string.Equals(_steamSettings.SteamUserId, result.UserId.Trim(), StringComparison.Ordinal))
+            {
+                _steamSettings.SteamUserId = result.UserId.Trim();
+            }
+
             WebAuthenticated = hasWebAuth;
             FullyConfigured = hasWebAuth;
 

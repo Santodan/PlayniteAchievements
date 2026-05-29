@@ -144,7 +144,7 @@
                             <Run Text=")"/>
                         </TextBlock>
 
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}" Command="{Binding RefreshGameCommand}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                        <Button x:Name="RefreshGameButton" Content="{DynamicResource LOCPlayAch_Button_Refresh}" Command="{Binding RefreshGameCommand}" Margin="12,0,0,0" VerticalAlignment="Center" />
                         <Button Content="Edit Local Achievements"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
@@ -195,7 +195,8 @@
                 </Grid.RowDefinitions>
 
                 <!-- Stats Header -->
-                <ToggleButton Grid.Row="0"
+                <ToggleButton x:Name="StatsToggleButton"
+                              Grid.Row="0"
                               IsChecked="{Binding IsStatsVisible, Mode=TwoWay}"
                               Style="{StaticResource ExpanderHeaderStyle}">
                     <TextBlock Text="{DynamicResource LOCPlayAch_Section_Stats}"
@@ -292,7 +293,8 @@
                 </StackPanel>
 
                 <!-- Timeline Header -->
-                <ToggleButton Grid.Row="4"
+                <ToggleButton x:Name="TimelineToggleButton"
+                              Grid.Row="4"
                               IsChecked="{Binding IsTimelineVisible, Mode=TwoWay}"
                               Style="{StaticResource ExpanderHeaderStyle}">
                     <TextBlock Text="{DynamicResource LOCPlayAch_Section_Timeline}"
@@ -306,27 +308,33 @@
                             Visibility="{Binding IsTimelineVisible, Converter={StaticResource BoolToVis}}">
                     <!-- Time Range Buttons -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeSevenDaysButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_7D}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=SevenDays}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="SevenDays"/>
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeFourteenDaysButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_14D}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=FourteenDays}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="FourteenDays"/>
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeOneMonthButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_1M}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneMonth}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneMonth"/>
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeThreeMonthsButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_3M}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=ThreeMonths}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="ThreeMonths"/>
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeOneYearButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_1Y}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="OneYear"/>
-                        <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_All}" GroupName="TimeRange"
+                        <RadioButton x:Name="TimelineRangeAllButton"
+                                     Content="{DynamicResource LOCPlayAch_TimeRange_All}" GroupName="TimeRange"
                                      Style="{StaticResource TimeRangeButtonStyle}"
                                      IsChecked="{Binding Timeline.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All}"
                                      Command="{Binding Timeline.SetTimeRangeCommand}" CommandParameter="All"/>
@@ -381,7 +389,8 @@
                 </Grid.ColumnDefinitions>
 
                 <Grid Grid.Column="0">
-                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox x:Name="SearchTextBox"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ClearableSearchTextBoxStyle}"/>
                     <TextBlock Text="{DynamicResource LOCPlayAch_Filter_Achievements}"
                                VerticalAlignment="Center"
@@ -403,7 +412,8 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Button Tag="{Binding SearchText}"
+                    <Button x:Name="ClearSearchButton"
+                            Tag="{Binding SearchText}"
                             Click="ClearSearch_Click"
                             Style="{StaticResource ClearSearchButtonStyle}"/>
                 </Grid>
@@ -440,15 +450,18 @@
                                      ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
                     </Button.ContextMenu>
                 </Button>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
+                <CheckBox x:Name="ShowUnlockedCheckBox"
+                      Content="{DynamicResource LOCPlayAch_Common_Unlocked}"
                       IsChecked="{Binding ShowUnlocked}"
                       VerticalAlignment="Center"
                       Margin="0,0,8,0"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Common_Locked}"
+                <CheckBox x:Name="ShowLockedCheckBox"
+                      Content="{DynamicResource LOCPlayAch_Common_Locked}"
                       IsChecked="{Binding ShowLocked}"
                       VerticalAlignment="Center"
                       Margin="0,0,8,0"/>
-                <CheckBox Content="{DynamicResource LOCPlayAch_Filter_Hidden}"
+                <CheckBox x:Name="ShowHiddenCheckBox"
+                      Content="{DynamicResource LOCPlayAch_Filter_Hidden}"
                       IsChecked="{Binding ShowHidden}"
                       VerticalAlignment="Center"/>
                 </StackPanel>

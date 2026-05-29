@@ -19,11 +19,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         {
             var operafsIdentifier = new byte[] { 0x01, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x01 };
 
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var image = DiscImageReader.Open(filePath))
             using (var md5 = MD5.Create())
             {
                 var sector0 = new byte[2048];
-                if (!await ReadSectorAsync(stream, 0, sector0, cancel).ConfigureAwait(false))
+                if (!await image.TryReadSectorAsync(0, sector0, cancel).ConfigureAwait(false))
                 {
                     return Array.Empty<string>();
                 }
@@ -64,7 +64,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 {
                     cancel.ThrowIfCancellationRequested();
 
-                    if (!await ReadSectorAsync(stream, dirSector, sector, cancel).ConfigureAwait(false))
+                    if (!await image.TryReadSectorAsync(dirSector, sector, cancel).ConfigureAwait(false))
                     {
                         return Array.Empty<string>();
                     }
@@ -119,7 +119,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                 {
                     cancel.ThrowIfCancellationRequested();
 
-                    if (!await ReadSectorAsync(stream, launchSector, sector, cancel).ConfigureAwait(false))
+                    if (!await image.TryReadSectorAsync(launchSector, sector, cancel).ConfigureAwait(false))
                     {
                         return Array.Empty<string>();
                     }
@@ -135,19 +135,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
             }
         }
 
-        private static async Task<bool> ReadSectorAsync(FileStream stream, int sectorIndex, byte[] buffer, CancellationToken cancel)
-        {
-            var offset = (long)sectorIndex * 2048;
-            if (offset < 0 || offset + buffer.Length > stream.Length)
-            {
-                return false;
-            }
-
-            stream.Seek(offset, SeekOrigin.Begin);
-            var read = await HashUtils.ReadExactlyAsync(stream, buffer, 0, buffer.Length, cancel).ConfigureAwait(false);
-            return read == buffer.Length;
-        }
-
         private static string ReadNullTerminatedAscii(byte[] buffer, int offset, int maxLen)
         {
             var end = offset;
@@ -160,4 +147,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         }
     }
 }
-

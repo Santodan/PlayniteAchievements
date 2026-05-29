@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Epic
 {
-    public sealed class EpicDataProvider : IDataProvider, IDisposable
+    public sealed class EpicDataProvider : IDataProvider, IAchievementPageLinkProvider, IDisposable
     {
         private readonly EpicSessionManager _sessionManager;
         private readonly EpicScanner _scanner;
@@ -54,9 +54,77 @@ namespace PlayniteAchievements.Providers.Epic
 
         public bool IsCapable(Game game) => IsEpicCapable(game);
 
+        public bool CanResolveAchievementPageUrl(AchievementPageLinkContext context)
+        {
+            return TryBuildAchievementPageUrl(context, out _);
+        }
+
+        public Task<string> GetAchievementPageUrlAsync(
+            AchievementPageLinkContext context,
+            CancellationToken cancel)
+        {
+            return Task.FromResult(
+                TryBuildAchievementPageUrl(context, out var url)
+                    ? url
+                    : null);
+        }
+
+        internal static bool TryBuildAchievementPageUrl(
+            AchievementPageLinkContext context,
+            out string url)
+        {
+            url = null;
+            var links = context?.Game?.Links;
+            if (links == null)
+            {
+                return false;
+            }
+
+            foreach (var link in links)
+            {
+                if (TryGetEpicSlug(link?.Url, out var slug))
+                {
+                    url = $"https://store.epicgames.com/achievements/{Uri.EscapeDataString(slug)}";
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsEpicCapable(Game game)
         {
             return game != null && (game.PluginId == EpicPluginId || game.PluginId == LegendaryPluginId);
+        }
+
+        internal static bool TryGetEpicSlug(string linkUrl, out string slug)
+        {
+            slug = null;
+            if (string.IsNullOrWhiteSpace(linkUrl) ||
+                !Uri.TryCreate(linkUrl.Trim(), UriKind.Absolute, out var uri) ||
+                !IsEpicHost(uri.Host))
+            {
+                return false;
+            }
+
+            var segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                if (string.Equals(segments[i], "p", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(segments[i], "achievements", StringComparison.OrdinalIgnoreCase))
+                {
+                    slug = Uri.UnescapeDataString(segments[i + 1]).Trim();
+                    return !string.IsNullOrWhiteSpace(slug);
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsEpicHost(string host)
+        {
+            return string.Equals(host, "epicgames.com", StringComparison.OrdinalIgnoreCase) ||
+                   host?.EndsWith(".epicgames.com", StringComparison.OrdinalIgnoreCase) == true;
         }
 
         public Task<RebuildPayload> RefreshAsync(

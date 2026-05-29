@@ -192,7 +192,7 @@ namespace PlayniteAchievements.Providers.Manual
             CancellationToken ct)
         {
             var url = $"https://api.steampowered.com/IPlayerService/GetGameAchievements/v1/" +
-                      $"?key={Uri.EscapeDataString(accessToken)}" +
+                      $"?access_token={Uri.EscapeDataString(accessToken)}" +
                       $"&appid={appId}" +
                       $"&language={Uri.EscapeDataString(steamLanguage)}";
 

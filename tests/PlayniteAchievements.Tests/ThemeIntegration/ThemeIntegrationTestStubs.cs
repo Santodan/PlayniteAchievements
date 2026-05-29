@@ -24,6 +24,11 @@ namespace PlayniteAchievements
         {
             Settings = settings;
         }
+
+        public void SaveSettingsSafely(PlayniteAchievementsSettings settings)
+        {
+            Settings = settings;
+        }
     }
 }
 
@@ -70,6 +75,10 @@ namespace PlayniteAchievements.Models.Achievements
         public string UnlockedIconPath { get; set; }
 
         public string LockedIconPath { get; set; }
+
+        public bool HasSourceUnlockedIcon { get; set; }
+
+        public bool HasSourceLockedIcon { get; set; }
 
         public bool Hidden { get; set; }
 

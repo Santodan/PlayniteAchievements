@@ -103,7 +103,8 @@
                                TextWrapping="Wrap"
                                Margin="0,6,0,0" />
                 </StackPanel>
-                <Button Grid.Column="1"
+                <Button x:Name="ResetOrderButton"
+                    Grid.Column="1"
                     Content="{DynamicResource LOCPlayAch_Button_Reset}"
                         Click="ResetOrderButton_Click"
                         Margin="12,0,0,0"
@@ -148,6 +149,7 @@
                   ScrollViewer.CanContentScroll="True"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                  Tag="ControllerCellFocus"
                   AllowDrop="True"
                   PreviewMouseLeftButtonDown="DataGrid_PreviewMouseLeftButtonDown"
                   PreviewMouseLeftButtonUp="DataGrid_PreviewMouseLeftButtonUp"
@@ -159,11 +161,11 @@
                   Drop="DataGrid_Drop">
 
             <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}" />
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource GameOptionsControllerCellStyle}" />
             </DataGrid.CellStyle>
 
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource GameOptionsDataGridRowStyle}">
                     <Setter Property="MinHeight" Value="76" />
                     <Setter Property="ClipToBounds" Value="True" />
                     <Setter Property="Cursor" Value="Arrow" />
@@ -178,7 +180,7 @@
             <DataGrid.Columns>
                 <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False">
                     <DataGridTemplateColumn.CellStyle>
-                        <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+                        <Style TargetType="DataGridCell" BasedOn="{StaticResource GameOptionsControllerCellStyle}">
                             <Setter Property="Cursor" Value="SizeAll" />
                         </Style>
                     </DataGridTemplateColumn.CellStyle>

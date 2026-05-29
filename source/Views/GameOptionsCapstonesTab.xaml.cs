@@ -1,18 +1,22 @@
 using Playnite.SDK;
+using Playnite.SDK.Events;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views.Helpers;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
 namespace PlayniteAchievements.Views
 {
-    public partial class GameOptionsCapstonesTab : UserControl
+    public partial class GameOptionsCapstonesTab : UserControl, IFullscreenControllerNavigable
     {
         private readonly CapstoneViewModel _viewModel;
 
@@ -99,6 +103,57 @@ namespace PlayniteAchievements.Views
             {
                 _viewModel?.ToggleReveal(item);
             }
+        }
+
+        public bool HandleFullscreenControllerInput(ControllerInput input)
+        {
+            if (AchievementsDataGrid?.IsKeyboardFocusWithin != true)
+            {
+                return false;
+            }
+
+            if (FullscreenControllerNavigationService.IsFocusWithinDataGridColumnHeader(AchievementsDataGrid))
+            {
+                if (FullscreenControllerNavigationService.IsAcceptInput(input))
+                {
+                    return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(AchievementsDataGrid);
+                }
+
+                return false;
+            }
+
+            return false;
+        }
+
+        public IList<UIElement> GetControllerElements()
+        {
+            return GetVisibleControllerElements(
+                SearchTextBox,
+                ClearSearchButton,
+                AchievementsDataGrid);
+        }
+
+        private static IList<UIElement> GetVisibleControllerElements(params UIElement[] elements)
+        {
+            return elements
+                .Where(IsControllerElementAvailable)
+                .ToList();
+        }
+
+        private static bool IsControllerElementAvailable(UIElement element)
+        {
+            if (element == null || !element.IsVisible || !element.IsEnabled)
+            {
+                return false;
+            }
+
+            if (element is Button button &&
+                ReferenceEquals(button.Style, button.TryFindResource("ClearSearchButtonStyle")))
+            {
+                return !string.IsNullOrEmpty(button.Tag as string);
+            }
+
+            return true;
         }
 
         private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)

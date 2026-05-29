@@ -8,6 +8,8 @@ namespace PlayniteAchievements.Views.Helpers
 {
     public static class PlayniteUiProvider
     {
+        private const string FullscreenWindowTag = "PlayniteAchievementsFullscreen";
+
         public static void RestoreMainView()
         {
             API.Instance.MainView.SwitchToLibraryView();
@@ -88,6 +90,7 @@ namespace PlayniteAchievements.Views.Helpers
             Window window = API.Instance.Dialogs.CreateWindow(fsOptions);
 
             window.Title = title;
+            window.Tag = FullscreenWindowTag;
             window.ShowInTaskbar = false;
             window.WindowStyle = WindowStyle.None;
             window.ResizeMode = ResizeMode.NoResize;

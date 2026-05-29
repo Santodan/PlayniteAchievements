@@ -22,17 +22,17 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
         {
-            var sectorSize = GuessSectorSize(filePath);
+            var sectorSize = CueTrackReader.IsCuePath(filePath) ? 2048 : GuessSectorSize(filePath);
             if (sectorSize <= 0)
             {
                 return Array.Empty<string>();
             }
 
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var image = DiscImageReader.Open(filePath, sectorSize))
             using (var md5 = MD5.Create())
             {
-                var buffer = new byte[sectorSize];
-                if (!await HashUtils.TryReadSectorAsync(stream, sectorSize, sectorIndex: 0, buffer, cancel).ConfigureAwait(false))
+                var buffer = new byte[image.SectorSize];
+                if (!await image.TryReadSectorAsync(sectorIndex: 0, buffer, cancel).ConfigureAwait(false))
                 {
                     return Array.Empty<string>();
                 }
@@ -101,7 +101,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
                     offset = 0;
                     sector++;
-                    if (!await HashUtils.TryReadSectorAsync(stream, sectorSize, sector, buffer, cancel).ConfigureAwait(false))
+                    if (!await image.TryReadSectorAsync(sector, buffer, cancel).ConfigureAwait(false))
                     {
                         return Array.Empty<string>();
                     }
@@ -128,4 +128,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         }
     }
 }
-

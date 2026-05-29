@@ -5,6 +5,7 @@ using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Playnite.SDK;
@@ -12,7 +13,7 @@ using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Providers.Steam
 {
-    internal sealed class SteamDataProvider : IDataProvider, IRefreshTargetFilter, IDisposable
+    internal sealed class SteamDataProvider : IDataProvider, IRefreshTargetFilter, IAchievementPageLinkProvider, IDisposable
     {
         internal static readonly Guid SteamPluginId = ResolveSteamPluginId();
 
@@ -42,9 +43,8 @@ namespace PlayniteAchievements.Providers.Steam
             // Create Steam-specific dependencies
             _steamClient = new SteamHttpClient(api, logger, _sessionManager, pluginUserDataPath);
             _sessionManager.SetClearInMemoryAuthState(_steamClient.ClearInMemoryAuthState);
-            _sessionManager.SetWebApiTokenResolver(_steamClient.ResolveWebApiTokenWithoutSessionProbeAsync);
             var steamApiClient = new SteamApiClient(_steamClient.ApiHttpClient, logger);
-            var tokenResolver = new SteamWebApiTokenResolver(_sessionManager, _steamClient.GetWebApiTokenAsync, logger);
+            var tokenResolver = new SteamWebApiTokenResolver(_sessionManager, logger);
             _scanner = new SteamScanner(settings, _steamClient, steamApiClient, tokenResolver, api, logger);
 
             // Wire the session token delegate so LocalSavesProvider can use the authenticated token.
@@ -71,9 +71,69 @@ namespace PlayniteAchievements.Providers.Steam
         public bool IsCapable(Game game) =>
             IsSteamCapable(game);
 
+        public bool CanResolveAchievementPageUrl(AchievementPageLinkContext context)
+        {
+            return TryBuildAchievementPageUrl(context, out _);
+        }
+
+        public Task<string> GetAchievementPageUrlAsync(
+            AchievementPageLinkContext context,
+            CancellationToken cancel)
+        {
+            return Task.FromResult(
+                TryBuildAchievementPageUrl(context, out var url)
+                    ? url
+                    : null);
+        }
+
+        internal static bool TryBuildAchievementPageUrl(
+            AchievementPageLinkContext context,
+            out string url)
+        {
+            url = null;
+            if (!TryResolveSteamAppId(context, out var appId))
+            {
+                return false;
+            }
+
+            url = $"https://steamcommunity.com/stats/{appId.ToString(CultureInfo.InvariantCulture)}/achievements";
+            return true;
+        }
+
         private static bool IsSteamCapable(Game game)
         {
-            return game.PluginId == SteamPluginId;
+            return game != null && game.PluginId == SteamPluginId;
+        }
+
+        private static bool TryResolveSteamAppId(
+            AchievementPageLinkContext context,
+            out int appId)
+        {
+            appId = 0;
+            if (string.Equals(context?.ManualLink?.SourceKey, "Steam", StringComparison.OrdinalIgnoreCase) &&
+                TryGetPositiveId(context.ManualLink.SourceGameId, out appId))
+            {
+                return true;
+            }
+
+            var cachedAppId = context?.BestGameData?.AppId ?? 0;
+            if (cachedAppId > 0)
+            {
+                appId = cachedAppId;
+                return true;
+            }
+
+            return TryGetPositiveId(context?.Game?.GameId, out appId);
+        }
+
+        private static bool TryGetPositiveId(string value, out int id)
+        {
+            return int.TryParse(
+                       (value ?? string.Empty).Trim(),
+                       NumberStyles.Integer,
+                       CultureInfo.InvariantCulture,
+                       out id) &&
+                   id > 0;
         }
 
         internal static bool TryGetSteamAccountOverride(Guid gameId, out string steamAccountId)

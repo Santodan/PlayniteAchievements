@@ -1,6 +1,5 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+﻿<?xml version="1.0"?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ================================================================= -->
     <!-- 01 Plugin Titles -->
@@ -124,10 +123,18 @@
     <!-- 06 Menus -->
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Menu_ClearData">清除数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">清除 {0} 个选中游戏的数据？&#10;&#10;这将移除这些游戏的缓存成就和图标。任何手动追踪链接和手动解锁时间也将被移除。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">清除“{0}”的数据？&#10;&#10;这将移除此游戏的缓存成就和图标。如果游戏有手动追踪链接，该链接及其手动解锁时间也将被移除。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">排除 {0} 个选中游戏并清除数据？&#10;&#10;这将从成就视图中移除这些游戏，删除其缓存数据，并移除任何手动追踪链接。</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">排除“{0}”并清除数据？&#10;&#10;这将从成就视图中移除此游戏，删除其缓存数据，并移除任何手动追踪链接。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSelected">清除 {0} 个选中游戏的数据？
+
+这将移除这些游戏的缓存成就和图标。任何手动追踪链接和手动解锁时间也将被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_ClearData_ConfirmSingle">清除“{0}”的数据？
+
+这将移除此游戏的缓存成就和图标。如果游戏有手动追踪链接，该链接及其手动解锁时间也将被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSelected">排除 {0} 个选中游戏并清除数据？
+
+这将从成就视图中移除这些游戏，删除其缓存数据，并移除任何手动追踪链接。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Exclude_ConfirmSingle">排除“{0}”并清除数据？
+
+这将从成就视图中移除此游戏，删除其缓存数据，并移除任何手动追踪链接。</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshes">不包含在刷新中</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData">不包含在刷新中并清除数据</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ExcludeGame">排除此游戏并清除数据</sys:String>
@@ -148,7 +155,9 @@
     <sys:String x:Key="LOCPlayAch_Menu_SetCapstone">设置压轴成就</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_TestModernControls">测试现代主题控件</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements">取消成就链接</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">取消“{0}”的成就链接？&#10;&#10;这将立即移除手动成就链接，删除所有手动设置的解锁时间，并清除此游戏的缓存数据。</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_UnlinkAchievements_Confirm">取消“{0}”的成就链接？
+
+这将立即移除手动成就链接，删除所有手动设置的解锁时间，并清除此游戏的缓存数据。</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewAchievements">查看成就</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ViewRefreshProgress">查看</sys:String>
 
@@ -176,6 +185,7 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Singleplayer">单人</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">可堆叠</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Ignored">已忽略</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_SummaryIgnored">Summary Ignored</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorLabel">分类类型</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Header">自定义成就图标</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Hint">为此游戏的成就设置可选的已解锁和未解锁图像覆盖。支持拖入浏览器链接、拖入本地图像文件或浏览文件。本地图像将立即复制到插件管理的存储中。</sys:String>
@@ -194,7 +204,9 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Header">自定义成就排序</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Order_Hint">拖放行以定义默认排序。支持使用 Shift/Ctrl 多选。更改会立即保存。</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataButton">清除自定义数据</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">清除“{0}”的所有自定义数据？&#10;&#10;这将移除 Playnite Achievements 存储的单款游戏排除设置、手动链接、压轴成就、自定义图标链接、排序/分类更改以及提供程序覆盖。缓存的成就数据不会被移除。</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ClearCustomDataConfirm">清除“{0}”的所有自定义数据？
+
+这将移除 Playnite Achievements 存储的单款游戏排除设置、手动链接、压轴成就、自定义图标链接、排序/分类更改以及提供程序覆盖。缓存的成就数据不会被移除。</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHeader">自定义数据</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_CustomDataHint">将此游戏的自定义数据导出为仅包含链接的 .PA 文件或完整的 .PA.ZIP 图像包；为此游戏导入 .PA 或 .PA.ZIP 文件；或清除此游戏的存储自定义数据。批量刷新和摘要排除设置永远不会被导出，导入时也不会被更改。</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ExclusionHeader">游戏排除</sys:String>
@@ -293,7 +305,7 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogHint">输入预设名称 (1-64 个字符)。</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogTitle">保存自定义刷新预设</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameInvalid">预设名称必须在 1 到 {0} 个字符之间。</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption">&#160;</sys:String>
+    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption"></sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm">覆盖预设“{0}”？</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">另存为</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">预设</sys:String>
@@ -378,9 +390,26 @@
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">未勾选时，运行时间为 0 的游戏将在刷新时被跳过。</sys:String>
     <sys:String x:Key="LOCPlayAch_InvalidPath">目录不存在</sys:String>
 
+    <!-- Provider: Battle.net -->
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSection">World of Warcraft</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowRegion">Region</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowRealm">Realm</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowCharacter">Character</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Section">StarCraft II</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientId">Client ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientSecret">Client Secret</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Region">Region</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Realm">Realm</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Profile">Profile ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowReady">Character ready</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">Missing character setup</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Detected">StarCraft II ready</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_NoSc2Profile">No StarCraft II profile found</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Incomplete">Missing StarCraft II setup</sys:String>
+
     <!-- Provider: Epic -->
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">在此处粘贴 authorizationCode 值:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 在默认浏览器打开后登录 Epic\n2. 登录后，在页面上找到 "authorizationCode" 值\n3. 将该值复制并粘贴到下一个对话框中</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthInstructions">1. 在默认浏览器打开后登录 Epic\n2. 登录后，在页面上找到 &quot;authorizationCode&quot; 值\n3. 将该值复制并粘贴到下一个对话框中</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Epic_LoginAlternative">备用登录</sys:String>
 
     <!-- Provider: Exophase -->
@@ -434,6 +463,14 @@
     <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} 连接</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">此平台已禁用。请启用它以追踪成就。</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">启用此平台</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_StoresLaunchers">Stores &amp; Launchers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ConsoleMobile">Console &amp; Mobile</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_EmulatorsRetro">Emulators &amp; Retro</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Manual &amp; Aggregators</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_Other">Other</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">Uses {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForRarity">Use Exophase for Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForRarity_Help">When enabled, this platform keeps native achievement data but uses Exophase to fill global rarity percentages. Requires Exophase authentication.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">登录 (旧版)</sys:String>
@@ -443,7 +480,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step2Note">并复制 npsso 值</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Psn_Step3">将该值粘贴到下方并按 Enter</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_PsnNpsso">NPSSO Cookie</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_PsnNpssoHint">仅复制 {"npsso":"xxx"} 中的 xxx 部分</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_PsnNpssoHint">仅复制 {&quot;npsso&quot;:&quot;xxx&quot;} 中的 xxx 部分</sys:String>
 
     <!-- Provider: RetroAchievements -->
     <sys:String x:Key="LOCPlayAch_Settings_RaUsername">用户名</sys:String>
@@ -502,6 +539,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">显示稀有度条</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortBy">排序依据</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">切换排序方向</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Click the active column header again to return to this default sort.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionBorder">显示完成边框</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">显示 (隐藏成就) 后缀</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">在已解锁图标上显示稀有度发光效果</sys:String>
@@ -513,6 +551,7 @@
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">显示稀有度饼图</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">显示奖杯饼图</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">显示顶部菜单栏按钮</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseUniformRarityBadges">Use Uniform Rarity Badges</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SingleGameGridSort">单款游戏视图网格</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">查看成就窗口</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">小切片处理</sys:String>
@@ -661,7 +700,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Achievements_ClickToReveal">点击以显示</sys:String>
     <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle">隐藏成就</sys:String>
-    <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle_WithParens">&#32;(隐藏成就)</sys:String>
+    <sys:String x:Key="LOCPlayAch_Achievements_HiddenTitle_WithParens"> (隐藏成就)</sys:String>
     <sys:String x:Key="LOCPlayAch_ChartCut">裁剪</sys:String>
     <sys:String x:Key="LOCPlayAch_GroupByUnlocked">按已解锁分组</sys:String>
     <sys:String x:Key="LOCPlayAch_NoLockedAchievements">没有未解锁成就</sys:String>

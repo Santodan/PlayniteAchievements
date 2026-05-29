@@ -36,6 +36,8 @@
             <Style x:Key="InlineBrowseButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                 <Setter Property="Width" Value="34" />
                 <Setter Property="Height" Value="34" />
+                <Setter Property="Focusable" Value="True" />
+                <Setter Property="KeyboardNavigation.IsTabStop" Value="True" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Margin" Value="8,0,0,0" />
                 <Setter Property="FontSize" Value="16" />
@@ -56,6 +58,8 @@
             </Style>
 
             <Style x:Key="EditorTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource ClearableSearchTextBoxStyle}">
+                <Setter Property="Focusable" Value="True" />
+                <Setter Property="KeyboardNavigation.IsTabStop" Value="True" />
                 <Setter Property="Padding" Value="10,6,30,6" />
                 <Setter Property="MinHeight" Value="34" />
                 <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
@@ -204,18 +208,22 @@
                             Margin="12,0,0,0">
                     <WrapPanel Orientation="Horizontal"
                                HorizontalAlignment="Right">
-                        <Button Content="{DynamicResource LOCPlayAch_Common_RevertChanges}"
+                        <Button x:Name="RevertChangesButton"
+                                Content="{DynamicResource LOCPlayAch_Common_RevertChanges}"
                                 Command="{Binding RevertChangesCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
-                        <Button Content="{DynamicResource LOCPlayAch_Common_ClearOverrides}"
+                        <Button x:Name="ClearAllButton"
+                                Content="{DynamicResource LOCPlayAch_Common_ClearOverrides}"
                                 Command="{Binding ClearAllCommand}"
                                 Style="{StaticResource ToolbarButtonStyle}" />
-                        <Button Content="{DynamicResource LOCPlayAch_Button_Save}"
+                        <Button x:Name="SaveButton"
+                                Content="{DynamicResource LOCPlayAch_Button_Save}"
                                 Command="{Binding SaveCommand}"
                                 Padding="12,6" />
                     </WrapPanel>
 
-                    <Button Content="{DynamicResource LOCPlayAch_GameOptions_CustomIcons_OpenFolderButton}"
+                    <Button x:Name="OpenIconsFolderButton"
+                            Content="{DynamicResource LOCPlayAch_GameOptions_CustomIcons_OpenFolderButton}"
                             Command="{Binding OpenIconsFolderCommand}"
                             Style="{StaticResource ToolbarButtonStyle}"
                             HorizontalAlignment="Right"
@@ -239,7 +247,12 @@
                  Visibility="{Binding HasAchievements, Converter={StaticResource BoolToVis}}"
                  BorderThickness="0"
                  Background="Transparent"
+                 Focusable="False"
+                 KeyboardNavigation.IsTabStop="False"
                  HorizontalContentAlignment="Stretch"
+                 SelectionMode="Single"
+                 KeyboardNavigation.DirectionalNavigation="Continue"
+                 KeyboardNavigation.TabNavigation="Continue"
                  ItemContainerStyle="{StaticResource IconCardListItemStyle}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -371,6 +384,7 @@
                                         <Button Tag="{Binding UnlockedOverrideText}"
                                                 CommandParameter="Unlocked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
+                                                Focusable="True"
                                                 Click="ClearOverrideButton_Click" />
                                     </Grid>
 
@@ -440,6 +454,7 @@
                                         <Button Tag="{Binding LockedOverrideText}"
                                                 CommandParameter="Locked"
                                                 Style="{StaticResource ClearSearchButtonStyle}"
+                                                Focusable="True"
                                                 Click="ClearOverrideButton_Click" />
                                     </Grid>
 

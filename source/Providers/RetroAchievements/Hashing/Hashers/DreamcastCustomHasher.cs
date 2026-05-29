@@ -19,9 +19,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
         {
             var meta = new byte[256];
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var image = DiscImageReader.Open(filePath))
             {
-                if (await HashUtils.ReadExactlyAsync(stream, meta, 0, meta.Length, cancel).ConfigureAwait(false) != meta.Length)
+                if (await HashUtils.ReadExactlyAsync(image.Stream, meta, 0, meta.Length, cancel).ConfigureAwait(false) != meta.Length)
                 {
                     return Array.Empty<string>();
                 }
@@ -90,4 +90,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         }
     }
 }
-

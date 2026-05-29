@@ -68,7 +68,7 @@ namespace PlayniteAchievements
 
         private static readonly string[] ProviderRefreshOrder =
         {
-            "Manual", "Exophase", "Steam", "Epic", "GOG", "PSN", "Xbox", "Xenia", "RPCS3", "ShadPS4", "RetroAchievements", "Local",
+            "Manual", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "PSN", "Xbox", "Xenia", "RPCS3", "ShadPS4", "RetroAchievements", "Local",
         };
 
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
@@ -98,6 +98,7 @@ namespace PlayniteAchievements
         private readonly ThemeIntegrationService _themeIntegrationService;
         private readonly ThemeControlRegistry _themeControlRegistry;
         private readonly PluginWindowService _windowService;
+        private readonly FullscreenControllerNavigationService _fullscreenControllerNavigationService;
         private readonly ThemeAutoMigrationService _themeAutoMigrationService;
         private readonly ForkReleaseMonitor _forkReleaseMonitor;
         private readonly ActiveGameAchievementMonitor _activeGameAchievementMonitor;
@@ -268,7 +269,6 @@ namespace PlayniteAchievements
                 Properties = _pluginProperties;
 
                 Instance = this;
-                LoadLocalization();
                 _logger.Info("PlayniteAchievementsPlugin initializing...");
 
                 // Phase 1: Load settings and chart plumbing used by theme controls.
@@ -384,6 +384,10 @@ namespace PlayniteAchievements
                         settings.Persisted);
                     _tagSyncService.InitializeAndSubscribeTaggingSettings();
 
+                    _fullscreenControllerNavigationService = new FullscreenControllerNavigationService(
+                        PlayniteApi,
+                        _logger);
+
                     _windowService = new PluginWindowService(
                         PlayniteApi,
                         _logger,
@@ -395,7 +399,8 @@ namespace PlayniteAchievements
                         _achievementDataService,
                         _settingsViewModel.Settings,
                         _manualSourceRegistry,
-                        EnsureAchievementResourcesLoaded);
+                        EnsureAchievementResourcesLoaded,
+                        _fullscreenControllerNavigationService);
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
@@ -785,6 +790,7 @@ namespace PlayniteAchievements
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }
             try { _manualSourceRegistry?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose manualSourceRegistry"); }
+            try { _fullscreenControllerNavigationService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose fullscreenControllerNavigationService"); }
             try { _fullscreenWindowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose fullscreenWindowService"); }
             try { _themeIntegrationService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose themeIntegrationService"); }
 
@@ -833,10 +839,15 @@ namespace PlayniteAchievements
 
         public override void OnControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
         {
-            base.OnControllerButtonStateChanged(args);
-
             try
             {
+                if (_fullscreenControllerNavigationService?.TryHandleControllerButtonStateChanged(args) == true)
+                {
+                    return;
+                }
+
+                base.OnControllerButtonStateChanged(args);
+
                 if (args?.Button == ControllerInput.B && args.State == ControllerInputState.Pressed)
                 {
                     _fullscreenWindowService?.HandleControllerBackPressed();

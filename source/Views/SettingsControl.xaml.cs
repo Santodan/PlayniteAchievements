@@ -4093,6 +4093,34 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        // Quick navigation button handlers from General tab
+        private void JumpToDisplay_Click(object sender, RoutedEventArgs e)
+        {
+            if (DisplayTab != null)
+            {
+                SettingsTabControl.SelectedItem = DisplayTab;
+                DisplayTab.BringIntoView();
+            }
+        }
+
+        private void JumpToProviders_Click(object sender, RoutedEventArgs e)
+        {
+            if (ProvidersTab != null)
+            {
+                SettingsTabControl.SelectedItem = ProvidersTab;
+                ProvidersTab.BringIntoView();
+            }
+        }
+
+        private void JumpToThemeMigration_Click(object sender, RoutedEventArgs e)
+        {
+            if (ThemeMigrationTab != null)
+            {
+                SettingsTabControl.SelectedItem = ThemeMigrationTab;
+                ThemeMigrationTab.BringIntoView();
+            }
+        }
+
         // -----------------------------
         // Settings property change handling for mock preview refresh
         // -----------------------------

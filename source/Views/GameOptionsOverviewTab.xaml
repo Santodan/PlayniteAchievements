@@ -46,11 +46,36 @@
                 <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
+            <Style x:Key="InlineLinkButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="12,0,0,0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Opacity" Value="0.7" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Opacity" Value="1" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
+                  HorizontalScrollBarVisibility="Disabled"
+                  KeyboardNavigation.DirectionalNavigation="Continue">
         <StackPanel Margin="0">
             <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                 <Grid>
@@ -91,33 +116,39 @@
                             <TextBlock Foreground="{DynamicResource TextBrush}"
                                        Opacity="0.7"
                                        Text="{Binding LastUpdatedLocalText, Mode=OneWay}" />
+                            <Button Command="{Binding OpenAchievementPageCommand}"
+                                    Style="{StaticResource InlineLinkButtonStyle}"
+                                    Visibility="{Binding HasAchievementPageLink, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_GameOptions_Overview_OpenAchievementPage}"
+                                           TextDecorations="Underline" />
+                            </Button>
                         </StackPanel>
                     </StackPanel>
 
-                                <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Top">
-                                <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
-                                    Command="{Binding ClearGameDataCommand}"
-                                    Padding="12,6"
-                                    MinWidth="100"
-                                    Margin="0,0,8,0" />
-                                <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}"
-                                    Command="{Binding RefreshGameCommand}"
-                                    Padding="12,6"
-                                    MinWidth="100"
-                                    Margin="0,0,8,0" />
-                                <Button Content="Edit Local Achievements"
-                                    Command="{Binding OpenLocalAchievementsEditorCommand}"
-                                    Padding="12,6"
-                                    MinWidth="170"
-                                    Margin="0,0,8,0"
-                                    Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}" />
-                                <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
-                                    Command="{Binding OpenAchievementsCommand}"
-                                    Padding="12,6"
-                                    MinWidth="130" />
-                                </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Top">
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                Command="{Binding ClearGameDataCommand}"
+                                Padding="12,6"
+                                MinWidth="100"
+                                Margin="0,0,8,0" />
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Refresh}"
+                                Command="{Binding RefreshGameCommand}"
+                                Padding="12,6"
+                                MinWidth="100"
+                                Margin="0,0,8,0" />
+                        <Button Content="Edit Local Achievements"
+                                Command="{Binding OpenLocalAchievementsEditorCommand}"
+                                Padding="12,6"
+                                MinWidth="170"
+                                Margin="0,0,8,0"
+                                Visibility="{Binding CanEditLocalAchievements, Converter={StaticResource BoolToVis}}" />
+                        <Button Content="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
+                                Command="{Binding OpenAchievementsCommand}"
+                                Padding="12,6"
+                                MinWidth="130" />
+                    </StackPanel>
                 </Grid>
             </Border>
 

@@ -35,7 +35,7 @@ namespace PlayniteAchievements.Steam.Tests
             Assert.IsFalse(result.Value);
             Assert.IsNotNull(capturedUri);
             Assert.AreEqual("/IPlayerService/GetGameAchievements/v1/", capturedUri.AbsolutePath);
-            StringAssert.Contains(capturedUri.Query, "key=store-token");
+            StringAssert.Contains(capturedUri.Query, "access_token=store-token");
         }
 
         [TestMethod]

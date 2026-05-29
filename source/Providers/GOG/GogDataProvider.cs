@@ -16,7 +16,7 @@ namespace PlayniteAchievements.Providers.GOG
     /// IDataProvider implementation for GOG achievements.
     /// Uses WebView-based authentication and GOG gameplay API.
     /// </summary>
-    public sealed class GogDataProvider : IDataProvider, IDisposable
+    public sealed class GogDataProvider : IDataProvider, IAchievementPageLinkProvider, IDisposable
     {
         internal static readonly Guid GogPluginId = Guid.Parse("AEBE8B7C-6DC3-4A66-AF31-E7375C6B5E9E");
         internal static readonly Guid GogOSSPluginId = Guid.Parse("03689811-3F33-4DFB-A121-2EE168FB9A5C");
@@ -62,9 +62,76 @@ namespace PlayniteAchievements.Providers.GOG
         public bool IsCapable(Game game) =>
             IsGogCapable(game);
 
+        public bool CanResolveAchievementPageUrl(AchievementPageLinkContext context)
+        {
+            return TryBuildAchievementPageUrl(context, out _);
+        }
+
+        public Task<string> GetAchievementPageUrlAsync(
+            AchievementPageLinkContext context,
+            CancellationToken cancel)
+        {
+            return Task.FromResult(
+                TryBuildAchievementPageUrl(context, out var url)
+                    ? url
+                    : null);
+        }
+
+        internal static bool TryBuildAchievementPageUrl(
+            AchievementPageLinkContext context,
+            out string url)
+        {
+            url = null;
+            var links = context?.Game?.Links;
+            if (links == null)
+            {
+                return false;
+            }
+
+            foreach (var link in links)
+            {
+                if (TryGetGogSlug(link?.Url, out var slug))
+                {
+                    url = $"https://www.gog.com/en/game/{Uri.EscapeDataString(slug)}";
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsGogCapable(Game game)
         {
             return game != null && (game.PluginId == GogPluginId || game.PluginId == GogOSSPluginId);
+        }
+
+        internal static bool TryGetGogSlug(string linkUrl, out string slug)
+        {
+            slug = null;
+            if (string.IsNullOrWhiteSpace(linkUrl) ||
+                !Uri.TryCreate(linkUrl.Trim(), UriKind.Absolute, out var uri) ||
+                !IsGogHost(uri.Host))
+            {
+                return false;
+            }
+
+            var segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < segments.Length - 1; i++)
+            {
+                if (string.Equals(segments[i], "game", StringComparison.OrdinalIgnoreCase))
+                {
+                    slug = Uri.UnescapeDataString(segments[i + 1]).Trim();
+                    return !string.IsNullOrWhiteSpace(slug);
+                }
+            }
+
+            return false;
+        }
+
+        private static bool IsGogHost(string host)
+        {
+            return string.Equals(host, "gog.com", StringComparison.OrdinalIgnoreCase) ||
+                   host?.EndsWith(".gog.com", StringComparison.OrdinalIgnoreCase) == true;
         }
 
         public Task<RebuildPayload> RefreshAsync(

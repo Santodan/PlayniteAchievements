@@ -104,6 +104,7 @@ namespace PlayniteAchievements
                 view.Deactivate();
                 view.Dispose();
             };
+            _fullscreenControllerNavigationService?.RegisterWindow(window, view);
 
             window.Show();
             try

@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Common
 
         public static async Task NavigateAndWaitAsync(this IWebView webView, string url, int timeoutMs = DefaultNavigationTimeoutMs)
         {
-            var tcs = new TaskCompletionSource<bool>();
+            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             void OnLoadingChanged(object sender, WebViewLoadingChangedEventArgs e)
             {
@@ -31,8 +31,10 @@ namespace PlayniteAchievements.Common
 
                 if (completedTask != tcs.Task)
                 {
-                    tcs.TrySetException(new TimeoutException($"WebView navigation to '{url}' timed out after {timeoutMs}ms"));
+                    throw new TimeoutException($"WebView navigation to '{url}' timed out after {timeoutMs}ms");
                 }
+
+                await tcs.Task.ConfigureAwait(false);
             }
             finally
             {

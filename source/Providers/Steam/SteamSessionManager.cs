@@ -25,9 +25,11 @@ namespace PlayniteAchievements.Providers.Steam
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
 
+        private const string CommunityEditInfoUrl = "https://steamcommunity.com/my/edit/info";
+
         // Temporary state for interactive login dialog coordination
-        private (bool Success, string SteamId) _authResult;
-        private Func<CancellationToken, Task<string>> _resolveWebApiTokenAsync;
+        private SteamWebAuthSession _authResult;
+        private IWebView _interactiveLoginView;
         private Action _clearInMemoryAuthState;
 
         public string ProviderKey => "Steam";
@@ -45,11 +47,6 @@ namespace PlayniteAchievements.Providers.Steam
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        }
-
-        internal void SetWebApiTokenResolver(Func<CancellationToken, Task<string>> resolveWebApiTokenAsync)
-        {
-            _resolveWebApiTokenAsync = resolveWebApiTokenAsync;
         }
 
         internal void SetClearInMemoryAuthState(Action clearInMemoryAuthState)
@@ -85,35 +82,22 @@ namespace PlayniteAchievements.Providers.Steam
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    // First try quick hydration from existing CEF cookies
-                    var steamId = ProbeSteamIdFromCefCookies();
-                    if (!string.IsNullOrWhiteSpace(steamId))
+                    var session = await ResolveWebAuthSessionAsync(ct).ConfigureAwait(false);
+                    if (session?.IsComplete == true)
                     {
-                        if (!await HasResolvableWebApiTokenAsync(ct).ConfigureAwait(false))
-                        {
-                            PersistSteamUserId(null);
-                            return AuthProbeResult.NotAuthenticated();
-                        }
-
-                        PersistSteamUserId(steamId);
-                        return AuthProbeResult.AlreadyAuthenticated(steamId);
+                        PersistSteamUserId(session.SteamId64);
+                        return AuthProbeResult.AlreadyAuthenticated(session.SteamId64);
                     }
 
-                    // Try navigation to refresh cookies
-                    steamId = await RefreshCookiesHeadlessAsync(ct).ConfigureAwait(false);
-                    if (!string.IsNullOrWhiteSpace(steamId))
+                    if (!string.IsNullOrWhiteSpace(session?.SteamId64))
                     {
-                        if (!await HasResolvableWebApiTokenAsync(ct).ConfigureAwait(false))
-                        {
-                            PersistSteamUserId(null);
-                            return AuthProbeResult.NotAuthenticated();
-                        }
-
-                        PersistSteamUserId(steamId);
-                        return AuthProbeResult.AlreadyAuthenticated(steamId);
+                        PersistSteamUserId(session.SteamId64);
+                    }
+                    else if (session?.HasSteamSessionCookies != true)
+                    {
+                        PersistSteamUserId(null);
                     }
 
-                    PersistSteamUserId(null);
                     return AuthProbeResult.NotAuthenticated();
                 }
                 catch (OperationCanceledException)
@@ -125,30 +109,6 @@ namespace PlayniteAchievements.Providers.Steam
                     _logger?.Error(ex, "[SteamAuth] Probe failed with exception.");
                     return AuthProbeResult.ProbeFailed();
                 }
-            }
-        }
-
-        private async Task<bool> HasResolvableWebApiTokenAsync(CancellationToken ct)
-        {
-            if (_resolveWebApiTokenAsync == null)
-            {
-                _logger?.Warn("[SteamAuth] WebAPI token resolver is not configured; treating Steam auth as unavailable.");
-                return false;
-            }
-
-            try
-            {
-                var token = await _resolveWebApiTokenAsync(ct).ConfigureAwait(false);
-                return !string.IsNullOrWhiteSpace(token);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, "[SteamAuth] WebAPI token resolution failed.");
-                return false;
             }
         }
 
@@ -183,14 +143,14 @@ namespace PlayniteAchievements.Providers.Steam
 
                 progress?.Report(AuthProgressStep.OpeningLoginWindow);
 
-                var loginTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var loginTcs = new TaskCompletionSource<SteamWebAuthSession>(TaskCreationOptions.RunContinuationsAsynchronously);
 
                 _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() =>
                 {
                     try
                     {
                         var result = LoginInteractively();
-                        loginTcs.TrySetResult(result ?? "");
+                        loginTcs.TrySetResult(result ?? SteamWebAuthSession.Empty());
                     }
                     catch (Exception ex)
                     {
@@ -206,29 +166,36 @@ namespace PlayniteAchievements.Providers.Steam
 
                 if (completed != loginTcs.Task)
                 {
+                    CloseInteractiveLoginView();
+                    await Task.WhenAny(loginTcs.Task, Task.Delay(3000)).ConfigureAwait(false);
                     progress?.Report(AuthProgressStep.Failed);
                     return AuthProbeResult.TimedOut(windowOpened);
                 }
 
-                var extractedId = await loginTcs.Task.ConfigureAwait(false);
+                var session = await loginTcs.Task.ConfigureAwait(false);
 
                 progress?.Report(AuthProgressStep.VerifyingSession);
-                if (string.IsNullOrWhiteSpace(extractedId))
+                if (session?.IsComplete != true)
                 {
                     // Fallback: dialog may have been manually closed after successful login
-                    extractedId = ProbeSteamIdFromCefCookies();
+                    session = await ResolveWebAuthSessionAsync(ct).ConfigureAwait(false);
                 }
 
-                if (string.IsNullOrWhiteSpace(extractedId))
+                if (session?.IsComplete != true)
                 {
+                    if (!string.IsNullOrWhiteSpace(session?.SteamId64))
+                    {
+                        PersistSteamUserId(session.SteamId64);
+                    }
+
                     progress?.Report(AuthProgressStep.Failed);
                     return AuthProbeResult.Cancelled(windowOpened);
                 }
 
-                PersistSteamUserId(extractedId);
+                PersistSteamUserId(session.SteamId64);
                 progress?.Report(AuthProgressStep.Completed);
 
-                return AuthProbeResult.Authenticated(extractedId, windowOpened: windowOpened);
+                return AuthProbeResult.Authenticated(session.SteamId64, windowOpened: windowOpened);
             }
             catch (OperationCanceledException)
             {
@@ -248,7 +215,8 @@ namespace PlayniteAchievements.Providers.Steam
         /// </summary>
         public void ClearSession()
         {
-            _authResult = (false, null);
+            _authResult = null;
+            CloseInteractiveLoginView();
             _clearInMemoryAuthState?.Invoke();
             ClearSteamCookiesFromCef(_api, _logger);
             PersistSteamUserId(null);
@@ -263,12 +231,10 @@ namespace PlayniteAchievements.Providers.Steam
         /// </summary>
         public async Task<(string FinalUrl, string Html)> GetSteamPageAsyncCef(string url, CancellationToken ct)
         {
-            string finalUrl = url;
-            string html = "";
-            var tcs = new TaskCompletionSource<(string, string)>();
-
-            await _api.MainView.UIDispatcher.InvokeAsync(async () =>
+            return await InvokeOnUiAsync(async () =>
             {
+                var finalUrl = url;
+                var html = string.Empty;
                 try
                 {
                     ct.ThrowIfCancellationRequested();
@@ -281,144 +247,103 @@ namespace PlayniteAchievements.Providers.Steam
                         await Task.Delay(2000, ct);
 
                         html = await view.GetPageSourceAsync();
-                        tcs.TrySetResult((finalUrl, html));
                     }
                 }
                 catch (TimeoutException ex)
                 {
                     _logger?.Warn(ex, $"Offscreen navigation timed out for {url}");
-                    tcs.TrySetResult((finalUrl, ""));
+                    html = string.Empty;
                 }
                 catch (Exception ex)
                 {
                     _logger?.Error(ex, $"Offscreen navigation failed for {url}");
-                    tcs.TrySetResult((finalUrl, ""));
+                    html = string.Empty;
                 }
-            });
 
-            return await tcs.Task;
+                return (finalUrl, html);
+            }).ConfigureAwait(false);
         }
 
         // ---------------------------------------------------------------------
         // Private Helper Methods
         // ---------------------------------------------------------------------
 
-        /// <summary>
-        /// Probes SteamID64 directly from current CEF cookies without navigation.
-        /// </summary>
-        private string ProbeSteamIdFromCefCookies()
+        private Task<T> InvokeOnUiAsync<T>(Func<Task<T>> action)
         {
-            try
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            var dispatcher = _api?.MainView?.UIDispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
             {
-                using (var view = _api.WebViews.CreateOffscreenView())
+                return action();
+            }
+
+            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try
                 {
-                    var cookies = view.GetCookies();
-                    if (cookies == null)
-                    {
-                        return null;
-                    }
-
-                    var hasSessionCookie = cookies.Any(c =>
-                        c != null &&
-                        !string.IsNullOrWhiteSpace(c.Domain) &&
-                        IsSteamDomain(c.Domain) &&
-                        !IsExpiredCookie(c) &&
-                        c.Name.Equals("sessionid", StringComparison.OrdinalIgnoreCase));
-                    if (!hasSessionCookie)
-                    {
-                        return null;
-                    }
-
-                    var authCookie = cookies.FirstOrDefault(c =>
-                        c != null &&
-                        !string.IsNullOrWhiteSpace(c.Domain) &&
-                        IsSteamDomain(c.Domain) &&
-                        !IsExpiredCookie(c) &&
-                        c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase));
-                    if (authCookie == null)
-                    {
-                        return null;
-                    }
-
-                    return TryExtractSteamId64FromSteamLoginSecure(authCookie.Value);
+                    var result = await action().ConfigureAwait(true);
+                    tcs.TrySetResult(result);
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "Failed to probe SteamID64 from CEF cookies.");
-                return null;
-            }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            }));
+
+            return tcs.Task;
         }
 
-        /// <summary>
-        /// Refreshes cookies by navigating to Steam Community and extracting the SteamID.
-        /// </summary>
-        private async Task<string> RefreshCookiesHeadlessAsync(CancellationToken ct)
+        internal Task<SteamWebAuthSession> ResolveWebAuthSessionAsync(CancellationToken ct)
         {
-            var tcs = new TaskCompletionSource<string>();
-
-            await _api.MainView.UIDispatcher.InvokeAsync(async () =>
+            return InvokeOnUiAsync(async () =>
             {
                 try
                 {
                     ct.ThrowIfCancellationRequested();
                     using (var view = _api.WebViews.CreateOffscreenView())
                     {
-                        var targetUrl = "https://steamcommunity.com/";
-
-                        _logger?.Debug($"[SteamAuth] Navigating to {targetUrl} to refresh session...");
-                        await view.NavigateAndWaitAsync(targetUrl, timeoutMs: 15000);
-
-                        // Give the browser a moment to commit cookies
-                        await Task.Delay(1000, ct);
-
-                        var cookies = view.GetCookies();
-                        var hasSessionCookie = cookies?.Any(c =>
-                            c != null &&
-                            !string.IsNullOrWhiteSpace(c.Domain) &&
-                            IsSteamDomain(c.Domain) &&
-                            !IsExpiredCookie(c) &&
-                            c.Name.Equals("sessionid", StringComparison.OrdinalIgnoreCase)) == true;
-                        if (!hasSessionCookie)
-                        {
-                            tcs.TrySetResult(null);
-                            return;
-                        }
-
-                        var authCookie = cookies?.FirstOrDefault(c =>
-                            c != null &&
-                            !string.IsNullOrWhiteSpace(c.Domain) &&
-                            IsSteamDomain(c.Domain) &&
-                            !IsExpiredCookie(c) &&
-                            c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase));
-
-                        if (authCookie != null)
-                        {
-                            var extractedId = TryExtractSteamId64FromSteamLoginSecure(authCookie.Value);
-                            tcs.TrySetResult(extractedId);
-                            return;
-                        }
-
-                        tcs.TrySetResult(null);
+                        _logger?.Debug($"[SteamAuth] Navigating to {CommunityEditInfoUrl} to resolve web auth session...");
+                        await view.NavigateAndWaitAsync(CommunityEditInfoUrl, timeoutMs: 15000).ConfigureAwait(true);
+                        await Task.Delay(500, ct).ConfigureAwait(true);
+                        return ResolveWebAuthSessionFromView(view);
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    tcs.TrySetResult(null);
-                }
-                catch (TimeoutException ex)
-                {
-                    _logger?.Warn(ex, "[SteamAuth] Offscreen navigation timed out.");
-                    tcs.TrySetResult(null);
+                    throw;
                 }
                 catch (Exception ex)
                 {
-                    _logger?.Error(ex, "[SteamAuth] Offscreen navigation failed.");
-                    tcs.TrySetResult(null);
+                    _logger?.Warn(ex, "[SteamAuth] Failed to resolve Steam web auth session.");
+                    return SteamWebAuthSession.Empty();
                 }
             });
+        }
 
-            return await tcs.Task;
+        private SteamWebAuthSession ResolveWebAuthSessionFromView(IWebView view)
+        {
+            if (view == null)
+            {
+                return SteamWebAuthSession.Empty();
+            }
+
+            var cookies = view.GetCookies();
+            var hasSessionCookies = HasSteamSessionCookies(cookies);
+            var cookieSteamId = TryExtractSteamId64FromCookies(cookies);
+            string source = null;
+
+            try
+            {
+                source = view.GetPageSource();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[SteamAuth] Failed to read Steam WebView page source.");
+            }
+
+            return SteamWebAuthParser.Parse(source, cookieSteamId, hasSessionCookies);
         }
 
         internal async Task<bool> WarmStoreSessionAsync(CancellationToken ct)
@@ -471,32 +396,43 @@ namespace PlayniteAchievements.Providers.Steam
         /// <summary>
         /// Synchronous login method matching Steam library plugin pattern.
         /// </summary>
-        private string LoginInteractively()
+        private SteamWebAuthSession LoginInteractively()
         {
-            _authResult = (false, null);
+            _authResult = null;
 
             IWebView view = null;
             try
             {
                 view = _api.WebViews.CreateView(1000, 800);
+                _interactiveLoginView = view;
                 view.DeleteDomainCookies(".steamcommunity.com");
                 view.DeleteDomainCookies("steamcommunity.com");
+                view.DeleteDomainCookies(".store.steampowered.com");
+                view.DeleteDomainCookies("store.steampowered.com");
                 view.DeleteDomainCookies(".steampowered.com");
                 view.DeleteDomainCookies("steampowered.com");
+                view.DeleteDomainCookies(".login.steampowered.com");
+                view.DeleteDomainCookies("login.steampowered.com");
+                view.DeleteDomainCookies(".help.steampowered.com");
+                view.DeleteDomainCookies("help.steampowered.com");
 
                 view.LoadingChanged += CloseWhenLoggedIn;
-                view.Navigate("https://steamcommunity.com/login/home/?goto=" +
-                              Uri.EscapeDataString("https://steamcommunity.com/my/"));
+                view.Navigate(CommunityEditInfoUrl);
 
                 view.OpenDialog();
 
-                return _authResult.Success ? _authResult.SteamId : null;
+                return _authResult;
             }
             finally
             {
                 if (view != null)
                 {
                     view.LoadingChanged -= CloseWhenLoggedIn;
+                    if (ReferenceEquals(_interactiveLoginView, view))
+                    {
+                        _interactiveLoginView = null;
+                    }
+
                     view.Dispose();
                 }
             }
@@ -515,23 +451,51 @@ namespace PlayniteAchievements.Providers.Steam
                 if (IsLoginPageUrl(address))
                     return;
 
-                var cookies = await Task.Run(() => view.GetCookies()).ConfigureAwait(false);
-                var authCookie = cookies?.FirstOrDefault(c =>
-                    c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase));
-
-                if (authCookie != null)
+                await Task.Delay(250).ConfigureAwait(true);
+                var session = ResolveWebAuthSessionFromView(view);
+                if (session.IsComplete)
                 {
-                    var extractedId = TryExtractSteamId64FromSteamLoginSecure(authCookie.Value);
-                    if (!string.IsNullOrWhiteSpace(extractedId))
-                    {
-                        _authResult = (true, extractedId);
-                        _ = _api.MainView.UIDispatcher.BeginInvoke(new Action(() => view.Close()));
-                    }
+                    _authResult = session;
+                    view.Close();
+                    return;
+                }
+
+                if (!IsCommunityEditInfoUrl(address))
+                {
+                    view.Navigate(CommunityEditInfoUrl);
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "[SteamAuth] Failed to check authentication status");
+            }
+        }
+
+        private void CloseInteractiveLoginView()
+        {
+            var view = _interactiveLoginView;
+            if (view == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var dispatcher = _api?.MainView?.UIDispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess())
+                {
+                    view.Close();
+                }
+                else
+                {
+                    dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try { view.Close(); } catch { }
+                    }));
+                }
+            }
+            catch
+            {
             }
         }
 
@@ -542,6 +506,13 @@ namespace PlayniteAchievements.Providers.Steam
             return url.IndexOf("/login", StringComparison.OrdinalIgnoreCase) >= 0
                 || url.IndexOf("openid", StringComparison.OrdinalIgnoreCase) >= 0
                 || url.IndexOf("login.steampowered.com", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsCommunityEditInfoUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return false;
+            return url.IndexOf("steamcommunity.com", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   url.IndexOf("/edit/info", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsSteamDomain(string domain)
@@ -589,6 +560,55 @@ namespace PlayniteAchievements.Providers.Steam
             return m.Success ? m.Groups["id"].Value : null;
         }
 
+        private static string TryExtractSteamId64FromCookies(IEnumerable<HttpCookie> cookies)
+        {
+            var authCookie = cookies?.FirstOrDefault(c =>
+                c != null &&
+                !string.IsNullOrWhiteSpace(c.Domain) &&
+                IsSteamDomain(c.Domain) &&
+                c.Name.Equals("steamLoginSecure", StringComparison.OrdinalIgnoreCase));
+
+            return authCookie == null
+                ? null
+                : TryExtractSteamId64FromSteamLoginSecure(authCookie.Value);
+        }
+
+        private static bool HasSteamSessionCookies(IEnumerable<HttpCookie> cookies)
+        {
+            return cookies?.Any(c =>
+                c != null &&
+                !string.IsNullOrWhiteSpace(c.Domain) &&
+                IsSteamDomain(c.Domain) &&
+                SteamSessionCookieNames.Any(n => string.Equals(c.Name, n, StringComparison.OrdinalIgnoreCase))) == true;
+        }
+
+        private static T InvokeOnUi<T>(IPlayniteAPI api, Func<T> action)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            var dispatcher = api?.MainView?.UIDispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                return action();
+            }
+
+            return dispatcher.Invoke(action);
+        }
+
+        private static void InvokeOnUi(IPlayniteAPI api, Action action)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            var dispatcher = api?.MainView?.UIDispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            dispatcher.Invoke(action);
+        }
+
         // ---------------------------------------------------------------------
         // Cookie Management (for SteamHttpClient)
         // ---------------------------------------------------------------------
@@ -601,18 +621,13 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
-                using (var view = api.WebViews.CreateOffscreenView())
+                return InvokeOnUi(api, () =>
                 {
-                    var cookies = view.GetCookies();
-                    if (cookies == null)
-                        return false;
-
-                    return cookies.Any(c =>
-                        c != null &&
-                        !string.IsNullOrWhiteSpace(c.Domain) &&
-                        IsSteamDomain(c.Domain) &&
-                        SteamSessionCookieNames.Any(n => string.Equals(c.Name, n, StringComparison.OrdinalIgnoreCase)));
-                }
+                    using (var view = api.WebViews.CreateOffscreenView())
+                    {
+                        return HasSteamSessionCookies(view.GetCookies());
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -628,46 +643,51 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
-                using (var view = api.WebViews.CreateOffscreenView())
+                InvokeOnUi(api, () =>
                 {
-                    var cookies = view.GetCookies();
-                    if (cookies == null)
-                    return;
-
-                    var steamCookies = cookies
-                        .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Domain))
-                        .Where(c => IsSteamDomain(c.Domain))
-                        .ToList();
-
-                    foreach (var c in steamCookies)
+                    using (var view = api.WebViews.CreateOffscreenView())
                     {
-                        try
+                        var cookies = view.GetCookies();
+                        if (cookies == null)
                         {
-                            var domain = c.Domain.TrimStart('.');
-                            var path = string.IsNullOrWhiteSpace(c.Path) ? "/" : c.Path;
-                            var uri = GetAddUriForDomain(domain);
-                            var cookie = new Cookie(c.Name, SanitizeCookieValue(c.Value), path)
-                            {
-                                Domain = uri.Host,
-                                Secure = c.Secure,
-                                HttpOnly = c.HttpOnly
-                            };
+                            return;
+                        }
 
-                            if (c.Expires.HasValue && c.Expires.Value > DateTime.MinValue)
+                        var steamCookies = cookies
+                            .Where(c => c != null && !string.IsNullOrWhiteSpace(c.Domain))
+                            .Where(c => IsSteamDomain(c.Domain))
+                            .ToList();
+
+                        foreach (var c in steamCookies)
+                        {
+                            try
                             {
-                                var expires = c.Expires.Value;
-                                cookie.Expires = expires.Kind == DateTimeKind.Utc ? expires : expires.ToUniversalTime();
+                                var domain = c.Domain.TrimStart('.');
+                                var path = string.IsNullOrWhiteSpace(c.Path) ? "/" : c.Path;
+                                var uri = GetAddUriForDomain(domain);
+                                var cookie = new Cookie(c.Name, SanitizeCookieValue(c.Value), path)
+                                {
+                                    Domain = uri.Host,
+                                    Secure = c.Secure,
+                                    HttpOnly = c.HttpOnly
+                                };
+
+                                if (c.Expires.HasValue && c.Expires.Value > DateTime.MinValue)
+                                {
+                                    var expires = c.Expires.Value;
+                                    cookie.Expires = expires.Kind == DateTimeKind.Utc ? expires : expires.ToUniversalTime();
+                                }
+                                cookieJar.Add(uri, cookie);
                             }
-                            cookieJar.Add(uri, cookie);
+                            catch (Exception ex)
+                            {
+                                logger?.Debug($"Failed to add cookie '{c.Name}' to jar: {ex.Message}");
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            logger?.Debug($"Failed to add cookie '{c.Name}' to jar: {ex.Message}");
-                        }
-                    }
 
-                    AddSteamTimezoneCookie(cookieJar, logger);
-                }
+                        AddSteamTimezoneCookie(cookieJar, logger);
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -721,7 +741,7 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
-                api.MainView.UIDispatcher.Invoke(() =>
+                InvokeOnUi(api, () =>
                 {
                     using (var view = api.WebViews.CreateOffscreenView())
                     {

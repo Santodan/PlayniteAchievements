@@ -127,7 +127,8 @@
                                TextWrapping="Wrap"
                                Margin="0,6,0,0" />
                 </StackPanel>
-                <Button Grid.Column="1"
+                <Button x:Name="ResetCategoryButton"
+                        Grid.Column="1"
                     Content="{DynamicResource LOCPlayAch_Button_Reset}"
                         Click="ResetCategoryButton_Click"
                         Margin="12,0,0,0"
@@ -145,7 +146,8 @@
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0">
-                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox x:Name="SearchTextBox"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource ClearableSearchTextBoxStyle}"
                          Height="30"
                          VerticalAlignment="Center" />
@@ -169,7 +171,8 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <Button Tag="{Binding SearchText}"
+                <Button x:Name="ClearSearchButton"
+                        Tag="{Binding SearchText}"
                         Command="{Binding ClearSearchCommand}"
                         Style="{StaticResource ClearSearchButtonStyle}" />
             </Grid>
@@ -207,12 +210,14 @@
                         Orientation="Horizontal"
                         VerticalAlignment="Center"
                         Margin="8,0,0,0">
-                <Button Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
+                <Button x:Name="SelectAllButton"
+                        Content="{DynamicResource LOCPlayAch_Common_SelectAll}"
                         Click="SelectAllButton_Click"
                         Height="30"
                         Padding="10,2"
                         Margin="0,0,8,0" />
-                <Button Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
+                <Button x:Name="DeselectAllButton"
+                        Content="{DynamicResource LOCPlayAch_Common_DeselectAll}"
                         Click="DeselectAllButton_Click"
                         Height="30"
                         Padding="10,2" />
@@ -256,14 +261,15 @@
                   ScrollViewer.CanContentScroll="True"
                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                  Tag="ControllerCellFocus"
                   PreviewMouseLeftButtonDown="CategoryDataGrid_PreviewMouseLeftButtonDown">
 
             <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}" />
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource GameOptionsControllerCellStyle}" />
             </DataGrid.CellStyle>
 
             <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow" BasedOn="{StaticResource AchievementRowStyle}">
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource GameOptionsDataGridRowStyle}">
                     <Setter Property="MinHeight" Value="76" />
                     <Setter Property="ClipToBounds" Value="True" />
                     <EventSetter Event="PreviewMouseRightButtonDown" Handler="CategoryDataGridRow_PreviewMouseRightButtonDown" />
@@ -272,12 +278,19 @@
             </DataGrid.RowStyle>
 
             <DataGrid.Columns>
-                <DataGridTemplateColumn Width="44" MinWidth="44" MaxWidth="44" CanUserResize="False" CanUserSort="False">
+                <DataGridTemplateColumn Width="44"
+                                        MinWidth="44"
+                                        MaxWidth="44"
+                                        CanUserResize="False"
+                                        CanUserSort="False"
+                                        CellStyle="{StaticResource GameOptionsCheckBoxCellStyle}">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
+                                      Focusable="False"
+                                      IsTabStop="False"
                                       Click="RowSelectionCheckBox_Click"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -333,7 +346,10 @@
                 CornerRadius="6"
                 Margin="0,10,0,0"
                 Padding="10,8,10,10">
-            <Expander IsExpanded="False"
+            <Expander x:Name="BulkEditExpander"
+                      IsExpanded="False"
+                      Focusable="True"
+                      IsTabStop="False"
                       Background="Transparent"
                       BorderThickness="0">
                 <Expander.Header>
@@ -381,7 +397,8 @@
                         </Button.ContextMenu>
                     </Button>
 
-                        <Button Grid.Row="1"
+                        <Button x:Name="ClearSelectedButton"
+                            Grid.Row="1"
                             Grid.Column="1"
                             Content="{DynamicResource LOCPlayAch_Common_ResetSelected}"
                             Click="ClearSelectedButton_Click"
@@ -420,7 +437,8 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                        <Button Grid.Row="2"
+                        <Button x:Name="ApplyBulkButton"
+                            Grid.Row="2"
                             Grid.Column="1"
                             Content="{DynamicResource LOCPlayAch_Common_ApplyToSelected}"
                             Click="ApplyBulkButton_Click"
@@ -428,7 +446,8 @@
                             Height="30"
                             Margin="8,8,0,0" />
 
-                        <Button Grid.Row="2"
+                        <Button x:Name="RenameCategoryButton"
+                            Grid.Row="2"
                             Grid.Column="2"
                             Content="{DynamicResource LOCPlayAch_Common_RenameLabelEllipsis}"
                             Click="RenameCategoryButton_Click"

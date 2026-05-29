@@ -24,6 +24,18 @@
     <Reference Include="System.Xaml" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="DiscUtils.Core">
+      <HintPath>..\..\source\packages\DiscUtils.Core.0.16.13\lib\net45\DiscUtils.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="DiscUtils.Iso9660">
+      <HintPath>..\..\source\packages\DiscUtils.Iso9660.0.16.13\lib\net45\DiscUtils.Iso9660.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="DiscUtils.Streams">
+      <HintPath>..\..\source\packages\DiscUtils.Streams.0.16.13\lib\net45\DiscUtils.Streams.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
 
     <Compile Include="..\..\source\Providers\Epic\EpicApiClient.cs" Link="Source\Providers\Epic\EpicApiClient.cs" />
     <Compile Include="..\..\source\Providers\Epic\EpicAuthModels.cs" Link="Source\Providers\Epic\EpicAuthModels.cs" />
@@ -67,6 +79,17 @@
     <Compile Include="..\..\source\Providers\Settings\IProviderSettings.cs" Link="Source\Providers\Settings\IProviderSettings.cs" />
     <Compile Include="..\..\source\Providers\Settings\ProviderSettingsViewBase.cs" Link="Source\Providers\Settings\ProviderSettingsViewBase.cs" />
     <Compile Include="..\..\source\Providers\ProviderRegistry.cs" Link="Source\Providers\ProviderRegistry.cs" />
+    <Compile Include="..\..\source\Providers\ProviderUiPolicies.cs" Link="Source\Providers\ProviderUiPolicies.cs" />
+    <Compile Include="..\..\source\Providers\AchievementPageLinkContext.cs" Link="Source\Providers\AchievementPageLinkContext.cs" />
+    <Compile Include="..\..\source\Providers\AchievementPageLinkResolver.cs" Link="Source\Providers\AchievementPageLinkResolver.cs" />
+    <Compile Include="..\..\source\Providers\IAchievementPageLinkProvider.cs" Link="Source\Providers\IAchievementPageLinkProvider.cs" />
+    <Compile Include="..\..\source\Common\RateLimiter.cs" Link="Source\Common\RateLimiter.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\BattleNetApiClient.cs" Link="Source\Providers\BattleNet\BattleNetApiClient.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\BattleNetSupport.cs" Link="Source\Providers\BattleNet\BattleNetSupport.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\WowGameStrategy.cs" Link="Source\Providers\BattleNet\WowGameStrategy.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetSc2Models.cs" Link="Source\Providers\BattleNet\Models\BattleNetSc2Models.cs" />
+    <Compile Include="..\..\source\Providers\BattleNet\Models\BattleNetWowModels.cs" Link="Source\Providers\BattleNet\Models\BattleNetWowModels.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4PathResolver.cs" Link="Source\Providers\ShadPS4\ShadPS4PathResolver.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Settings.cs" Link="Source\Providers\ShadPS4\ShadPS4Settings.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4DataProvider.cs" Link="Source\Providers\ShadPS4\ShadPS4DataProvider.cs" />
@@ -78,6 +101,17 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\RaConsoleIdResolver.cs" Link="Source\Providers\RetroAchievements\RaConsoleIdResolver.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\EmuLibraryGameIdDecoder.cs" Link="Source\Providers\RetroAchievements\EmuLibraryGameIdDecoder.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\EmuLibrarySettingsReader.cs" Link="Source\Providers\RetroAchievements\EmuLibrarySettingsReader.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsHashCacheStore.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsHashCacheStore.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" Link="Source\Providers\RetroAchievements\Hashing\CueSheetParser.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" Link="Source\Providers\RetroAchievements\Hashing\CueTrackReader.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscImageReader.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscBasedHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscBasedHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" Link="Source\Providers\RetroAchievements\Hashing\DiscUtilsFacade.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\HashUtils.cs" Link="Source\Providers\RetroAchievements\Hashing\HashUtils.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\IRaHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\IRaHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PceCdCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\PsxCustomHasher.cs" />
+    <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" Link="Source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSettings.cs" Link="Source\Providers\Exophase\ExophaseSettings.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaSettings.cs" Link="Source\Providers\Xenia\XeniaSettings.cs" />
@@ -93,6 +127,7 @@
     <Compile Include="..\..\source\Providers\Manual\ExophaseManualSource.cs" Link="Source\Providers\Manual\ExophaseManualSource.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAPIClient.cs" Link="Source\Providers\Steam\SteamAPIClient.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" Link="Source\Providers\Steam\SteamAsyncConfigTokenHelper.cs" />
+    <Compile Include="..\..\source\Providers\Steam\SteamWebAuthSession.cs" Link="Source\Providers\Steam\SteamWebAuthSession.cs" />
     <Compile Include="..\..\source\Providers\Steam\SteamWebApiTokenResolver.cs" Link="Source\Providers\Steam\SteamWebApiTokenResolver.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseApiClient.cs" Link="Source\Providers\Exophase\ExophaseApiClient.cs" />
     <Compile Include="..\..\source\Providers\ISessionManager.cs" Link="Source\Providers\ISessionManager.cs" />

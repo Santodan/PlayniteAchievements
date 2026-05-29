@@ -1,4 +1,5 @@
 using Playnite.SDK;
+using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -17,6 +18,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         public long FileSize { get; set; }
         public long LastWriteTicksUtc { get; set; }
         public int RaGameId { get; set; }
+        public List<RaHashCacheDependency> Dependencies { get; set; }
+    }
+
+    internal sealed class RaHashCacheDependency
+    {
+        public string Path { get; set; }
+        public long FileSize { get; set; }
+        public long LastWriteTicksUtc { get; set; }
     }
 
     /// <summary>
@@ -131,6 +140,105 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     _dirty = true;
                 }
             }
+        }
+
+        internal static List<RaHashCacheDependency> CaptureDependencySnapshot(string matchedPath)
+        {
+            var dependencies = new List<RaHashCacheDependency>();
+
+            IReadOnlyList<string> dependencyPaths = null;
+            if (CueTrackReader.IsCuePath(matchedPath) &&
+                CueTrackReader.TryGetDataTrackDependencies(matchedPath, out var cueDependencies, out _))
+            {
+                dependencyPaths = cueDependencies;
+            }
+            else if (!string.IsNullOrWhiteSpace(matchedPath))
+            {
+                dependencyPaths = new[] { matchedPath };
+            }
+
+            if (dependencyPaths == null)
+            {
+                return dependencies;
+            }
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dependencyPath in dependencyPaths)
+            {
+                if (string.IsNullOrWhiteSpace(dependencyPath))
+                {
+                    continue;
+                }
+
+                var normalizedPath = dependencyPath.Trim().Trim('"');
+                if (!seen.Add(normalizedPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var fi = new FileInfo(normalizedPath);
+                    if (!fi.Exists)
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(new RaHashCacheDependency
+                    {
+                        Path = normalizedPath,
+                        FileSize = fi.Length,
+                        LastWriteTicksUtc = fi.LastWriteTimeUtc.Ticks
+                    });
+                }
+                catch
+                {
+                    // Ignore individual dependency stat failures.
+                }
+            }
+
+            return dependencies;
+        }
+
+        internal static bool ValidateDependencySnapshot(IReadOnlyList<RaHashCacheDependency> dependencies)
+        {
+            if (dependencies == null || dependencies.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var dependency in dependencies)
+            {
+                if (dependency == null || string.IsNullOrWhiteSpace(dependency.Path))
+                {
+                    return false;
+                }
+
+                try
+                {
+                    var fi = new FileInfo(dependency.Path);
+                    if (!fi.Exists)
+                    {
+                        return false;
+                    }
+
+                    if (fi.Length != dependency.FileSize)
+                    {
+                        return false;
+                    }
+
+                    if (fi.LastWriteTimeUtc.Ticks != dependency.LastWriteTicksUtc)
+                    {
+                        return false;
+                    }
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 }

@@ -17,7 +17,7 @@ namespace PlayniteAchievements.Providers.Exophase
     /// Full data provider for Exophase achievement tracking.
     /// Supports automatic game claiming by platform and per-game overrides.
     /// </summary>
-    internal sealed class ExophaseDataProvider : IDataProvider
+    internal sealed class ExophaseDataProvider : IDataProvider, IAchievementPageLinkProvider
     {
         #region Fields
 
@@ -52,6 +52,122 @@ namespace PlayniteAchievements.Providers.Exophase
         public bool IsAuthenticated => _sessionManager?.IsAuthenticated ?? false;
 
         public ISessionManager AuthSession => _sessionManager;
+
+        public bool CanResolveAchievementPageUrl(AchievementPageLinkContext context)
+        {
+            return TryBuildKnownAchievementPageUrl(context, out _) ||
+                   CanAttemptSlugResolution(context?.Game);
+        }
+
+        public async Task<string> GetAchievementPageUrlAsync(
+            AchievementPageLinkContext context,
+            CancellationToken cancel)
+        {
+            if (TryBuildKnownAchievementPageUrl(context, out var url))
+            {
+                return url;
+            }
+
+            var game = context?.Game;
+            if (!CanAttemptSlugResolution(game))
+            {
+                return null;
+            }
+
+            var slug = await ResolveExophaseSlugAsync(game, cancel).ConfigureAwait(false);
+            return TryBuildAchievementPageUrlFromSlug(slug, out url)
+                ? url
+                : null;
+        }
+
+        private bool TryBuildKnownAchievementPageUrl(
+            AchievementPageLinkContext context,
+            out string url)
+        {
+            url = null;
+            if (string.Equals(context?.ManualLink?.SourceKey, ProviderKey, StringComparison.OrdinalIgnoreCase) &&
+                TryBuildAchievementPageUrlFromSlug(context.ManualLink.SourceGameId, out url))
+            {
+                return true;
+            }
+
+            var game = context?.Game;
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (GameCustomDataLookup.TryGetExophaseSlugOverride(game.Id, out var overrideSlug, _providerSettings) &&
+                TryBuildAchievementPageUrlFromSlug(overrideSlug, out url))
+            {
+                return true;
+            }
+
+            return TryGetCachedSlug(game.Id, out var cachedSlug) &&
+                   TryBuildAchievementPageUrlFromSlug(cachedSlug, out url);
+        }
+
+        internal static bool TryBuildAchievementPageUrlFromSlug(string slugOrUrl, out string url)
+        {
+            url = null;
+            var builtUrl = ExophaseApiClient.BuildUrlFromSlug(slugOrUrl);
+            if (string.IsNullOrWhiteSpace(builtUrl) ||
+                !Uri.TryCreate(builtUrl.Trim(), UriKind.Absolute, out var uri) ||
+                !IsExophaseHost(uri.Host))
+            {
+                return false;
+            }
+
+            var builder = new UriBuilder(uri)
+            {
+                Scheme = Uri.UriSchemeHttps,
+                Port = -1
+            };
+            url = builder.Uri.AbsoluteUri;
+            return true;
+        }
+
+        private static bool IsExophaseHost(string host)
+        {
+            return string.Equals(host, "exophase.com", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(host, "www.exophase.com", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool TryGetCachedSlug(Guid gameId, out string slug)
+        {
+            slug = null;
+            if (gameId == Guid.Empty)
+            {
+                return false;
+            }
+
+            lock (_slugCacheLock)
+            {
+                if (!_slugCache.TryGetValue(gameId, out var cachedSlug) ||
+                    string.IsNullOrWhiteSpace(cachedSlug))
+                {
+                    return false;
+                }
+
+                if (_slugCacheTimestamps.TryGetValue(gameId, out var timestamp) &&
+                    DateTime.UtcNow - timestamp < SlugCacheTtl)
+                {
+                    slug = cachedSlug;
+                    return true;
+                }
+
+                _slugCache.Remove(gameId);
+                _slugCacheTimestamps.Remove(gameId);
+                return false;
+            }
+        }
+
+        private static bool CanAttemptSlugResolution(Game game)
+        {
+            return game != null &&
+                   !string.IsNullOrWhiteSpace(game.Name) &&
+                   !string.IsNullOrWhiteSpace(GetExophasePlatformSlug(game));
+        }
 
         #endregion
 

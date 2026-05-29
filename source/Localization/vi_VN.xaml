@@ -10,20 +10,20 @@
     <!-- ================================================================= -->
     <!-- 02 Core and Common Text -->
     <!-- ================================================================= -->
-    <sys:String x:Key="LOCPlayAch_Achievements">Thành tựu</sys:String>
+    <sys:String x:Key="LOCPlayAch_Achievements">Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_ExcludeFromSummaries">Exclude from Summaries</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Action_IncludeInSummaries">Include in Summaries</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_AddType">Thêm loại</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Áp dụng cho đã chọn</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_AddType">Add Type</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ApplyToSelected">Apply To Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Ascending">Ascending</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_All">All</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Check">Check</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">Xoá ghi đè</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ClearOverrides">Clear Overrides</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Continue">Continue</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Default">Default</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Bỏ chọn tất cả</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_DeselectAll">Deselect All</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Descending">Descending</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Edit">Chỉnh sửa</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Edit">Edit</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Enabled">Enabled</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_ExistingLabel">Existing Label</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_FilterAchievementsPlaceholder">Filter achievements...</sys:String>
@@ -36,17 +36,17 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Type">Type</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">Last Unlock</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">Locked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_NewLabel">Nhãn mới</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_NewLabel">New Label</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">No cached achievements are available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">This game has no achievements tracked yet. Click the Refresh button to check for achievement data.</sys:String>
     <sys:String x:Key="LOCPlayAch_NoAchievementsMessageAlt">This game may not support achievements, or achievements may not be available for this platform.</sys:String>
     <sys:String x:Key="LOCPlayAch_NoAchievementsTitle">No Achievements Found</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NotAuthenticated">Not authenticated</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_RenameLabelEllipsis">Đổi tên nhãn...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_ResetSelected">Đặt lại đã chọn</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_RenameLabelEllipsis">Rename Label...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_ResetSelected">Reset Selected</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_RevertChanges">Revert Changes</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_SelectAll">Chọn tất cả</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_SetLabelEllipsis">Đặt nhãn...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SelectAll">Select All</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_SetLabelEllipsis">Set Label...</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_Disabled">Disabled</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_Linked">Linked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_None">None</sys:String>
@@ -55,18 +55,18 @@
     <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">Unlocked Count</sys:String>
-    <sys:String x:Key="LOCPlayAch_Completed">Đã hoàn thành</sys:String>
+    <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
     <sys:String x:Key="LOCPlayAch_Format_Counts">{0}/{1}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_Rarity">Độ hiếm:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Label_Trophies">Cúp:</sys:String>
-    <sys:String x:Key="LOCPlayAch_Progress">Tiến trình</sys:String>
-    <sys:String x:Key="LOCPlayAch_RecentAchievements">Thành tựu gần đây</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Rarity">Rarity:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Label_Trophies">Trophies:</sys:String>
+    <sys:String x:Key="LOCPlayAch_Progress">Progress</sys:String>
+    <sys:String x:Key="LOCPlayAch_RecentAchievements">Recent Achievements</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_Ellipsis">...</sys:String>
     <sys:String x:Key="LOCPlayAch_Text_UnknownGame">Unknown Game</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Bronze">Đồng</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Gold">Vàng</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Platinum">Bạch kim</sys:String>
-    <sys:String x:Key="LOCPlayAch_Trophy_Silver">Bạc</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Bronze">Bronze</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Gold">Gold</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Platinum">Platinum</sys:String>
+    <sys:String x:Key="LOCPlayAch_Trophy_Silver">Silver</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockTime">Unlock Time</sys:String>
 
     <!-- ================================================================= -->
@@ -185,6 +185,7 @@ This will remove the manual achievement link, delete all manually set unlock tim
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Singleplayer">Singleplayer</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Stackable">Stackable</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_Ignored">Ignored</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Category_Type_SummaryIgnored">Summary Ignored</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Category_TypeSelectorLabel">Category Type</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Header">Custom Achievement Icons</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_Hint">Set optional unlocked and locked image overrides for this game's achievements. Drag in browser links, drag in local image files, or browse for a file. Local images are copied immediately into plugin-managed storage.</sys:String>
@@ -347,7 +348,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Status_RefreshComplete">Refresh complete!</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteAuthRequiredSuffix">Some platforms require authentication.</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_RefreshCompleteWithModeAndCount">{0} refresh complete: {1} games refreshed</sys:String>
-    <sys:String x:Key="LOCPlayAch_Status_Refreshing">Đang làm mới...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Status_Refreshing">Refreshing...</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Starting">Starting...</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_Succeeded">Success!</sys:String>
     <sys:String x:Key="LOCPlayAch_Status_TotalCounts">{0} achievements ({1} unlocked) from {2} games</sys:String>
@@ -388,6 +389,23 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Include unplayed games</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">If unchecked, games with 0 playtime will be skipped during refreshes.</sys:String>
     <sys:String x:Key="LOCPlayAch_InvalidPath">Directory does not exist</sys:String>
+
+    <!-- Provider: Battle.net -->
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowSection">World of Warcraft</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowRegion">Region</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowRealm">Realm</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_WowCharacter">Character</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Section">StarCraft II</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientId">Client ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_ClientSecret">Client Secret</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Region">Region</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Realm">Realm</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Sc2Profile">Profile ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowReady">Character ready</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_WowIncomplete">Missing character setup</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Detected">StarCraft II ready</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_NoSc2Profile">No StarCraft II profile found</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_BattleNet_Status_Sc2Incomplete">Missing StarCraft II setup</sys:String>
 
     <!-- Provider: Epic -->
     <sys:String x:Key="LOCPlayAch_Settings_Epic_AltAuthCodePrompt">Paste the authorizationCode value here:</sys:String>
@@ -445,6 +463,14 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ProviderConnection">{0} Connection</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderDisabledMessage">This platform is disabled. Enable it to track achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ProviderEnabled">Enable this platform</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_StoresLaunchers">Stores &amp; Launchers</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ConsoleMobile">Console &amp; Mobile</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_EmulatorsRetro">Emulators &amp; Retro</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_ManualAggregators">Manual &amp; Aggregators</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderGroup_Other">Other</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ProviderServicedByFormat">Uses {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForRarity">Use Exophase for Rarity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseExophaseForRarity_Help">When enabled, this platform keeps native achievement data but uses Exophase to fill global rarity percentages. Requires Exophase authentication.</sys:String>
 
     <!-- Provider: PlayStation -->
     <sys:String x:Key="LOCPlayAch_Settings_Psn_LoginLegacy">Login (Legacy)</sys:String>
@@ -513,6 +539,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompactListRarityBar">Show Rarity Bar</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortBy">Sort By</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SortDirection_Tooltip">Toggle sort direction</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_SortResetHint">Click the active column header again to return to this default sort.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowCompletionBorder">Show Completion Border</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowHiddenSuffix">Show (Hidden Achievement) suffix</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowRarityGlow">Show Rarity Glow on Unlocked Icons</sys:String>
@@ -524,6 +551,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarRarityPieChart">Show Rarity Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ShowTopMenuBarButton">Show Top Menu Bar Button</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_UseUniformRarityBadges">Use Uniform Rarity Badges</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SingleGameGridSort">Single Game View Grid</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ViewAchievementsWindow">View Achievements Window</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Small Slice Handling</sys:String>

@@ -18,11 +18,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
 
         protected override async Task<IReadOnlyList<string>> ComputeHashesInternalAsync(string filePath, CancellationToken cancel)
         {
-            using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var image = DiscImageReader.Open(filePath))
             {
                 // Read 128 bytes from sector 1.
                 var header = new byte[128];
-                if (!await HashUtils.TryReadSectorAsync(stream, sectorIndex: 1, sectorSize: 2048, header, header.Length, cancel).ConfigureAwait(false))
+                if (!await image.TryReadSectorAsync(sectorIndex: 1, header, header.Length, cancel).ConfigureAwait(false))
                 {
                     return Array.Empty<string>();
                 }
@@ -44,7 +44,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
                         for (var i = 0; i < numSectors; i++)
                         {
                             cancel.ThrowIfCancellationRequested();
-                            if (!await HashUtils.TryReadSectorAsync(stream, sectorIndex: programSector + i, sectorSize: 2048, buffer, buffer.Length, cancel).ConfigureAwait(false))
+                            if (!await image.TryReadSectorAsync(sectorIndex: programSector + i, buffer, buffer.Length, cancel).ConfigureAwait(false))
                             {
                                 return Array.Empty<string>();
                             }
@@ -83,4 +83,3 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing.Hashers
         }
     }
 }
-

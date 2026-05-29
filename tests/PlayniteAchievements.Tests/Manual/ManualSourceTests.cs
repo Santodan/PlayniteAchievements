@@ -103,7 +103,7 @@ namespace PlayniteAchievements.Manual.Tests
             var achievements = await source.GetAchievementsAsync("123", "ko", CancellationToken.None).ConfigureAwait(false);
 
             Assert.IsNotNull(capturedUri);
-            StringAssert.Contains(capturedUri.Query, "key=store-token");
+            StringAssert.Contains(capturedUri.Query, "access_token=store-token");
             StringAssert.Contains(capturedUri.Query, "language=koreana");
             Assert.IsNotNull(achievements);
         }
@@ -379,7 +379,18 @@ namespace PlayniteAchievements.Manual.Tests
             return new SteamManualSource(
                 httpClient,
                 logger: null,
-                new SteamWebApiTokenResolver(sessionManager, resolveTokenAsync, logger: null));
+                new SteamWebApiTokenResolver(
+                    sessionManager,
+                    async ct =>
+                    {
+                        var probeResult = await sessionManager.ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                        var token = await resolveTokenAsync(ct).ConfigureAwait(false);
+                        return new SteamWebAuthSession(
+                            probeResult?.UserId,
+                            token,
+                            hasSteamSessionCookies: probeResult?.IsSuccess == true);
+                    },
+                    logger: null));
         }
 
         private sealed class FakePlayniteApi : IPlayniteAPI

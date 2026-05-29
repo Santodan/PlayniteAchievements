@@ -27,6 +27,9 @@
     <!-- Column Header Style with Sort Arrow and Resize Grippers -->
     <Style x:Key="AchievementColumnHeaderStyle" TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="IsTabStop" Value="True"/>
+        <Setter Property="KeyboardNavigation.IsTabStop" Value="True"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Padding" Value="10,6"/>
@@ -77,6 +80,9 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="#18FFFFFF"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter Property="Background" Value="#20FFFFFF"/>
+                        </Trigger>
                         <Trigger Property="SortDirection" Value="Ascending">
                             <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="SortLevelBadge" Property="Visibility" Value="Visible"/>
@@ -114,6 +120,8 @@
     <Style x:Key="AchievementCellStyle" TargetType="DataGridCell">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Focusable" Value="True"/>
+        <Setter Property="IsTabStop" Value="True"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -140,6 +148,9 @@
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True">
                 <Setter Property="Background" Value="#40FFFFFF"/>
             </DataTrigger>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True">
+                <Setter Property="Background" Value="#30FFFFFF"/>
+            </DataTrigger>
             <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
                 <Setter Property="Padding" Value="8,0"/>
             </DataTrigger>
@@ -150,7 +161,70 @@
                 </MultiDataTrigger.Conditions>
                 <Setter Property="Background" Value="#50FFFFFF"/>
             </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsSelected}" Value="True"/>
+                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Background" Value="#45FFFFFF"/>
+            </MultiDataTrigger>
         </Style.Triggers>
+    </Style>
+
+    <Style x:Key="GameOptionsDataGridCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource AchievementCellStyle}">
+    </Style>
+
+    <Style x:Key="GameOptionsControllerCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource GameOptionsDataGridCellStyle}">
+        <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter VerticalAlignment="Stretch"
+                                          HorizontalAlignment="Stretch"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding RelativeSource={RelativeSource Self}, Path=IsKeyboardFocusWithin}" Value="True"/>
+                    <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=Tag}" Value="PlayniteAchievementsFullscreen"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="BorderBrush" Value="{DynamicResource SelectionLightBrush}"/>
+                <Setter Property="BorderThickness" Value="2"/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="GameOptionsCheckBoxCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource GameOptionsControllerCellStyle}">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Icon Column Cell Style - centered horizontally for circular achievement icons -->
@@ -201,6 +275,13 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="GameOptionsDataGridRowStyle"
+           TargetType="DataGridRow"
+           BasedOn="{StaticResource AchievementRowStyle}">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="IsTabStop" Value="False"/>
+    </Style>
+
     <Style x:Key="WrappedDataGridTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -226,7 +307,7 @@
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Padding" Value="10,4"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Focusable" Value="True"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -263,6 +344,10 @@
                             <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
                             <Setter TargetName="Border" Property="Background" Value="#10000000"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Border" Property="BorderBrush" Value="{DynamicResource SelectionLightBrush}"/>
+                            <Setter TargetName="Border" Property="Background" Value="#20FFFFFF"/>
+                        </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Border" Property="Background" Value="#18000000"/>
                         </Trigger>
@@ -277,55 +362,6 @@
 
     <Style x:Key="AchievementMultiSelectMenuItemStyle"
            TargetType="MenuItem">
-        <Style.Resources>
-            <Style x:Key="AchievementSelectorMenuCheckBoxStyle"
-                   TargetType="CheckBox">
-                <Setter Property="Margin" Value="0"/>
-                <Setter Property="Focusable" Value="False"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                <Setter Property="HorizontalAlignment" Value="Left"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="OverridesDefaultStyle" Value="True"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="CheckBox">
-                            <Grid Background="Transparent">
-                                <Border x:Name="CheckBoxBox"
-                                        Width="20" Height="20"
-                                        Background="Transparent"
-                                        BorderBrush="{DynamicResource SelectionLightBrush}"
-                                        BorderThickness="1.5"
-                                        CornerRadius="2"
-                                        SnapsToDevicePixels="True"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center">
-                                    <Viewbox Width="12" Height="12"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center">
-                                        <Path x:Name="CheckMark"
-                                              Data="M 1,5 L 5,9 L 11,1"
-                                              Stroke="{DynamicResource TextBrush}"
-                                              StrokeThickness="2"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              Visibility="Collapsed"/>
-                                    </Viewbox>
-                                </Border>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
-                                </Trigger>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="CheckBoxBox" Property="BorderBrush"
-                                            Value="{DynamicResource HighlightGlyphBrush}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-        </Style.Resources>
         <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
@@ -347,6 +383,8 @@
                 <ControlTemplate TargetType="MenuItem">
                     <Border x:Name="MenuItemBorder"
                             Background="{TemplateBinding Background}"
+                            BorderBrush="Transparent"
+                            BorderThickness="1"
                             Margin="0,1"
                             CornerRadius="3"
                             SnapsToDevicePixels="True">
@@ -358,8 +396,8 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <CheckBox Grid.Column="0"
-                                      Style="{StaticResource AchievementSelectorMenuCheckBoxStyle}"
                                       Focusable="False"
+                                      IsTabStop="False"
                                       IsHitTestVisible="False"
                                       IsChecked="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"/>
 
@@ -377,7 +415,13 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource MenuHighlightBrush}"/>
-                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                            <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource MenuHighlightBrush}"/>
+                            <Setter TargetName="MenuItemBorder" Property="BorderBrush" Value="{DynamicResource HighlightGlyphBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55"/>
@@ -895,6 +939,10 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="#20FFFFFF"/>
                         </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource SelectionLightBrush}"/>
+                            <Setter TargetName="border" Property="Background" Value="#20FFFFFF"/>
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -945,6 +993,11 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Chrome" Property="Background" Value="#1E000000"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Chrome" Property="Background" Value="#20FFFFFF"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                             <Setter Property="Opacity" Value="1"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">

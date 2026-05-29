@@ -51,6 +51,7 @@
               Padding="0"
               UseLayoutRounding="True"
               SnapsToDevicePixels="True"
+              Tag="ControllerCellFocus"
               ColumnHeaderStyle="{StaticResource AchievementColumnHeaderWithMenuStyle}"
               PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
 

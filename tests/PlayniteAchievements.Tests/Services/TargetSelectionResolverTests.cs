@@ -203,6 +203,139 @@ namespace PlayniteAchievements.Services.Tests
             }
         }
 
+        [TestMethod]
+        public void ResolveProviderForGame_RetroAchievementsOverrideForcesRetroAchievementsProvider()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    RetroAchievementsGameIdOverride = 12345
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "PSN", "RetroAchievements" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("PSN", _ => true),
+                    new FakeProvider("RetroAchievements", _ => false)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("RetroAchievements", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_RetroAchievementsOverrideWithoutProvider_ReturnsNull()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    RetroAchievementsGameIdOverride = 12345
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "PSN" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("PSN", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNull(resolved);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_NoOverride_RespectsProviderOrder()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "PSN", "RetroAchievements" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("PSN", _ => true),
+                    new FakeProvider("RetroAchievements", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("PSN", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static string CreateTempDirectory()
         {
             var path = Path.Combine(

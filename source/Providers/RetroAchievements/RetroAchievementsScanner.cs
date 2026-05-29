@@ -68,33 +68,43 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return false;
             }
 
-            // Validate file stats
-            try
+            if (entry.Dependencies != null && entry.Dependencies.Count > 0)
             {
-                var fileInfo = new FileInfo(matchedPath);
-                if (!fileInfo.Exists)
+                if (!RetroAchievementsHashCacheStore.ValidateDependencySnapshot(entry.Dependencies))
                 {
                     return false;
                 }
-
-                if (fileInfo.Length != entry.FileSize)
-                {
-                    return false;
-                }
-
-                if (fileInfo.LastWriteTimeUtc.Ticks != entry.LastWriteTicksUtc)
-                {
-                    return false;
-                }
-
-                raGameId = entry.RaGameId;
-                _logger?.Info($"[RA] Cache hit for '{game.Name}': skipping hash");
-                return true;
             }
-            catch
+            else
             {
-                return false;
+                // Validate legacy single-file cache entries.
+                try
+                {
+                    var fileInfo = new FileInfo(matchedPath);
+                    if (!fileInfo.Exists)
+                    {
+                        return false;
+                    }
+
+                    if (fileInfo.Length != entry.FileSize)
+                    {
+                        return false;
+                    }
+
+                    if (fileInfo.LastWriteTimeUtc.Ticks != entry.LastWriteTicksUtc)
+                    {
+                        return false;
+                    }
+                }
+                catch
+                {
+                    return false;
+                }
             }
+
+            raGameId = entry.RaGameId;
+            _logger?.Info($"[RA] Cache hit for '{game.Name}': skipping hash");
+            return true;
         }
 
         /// <summary>
@@ -110,7 +120,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                     MatchedRomPath = matchedPath,
                     FileSize = fi.Length,
                     LastWriteTicksUtc = fi.LastWriteTimeUtc.Ticks,
-                    RaGameId = raGameId
+                    RaGameId = raGameId,
+                    Dependencies = RetroAchievementsHashCacheStore.CaptureDependencySnapshot(matchedPath)
                 });
             }
             catch
