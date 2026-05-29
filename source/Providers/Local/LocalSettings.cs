@@ -140,6 +140,18 @@ namespace PlayniteAchievements.Providers.Local
         public string GameNameTemplate { get; set; } = "<gameName>";
         public string AchievementTemplate { get; set; } = "Unlocked: <achievementName>";
         public string MetaTemplate { get; set; } = "<provider> / Custom";
+        public bool TitleBold { get; set; } = true;
+        public bool TitleItalic { get; set; }
+        public bool TitleUnderline { get; set; }
+        public bool TitleStrikethrough { get; set; }
+        public bool DetailBold { get; set; }
+        public bool DetailItalic { get; set; }
+        public bool DetailUnderline { get; set; }
+        public bool DetailStrikethrough { get; set; }
+        public bool MetaBold { get; set; } = true;
+        public bool MetaItalic { get; set; }
+        public bool MetaUnderline { get; set; }
+        public bool MetaStrikethrough { get; set; }
         public LocalOverlayIconSource IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon;
         public bool ShowIconRarityGlow { get; set; }
         public string CustomCoverImagePath { get; set; } = string.Empty;
@@ -217,6 +229,18 @@ namespace PlayniteAchievements.Providers.Local
         private string _overlayCustomGameNameTemplate = "<gameName>";
         private string _overlayCustomAchievementTemplate = "Unlocked: <achievementName>";
         private string _overlayCustomMetaTemplate = "<provider> / Custom";
+        private bool _overlayCustomTitleBold = true;
+        private bool _overlayCustomTitleItalic;
+        private bool _overlayCustomTitleUnderline;
+        private bool _overlayCustomTitleStrikethrough;
+        private bool _overlayCustomDetailBold;
+        private bool _overlayCustomDetailItalic;
+        private bool _overlayCustomDetailUnderline;
+        private bool _overlayCustomDetailStrikethrough;
+        private bool _overlayCustomMetaBold = true;
+        private bool _overlayCustomMetaItalic;
+        private bool _overlayCustomMetaUnderline;
+        private bool _overlayCustomMetaStrikethrough;
         private LocalOverlayIconSource _overlayCustomIconSource = LocalOverlayIconSource.AchievementIcon;
         private bool _overlayCustomShowIconRarityGlow;
         private string _overlayCustomCoverImagePath = string.Empty;
@@ -572,6 +596,78 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _overlayCustomMetaTemplate;
             set => SetValue(ref _overlayCustomMetaTemplate, value ?? string.Empty);
+        }
+
+        public bool OverlayCustomTitleBold
+        {
+            get => _overlayCustomTitleBold;
+            set => SetValue(ref _overlayCustomTitleBold, value);
+        }
+
+        public bool OverlayCustomTitleItalic
+        {
+            get => _overlayCustomTitleItalic;
+            set => SetValue(ref _overlayCustomTitleItalic, value);
+        }
+
+        public bool OverlayCustomTitleUnderline
+        {
+            get => _overlayCustomTitleUnderline;
+            set => SetValue(ref _overlayCustomTitleUnderline, value);
+        }
+
+        public bool OverlayCustomTitleStrikethrough
+        {
+            get => _overlayCustomTitleStrikethrough;
+            set => SetValue(ref _overlayCustomTitleStrikethrough, value);
+        }
+
+        public bool OverlayCustomDetailBold
+        {
+            get => _overlayCustomDetailBold;
+            set => SetValue(ref _overlayCustomDetailBold, value);
+        }
+
+        public bool OverlayCustomDetailItalic
+        {
+            get => _overlayCustomDetailItalic;
+            set => SetValue(ref _overlayCustomDetailItalic, value);
+        }
+
+        public bool OverlayCustomDetailUnderline
+        {
+            get => _overlayCustomDetailUnderline;
+            set => SetValue(ref _overlayCustomDetailUnderline, value);
+        }
+
+        public bool OverlayCustomDetailStrikethrough
+        {
+            get => _overlayCustomDetailStrikethrough;
+            set => SetValue(ref _overlayCustomDetailStrikethrough, value);
+        }
+
+        public bool OverlayCustomMetaBold
+        {
+            get => _overlayCustomMetaBold;
+            set => SetValue(ref _overlayCustomMetaBold, value);
+        }
+
+        public bool OverlayCustomMetaItalic
+        {
+            get => _overlayCustomMetaItalic;
+            set => SetValue(ref _overlayCustomMetaItalic, value);
+        }
+
+        public bool OverlayCustomMetaUnderline
+        {
+            get => _overlayCustomMetaUnderline;
+            set => SetValue(ref _overlayCustomMetaUnderline, value);
+        }
+
+        public bool OverlayCustomMetaStrikethrough
+        {
+            get => _overlayCustomMetaStrikethrough;
+            set => SetValue(ref _overlayCustomMetaStrikethrough, value);
         }
 
         public LocalOverlayIconSource OverlayCustomIconSource
@@ -1132,6 +1228,18 @@ namespace PlayniteAchievements.Providers.Local
                     GameNameTemplate = slot.GameNameTemplate ?? "<gameName>",
                     AchievementTemplate = slot.AchievementTemplate ?? "Unlocked: <achievementName>",
                     MetaTemplate = slot.MetaTemplate ?? "<provider> / Custom",
+                    TitleBold = slot.TitleBold,
+                    TitleItalic = slot.TitleItalic,
+                    TitleUnderline = slot.TitleUnderline,
+                    TitleStrikethrough = slot.TitleStrikethrough,
+                    DetailBold = slot.DetailBold,
+                    DetailItalic = slot.DetailItalic,
+                    DetailUnderline = slot.DetailUnderline,
+                    DetailStrikethrough = slot.DetailStrikethrough,
+                    MetaBold = slot.MetaBold,
+                    MetaItalic = slot.MetaItalic,
+                    MetaUnderline = slot.MetaUnderline,
+                    MetaStrikethrough = slot.MetaStrikethrough,
                     IconSource = slot.IconSource,
                     ShowIconRarityGlow = slot.ShowIconRarityGlow,
                     CustomCoverImagePath = slot.CustomCoverImagePath ?? string.Empty,

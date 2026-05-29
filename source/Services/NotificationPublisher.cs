@@ -1561,7 +1561,10 @@ steamImage +
                     timestamp,
                     titleBrush,
                     titleSize,
-                    FontWeights.SemiBold,
+                    settings?.OverlayCustomTitleBold == true,
+                    settings?.OverlayCustomTitleItalic == true,
+                    settings?.OverlayCustomTitleUnderline == true,
+                    settings?.OverlayCustomTitleStrikethrough == true,
                     new Thickness(0),
                     wrapAllText,
                     suppressWhenTemplateEmpty: true);
@@ -1590,7 +1593,10 @@ steamImage +
                     timestamp,
                     detailBrush,
                     detailSize,
-                    FontWeights.Normal,
+                    settings?.OverlayCustomDetailBold == true,
+                    settings?.OverlayCustomDetailItalic == true,
+                    settings?.OverlayCustomDetailUnderline == true,
+                    settings?.OverlayCustomDetailStrikethrough == true,
                     new Thickness(0, 4, 0, 0),
                     wrapAllText,
                     suppressWhenTemplateEmpty: true);
@@ -1617,9 +1623,12 @@ steamImage +
                     game,
                     sourceName,
                     timestamp,
-                    accentBrush,
+                    metaBrush,
                     metaSize,
-                    FontWeights.SemiBold,
+                    settings?.OverlayCustomMetaBold == true,
+                    settings?.OverlayCustomMetaItalic == true,
+                    settings?.OverlayCustomMetaUnderline == true,
+                    settings?.OverlayCustomMetaStrikethrough == true,
                     new Thickness(0, 3, 0, 0),
                     wrapAllText,
                     suppressWhenTemplateEmpty: true);
@@ -1738,7 +1747,10 @@ steamImage +
             DateTime timestamp,
             Brush foreground,
             double fontSize,
-            FontWeight fontWeight,
+            bool bold,
+            bool italic,
+            bool underline,
+            bool strikethrough,
             Thickness margin,
             bool wrapAllText,
             bool suppressWhenTemplateEmpty)
@@ -1758,11 +1770,34 @@ steamImage +
             {
                 Foreground = foreground,
                 FontSize = fontSize,
-                FontWeight = fontWeight,
+                FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+                FontStyle = italic ? FontStyles.Italic : FontStyles.Normal,
                 Margin = margin,
                 TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
                 TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
             };
+
+            var decorations = new TextDecorationCollection();
+            if (underline)
+            {
+                foreach (var decoration in TextDecorations.Underline)
+                {
+                    decorations.Add(decoration);
+                }
+            }
+
+            if (strikethrough)
+            {
+                foreach (var decoration in TextDecorations.Strikethrough)
+                {
+                    decorations.Add(decoration);
+                }
+            }
+
+            if (decorations.Count > 0)
+            {
+                textBlock.TextDecorations = decorations;
+            }
 
             var hasVisibleContent = false;
             var lastIndex = 0;

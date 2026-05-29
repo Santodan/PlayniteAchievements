@@ -96,10 +96,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+
+
+## 2026-05-29 - v2.2.0.1
+
 - v2.2.0 merge
-
-
-Added:
 - `Custom Schema` always visible
 - Fixed `Clear Data` not removing the `Custom Schema`
 - Added `Custom Schema` enabled / disabled option

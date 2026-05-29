@@ -419,6 +419,10 @@
                 <label for="TitleFontSize">Line 1 size</label>
                 <input id="TitleFontSize" type="number" value="17">
               </div>
+              <div class="check"><label><input id="TitleBold" type="checkbox" checked> Bold</label></div>
+              <div class="check"><label><input id="TitleItalic" type="checkbox"> Italic</label></div>
+              <div class="check"><label><input id="TitleUnderline" type="checkbox"> Underline</label></div>
+              <div class="check"><label><input id="TitleStrikethrough" type="checkbox"> Strikethrough</label></div>
             </div>
             <div class="field">
               <label for="TitleTemplate">Line 1 template</label>
@@ -433,6 +437,10 @@
                 <label for="DetailFontSize">Line 2 size</label>
                 <input id="DetailFontSize" type="number" value="13">
               </div>
+              <div class="check"><label><input id="DetailBold" type="checkbox"> Bold</label></div>
+              <div class="check"><label><input id="DetailItalic" type="checkbox"> Italic</label></div>
+              <div class="check"><label><input id="DetailUnderline" type="checkbox"> Underline</label></div>
+              <div class="check"><label><input id="DetailStrikethrough" type="checkbox"> Strikethrough</label></div>
             </div>
             <div class="field">
               <label for="GameNameTemplate">Line 2 template</label>
@@ -447,6 +455,10 @@
                 <label for="MetaFontSize">Line 3 size</label>
                 <input id="MetaFontSize" type="number" value="11">
               </div>
+              <div class="check"><label><input id="MetaBold" type="checkbox" checked> Bold</label></div>
+              <div class="check"><label><input id="MetaItalic" type="checkbox"> Italic</label></div>
+              <div class="check"><label><input id="MetaUnderline" type="checkbox"> Underline</label></div>
+              <div class="check"><label><input id="MetaStrikethrough" type="checkbox"> Strikethrough</label></div>
             </div>
             <div class="field">
               <label for="AchievementTemplate">Line 3 template</label>
@@ -635,6 +647,9 @@
       'TemplateName', 'Name', 'AutoResizeToContent', 'WrapAllText', 'ShowLine1',
       'ShowBorder', 'ShowGameName', 'ShowMeta', 'IconSize', 'Width', 'Height',
       'CornerRadius', 'TitleFontSize', 'DetailFontSize', 'MetaFontSize',
+      'TitleBold', 'TitleItalic', 'TitleUnderline', 'TitleStrikethrough',
+      'DetailBold', 'DetailItalic', 'DetailUnderline', 'DetailStrikethrough',
+      'MetaBold', 'MetaItalic', 'MetaUnderline', 'MetaStrikethrough',
       'ShowIconRarityGlow', 'BackgroundColor', 'BorderColor', 'AccentColor',
       'TitleColor', 'DetailColor', 'MetaColor', 'TitleTemplate',
       'GameNameTemplate', 'AchievementTemplate', 'DurationMilliseconds',
@@ -819,6 +834,18 @@
           TitleFontSize: num('TitleFontSize'),
           DetailFontSize: num('DetailFontSize'),
           MetaFontSize: num('MetaFontSize'),
+          TitleBold: bool('TitleBold'),
+          TitleItalic: bool('TitleItalic'),
+          TitleUnderline: bool('TitleUnderline'),
+          TitleStrikethrough: bool('TitleStrikethrough'),
+          DetailBold: bool('DetailBold'),
+          DetailItalic: bool('DetailItalic'),
+          DetailUnderline: bool('DetailUnderline'),
+          DetailStrikethrough: bool('DetailStrikethrough'),
+          MetaBold: bool('MetaBold'),
+          MetaItalic: bool('MetaItalic'),
+          MetaUnderline: bool('MetaUnderline'),
+          MetaStrikethrough: bool('MetaStrikethrough'),
           BackgroundColor: hex($('BackgroundColor').value),
           BorderColor: hex($('BorderColor').value),
           AccentColor: hex($('AccentColor').value),
@@ -857,12 +884,18 @@
       };
     }
 
-    function setLine(element, template, size, color, enabled, wrap) {
+    function setLine(element, template, size, color, enabled, wrap, bold, italic, underline, strikethrough) {
       const text = tokenReplace(template, false, size);
       element.innerHTML = tokenReplace(template, true, size);
       element.style.display = enabled && (text || /<trophyIcon>/i.test(template || '')) ? 'block' : 'none';
       element.style.fontSize = `${size}px`;
       element.style.color = color;
+      element.style.fontWeight = bold ? '700' : '400';
+      element.style.fontStyle = italic ? 'italic' : 'normal';
+      element.style.textDecoration = [
+        underline ? 'underline' : '',
+        strikethrough ? 'line-through' : ''
+      ].filter(Boolean).join(' ') || 'none';
       element.style.whiteSpace = wrap ? 'normal' : 'nowrap';
       element.style.textOverflow = wrap ? 'clip' : 'ellipsis';
     }
@@ -990,9 +1023,9 @@
       toast.style.border = slot.ShowBorder ? `1.5px solid ${slot.BorderColor}` : '0';
       toast.style.borderRadius = `${Math.max(0, slot.CornerRadius)}px`;
 
-      setLine($('line1'), slot.TitleTemplate, slot.TitleFontSize, slot.TitleColor, slot.ShowLine1, slot.WrapAllText);
-      setLine($('line2'), slot.GameNameTemplate, slot.DetailFontSize, slot.DetailColor, slot.ShowGameName, slot.WrapAllText);
-      setLine($('line3'), slot.AchievementTemplate, slot.MetaFontSize, slot.AccentColor, slot.ShowMeta, slot.WrapAllText);
+      setLine($('line1'), slot.TitleTemplate, slot.TitleFontSize, slot.TitleColor, slot.ShowLine1, slot.WrapAllText, slot.TitleBold, slot.TitleItalic, slot.TitleUnderline, slot.TitleStrikethrough);
+      setLine($('line2'), slot.GameNameTemplate, slot.DetailFontSize, slot.DetailColor, slot.ShowGameName, slot.WrapAllText, slot.DetailBold, slot.DetailItalic, slot.DetailUnderline, slot.DetailStrikethrough);
+      setLine($('line3'), slot.AchievementTemplate, slot.MetaFontSize, slot.MetaColor, slot.ShowMeta, slot.WrapAllText, slot.MetaBold, slot.MetaItalic, slot.MetaUnderline, slot.MetaStrikethrough);
       renderIcon(slot);
 
       if (slot.ShowIconRarityGlow) {
@@ -1055,6 +1088,18 @@
       check('ShowGameName', slot.ShowGameName !== false);
       check('ShowMeta', slot.ShowMeta !== false);
       check('ShowIconRarityGlow', slot.ShowIconRarityGlow === true || transition.ShowIconRarityGlow === true);
+      check('TitleBold', slot.TitleBold !== false);
+      check('TitleItalic', slot.TitleItalic === true);
+      check('TitleUnderline', slot.TitleUnderline === true);
+      check('TitleStrikethrough', slot.TitleStrikethrough === true);
+      check('DetailBold', slot.DetailBold === true);
+      check('DetailItalic', slot.DetailItalic === true);
+      check('DetailUnderline', slot.DetailUnderline === true);
+      check('DetailStrikethrough', slot.DetailStrikethrough === true);
+      check('MetaBold', slot.MetaBold !== false);
+      check('MetaItalic', slot.MetaItalic === true);
+      check('MetaUnderline', slot.MetaUnderline === true);
+      check('MetaStrikethrough', slot.MetaStrikethrough === true);
 
       [
         'IconSize', 'Width', 'Height', 'CornerRadius', 'TitleFontSize',

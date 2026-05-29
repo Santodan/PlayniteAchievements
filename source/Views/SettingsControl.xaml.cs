@@ -822,6 +822,18 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomGameNameTemplate):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomAchievementTemplate):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaTemplate):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleBold):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleItalic):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleUnderline):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomTitleStrikethrough):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailBold):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailItalic):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailUnderline):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomDetailStrikethrough):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaBold):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaItalic):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaUnderline):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomMetaStrikethrough):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomIconSource):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomShowIconRarityGlow):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomCoverImagePath):
@@ -2179,6 +2191,18 @@ namespace PlayniteAchievements.Views
                 GameNameTemplate = localSettings.OverlayCustomGameNameTemplate,
                 AchievementTemplate = localSettings.OverlayCustomAchievementTemplate,
                 MetaTemplate = localSettings.OverlayCustomMetaTemplate,
+                TitleBold = localSettings.OverlayCustomTitleBold,
+                TitleItalic = localSettings.OverlayCustomTitleItalic,
+                TitleUnderline = localSettings.OverlayCustomTitleUnderline,
+                TitleStrikethrough = localSettings.OverlayCustomTitleStrikethrough,
+                DetailBold = localSettings.OverlayCustomDetailBold,
+                DetailItalic = localSettings.OverlayCustomDetailItalic,
+                DetailUnderline = localSettings.OverlayCustomDetailUnderline,
+                DetailStrikethrough = localSettings.OverlayCustomDetailStrikethrough,
+                MetaBold = localSettings.OverlayCustomMetaBold,
+                MetaItalic = localSettings.OverlayCustomMetaItalic,
+                MetaUnderline = localSettings.OverlayCustomMetaUnderline,
+                MetaStrikethrough = localSettings.OverlayCustomMetaStrikethrough,
                 IconSource = localSettings.OverlayCustomIconSource,
                 ShowIconRarityGlow = localSettings.OverlayCustomShowIconRarityGlow,
                 CustomCoverImagePath = localSettings.OverlayCustomCoverImagePath,
@@ -2249,6 +2273,18 @@ namespace PlayniteAchievements.Views
                         GameNameTemplate = localSettings.OverlayCustomGameNameTemplate,
                         AchievementTemplate = localSettings.OverlayCustomAchievementTemplate,
                         MetaTemplate = localSettings.OverlayCustomMetaTemplate,
+                        TitleBold = localSettings.OverlayCustomTitleBold,
+                        TitleItalic = localSettings.OverlayCustomTitleItalic,
+                        TitleUnderline = localSettings.OverlayCustomTitleUnderline,
+                        TitleStrikethrough = localSettings.OverlayCustomTitleStrikethrough,
+                        DetailBold = localSettings.OverlayCustomDetailBold,
+                        DetailItalic = localSettings.OverlayCustomDetailItalic,
+                        DetailUnderline = localSettings.OverlayCustomDetailUnderline,
+                        DetailStrikethrough = localSettings.OverlayCustomDetailStrikethrough,
+                        MetaBold = localSettings.OverlayCustomMetaBold,
+                        MetaItalic = localSettings.OverlayCustomMetaItalic,
+                        MetaUnderline = localSettings.OverlayCustomMetaUnderline,
+                        MetaStrikethrough = localSettings.OverlayCustomMetaStrikethrough,
                         IconSource = localSettings.OverlayCustomIconSource,
                         ShowIconRarityGlow = localSettings.OverlayCustomShowIconRarityGlow,
                         CustomCoverImagePath = localSettings.OverlayCustomCoverImagePath,
@@ -2504,6 +2540,18 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomGameNameTemplate = slot.GameNameTemplate;
             localSettings.OverlayCustomAchievementTemplate = slot.AchievementTemplate;
             localSettings.OverlayCustomMetaTemplate = slot.MetaTemplate;
+            localSettings.OverlayCustomTitleBold = slot.TitleBold;
+            localSettings.OverlayCustomTitleItalic = slot.TitleItalic;
+            localSettings.OverlayCustomTitleUnderline = slot.TitleUnderline;
+            localSettings.OverlayCustomTitleStrikethrough = slot.TitleStrikethrough;
+            localSettings.OverlayCustomDetailBold = slot.DetailBold;
+            localSettings.OverlayCustomDetailItalic = slot.DetailItalic;
+            localSettings.OverlayCustomDetailUnderline = slot.DetailUnderline;
+            localSettings.OverlayCustomDetailStrikethrough = slot.DetailStrikethrough;
+            localSettings.OverlayCustomMetaBold = slot.MetaBold;
+            localSettings.OverlayCustomMetaItalic = slot.MetaItalic;
+            localSettings.OverlayCustomMetaUnderline = slot.MetaUnderline;
+            localSettings.OverlayCustomMetaStrikethrough = slot.MetaStrikethrough;
             localSettings.OverlayCustomIconSource = slot.IconSource;
             localSettings.OverlayCustomShowIconRarityGlow = slot.ShowIconRarityGlow;
             localSettings.OverlayCustomCoverImagePath = slot.CustomCoverImagePath;

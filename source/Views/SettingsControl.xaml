@@ -2464,6 +2464,12 @@
                                                                         Margin="0,0,8,0"
                                                                         Width="120"
                                                                         FontWeight="SemiBold"/>
+                                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                                                                 <CheckBox Content="B" ToolTip="Bold" FontWeight="Bold" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomTitleBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="I" ToolTip="Italic" FontStyle="Italic" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomTitleItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="U" ToolTip="Underline" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomTitleUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="S" ToolTip="Strikethrough" IsChecked="{Binding OverlayCustomTitleStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                             </StackPanel>
                                                              <TextBox Text="{Binding OverlayCustomTitleTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                       ToolTip="Empty hides line 1."/>
                                                          </DockPanel>
@@ -2475,6 +2481,12 @@
                                                                         Margin="0,0,8,0"
                                                                         Width="120"
                                                                         FontWeight="SemiBold"/>
+                                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                                                                 <CheckBox Content="B" ToolTip="Bold" FontWeight="Bold" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomDetailBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="I" ToolTip="Italic" FontStyle="Italic" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomDetailItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="U" ToolTip="Underline" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomDetailUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="S" ToolTip="Strikethrough" IsChecked="{Binding OverlayCustomDetailStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                             </StackPanel>
                                                              <TextBox Text="{Binding OverlayCustomGameNameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                          </DockPanel>
 
@@ -2485,6 +2497,12 @@
                                                                         Margin="0,0,8,0"
                                                                         Width="120"
                                                                         FontWeight="SemiBold"/>
+                                                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="8,0,0,0">
+                                                                 <CheckBox Content="B" ToolTip="Bold" FontWeight="Bold" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomMetaBold, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="I" ToolTip="Italic" FontStyle="Italic" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomMetaItalic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="U" ToolTip="Underline" Margin="0,0,6,0" IsChecked="{Binding OverlayCustomMetaUnderline, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                                 <CheckBox Content="S" ToolTip="Strikethrough" IsChecked="{Binding OverlayCustomMetaStrikethrough, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                                             </StackPanel>
                                                              <TextBox Text="{Binding OverlayCustomAchievementTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                                          </DockPanel>
                                                      </StackPanel>
