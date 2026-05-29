@@ -97,7 +97,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - v2.2.0 merge
-- `Custom Schema` not override when an online schema exists
 
 
 Added:
@@ -112,6 +111,7 @@ Added:
 - Workaround for the reset of the configurations
 - `Platform` filter also applies to `All Achievements` tab
 - Added support to `TENOKE` achievements
+- `Custom Schema` will now take priority over online schema when enabled
 
 ## 2026-05-21 - v2.1.5.1
 

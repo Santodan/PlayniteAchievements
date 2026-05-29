@@ -361,10 +361,17 @@ namespace PlayniteAchievements.ViewModels
 
                     LocalSavesProvider.TrySetCustomSchemaEnabledOverride(_gameId, value, GameName, _persistSettingsForUi, _logger);
                     var game = _playniteApi?.Database?.Games?.Get(_gameId);
-                    _achievementOverridesService?.ClearGameData(_gameId, game?.Name);
+                    var shouldRefresh = !value || HasLocalCustomSchemaOverride || !string.IsNullOrWhiteSpace(LocalCustomSchemaOverrideValue);
+                    if (shouldRefresh)
+                    {
+                        _achievementOverridesService?.ClearGameData(_gameId, game?.Name);
+                    }
                     OnPropertyChanged(nameof(LocalCustomSchemaStatusText));
                     RaiseCommandStates();
-                    TriggerRefreshForProvider(LocalProviderKey);
+                    if (shouldRefresh)
+                    {
+                        TriggerRefreshForProvider(LocalProviderKey);
+                    }
                 }
             }
         }

@@ -439,32 +439,6 @@ namespace PlayniteAchievements.Providers.Local
                             steamSchema.Achievements,
                             preferSourceText: false,
                             includeIconMetadata: shouldFetchIconsFromGame);
-
-                        var existingNames = new HashSet<string>(
-                            customSchemaAchievements
-                                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.Name))
-                                .Select(achievement => achievement.Name),
-                            StringComparer.OrdinalIgnoreCase);
-
-                        foreach (var schemaAchievement in steamSchema.Achievements)
-                        {
-                            if (schemaAchievement == null || string.IsNullOrWhiteSpace(schemaAchievement.Name))
-                            {
-                                continue;
-                            }
-
-                            if (existingNames.Add(schemaAchievement.Name))
-                            {
-                                if (!shouldFetchIconsFromGame)
-                                {
-                                    customSchemaAchievements.Add(CloneSchemaAchievementWithoutIcons(schemaAchievement));
-                                }
-                                else
-                                {
-                                    customSchemaAchievements.Add(schemaAchievement);
-                                }
-                            }
-                        }
                     }
 
                     steamSchema ??= new SchemaAndPercentages();
