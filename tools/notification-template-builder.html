@@ -639,8 +639,9 @@
   <script>
     const tokens = [
       '<title>', '<gameName>', '<achievementName>', '<achievementDescription>',
-      '<points>', '<rarity>', '<trophy>', '<trophyIcon>', '<provider>',
-      '<style>', '<date>', '<time>', '<dateTime>', '<source>', '<gameId>'
+      '<points>', '<rarity>', '<rarityIcon>', '<trophy>', '<trophyIcon>',
+      '<provider>', '<style>', '<date>', '<time>', '<dateTime>', '<source>',
+      '<gameId>'
     ];
 
     const ids = [
@@ -781,6 +782,32 @@
       return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" aria-hidden="true" style="display:inline-block;vertical-align:-0.18em;margin:0 1px"><path fill="${trophyColor()}" d="M18 8h28v8h8v7c0 9-6 16-14 18-2 4-5 7-8 8v7h10v6H22v-6h10v-7c-4-1-7-4-8-8-8-2-14-9-14-18v-7h8V8Zm0 14h-4v1c0 5 3 9 8 11-2-4-4-8-4-12Zm28 0c0 4-1 8-4 12 5-2 8-6 8-11v-1h-4Z"/></svg>`;
     }
 
+    function rarityKey() {
+      const rarity = ($('sampleRarity').value || '').trim().toLowerCase();
+      const points = Number($('samplePoints').value || 0);
+      if (rarity.includes('ultra') || rarity.includes('platinum')) return 'ultra';
+      if (rarity.includes('uncommon')) return 'uncommon';
+      if (rarity.includes('rare')) return 'rare';
+      if (rarity.includes('common')) return 'common';
+      if (points >= 90) return 'ultra';
+      if (points >= 50) return 'rare';
+      if (points >= 20) return 'uncommon';
+      return 'common';
+    }
+
+    function rarityIconMarkup(size) {
+      const px = Math.max(10, size * 1.25);
+      const key = rarityKey();
+      const shapes = {
+        ultra: { points: '32,5 55,18 55,46 32,59 9,46 9,18', fill: '#DDF8FF' },
+        rare: { points: '32,6 56,22 47,53 17,53 8,22', fill: '#FFD45A' },
+        uncommon: { points: '32,7 57,32 32,57 7,32', fill: '#DDE6EF' },
+        common: { points: '32,7 58,56 6,56', fill: '#D99355' }
+      };
+      const shape = shapes[key] || shapes.common;
+      return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" aria-hidden="true" style="display:inline-block;vertical-align:-0.18em;margin:0 1px"><polygon points="${shape.points}" fill="${shape.fill}" stroke="rgba(255,255,255,.7)" stroke-width="2" stroke-linejoin="round"/></svg>`;
+    }
+
     function tokenReplace(template, renderIcons = false, fontSize = 12) {
       const date = new Date();
       const datePart = date.toISOString().slice(0, 10);
@@ -807,6 +834,9 @@
           const normalized = (key || '').toLowerCase();
           if (normalized === 'trophyicon') {
             return renderIcons ? trophyIconMarkup(fontSize) : '';
+          }
+          if (normalized === 'rarityicon') {
+            return renderIcons ? rarityIconMarkup(fontSize) : '';
           }
           const value = map[normalized];
           return renderIcons ? escapeHtml(value ?? `<${key}>`) : value ?? `<${key}>`;
@@ -887,7 +917,7 @@
     function setLine(element, template, size, color, enabled, wrap, bold, italic, underline, strikethrough) {
       const text = tokenReplace(template, false, size);
       element.innerHTML = tokenReplace(template, true, size);
-      element.style.display = enabled && (text || /<trophyIcon>/i.test(template || '')) ? 'block' : 'none';
+      element.style.display = enabled && (text || /<(trophyIcon|rarityIcon)>/i.test(template || '')) ? 'block' : 'none';
       element.style.fontSize = `${size}px`;
       element.style.color = color;
       element.style.fontWeight = bold ? '700' : '400';

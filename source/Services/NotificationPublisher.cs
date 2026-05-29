@@ -1809,6 +1809,10 @@ steamImage +
                 {
                     AddCustomTemplateTrophyIcon(textBlock, achievementTrophy, achievementRarity, achievementPoints, fontSize, ref hasVisibleContent);
                 }
+                else if (string.Equals(tokenName, "rarityIcon", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddCustomTemplateRarityIcon(textBlock, achievementRarity, achievementPoints, fontSize, ref hasVisibleContent);
+                }
                 else
                 {
                     AddCustomTemplateRun(
@@ -1873,6 +1877,36 @@ steamImage +
             var image = new Image
             {
                 Source = trophy,
+                Stretch = Stretch.Uniform,
+                Width = iconSize,
+                Height = iconSize,
+                Margin = new Thickness(1, 0, 1, -2)
+            };
+
+            textBlock.Inlines.Add(new System.Windows.Documents.InlineUIContainer(image)
+            {
+                BaselineAlignment = BaselineAlignment.Center
+            });
+            hasVisibleContent = true;
+        }
+
+        private static void AddCustomTemplateRarityIcon(
+            TextBlock textBlock,
+            string achievementRarity,
+            int? achievementPoints,
+            double fontSize,
+            ref bool hasVisibleContent)
+        {
+            var rarityBadge = TryGetResourceImageSource(GetRarityBadgeResourceKey(ResolveRarityKey(achievementRarity, achievementPoints)));
+            if (rarityBadge == null)
+            {
+                return;
+            }
+
+            var iconSize = Math.Max(10, fontSize * 1.25);
+            var image = new Image
+            {
+                Source = rarityBadge,
                 Stretch = Stretch.Uniform,
                 Width = iconSize,
                 Height = iconSize,

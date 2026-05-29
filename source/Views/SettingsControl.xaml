@@ -2452,7 +2452,7 @@
                                                          <TextBlock Text="Custom text templates (wildcards)"
                                                                     Style="{StaticResource SubSectionHeaderStyle}"
                                                                     Margin="0,0,0,6"/>
-                                                         <TextBlock Text="Supported tokens: &lt;title&gt; &lt;gameName&gt; &lt;achievementName&gt; &lt;achievementDescription&gt; &lt;points&gt; &lt;rarity&gt; &lt;trophy&gt; &lt;trophyIcon&gt; &lt;provider&gt; &lt;style&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;gameId&gt;"
+                                                         <TextBlock Text="Supported tokens: &lt;title&gt; &lt;gameName&gt; &lt;achievementName&gt; &lt;achievementDescription&gt; &lt;points&gt; &lt;rarity&gt; &lt;rarityIcon&gt; &lt;trophy&gt; &lt;trophyIcon&gt; &lt;provider&gt; &lt;style&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;gameId&gt;"
                                                                     Style="{StaticResource MutedTextStyle}"
                                                                     TextWrapping="Wrap"
                                                                     Margin="0,0,0,8"/>
