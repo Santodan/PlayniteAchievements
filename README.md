@@ -100,6 +100,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added support for `user_data.ini`- https://github.com/Santodan/PlayniteAchievements/issues/26
 - `Custom Schema` not override when an online schema exists
 
+
 Added:
 - `Custom Schema` always visible
 - Fixed `Clear Data` not removing the `Custom Schema`
@@ -110,6 +111,7 @@ Added:
 - Added more customizations to the `Achievement Notification`
 - Added a template builder to create a JSON file that can be imported as the notification template
 - Workaround for the reset of the configurations
+- `Platform` filter also applies to `All Achievements` tab
 
 ## 2026-05-21 - v2.1.5.1
 

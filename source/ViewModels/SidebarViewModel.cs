@@ -2629,6 +2629,11 @@ namespace PlayniteAchievements.ViewModels
             }
             RecalculateOverviewStats();
 
+            if (IsAllAchievementsTabSelected)
+            {
+                ApplyRightFilters();
+            }
+
             // Restore selection by finding the game with matching PlayniteGameId
             if (selectedGameId.HasValue)
             {
@@ -3116,10 +3121,21 @@ namespace PlayniteAchievements.ViewModels
                     ? _allSelectedGameAchievements
                     : _allAchievements;
 
-                UpdateSelectedGameAchievementFilterOptions(source);
+                var sourceForRightFilters = source;
+                if (!IsGameSelected && _selectedProviderFilters.Count > 0)
+                {
+                    sourceForRightFilters = sourceForRightFilters
+                        .Where(item =>
+                            item != null &&
+                            !string.IsNullOrWhiteSpace(item.ProviderKey) &&
+                            _selectedProviderFilters.Contains(item.ProviderKey))
+                        .ToList();
+                }
+
+                UpdateSelectedGameAchievementFilterOptions(sourceForRightFilters);
 
                 var filtered = SidebarAchievementFilters.FilterSelectedGameAchievements(
-                    source,
+                    sourceForRightFilters,
                     ShowSelectedGameHidden,
                     ShowSelectedGameUnlocked,
                     ShowSelectedGameLocked,
