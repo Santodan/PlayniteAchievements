@@ -49,8 +49,16 @@ namespace PlayniteAchievements.Providers.Local
             @"steam_settings\achievements.json",
             @"steam_settings\settings\achievements.json",
             @"steam_settings\stats\achievements.json",
+            @"tenoke.ini",
             @"achievement\achievements.json",
             @"achievements.json"
+        };
+
+        private static readonly string[] LocalAchievementIniFileNames =
+        {
+            "tenoke.ini",
+            "achievements.ini",
+            "user_stats.ini"
         };
 
         public sealed class ExpectedAchievementsDownloadResult
@@ -173,6 +181,11 @@ namespace PlayniteAchievements.Providers.Local
                     appId = autoDetectedAppId;
                     Log($"LUMAPLAY AUTO-DETECT: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
                 }
+                else if (TryAutoDetectTenokeAppId(game, out var autoDetectedTenokeAppId, out var autoDetectedTenokeIniPath) && autoDetectedTenokeAppId > 0)
+                {
+                    appId = autoDetectedTenokeAppId;
+                    Log($"TENOKE AUTO-DETECT: game='{game?.Name}' appId={appId} source={autoDetectedTenokeIniPath}");
+                }
                 else
                 {
                     if (game != null &&
@@ -281,6 +294,26 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (string.IsNullOrEmpty(appId) &&
                     game != null &&
+                    TryGetFolderOverride(game.Id, out var tenokeOverrideFolderPath) &&
+                    TryFindTenokeIniPathFromFolder(tenokeOverrideFolderPath, out var discoveredTenokeIniPath) &&
+                    TryExtractAppIdFromTenokeIni(discoveredTenokeIniPath, out var appIdFromTenokeIni))
+                {
+                    appId = appIdFromTenokeIni.ToString(CultureInfo.InvariantCulture);
+                    isAppIdOverridden = true;
+                    Log($"TENOKE APPID INFERRED: game='{game?.Name}' appId={appId} source={discoveredTenokeIniPath}");
+                }
+
+                if (string.IsNullOrEmpty(appId) &&
+                    TryAutoDetectTenokeAppId(game, out var autoDetectedTenokeAppId, out var autoDetectedTenokeIniPath) &&
+                    autoDetectedTenokeAppId > 0)
+                {
+                    appId = autoDetectedTenokeAppId.ToString(CultureInfo.InvariantCulture);
+                    isAppIdOverridden = true;
+                    Log($"TENOKE APPID AUTO-DETECTED: game='{game?.Name}' appId={appId} source={autoDetectedTenokeIniPath}");
+                }
+
+                if (string.IsNullOrEmpty(appId) &&
+                    game != null &&
                     TryGetLumaPlayIniPathOverride(game.Id, out var configuredLumaIniPath) &&
                     !File.Exists(configuredLumaIniPath))
                 {
@@ -308,19 +341,27 @@ namespace PlayniteAchievements.Providers.Local
                 jsonPath = ResolveAchievementFilePath(localFolderPath, "achievements.json");
             }
 
-            string iniPath = null;
+            var iniPaths = new List<string>();
             if (hasResolvedLocalFolder && !string.IsNullOrWhiteSpace(localFolderPath))
             {
-                iniPath = ResolveAchievementFilePath(localFolderPath, "achievements.ini");
+                foreach (var localIniFileName in LocalAchievementIniFileNames)
+                {
+                    var resolvedIniPath = ResolveAchievementFilePath(localFolderPath, localIniFileName);
+                    if (!string.IsNullOrWhiteSpace(resolvedIniPath) &&
+                        !iniPaths.Contains(resolvedIniPath, StringComparer.OrdinalIgnoreCase))
+                    {
+                        iniPaths.Add(resolvedIniPath);
+                    }
+                }
             }
 
             Dictionary<string, LocalEntry> lumaRegistryEntries = null;
-            if (IsWindowsPlatform() && string.IsNullOrWhiteSpace(jsonPath) && string.IsNullOrWhiteSpace(iniPath))
+            if (IsWindowsPlatform() && string.IsNullOrWhiteSpace(jsonPath) && iniPaths.Count == 0)
             {
                 lumaRegistryEntries = TryGetLumaPlayRegistryEntries(appId);
             }
 
-            var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || !string.IsNullOrWhiteSpace(iniPath);
+            var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || iniPaths.Count > 0;
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
             var hasLumaPlayAppIdOverride = game != null && TryGetLumaPlayAppIdOverride(game.Id, out _);
             var hasLumaPlayIniOverride = game != null && TryGetLumaPlayIniPathOverride(game.Id, out _);
@@ -500,7 +541,7 @@ namespace PlayniteAchievements.Providers.Local
                     // Keep JSON metadata/icons when present, but let INI override progress fields.
                     // This preserves custom local icon paths (for example img/*.png) even when
                     // achievements.ini exists.
-                    raw = await LoadLocalEntriesAsync(jsonPath, iniPath).ConfigureAwait(false);
+                    raw = await LoadLocalEntriesAsync(jsonPath, iniPaths).ConfigureAwait(false);
                 }
 
                 if ((raw == null || raw.Count == 0) && hasLumaRegistryEntries)
@@ -511,7 +552,7 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (raw != null && raw.Count > 0)
                 {
-                    Log($"LOCAL SOURCE: game={game?.Name} folder={localFolderPath ?? "none"} json={jsonPath ?? "none"} ini={iniPath ?? "none"} rawEntries={raw.Count} schemaEntries={(steamSchema?.Achievements?.Count ?? 0)} source={rawSource}");
+                    Log($"LOCAL SOURCE: game={game?.Name} folder={localFolderPath ?? "none"} json={jsonPath ?? "none"} ini={(iniPaths.Count > 0 ? string.Join("|", iniPaths) : "none")} rawEntries={raw.Count} schemaEntries={(steamSchema?.Achievements?.Count ?? 0)} source={rawSource}");
 
                     if (steamSchema?.Achievements != null && steamSchema.Achievements.Count > 0)
                     {
@@ -1293,6 +1334,145 @@ namespace PlayniteAchievements.Providers.Local
 
             detectedIniPath = iniPath;
             return true;
+        }
+
+        private bool TryAutoDetectTenokeAppId(Game game, out int appId, out string detectedIniPath)
+        {
+            appId = 0;
+            detectedIniPath = null;
+            if (game == null)
+            {
+                return false;
+            }
+
+            var installDirectory = PathExpansion.ExpandGamePath(_api, game, game.InstallDirectory)?.Trim();
+            if (string.IsNullOrWhiteSpace(installDirectory) || !Directory.Exists(installDirectory))
+            {
+                return false;
+            }
+
+            if (!TryFindTenokeIniPathFromFolder(installDirectory, out var iniPath, maxSearchDepth: 3))
+            {
+                return false;
+            }
+
+            if (!TryExtractAppIdFromTenokeIni(iniPath, out appId) || appId <= 0)
+            {
+                return false;
+            }
+
+            detectedIniPath = iniPath;
+            return true;
+        }
+
+        private static bool TryFindTenokeIniPathFromFolder(string folderPath, out string iniPath, int maxSearchDepth = 1)
+        {
+            iniPath = null;
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return false;
+            }
+
+            var directPath = Path.Combine(folderPath, "tenoke.ini");
+            if (File.Exists(directPath))
+            {
+                iniPath = directPath;
+                return true;
+            }
+
+            return TryFindTenokeIniPathRecursive(folderPath, 0, Math.Max(0, maxSearchDepth), out iniPath);
+        }
+
+        private static bool TryFindTenokeIniPathRecursive(string directoryPath, int currentDepth, int maxDepth, out string iniPath)
+        {
+            iniPath = null;
+            if (currentDepth >= maxDepth)
+            {
+                return false;
+            }
+
+            IEnumerable<string> children;
+            try
+            {
+                children = Directory.EnumerateDirectories(directoryPath);
+            }
+            catch
+            {
+                return false;
+            }
+
+            foreach (var child in children)
+            {
+                var candidate = Path.Combine(child, "tenoke.ini");
+                if (File.Exists(candidate))
+                {
+                    iniPath = candidate;
+                    return true;
+                }
+
+                if (TryFindTenokeIniPathRecursive(child, currentDepth + 1, maxDepth, out iniPath))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryExtractAppIdFromTenokeIni(string iniPath, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(iniPath) || !File.Exists(iniPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var inTenokeSection = false;
+                foreach (var rawLine in File.ReadLines(iniPath))
+                {
+                    var line = (rawLine ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal) || line.StartsWith(";", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal))
+                    {
+                        var sectionName = line.Substring(1, line.Length - 2).Trim();
+                        inTenokeSection = string.Equals(sectionName, "TENOKE", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (!inTenokeSection)
+                    {
+                        continue;
+                    }
+
+                    var separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line.Substring(0, separatorIndex).Trim();
+                    if (!string.Equals(key, "id", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(key, "appid", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var value = StripIniInlineComment(line.Substring(separatorIndex + 1)).Trim().Trim('"');
+                    return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) && appId > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
         }
 
         private static bool TryFindLumaPlayIniPathFromFolder(string folderPath, out string iniPath, int maxSearchDepth = 1)
@@ -4030,11 +4210,11 @@ namespace PlayniteAchievements.Providers.Local
             Dictionary<string, LocalEntry> existingEntries;
             if (fileKind == LocalAchievementFileKind.Json)
             {
-                existingEntries = await LoadLocalEntriesAsync(filePath, null).ConfigureAwait(false);
+                existingEntries = await LoadLocalEntriesAsync(filePath, (string)null).ConfigureAwait(false);
             }
             else
             {
-                existingEntries = await LoadLocalEntriesAsync(null, filePath).ConfigureAwait(false);
+                existingEntries = await LoadLocalEntriesAsync(null, (string)filePath).ConfigureAwait(false);
             }
 
             existingEntries ??= new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
@@ -6362,6 +6542,13 @@ namespace PlayniteAchievements.Providers.Local
 
         private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, string iniPath)
         {
+            return await LoadLocalEntriesAsync(
+                jsonPath,
+                string.IsNullOrWhiteSpace(iniPath) ? Enumerable.Empty<string>() : new[] { iniPath }).ConfigureAwait(false);
+        }
+
+        private async Task<Dictionary<string, LocalEntry>> LoadLocalEntriesAsync(string jsonPath, IEnumerable<string> iniPaths)
+        {
             var merged = new Dictionary<string, LocalEntry>(StringComparer.OrdinalIgnoreCase);
 
             if (!string.IsNullOrWhiteSpace(jsonPath) && File.Exists(jsonPath))
@@ -6378,55 +6565,64 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            if (!string.IsNullOrWhiteSpace(iniPath) && File.Exists(iniPath))
+            foreach (var iniPath in (iniPaths ?? Enumerable.Empty<string>())
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase))
             {
+                if (!File.Exists(iniPath))
+                {
+                    continue;
+                }
+
                 var ini = await Task.Run(() => File.ReadAllLines(iniPath)).ConfigureAwait(false);
                 var iniEntries = ParseIniEntries(ini);
+                var iniDirectory = Path.GetDirectoryName(iniPath);
                 foreach (var entry in iniEntries)
                 {
+                    var incoming = NormalizeLocalEntryIconPaths(entry.Value, iniDirectory);
                     if (merged.TryGetValue(entry.Key, out var existing))
                     {
-                        existing.earned = entry.Value.earned;
-                        if (entry.Value.earned_time > 0)
+                        existing.earned = incoming.earned;
+                        if (incoming.earned_time > 0)
                         {
-                            existing.earned_time = entry.Value.earned_time;
+                            existing.earned_time = incoming.earned_time;
                         }
 
-                        if (entry.Value.hidden)
+                        if (incoming.hidden)
                         {
                             existing.hidden = true;
                         }
 
-                        if (entry.Value.percent.HasValue)
+                        if (incoming.percent.HasValue)
                         {
-                            existing.percent = entry.Value.percent;
+                            existing.percent = incoming.percent;
                         }
 
-                        if (!string.IsNullOrWhiteSpace(entry.Value.displayName))
+                        if (!string.IsNullOrWhiteSpace(incoming.displayName))
                         {
-                            existing.displayName = entry.Value.displayName;
+                            existing.displayName = incoming.displayName;
                         }
 
-                        if (!string.IsNullOrWhiteSpace(entry.Value.description))
+                        if (!string.IsNullOrWhiteSpace(incoming.description))
                         {
-                            existing.description = entry.Value.description;
+                            existing.description = incoming.description;
                         }
 
-                        if (!string.IsNullOrWhiteSpace(entry.Value.icon))
+                        if (!string.IsNullOrWhiteSpace(incoming.icon))
                         {
-                            existing.icon = entry.Value.icon;
+                            existing.icon = incoming.icon;
                         }
 
-                        if (!string.IsNullOrWhiteSpace(entry.Value.iconGray))
+                        if (!string.IsNullOrWhiteSpace(incoming.iconGray))
                         {
-                            existing.iconGray = entry.Value.iconGray;
+                            existing.iconGray = incoming.iconGray;
                         }
 
                         merged[entry.Key] = existing;
                     }
                     else
                     {
-                        merged[entry.Key] = entry.Value;
+                        merged[entry.Key] = incoming;
                     }
                 }
             }
@@ -6513,8 +6709,8 @@ namespace PlayniteAchievements.Providers.Local
                     continue;
                 }
 
-                var key = line.Substring(0, separatorIndex).Trim();
-                var value = line.Substring(separatorIndex + 1).Trim().Trim('"');
+                var key = TrimIniToken(line.Substring(0, separatorIndex));
+                var value = StripIniInlineComment(line.Substring(separatorIndex + 1)).Trim().Trim('"');
                 if (string.IsNullOrWhiteSpace(key))
                 {
                     continue;
@@ -6535,10 +6731,21 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             var isGenericSection = IsGenericIniSection(section);
+            var achievementSection = NormalizeAchievementSectionName(section);
+
+            if (isGenericSection && TryParseInlineIniObject(value, out var inlineFields))
+            {
+                foreach (var inlineField in inlineFields)
+                {
+                    ApplyIniField(entries, key, inlineField.Key, inlineField.Value);
+                }
+
+                return;
+            }
 
             if (!isGenericSection && TryParseKnownIniField(key, out fieldName))
             {
-                ApplyIniField(entries, section, fieldName, value);
+                ApplyIniField(entries, achievementSection, fieldName, value);
                 return;
             }
 
@@ -6557,6 +6764,87 @@ namespace PlayniteAchievements.Providers.Local
             {
                 ApplyIniField(entries, key, "earned_time", timestamp.ToString(CultureInfo.InvariantCulture));
             }
+        }
+
+        private static string NormalizeAchievementSectionName(string section)
+        {
+            var normalized = TrimIniToken(section);
+            const string tenokeAchievementPrefix = "ACHIEVEMENTS.";
+            if (normalized.StartsWith(tenokeAchievementPrefix, StringComparison.OrdinalIgnoreCase) &&
+                normalized.Length > tenokeAchievementPrefix.Length)
+            {
+                return normalized.Substring(tenokeAchievementPrefix.Length).Trim();
+            }
+
+            return normalized;
+        }
+
+        private static string TrimIniToken(string value)
+        {
+            return (value ?? string.Empty).Trim().Trim('"');
+        }
+
+        private static string StripIniInlineComment(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var inQuotes = false;
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+
+                if (!inQuotes && (c == '#' || c == ';'))
+                {
+                    return value.Substring(0, i);
+                }
+            }
+
+            return value;
+        }
+
+        private static bool TryParseInlineIniObject(string value, out Dictionary<string, string> fields)
+        {
+            fields = null;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var normalized = value.Trim();
+            if (!normalized.StartsWith("{", StringComparison.Ordinal) ||
+                !normalized.EndsWith("}", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            normalized = normalized.Substring(1, normalized.Length - 2);
+            var parsed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in normalized.Split(','))
+            {
+                var separatorIndex = part.IndexOf('=');
+                if (separatorIndex <= 0)
+                {
+                    continue;
+                }
+
+                var key = TrimIniToken(part.Substring(0, separatorIndex));
+                var fieldValue = TrimIniToken(part.Substring(separatorIndex + 1));
+                if (TryParseKnownIniField(key, out var fieldName))
+                {
+                    parsed[fieldName] = fieldValue;
+                }
+            }
+
+            fields = parsed;
+            return parsed.Count > 0;
         }
 
         private static bool ShouldIgnoreGenericIniKey(string key)
@@ -6771,6 +7059,16 @@ namespace PlayniteAchievements.Providers.Local
 
             TryFindAchievementFile(appId, "achievements.json", out jsonPath);
             TryFindAchievementFile(appId, "achievements.ini", out iniPath);
+            if (string.IsNullOrWhiteSpace(iniPath))
+            {
+                TryFindAchievementFile(appId, "user_stats.ini", out iniPath);
+            }
+
+            if (string.IsNullOrWhiteSpace(iniPath))
+            {
+                TryFindAchievementFile(appId, "tenoke.ini", out iniPath);
+            }
+
             return !string.IsNullOrWhiteSpace(jsonPath) || !string.IsNullOrWhiteSpace(iniPath);
         }
 
@@ -7022,6 +7320,8 @@ namespace PlayniteAchievements.Providers.Local
         private static bool HasLocalAchievementFiles(string folderPath)
         {
             return !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.ini")) ||
+                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "user_stats.ini")) ||
+                !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "tenoke.ini")) ||
                 !string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json"));
         }
 
@@ -7050,6 +7350,16 @@ namespace PlayniteAchievements.Providers.Local
                 score += 2;
             }
 
+            if (!string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "user_stats.ini")))
+            {
+                score += 2;
+            }
+
+            if (!string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "tenoke.ini")))
+            {
+                score += 1;
+            }
+
             if (!string.IsNullOrWhiteSpace(ResolveAchievementFilePath(folderPath, "achievements.json")))
             {
                 score += 1;
@@ -7061,7 +7371,7 @@ namespace PlayniteAchievements.Providers.Local
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "achievements.json" })
+            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "achievements.json" })
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))

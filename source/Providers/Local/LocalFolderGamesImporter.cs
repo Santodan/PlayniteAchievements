@@ -75,6 +75,8 @@ namespace PlayniteAchievements.Providers.Local
             public string FolderPath { get; set; }
             public bool HasAchievementIni { get; set; }
             public bool HasAchievementJson { get; set; }
+            public bool HasTenokeIni { get; set; }
+            public bool HasTenokeUserStats { get; set; }
             public bool HasSteamAppCacheSchema { get; set; }
             public bool HasSteamAppCacheUserStats { get; set; }
             public bool HasSteamLibraryCache { get; set; }
@@ -650,7 +652,10 @@ namespace PlayniteAchievements.Providers.Local
                         var folderName = Path.GetFileName(directory)?.Trim();
                         if (!int.TryParse(folderName, NumberStyles.None, CultureInfo.InvariantCulture, out var appId) || appId <= 0)
                         {
-                            continue;
+                            if (!TryExtractAppIdFromTenokeIni(ResolveAchievementFilePath(directory, "tenoke.ini"), out appId) || appId <= 0)
+                            {
+                                continue;
+                            }
                         }
 
                         var candidate = TryCreateFolderCandidate(appId, directory, includeFoldersWithoutAchievementFiles);
@@ -695,6 +700,8 @@ namespace PlayniteAchievements.Providers.Local
             {
                 yield break;
             }
+
+            yield return root;
 
             var pending = new Stack<string>();
             pending.Push(root);
@@ -766,6 +773,8 @@ namespace PlayniteAchievements.Providers.Local
 
             existing.HasAchievementIni |= candidate.HasAchievementIni;
             existing.HasAchievementJson |= candidate.HasAchievementJson;
+            existing.HasTenokeIni |= candidate.HasTenokeIni;
+            existing.HasTenokeUserStats |= candidate.HasTenokeUserStats;
             existing.HasSteamAppCacheSchema |= candidate.HasSteamAppCacheSchema;
             existing.HasSteamAppCacheUserStats |= candidate.HasSteamAppCacheUserStats;
             existing.HasSteamLibraryCache |= candidate.HasSteamLibraryCache;
@@ -776,7 +785,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             var iniPath = ResolveAchievementFilePath(directory, "achievements.ini");
             var jsonPath = ResolveAchievementFilePath(directory, "achievements.json");
-            var hasAchievementFile = !string.IsNullOrWhiteSpace(iniPath) || !string.IsNullOrWhiteSpace(jsonPath);
+            var tenokeIniPath = ResolveAchievementFilePath(directory, "tenoke.ini");
+            var tenokeUserStatsPath = ResolveAchievementFilePath(directory, "user_stats.ini");
+            var hasAchievementFile = !string.IsNullOrWhiteSpace(iniPath) ||
+                !string.IsNullOrWhiteSpace(jsonPath) ||
+                !string.IsNullOrWhiteSpace(tenokeIniPath) ||
+                !string.IsNullOrWhiteSpace(tenokeUserStatsPath);
             if (!hasAchievementFile)
             {
                 if (!includeFoldersWithoutAchievementFiles || !CanImportSchemaOnlyFolderCandidate(directory))
@@ -791,6 +805,8 @@ namespace PlayniteAchievements.Providers.Local
                 FolderPath = directory,
                 HasAchievementIni = !string.IsNullOrWhiteSpace(iniPath),
                 HasAchievementJson = !string.IsNullOrWhiteSpace(jsonPath),
+                HasTenokeIni = !string.IsNullOrWhiteSpace(tenokeIniPath),
+                HasTenokeUserStats = !string.IsNullOrWhiteSpace(tenokeUserStatsPath),
                 LastWriteUtc = GetLatestAchievementFileWriteTime(directory)
             };
         }
@@ -1343,6 +1359,16 @@ namespace PlayniteAchievements.Providers.Local
                 score += 1;
             }
 
+            if (candidate.HasTenokeUserStats)
+            {
+                score += 2;
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                score += 1;
+            }
+
             if (candidate.HasSteamAppCacheSchema)
             {
                 score += 2;
@@ -1364,7 +1390,7 @@ namespace PlayniteAchievements.Providers.Local
         private static DateTime GetLatestAchievementFileWriteTime(string folderPath)
         {
             var latest = DateTime.MinValue;
-            foreach (var fileName in new[] { "achievements.ini", "achievements.json" })
+            foreach (var fileName in new[] { "achievements.ini", "user_stats.ini", "tenoke.ini", "achievements.json" })
             {
                 var filePath = ResolveAchievementFilePath(folderPath, fileName);
                 if (!string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
@@ -1407,6 +1433,88 @@ namespace PlayniteAchievements.Providers.Local
             return null;
         }
 
+        private static bool TryExtractAppIdFromTenokeIni(string iniPath, out int appId)
+        {
+            appId = 0;
+            if (string.IsNullOrWhiteSpace(iniPath) || !File.Exists(iniPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var inTenokeSection = false;
+                foreach (var rawLine in File.ReadLines(iniPath))
+                {
+                    var line = (rawLine ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#", StringComparison.Ordinal) || line.StartsWith(";", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal))
+                    {
+                        var sectionName = line.Substring(1, line.Length - 2).Trim();
+                        inTenokeSection = string.Equals(sectionName, "TENOKE", StringComparison.OrdinalIgnoreCase);
+                        continue;
+                    }
+
+                    if (!inTenokeSection)
+                    {
+                        continue;
+                    }
+
+                    var separatorIndex = line.IndexOf('=');
+                    if (separatorIndex <= 0)
+                    {
+                        continue;
+                    }
+
+                    var key = line.Substring(0, separatorIndex).Trim();
+                    if (!string.Equals(key, "id", StringComparison.OrdinalIgnoreCase) &&
+                        !string.Equals(key, "appid", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var value = StripIniInlineComment(line.Substring(separatorIndex + 1)).Trim().Trim('"');
+                    return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out appId) && appId > 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        private static string StripIniInlineComment(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var inQuotes = false;
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                    continue;
+                }
+
+                if (!inQuotes && (c == '#' || c == ';'))
+                {
+                    return value.Substring(0, i);
+                }
+            }
+
+            return value;
+        }
+
         private static string BuildCandidateDetail(ImportCandidate candidate, int index, int total)
         {
             if (candidate == null)
@@ -1423,6 +1531,16 @@ namespace PlayniteAchievements.Providers.Local
             if (candidate.HasAchievementJson)
             {
                 evidence.Add("achievements.json");
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                evidence.Add("tenoke.ini");
+            }
+
+            if (candidate.HasTenokeUserStats)
+            {
+                evidence.Add("user_stats.ini");
             }
 
             if (candidate.HasSteamAppCacheSchema)
@@ -1460,6 +1578,16 @@ namespace PlayniteAchievements.Providers.Local
             if (candidate.HasAchievementJson)
             {
                 evidence.Add("json");
+            }
+
+            if (candidate.HasTenokeIni)
+            {
+                evidence.Add("tenoke");
+            }
+
+            if (candidate.HasTenokeUserStats)
+            {
+                evidence.Add("user_stats");
             }
 
             if (candidate.HasSteamAppCacheSchema)
