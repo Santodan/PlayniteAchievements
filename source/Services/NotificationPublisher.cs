@@ -1445,9 +1445,6 @@ steamImage +
                 : LocalOverlayCoverPosition.None;
             var timestamp = DateTime.Now;
             var sourceName = game?.Source?.Name ?? string.Empty;
-            var resolvedLine1 = ResolveCustomTemplateLine(settings?.OverlayCustomTitleTemplate, "<title>", title, gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, providerKey, NotificationStyleCustom, game, sourceName, timestamp, suppressWhenTemplateEmpty: true);
-            var resolvedLine2 = ResolveCustomTemplateLine(settings?.OverlayCustomGameNameTemplate, "<gameName>", title, gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, providerKey, NotificationStyleCustom, game, sourceName, timestamp, suppressWhenTemplateEmpty: true);
-            var resolvedLine3 = ResolveCustomTemplateLine(settings?.OverlayCustomAchievementTemplate, "Unlocked: <achievementName>", title, gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, providerKey, NotificationStyleCustom, game, sourceName, timestamp, suppressWhenTemplateEmpty: true);
             var coverWidth = Math.Max(48, (settings?.GameCoverWidth ?? 80) * overlayScale);
             var coverHeight = Math.Max(iconSize + 18, 96 * overlayScale);
             var contentPadding = new Thickness(16);
@@ -1545,44 +1542,91 @@ steamImage +
                 VerticalAlignment = VerticalAlignment.Center
             };
 
-            if (settings?.OverlayCustomShowLine1 != false && !string.IsNullOrWhiteSpace(resolvedLine1))
+            if (settings?.OverlayCustomShowLine1 != false)
             {
-                textStack.Children.Add(new TextBlock
+                var line = CreateCustomTemplateTextBlock(
+                    settings?.OverlayCustomTitleTemplate,
+                    "<title>",
+                    title,
+                    gameName,
+                    achievementName,
+                    achievementDescription,
+                    achievementPoints,
+                    achievementRarity,
+                    achievementTrophy,
+                    providerKey,
+                    NotificationStyleCustom,
+                    game,
+                    sourceName,
+                    timestamp,
+                    titleBrush,
+                    titleSize,
+                    FontWeights.SemiBold,
+                    new Thickness(0),
+                    wrapAllText,
+                    suppressWhenTemplateEmpty: true);
+                if (line != null)
                 {
-                    Text = resolvedLine1,
-                    Foreground = titleBrush,
-                    FontWeight = FontWeights.SemiBold,
-                    FontSize = titleSize,
-                    TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
-                    TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
-                });
+                    textStack.Children.Add(line);
+                }
             }
 
-            if (settings?.OverlayCustomShowGameName != false && !string.IsNullOrWhiteSpace(resolvedLine2))
+            if (settings?.OverlayCustomShowGameName != false)
             {
-            textStack.Children.Add(new TextBlock
-            {
-                Text = resolvedLine2,
-                Foreground = detailBrush,
-                FontSize = detailSize,
-                Margin = new Thickness(0, 4, 0, 0),
-                TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
-                TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
-            });
+                var line = CreateCustomTemplateTextBlock(
+                    settings?.OverlayCustomGameNameTemplate,
+                    "<gameName>",
+                    title,
+                    gameName,
+                    achievementName,
+                    achievementDescription,
+                    achievementPoints,
+                    achievementRarity,
+                    achievementTrophy,
+                    providerKey,
+                    NotificationStyleCustom,
+                    game,
+                    sourceName,
+                    timestamp,
+                    detailBrush,
+                    detailSize,
+                    FontWeights.Normal,
+                    new Thickness(0, 4, 0, 0),
+                    wrapAllText,
+                    suppressWhenTemplateEmpty: true);
+                if (line != null)
+                {
+                    textStack.Children.Add(line);
+                }
             }
 
-            if (settings?.OverlayCustomShowMeta != false && !string.IsNullOrWhiteSpace(resolvedLine3))
+            if (settings?.OverlayCustomShowMeta != false)
             {
-            textStack.Children.Add(new TextBlock
-            {
-                Text = resolvedLine3,
-                Foreground = accentBrush,
-                FontSize = metaSize,
-                Margin = new Thickness(0, 3, 0, 0),
-                FontWeight = FontWeights.SemiBold,
-                TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
-                TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
-            });
+                var line = CreateCustomTemplateTextBlock(
+                    settings?.OverlayCustomAchievementTemplate,
+                    "Unlocked: <achievementName>",
+                    title,
+                    gameName,
+                    achievementName,
+                    achievementDescription,
+                    achievementPoints,
+                    achievementRarity,
+                    achievementTrophy,
+                    providerKey,
+                    NotificationStyleCustom,
+                    game,
+                    sourceName,
+                    timestamp,
+                    accentBrush,
+                    metaSize,
+                    FontWeights.SemiBold,
+                    new Thickness(0, 3, 0, 0),
+                    wrapAllText,
+                    suppressWhenTemplateEmpty: true);
+                if (line != null)
+                {
+                    textStack.Children.Add(line);
+                }
             }
 
             Grid.SetColumn(textStack, currentColumn);
@@ -1675,6 +1719,187 @@ steamImage +
             });
 
             return replaced?.Trim() ?? string.Empty;
+        }
+
+        private static TextBlock CreateCustomTemplateTextBlock(
+            string template,
+            string fallback,
+            string title,
+            string gameName,
+            string achievementName,
+            string achievementDescription,
+            int? achievementPoints,
+            string achievementRarity,
+            string achievementTrophy,
+            string providerKey,
+            string style,
+            Game game,
+            string sourceName,
+            DateTime timestamp,
+            Brush foreground,
+            double fontSize,
+            FontWeight fontWeight,
+            Thickness margin,
+            bool wrapAllText,
+            bool suppressWhenTemplateEmpty)
+        {
+            if (suppressWhenTemplateEmpty && string.IsNullOrWhiteSpace(template))
+            {
+                return null;
+            }
+
+            var effectiveTemplate = string.IsNullOrWhiteSpace(template) ? fallback : template;
+            if (string.IsNullOrWhiteSpace(effectiveTemplate))
+            {
+                return null;
+            }
+
+            var textBlock = new TextBlock
+            {
+                Foreground = foreground,
+                FontSize = fontSize,
+                FontWeight = fontWeight,
+                Margin = margin,
+                TextTrimming = wrapAllText ? TextTrimming.None : TextTrimming.CharacterEllipsis,
+                TextWrapping = wrapAllText ? TextWrapping.Wrap : TextWrapping.NoWrap
+            };
+
+            var hasVisibleContent = false;
+            var lastIndex = 0;
+            foreach (Match match in OverlayTemplateTokenPattern.Matches(effectiveTemplate))
+            {
+                AddCustomTemplateRun(textBlock, effectiveTemplate.Substring(lastIndex, match.Index - lastIndex), ref hasVisibleContent);
+                var tokenName = match.Groups[1].Value;
+                if (string.Equals(tokenName, "trophyIcon", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddCustomTemplateTrophyIcon(textBlock, achievementTrophy, achievementRarity, achievementPoints, fontSize, ref hasVisibleContent);
+                }
+                else
+                {
+                    AddCustomTemplateRun(
+                        textBlock,
+                        ResolveCustomTemplateToken(
+                            tokenName,
+                            title,
+                            gameName,
+                            achievementName,
+                            achievementDescription,
+                            achievementPoints,
+                            achievementRarity,
+                            achievementTrophy,
+                            providerKey,
+                            style,
+                            game,
+                            sourceName,
+                            timestamp,
+                            match.Value),
+                        ref hasVisibleContent);
+                }
+
+                lastIndex = match.Index + match.Length;
+            }
+
+            AddCustomTemplateRun(textBlock, effectiveTemplate.Substring(lastIndex), ref hasVisibleContent);
+            return hasVisibleContent ? textBlock : null;
+        }
+
+        private static void AddCustomTemplateRun(TextBlock textBlock, string text, ref bool hasVisibleContent)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                hasVisibleContent = true;
+            }
+
+            textBlock.Inlines.Add(new System.Windows.Documents.Run(text));
+        }
+
+        private static void AddCustomTemplateTrophyIcon(
+            TextBlock textBlock,
+            string achievementTrophy,
+            string achievementRarity,
+            int? achievementPoints,
+            double fontSize,
+            ref bool hasVisibleContent)
+        {
+            var resourceKey = GetTrophyResourceKeyForTrophy(achievementTrophy) ??
+                              GetTrophyResourceKey(ResolveRarityKey(achievementRarity, achievementPoints));
+            var trophy = TryGetResourceImageSource(resourceKey);
+            if (trophy == null)
+            {
+                return;
+            }
+
+            var iconSize = Math.Max(10, fontSize * 1.25);
+            var image = new Image
+            {
+                Source = trophy,
+                Stretch = Stretch.Uniform,
+                Width = iconSize,
+                Height = iconSize,
+                Margin = new Thickness(1, 0, 1, -2)
+            };
+
+            textBlock.Inlines.Add(new System.Windows.Documents.InlineUIContainer(image)
+            {
+                BaselineAlignment = BaselineAlignment.Center
+            });
+            hasVisibleContent = true;
+        }
+
+        private static string ResolveCustomTemplateToken(
+            string tokenName,
+            string title,
+            string gameName,
+            string achievementName,
+            string achievementDescription,
+            int? achievementPoints,
+            string achievementRarity,
+            string achievementTrophy,
+            string providerKey,
+            string style,
+            Game game,
+            string sourceName,
+            DateTime timestamp,
+            string fallback)
+        {
+            switch ((tokenName ?? string.Empty).ToLowerInvariant())
+            {
+                case "title":
+                    return title ?? string.Empty;
+                case "gamename":
+                    return gameName ?? string.Empty;
+                case "achievementname":
+                    return achievementName ?? string.Empty;
+                case "achievementdescription":
+                    return achievementDescription ?? string.Empty;
+                case "points":
+                    return achievementPoints?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                case "rarity":
+                    return achievementRarity ?? string.Empty;
+                case "trophy":
+                    return FormatTrophyText(achievementTrophy);
+                case "provider":
+                    return providerKey ?? string.Empty;
+                case "style":
+                    return style ?? string.Empty;
+                case "date":
+                    return timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                case "time":
+                    return timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+                case "datetime":
+                    return timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                case "source":
+                    return sourceName ?? string.Empty;
+                case "gameid":
+                    return game?.Id.ToString() ?? string.Empty;
+                default:
+                    return fallback;
+            }
         }
 
         private static string FormatTrophyText(string trophy)
@@ -1930,6 +2155,32 @@ steamImage +
                     return "BadgeRarityUncommon";
                 default:
                     return "BadgeRarityCommon";
+            }
+        }
+
+        private static string GetTrophyResourceKeyForTrophy(string trophy)
+        {
+            if (string.IsNullOrWhiteSpace(trophy))
+            {
+                return null;
+            }
+
+            switch (trophy.Trim().ToLowerInvariant())
+            {
+                case "p":
+                case "platinum":
+                    return "TrophyPlatinum";
+                case "g":
+                case "gold":
+                    return "TrophyGold";
+                case "s":
+                case "silver":
+                    return "TrophySilver";
+                case "b":
+                case "bronze":
+                    return "TrophyBronze";
+                default:
+                    return null;
             }
         }
 

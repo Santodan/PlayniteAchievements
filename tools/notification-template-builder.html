@@ -627,8 +627,8 @@
   <script>
     const tokens = [
       '<title>', '<gameName>', '<achievementName>', '<achievementDescription>',
-      '<points>', '<rarity>', '<trophy>', '<provider>', '<style>', '<date>',
-      '<time>', '<dateTime>', '<source>', '<gameId>'
+      '<points>', '<rarity>', '<trophy>', '<trophyIcon>', '<provider>',
+      '<style>', '<date>', '<time>', '<dateTime>', '<source>', '<gameId>'
     ];
 
     const ids = [
@@ -743,7 +743,30 @@
       return value;
     }
 
-    function tokenReplace(template) {
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function trophyColor() {
+      const trophy = ($('sampleTrophy').value || '').trim().toLowerCase();
+      if (trophy === 'p' || trophy === 'platinum') return '#DDF8FF';
+      if (trophy === 'g' || trophy === 'gold') return '#FFD45A';
+      if (trophy === 's' || trophy === 'silver') return '#DDE6EF';
+      if (trophy === 'b' || trophy === 'bronze') return '#D99355';
+      return '#FFD45A';
+    }
+
+    function trophyIconMarkup(size) {
+      const px = Math.max(10, size * 1.25);
+      return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" aria-hidden="true" style="display:inline-block;vertical-align:-0.18em;margin:0 1px"><path fill="${trophyColor()}" d="M18 8h28v8h8v7c0 9-6 16-14 18-2 4-5 7-8 8v7h10v6H22v-6h10v-7c-4-1-7-4-8-8-8-2-14-9-14-18v-7h8V8Zm0 14h-4v1c0 5 3 9 8 11-2-4-4-8-4-12Zm28 0c0 4-1 8-4 12 5-2 8-6 8-11v-1h-4Z"/></svg>`;
+    }
+
+    function tokenReplace(template, renderIcons = false, fontSize = 12) {
       const date = new Date();
       const datePart = date.toISOString().slice(0, 10);
       const timePart = date.toTimeString().slice(0, 8);
@@ -765,7 +788,14 @@
       };
 
       return (template || '')
-        .replace(/<([a-zA-Z0-9]+)>/g, (_, key) => map[(key || '').toLowerCase()] ?? `<${key}>`)
+        .replace(/<([a-zA-Z0-9]+)>/g, (_, key) => {
+          const normalized = (key || '').toLowerCase();
+          if (normalized === 'trophyicon') {
+            return renderIcons ? trophyIconMarkup(fontSize) : '';
+          }
+          const value = map[normalized];
+          return renderIcons ? escapeHtml(value ?? `<${key}>`) : value ?? `<${key}>`;
+        })
         .trim();
     }
 
@@ -827,9 +857,10 @@
       };
     }
 
-    function setLine(element, text, size, color, enabled, wrap) {
-      element.textContent = text || '';
-      element.style.display = enabled && text ? 'block' : 'none';
+    function setLine(element, template, size, color, enabled, wrap) {
+      const text = tokenReplace(template, false, size);
+      element.innerHTML = tokenReplace(template, true, size);
+      element.style.display = enabled && (text || /<trophyIcon>/i.test(template || '')) ? 'block' : 'none';
       element.style.fontSize = `${size}px`;
       element.style.color = color;
       element.style.whiteSpace = wrap ? 'normal' : 'nowrap';
@@ -959,9 +990,9 @@
       toast.style.border = slot.ShowBorder ? `1.5px solid ${slot.BorderColor}` : '0';
       toast.style.borderRadius = `${Math.max(0, slot.CornerRadius)}px`;
 
-      setLine($('line1'), tokenReplace(slot.TitleTemplate), slot.TitleFontSize, slot.TitleColor, slot.ShowLine1, slot.WrapAllText);
-      setLine($('line2'), tokenReplace(slot.GameNameTemplate), slot.DetailFontSize, slot.DetailColor, slot.ShowGameName, slot.WrapAllText);
-      setLine($('line3'), tokenReplace(slot.AchievementTemplate), slot.MetaFontSize, slot.AccentColor, slot.ShowMeta, slot.WrapAllText);
+      setLine($('line1'), slot.TitleTemplate, slot.TitleFontSize, slot.TitleColor, slot.ShowLine1, slot.WrapAllText);
+      setLine($('line2'), slot.GameNameTemplate, slot.DetailFontSize, slot.DetailColor, slot.ShowGameName, slot.WrapAllText);
+      setLine($('line3'), slot.AchievementTemplate, slot.MetaFontSize, slot.AccentColor, slot.ShowMeta, slot.WrapAllText);
       renderIcon(slot);
 
       if (slot.ShowIconRarityGlow) {
