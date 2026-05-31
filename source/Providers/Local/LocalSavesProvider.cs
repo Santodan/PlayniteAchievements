@@ -714,8 +714,11 @@ namespace PlayniteAchievements.Providers.Local
                 var data = await GetAchievementsAsync(game, null);
                 if (data != null)
                 {
-                    // Update the internal provider cache so the UI knows we own this game
-                    _pluginSettings.Persisted.ProviderSettings[ProviderKey] = Newtonsoft.Json.Linq.JObject.FromObject(new { IsEnabled = true });
+                    // Keep the provider marked enabled without replacing the rest of
+                    // the Local provider settings payload.
+                    var localSettings = ProviderRegistry.Settings<LocalSettings>();
+                    localSettings.IsEnabled = true;
+                    ProviderRegistry.Write(localSettings);
                     
                     await onAchievementsUpdated(game, data);
                     Log($"DATABASE: Submitted {game.Name} (Count: {data.Achievements.Count})");

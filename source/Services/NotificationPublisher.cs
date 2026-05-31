@@ -39,6 +39,7 @@ namespace PlayniteAchievements.Services
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private static Window _persistentSettingsPreviewOverlay;
+        private static readonly List<OverlayWindowState> ActiveOverlayWindows = new List<OverlayWindowState>();
 
         public NotificationPublisher(IPlayniteAPI api, PlayniteAchievementsSettings settings, ILogger logger)
         {
@@ -251,8 +252,28 @@ namespace PlayniteAchievements.Services
 
             if (names.Count > 0)
             {
-                var firstAchievement = names[0];
                 var soundLeadMs = Math.Max(0, localSettings?.UnlockSoundLeadMilliseconds ?? 0);
+                void SendAllUnlockPopups()
+                {
+                    for (var i = 0; i < names.Count; i++)
+                    {
+                        var isFirstAchievement = i == 0;
+                        SendUnlockPopup(
+                            safeGameName,
+                            names[i],
+                            isFirstAchievement ? unlockedAchievementIconPath : null,
+                            providerKey: resolvedProviderKey,
+                            game: game,
+                            achievementDescription: isFirstAchievement ? achievementDescription : null,
+                            achievementPoints: isFirstAchievement ? achievementPoints : null,
+                            achievementRarity: isFirstAchievement ? achievementRarity : null,
+                            achievementTrophy: isFirstAchievement ? achievementTrophy : null,
+                            forcedStyle: forcedStyle,
+                            forcedDeliveryMode: forcedDeliveryMode,
+                            overrideLocalSettings: localSettings);
+                    }
+                }
+
                 if (soundLeadMs > 0)
                 {
                     _ = Task.Run(async () =>
@@ -260,19 +281,7 @@ namespace PlayniteAchievements.Services
                         try
                         {
                             await Task.Delay(soundLeadMs).ConfigureAwait(false);
-                            SendUnlockPopup(
-                                safeGameName,
-                                firstAchievement,
-                                unlockedAchievementIconPath,
-                                providerKey: resolvedProviderKey,
-                                game: game,
-                                achievementDescription: achievementDescription,
-                                achievementPoints: achievementPoints,
-                                achievementRarity: achievementRarity,
-                                achievementTrophy: achievementTrophy,
-                                forcedStyle: forcedStyle,
-                                forcedDeliveryMode: forcedDeliveryMode,
-                                overrideLocalSettings: localSettings);
+                            SendAllUnlockPopups();
                         }
                         catch (Exception ex)
                         {
@@ -282,19 +291,7 @@ namespace PlayniteAchievements.Services
                 }
                 else
                 {
-                    SendUnlockPopup(
-                        safeGameName,
-                        firstAchievement,
-                        unlockedAchievementIconPath,
-                        providerKey: resolvedProviderKey,
-                        game: game,
-                        achievementDescription: achievementDescription,
-                        achievementPoints: achievementPoints,
-                        achievementRarity: achievementRarity,
-                        achievementTrophy: achievementTrophy,
-                        forcedStyle: forcedStyle,
-                        forcedDeliveryMode: forcedDeliveryMode,
-                        overrideLocalSettings: localSettings);
+                    SendAllUnlockPopups();
                 }
             }
         }
@@ -960,8 +957,11 @@ steamImage +
                             overlayWindow.Height = height;
                         }
 
-                        PositionOverlayWindow(overlayWindow, position);
                         overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+                        var overlayState = persistentPreviewRequested
+                            ? null
+                            : RegisterOverlayWindow(overlayWindow, position);
+                        PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState));
 
                         overlayWindow.Loaded += (sender, args) =>
                         {
@@ -969,7 +969,7 @@ steamImage +
                             {
                                 if (autoResizeCustom)
                                 {
-                                    PositionOverlayWindow(overlayWindow, position);
+                                    PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState));
                                 }
 
                                 ApplyOverlayEnterAnimation(overlayWindow, overlayOpacity, fadeInMs, transitionStyle, slideDistance);
@@ -987,6 +987,11 @@ steamImage +
                                 closeTimer.Tick += (timerSender, timerArgs) =>
                                 {
                                     closeTimer.Stop();
+                                    if (overlayState != null)
+                                    {
+                                        overlayState.IsClosing = true;
+                                    }
+
                                     ApplyOverlayExitAnimation(overlayWindow, overlayOpacity, fadeOutMs, transitionStyle, slideDistance, () => overlayWindow.Close());
                                 };
 
@@ -1010,6 +1015,11 @@ steamImage +
                             if (ReferenceEquals(_persistentSettingsPreviewOverlay, overlayWindow))
                             {
                                 _persistentSettingsPreviewOverlay = null;
+                            }
+
+                            if (overlayState != null)
+                            {
+                                UnregisterOverlayWindow(overlayState);
                             }
                         };
 
@@ -1047,7 +1057,7 @@ steamImage +
             return "Local Achievement Unlocked";
         }
 
-        private static void PositionOverlayWindow(Window window, LocalUnlockOverlayPosition position)
+        private static void PositionOverlayWindow(Window window, LocalUnlockOverlayPosition position, int stackIndex = 0)
         {
             if (window == null)
             {
@@ -1055,26 +1065,115 @@ steamImage +
             }
 
             const double margin = 16;
+            const double spacing = 8;
             var workArea = SystemParameters.WorkArea;
+            var stackOffset = Math.Max(0, stackIndex) * (GetOverlayWindowHeight(window) + spacing);
             switch (position)
             {
                 case LocalUnlockOverlayPosition.TopLeft:
                     window.Left = workArea.Left + margin;
-                    window.Top = workArea.Top + margin;
+                    window.Top = workArea.Top + margin + stackOffset;
                     break;
                 case LocalUnlockOverlayPosition.BottomLeft:
                     window.Left = workArea.Left + margin;
-                    window.Top = workArea.Bottom - window.Height - margin;
+                    window.Top = workArea.Bottom - GetOverlayWindowHeight(window) - margin - stackOffset;
                     break;
                 case LocalUnlockOverlayPosition.BottomRight:
                     window.Left = workArea.Right - window.Width - margin;
-                    window.Top = workArea.Bottom - window.Height - margin;
+                    window.Top = workArea.Bottom - GetOverlayWindowHeight(window) - margin - stackOffset;
                     break;
                 default:
                     window.Left = workArea.Right - window.Width - margin;
-                    window.Top = workArea.Top + margin;
+                    window.Top = workArea.Top + margin + stackOffset;
                     break;
             }
+        }
+
+        private static double GetOverlayWindowHeight(Window window)
+        {
+            if (window == null)
+            {
+                return 0;
+            }
+
+            if (window.ActualHeight > 0)
+            {
+                return window.ActualHeight;
+            }
+
+            if (!double.IsNaN(window.Height) && window.Height > 0)
+            {
+                return window.Height;
+            }
+
+            if (window.MinHeight > 0)
+            {
+                return window.MinHeight;
+            }
+
+            return 110;
+        }
+
+        private static OverlayWindowState RegisterOverlayWindow(Window window, LocalUnlockOverlayPosition position)
+        {
+            if (window == null)
+            {
+                return null;
+            }
+
+            var state = new OverlayWindowState(window, position);
+            ActiveOverlayWindows.RemoveAll(item => item?.Window == null || !item.Window.IsVisible);
+            ActiveOverlayWindows.Add(state);
+            return state;
+        }
+
+        private static void UnregisterOverlayWindow(OverlayWindowState state)
+        {
+            if (state == null)
+            {
+                return;
+            }
+
+            ActiveOverlayWindows.Remove(state);
+            RepositionActiveOverlayWindows(state.Position);
+        }
+
+        private static int GetOverlayStackIndex(OverlayWindowState state)
+        {
+            if (state == null)
+            {
+                return 0;
+            }
+
+            return ActiveOverlayWindows
+                .Where(item => item != null && item.Position == state.Position)
+                .TakeWhile(item => !ReferenceEquals(item, state))
+                .Count();
+        }
+
+        private static void RepositionActiveOverlayWindows(LocalUnlockOverlayPosition position)
+        {
+            var overlays = ActiveOverlayWindows
+                .Where(item => item != null && item.Position == position && !item.IsClosing && item.Window?.IsVisible == true)
+                .ToList();
+
+            for (var i = 0; i < overlays.Count; i++)
+            {
+                PositionOverlayWindow(overlays[i].Window, position, i);
+            }
+        }
+
+        private sealed class OverlayWindowState
+        {
+            public OverlayWindowState(Window window, LocalUnlockOverlayPosition position)
+            {
+                Window = window;
+                Position = position;
+            }
+
+            public Window Window { get; }
+            public LocalUnlockOverlayPosition Position { get; }
+            public bool IsClosing { get; set; }
         }
 
         private static void ApplyOverlayEnterAnimation(Window overlayWindow, double targetOpacity, int fadeInMs, LocalUnlockOverlayTransitionStyle transitionStyle, int slideDistance)
