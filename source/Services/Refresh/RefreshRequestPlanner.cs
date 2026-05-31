@@ -501,8 +501,7 @@ namespace PlayniteAchievements.Services
         {
             return game != null &&
                    (game.IsInstalled ||
-                    GameCustomDataLookup.TryGetXeniaTitleIdOverride(game.Id, out _) ||
-                    GameCustomDataLookup.TryGetShadPS4MatchIdOverride(game.Id, out _));
+                    GameCustomDataLookup.TryGetProviderOverride(game.Id, out _));
         }
 
         private List<Guid> GetMissingGameIds(IReadOnlyList<IDataProvider> authenticatedProviders)

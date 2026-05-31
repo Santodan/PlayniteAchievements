@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Providers.Xbox
         {
             _xboxSettings = settings as XboxSettings;
             base.Initialize(settings);
-            _ = RefreshAuthStatusAsync();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
@@ -83,6 +83,23 @@ namespace PlayniteAchievements.Providers.Xbox
             }
 
             UpdateAuthStatus(result);
+        }
+
+        private async void Auth_Check_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SetAuthBusy(true);
+                await RefreshAuthStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Xbox auth check failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

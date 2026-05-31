@@ -46,6 +46,8 @@ namespace PlayniteAchievements.Providers.BattleNet
             "pet-battles/model.json",
             "collections/model.json",
             "expansion-features/model.json",
+            "delves/model.json",
+            "housing/model.json",
             "feats-of-strength/model.json",
             "legacy/model.json"
         };

@@ -546,6 +546,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ObservableCollection<GameAchievementSummary> HoyoverseGames
+        {
+            get => ModernTheme.HoyoverseGames;
+            set => ModernTheme.HoyoverseGames = value;
+        }
+
+        [DontSerialize]
         public ObservableCollection<GameAchievementSummary> UbisoftGames
         {
             get => ModernTheme.UbisoftGames;

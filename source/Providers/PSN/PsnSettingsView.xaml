@@ -119,12 +119,12 @@
                                 </Grid>
 
                                 <StackPanel Orientation="Horizontal">
-                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
-                                            Click="PsnAuth_Check_Click"
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
+                                            Click="PsnAuth_Login_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Settings_Psn_LoginLegacy}"
-                                            Click="PsnAuth_Login_Click"
+                                    <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
+                                            Click="PsnAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
                                             Margin="0,0,8,0"/>
                                     <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"

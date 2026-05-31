@@ -66,8 +66,7 @@ namespace PlayniteAchievements.Services.Database
                 return false;
             }
 
-            var hasPlayniteGameId = !string.IsNullOrWhiteSpace(playniteGameId);
-            if (hasPlayniteGameId && IsRetroAchievementsProvider(providerKey))
+            if (!string.IsNullOrWhiteSpace(playniteGameId))
             {
                 return false;
             }

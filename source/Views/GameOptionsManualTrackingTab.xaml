@@ -190,9 +190,17 @@
                               KeyboardNavigation.DirectionalNavigation="Continue"
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
+                              CanUserResizeRows="False"
                               CanUserReorderColumns="True"
                               CanUserResizeColumns="True"
                               CanUserSortColumns="True"
+                              RowHeight="76"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingStackPanel.VirtualizationMode="Recycling"
+                              VirtualizingStackPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               GridLinesVisibility="None"
                               HeadersVisibility="Column"
                               BorderThickness="0"
@@ -210,6 +218,7 @@
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow" BasedOn="{StaticResource GameOptionsDataGridRowStyle}">
                                 <Setter Property="MinHeight" Value="64"/>
+                                <Setter Property="ClipToBounds" Value="True"/>
                             </Style>
                         </DataGrid.RowStyle>
 
@@ -419,7 +428,9 @@
                               CanUserResizeColumns="True"
                               CanUserReorderColumns="False"
                               CanUserSortColumns="True"
+                              RowHeight="112"
                               EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
                               VirtualizingStackPanel.VirtualizationMode="Recycling"
                               VirtualizingStackPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True"
@@ -432,7 +443,8 @@
 
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow" BasedOn="{StaticResource GameOptionsDataGridRowStyle}">
-                                <Setter Property="MinHeight" Value="66"/>
+                                <Setter Property="MinHeight" Value="76"/>
+                                <Setter Property="ClipToBounds" Value="True"/>
                             </Style>
                         </DataGrid.RowStyle>
 

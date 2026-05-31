@@ -1,4 +1,4 @@
-﻿<?xml version="1.0"?>
+<?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ================================================================= -->
@@ -52,7 +52,6 @@
     <sys:String x:Key="LOCPlayAch_Common_None">None</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_NoOverrideSet">No override set</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_NotLinked">Not linked</sys:String>
-    <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">Unlocked Count</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
@@ -112,6 +111,7 @@
     <sys:String x:Key="LOCPlayAch_Provider_Exophase">Exophase</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_GOG">GOG</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_GooglePlay">Google Play</sys:String>
+    <sys:String x:Key="LOCPlayAch_Provider_Hoyoverse">HoYoverse</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_Manual">Manual</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_PSN">PlayStation</sys:String>
     <sys:String x:Key="LOCPlayAch_Provider_RetroAchievements">RetroAchievements</sys:String>
@@ -195,6 +195,8 @@ This will remove the game from the achievements view, delete its cached data, an
     <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Open Game Options to choose a different folder if needed. Candidates found: {3}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_XeniaTitleId_InvalidId">Please enter a valid 8-character hexadecimal Xenia TitleID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_ShadPS4MatchId_InvalidId">Please enter a valid ShadPS4 match ID such as CUSA00432 or NPWR12345_00.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_Rpcs3MatchId_InvalidId">Please enter a valid RPCS3 trophy NP Comm ID such as NPWR12345_00.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_SteamAppId_InvalidId">Please enter a valid positive integer Steam AppID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshGame">Refresh Single Game</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshInProgress">[Refresh in Progress]</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_RefreshSelected">Refresh Selected Games</sys:String>
@@ -293,9 +295,6 @@ This will remove the manual achievement link, delete all manually set unlock tim
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_OpenFolderButton">Open Icons Folder</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_OpenFolderUnavailable">The extension data path is unavailable.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomIcons_ValidationError">One or more icon values are invalid. Use absolute http:// or https:// URLs, or managed local files copied into plugin data.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseHint">Check to force Exophase for this game. Unchecked games use Exophase if their platform is in Managed Platforms.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugHint">Override the auto-detected Exophase game ID to link to a specific Exophase game. Leave empty to use auto-detection.</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_ExophaseSlugLabel">Exophase Game ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary">{0} ({1})</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_LinkSummary_None">No manual link configured.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Manual_ReplaceProviderWarning">Manual tracking can replace cached achievement data from {0}. Continue?</sys:String>
@@ -333,6 +332,17 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_XeniaHint">Enter the Xbox 360 TitleID to override automatic matching for this game. This forces the game to be managed by Xenia.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ShadPS4Header">ShadPS4 Match ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ShadPS4Hint">Enter a PS4 title ID such as CUSA00432 or a trophy ID such as NPWR12345_00 to override automatic matching for this game. This forces the game to be managed by ShadPS4.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderHeader">Provider Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderHint">Force this game to use one supported achievement provider, or clear the override to use automatic matching.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderStatusAuto">Override set: {0} (auto-detect)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderStatusValue">Override set: {0} - {1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderInvalid">Select a supported provider override.</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_Steam">Steam AppID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_RetroAchievements">RetroAchievements Game ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_ShadPS4">ShadPS4 Match ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_RPCS3">RPCS3 NP Comm ID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_Xenia">Xenia TitleID</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_ProviderValueLabel_Exophase">Exophase game ID or slug</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHeader">Summary Exclusion</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overrides_SummaryExclusionHint">Exclude this game from sidebar and all-games summary data.</sys:String>
     <sys:String x:Key="LOCPlayAch_Capstone_Current">Current Capstone: {0}</sys:String>
@@ -345,9 +355,6 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_AchievementPageUnavailable">No source page link is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_XeniaOverride">Xenia TitleID Override</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_ShadPS4Override">ShadPS4 Match ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_Excluded">Excluded</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromRefreshes">Excluded from Bulk Refreshes</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Status_ExcludedFromSummaries">Excluded from Summaries</sys:String>
@@ -363,7 +370,6 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_ManualTracking">Manual Tracking</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overrides">Overrides</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Overview">Overview</sys:String>
-    <sys:String x:Key="LOCPlayAch_GameOptions_UseExophase">Use Exophase for this game</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_CustomSchemaEditor_NoFile">No custom schema file selected.</sys:String>
@@ -538,6 +544,26 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms">Managed Platforms</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_ManagedPlatforms_Help">Games on these platforms will use Exophase instead of modern providers. Check platforms you want Exophase to manage.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_Exophase_Note">Note: For games on unchecked platforms, use Game Options to include individually.</sys:String>
+
+    <!-- Provider: HoYoverse -->
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_EnableGenshin">Enable Genshin Impact</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_EnableHsr">Enable Honkai: Star Rail</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_EnableZzz">Enable Zenless Zone Zero</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_ExportFiles">Tracker Export Files</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_ExportFiles_Help">Optional public tracker exports used to mark achievements unlocked. Without an export file, refresh still downloads definitions and keeps achievements locked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions">How to Get the JSON</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step1Prefix">1. Open the </sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_StarDbImporter">StarDB achievement importer</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step1Suffix"> and log in.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step2Prefix">2. Download and run </sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_StarDbExporter">stardb-exporter</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step2Suffix">, then follow its prompts until the export JSON is copied to your clipboard.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step3">3. Save the copied text as a .json file and select it below for the matching game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Step4">4. Optionally paste the copied JSON into StarDB too, so your StarDB tracker stays synced.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_Instructions_Note">Supported files: raw stardb-exporter JSON, StarDB JSON, Paimon.moe JSON, SEELIE.me JSON, Star Rail Station .dat, and rng.moe JSON.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_InvalidExportPath">One or more configured export files do not exist.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_Hoyoverse_NoExportConfigured">No export file configured. Refresh will import locked achievement definitions only.</sys:String>
+
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabase">Export database tables to CSV for debugging</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ExportDatabaseButton">Export CSV</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ForceHashIndexRebuild">Force hash index rebuild</sys:String>

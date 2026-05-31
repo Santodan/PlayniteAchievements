@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Providers.GOG
         {
             _gogSettings = settings as GogSettings;
             base.Initialize(settings);
-            _ = RefreshAuthStatusAsync();
+            AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
@@ -118,6 +118,23 @@ namespace PlayniteAchievements.Providers.GOG
             }
 
             UpdateAuthStatus(result);
+        }
+
+        private async void Auth_Check_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SetAuthBusy(true);
+                await RefreshAuthStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "GOG auth check failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

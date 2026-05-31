@@ -47,8 +47,7 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             _exophaseSettings = settings as ExophaseSettings;
             base.Initialize(settings);
-            SetAuthStatusByKey("LOCPlayAch_Auth_Checking");
-            _ = RefreshAuthStatusAsync();
+            SetAuthStatusByKey("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
@@ -101,6 +100,23 @@ namespace PlayniteAchievements.Providers.Exophase
 
             UpdateAuthStatus(result);
             Logger.Info("[ExophaseSettings] RefreshAuthStatusAsync COMPLETE");
+        }
+
+        private async void Auth_Check_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SetAuthBusy(true);
+                await RefreshAuthStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Exophase auth check failed");
+            }
+            finally
+            {
+                SetAuthBusy(false);
+            }
         }
 
         private async void LoginWeb_Click(object sender, RoutedEventArgs e)

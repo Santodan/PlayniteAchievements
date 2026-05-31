@@ -76,7 +76,13 @@ namespace PlayniteAchievements.Providers.RPCS3
                 trophyFolderCache = await BuildTrophyFolderCacheAsync(cancel).ConfigureAwait(false);
             }
 
-            if (trophyFolderCache == null || trophyFolderCache.Count == 0)
+            trophyFolderCache = trophyFolderCache ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var hasOverrideGames = gamesToRefresh.Any(game =>
+                game != null &&
+                GameCustomDataLookup.TryGetRpcs3MatchIdOverride(game.Id, out _));
+
+            if (trophyFolderCache.Count == 0 && !hasOverrideGames)
             {
                 _logger?.Warn("[RPCS3] No trophy folders found in RPCS3 trophy directory.");
                 return new RebuildPayload { Summary = new RebuildSummary() };
@@ -405,6 +411,12 @@ namespace PlayniteAchievements.Providers.RPCS3
         /// </summary>
         private GameTrophySource FindNpCommIdForGame(Game game, Dictionary<string, string> trophyFolderCache, CancellationToken cancel)
         {
+            if (game != null &&
+                GameCustomDataLookup.TryGetRpcs3MatchIdOverride(game.Id, out var overrideMatchId))
+            {
+                return new GameTrophySource { NpCommId = overrideMatchId, TrpPath = null };
+            }
+
             var rawInstallDir = game?.InstallDirectory;
             var gameDirectory = ExpandGamePath(game, rawInstallDir);
 
@@ -883,6 +895,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return null;
             }
 
+            var candidates = new List<Tuple<string, string>>();
             string bestMatch = null;
             int bestScore = 0;
 
@@ -903,12 +916,22 @@ namespace PlayniteAchievements.Providers.RPCS3
                     continue;
                 }
 
+                if (string.Equals(normalizedGameName, normalizedTitle, StringComparison.OrdinalIgnoreCase))
+                {
+                    return npcommid;
+                }
+
+                candidates.Add(Tuple.Create(npcommid, normalizedTitle));
+            }
+
+            foreach (var candidate in candidates)
+            {
                 // Check if one name contains the other (handles subtitle differences)
-                var score = CalculateNameSimilarity(normalizedGameName, normalizedTitle);
+                var score = CalculateNameSimilarity(normalizedGameName, candidate.Item2);
                 if (score > bestScore && score >= 70) // Require at least 70% similarity
                 {
                     bestScore = score;
-                    bestMatch = npcommid;
+                    bestMatch = candidate.Item1;
                 }
             }
 

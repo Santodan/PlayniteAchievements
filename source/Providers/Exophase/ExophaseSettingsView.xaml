@@ -106,6 +106,8 @@
                                 <StackPanel Orientation="Horizontal">
                                         <Button Content="{DynamicResource LOCPlayAch_Button_Login}" Click="LoginWeb_Click"
                                             Style="{StaticResource AuthActionButtonStyle}" Margin="0,0,8,0"/>
+                                        <Button Content="{DynamicResource LOCPlayAch_Common_Check}" Click="Auth_Check_Click"
+                                            Style="{StaticResource AuthActionButtonStyle}" Margin="0,0,8,0"/>
                                         <Button Content="{DynamicResource LOCPlayAch_Button_Clear}" Click="Logout_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>

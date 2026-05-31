@@ -92,6 +92,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public int? Points { get; set; }
 
+        public int? ScaledPoints { get; set; }
+
         public int? ProgressNum { get; set; }
 
         public int? ProgressDenom { get; set; }

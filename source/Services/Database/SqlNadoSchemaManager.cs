@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 9;
+        public const int SchemaVersion = 10;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -217,6 +217,8 @@ namespace PlayniteAchievements.Services.Database
         /// </summary>
         private void CreateProviderKeyIndexes(SQLiteDatabase db)
         {
+            DropProviderGameIdUniqueIndexes(db);
+
             ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Users_CurrentPerProvider
                 ON Users (ProviderKey)
                 WHERE IsCurrentUser = 1;");
@@ -227,11 +229,6 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Games_Provider_Playnite
                 ON Games (ProviderKey, PlayniteGameId)
                 WHERE PlayniteGameId IS NOT NULL;");
-
-            ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Games_Provider_GameId_NonRA
-                ON Games (ProviderKey, ProviderGameId)
-                WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0
-                  AND ProviderKey <> 'RetroAchievements';");
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Games_Provider_GameId
                 ON Games (ProviderKey, ProviderGameId)
@@ -410,11 +407,6 @@ namespace PlayniteAchievements.Services.Database
                                 ON Games (ProviderKey, PlayniteGameId)
                                 WHERE PlayniteGameId IS NOT NULL;");
                         ExecuteSafe(db,
-                            @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Games_Provider_GameId_NonRA
-                                ON Games (ProviderKey, ProviderGameId)
-                                WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0
-                                  AND ProviderKey <> 'RetroAchievements';");
-                        ExecuteSafe(db,
                             @"CREATE INDEX IF NOT EXISTS IX_Games_Provider_GameId
                                 ON Games (ProviderKey, ProviderGameId)
                                 WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0;");
@@ -524,15 +516,14 @@ namespace PlayniteAchievements.Services.Database
                     $"Dropped legacy index {LegacyGamesProviderGameIdIndexName}.");
             }
 
-            EnsureIndex(
-                db,
-                GamesProviderGameIdNonRaIndexName,
-                @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Games_Provider_GameId_NonRA
-                    ON Games (ProviderKey, ProviderGameId)
-                    WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0
-                      AND ProviderKey <> 'RetroAchievements';",
-                ref backupPath,
-                $"Ensured index {GamesProviderGameIdNonRaIndexName}.");
+            if (IndexExists(db, GamesProviderGameIdNonRaIndexName))
+            {
+                ExecuteSchemaChangeWithBackup(
+                    db,
+                    $"DROP INDEX IF EXISTS {GamesProviderGameIdNonRaIndexName};",
+                    ref backupPath,
+                    $"Dropped index {GamesProviderGameIdNonRaIndexName}.");
+            }
 
             EnsureIndex(
                 db,
@@ -542,6 +533,21 @@ namespace PlayniteAchievements.Services.Database
                     WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0;",
                 ref backupPath,
                 $"Ensured index {GamesProviderGameIdLookupIndexName}.");
+        }
+
+        private void DropProviderGameIdUniqueIndexes(SQLiteDatabase db)
+        {
+            if (IndexExists(db, LegacyGamesProviderGameIdIndexName))
+            {
+                ExecuteSafe(db, $"DROP INDEX IF EXISTS {LegacyGamesProviderGameIdIndexName};");
+                _logger?.Info($"[Schema] Dropped legacy index {LegacyGamesProviderGameIdIndexName}.");
+            }
+
+            if (IndexExists(db, GamesProviderGameIdNonRaIndexName))
+            {
+                ExecuteSafe(db, $"DROP INDEX IF EXISTS {GamesProviderGameIdNonRaIndexName};");
+                _logger?.Info($"[Schema] Dropped index {GamesProviderGameIdNonRaIndexName}.");
+            }
         }
 
         private int GetStoredSchemaVersion(SQLiteDatabase db)

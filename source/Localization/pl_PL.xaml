@@ -236,6 +236,8 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">Completion</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite Game ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">Last Updated (Local)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_OpenAchievementPage">Source page</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_AchievementPageUnavailable">No source page link is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">Library Source</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">Provider</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements Override</sys:String>

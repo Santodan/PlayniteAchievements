@@ -95,6 +95,18 @@
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4DataProvider.cs" Link="Source\Providers\ShadPS4\ShadPS4DataProvider.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" Link="Source\Providers\ShadPS4\ShadPS4MatchIdHelper.cs" />
     <Compile Include="..\..\source\Providers\ShadPS4\ShadPS4Scanner.cs" Link="Source\Providers\ShadPS4\ShadPS4Scanner.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Settings.cs" Link="Source\Providers\RPCS3\Rpcs3Settings.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3DataProvider.cs" Link="Source\Providers\RPCS3\Rpcs3DataProvider.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3MatchIdHelper.cs" Link="Source\Providers\RPCS3\Rpcs3MatchIdHelper.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Scanner.cs" Link="Source\Providers\RPCS3\Rpcs3Scanner.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3TrophyParser.cs" Link="Source\Providers\RPCS3\Rpcs3TrophyParser.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Models\Rpcs3Trophy.cs" Link="Source\Providers\RPCS3\Models\Rpcs3Trophy.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseDataProvider.cs" Link="Source\Providers\Hoyoverse\HoyoverseDataProvider.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseGameCatalog.cs" Link="Source\Providers\Hoyoverse\HoyoverseGameCatalog.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseScanner.cs" Link="Source\Providers\Hoyoverse\HoyoverseScanner.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseDefinitionClient.cs" Link="Source\Providers\Hoyoverse\HoyoverseDefinitionClient.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseExportParser.cs" Link="Source\Providers\Hoyoverse\HoyoverseExportParser.cs" />
+    <Compile Include="..\..\source\Providers\Hoyoverse\HoyoverseLzStringUtf16Codec.cs" Link="Source\Providers\Hoyoverse\HoyoverseLzStringUtf16Codec.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSettings.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSettings.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsCapabilityHelper.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsCapabilityHelper.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" Link="Source\Providers\RetroAchievements\RetroAchievementsSubsetTitleResolver.cs" />
@@ -209,12 +221,20 @@
     <EmbeddedResource Include="..\..\source\Providers\RetroAchievements\PlatformMapping\console-mappings.json" Link="Source\Providers\RetroAchievements\PlatformMapping\console-mappings.json">
       <LogicalName>PlayniteAchievements.Providers.RetroAchievements.PlatformMapping.console-mappings.json</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\..\source\Providers\Hoyoverse\Data\starrailstation.json" Link="Source\Providers\Hoyoverse\Data\starrailstation.json">
+      <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
     <None Include="Fixtures\Steam\*.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Content Include="..\..\source\Resources\UnlockedAchIcon.png" Link="Resources\UnlockedAchIcon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\source\Resources\Hoyoverse\**\*.png" Link="Resources\Hoyoverse\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>
-

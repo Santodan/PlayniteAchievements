@@ -931,6 +931,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.RetroAchievementsGames = ProjectGameSummaries(library.RetroAchievementsGames);
             _settings.ModernTheme.AppleGames = ProjectGameSummaries(library.AppleGames);
             _settings.ModernTheme.GooglePlayGames = ProjectGameSummaries(library.GooglePlayGames);
+            _settings.ModernTheme.HoyoverseGames = ProjectGameSummaries(library.HoyoverseGames);
             _settings.ModernTheme.UbisoftGames = ProjectGameSummaries(library.UbisoftGames);
             _settings.ModernTheme.RPCS3Games = ProjectGameSummaries(library.RPCS3Games);
             _settings.ModernTheme.XeniaGames = ProjectGameSummaries(library.XeniaGames);

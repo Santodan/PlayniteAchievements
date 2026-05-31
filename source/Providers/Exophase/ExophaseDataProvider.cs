@@ -509,7 +509,8 @@ namespace PlayniteAchievements.Providers.Exophase
             if (customDataStore != null)
             {
                 var previous = customDataStore.TryLoad(gameId, out var customData) &&
-                    customData?.ForceUseExophase == true;
+                    customData?.ProviderOverride != null &&
+                    string.Equals(customData.ProviderOverride.ProviderKey, "Exophase", StringComparison.OrdinalIgnoreCase);
                 if (previous == include)
                 {
                     return true;
@@ -517,7 +518,12 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 customDataStore.Update(gameId, data =>
                 {
-                    data.ForceUseExophase = include ? true : (bool?)null;
+                    data.ProviderOverride = include
+                        ? new ProviderOverrideData
+                        {
+                            ProviderKey = "Exophase"
+                        }
+                        : null;
                 });
             }
             else
@@ -565,8 +571,11 @@ namespace PlayniteAchievements.Providers.Exophase
             {
                 customDataStore.Update(gameId, customData =>
                 {
-                    customData.ExophaseSlugOverride = slug;
-                    customData.ForceUseExophase = true;
+                    customData.ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Exophase",
+                        Value = slug
+                    };
                 });
             }
             else
@@ -594,14 +603,19 @@ namespace PlayniteAchievements.Providers.Exophase
             if (customDataStore != null)
             {
                 if (!customDataStore.TryLoad(gameId, out var customData) ||
-                    string.IsNullOrWhiteSpace(customData.ExophaseSlugOverride))
+                    customData?.ProviderOverride == null ||
+                    !string.Equals(customData.ProviderOverride.ProviderKey, "Exophase", StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(customData.ProviderOverride.Value))
                 {
                     return false;
                 }
 
                 customDataStore.Update(gameId, data =>
                 {
-                    data.ExophaseSlugOverride = null;
+                    data.ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Exophase"
+                    };
                 });
             }
             else

@@ -3,6 +3,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
 using System;
@@ -182,7 +183,11 @@ namespace PlayniteAchievements.Providers.Xenia
 
             customDataStore.Update(gameId, customData =>
             {
-                customData.XeniaTitleIdOverride = normalizedTitleId;
+                customData.ProviderOverride = new ProviderOverrideData
+                {
+                    ProviderKey = "Xenia",
+                    Value = normalizedTitleId
+                };
             });
 
             persistSettingsForUi?.Invoke();
@@ -195,14 +200,15 @@ namespace PlayniteAchievements.Providers.Xenia
             var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
             if (customDataStore == null ||
                 !customDataStore.TryLoad(gameId, out var customData) ||
-                string.IsNullOrWhiteSpace(customData.XeniaTitleIdOverride))
+                customData?.ProviderOverride == null ||
+                !string.Equals(customData.ProviderOverride.ProviderKey, "Xenia", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
             customDataStore.Update(gameId, data =>
             {
-                data.XeniaTitleIdOverride = null;
+                data.ProviderOverride = null;
             });
 
             XeniaScanner.ClearCachedTitleId(

@@ -1,4 +1,5 @@
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Manual;
 using Playnite.SDK;
@@ -228,6 +229,21 @@ namespace PlayniteAchievements.Services
             {
                 customData.UseSeparateLockedIconsOverride = enabled ? true : (bool?)null;
             });
+            _notifyCacheInvalidated(true);
+        }
+
+        public void SetProviderOverride(Guid gameId, ProviderOverrideData providerOverride)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.ProviderOverride = providerOverride?.Clone();
+            });
+
             _notifyCacheInvalidated(true);
         }
 

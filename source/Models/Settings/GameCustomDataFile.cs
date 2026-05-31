@@ -3,12 +3,28 @@ using System.Collections.Generic;
 
 namespace PlayniteAchievements.Models.Settings
 {
+    public sealed class ProviderOverrideData
+    {
+        public string ProviderKey { get; set; }
+
+        public string Value { get; set; }
+
+        public ProviderOverrideData Clone()
+        {
+            return new ProviderOverrideData
+            {
+                ProviderKey = ProviderKey,
+                Value = Value
+            };
+        }
+    }
+
     /// <summary>
     /// Internal storage representation for per-game custom data.
     /// </summary>
     public sealed class GameCustomDataFile
     {
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -44,6 +60,8 @@ namespace PlayniteAchievements.Models.Settings
 
         public string ExophaseSlugOverride { get; set; }
 
+        public ProviderOverrideData ProviderOverride { get; set; }
+
         public ManualAchievementLink ManualLink { get; set; }
 
         public GameCustomDataFile Clone()
@@ -78,6 +96,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,
                 ExophaseSlugOverride = ExophaseSlugOverride,
+                ProviderOverride = ProviderOverride?.Clone(),
                 ManualLink = ManualLink?.Clone()
             };
         }
@@ -112,6 +131,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = ShadPS4MatchIdOverride,
                 ForceUseExophase = ForceUseExophase,
                 ExophaseSlugOverride = ExophaseSlugOverride,
+                ProviderOverride = ProviderOverride?.Clone(),
                 ManualLink = ManualLink?.Clone()
             };
         }
@@ -124,7 +144,7 @@ namespace PlayniteAchievements.Models.Settings
         {
             return new GameCustomDataFile
             {
-                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 1,
+                SchemaVersion = portable?.SchemaVersion > 0 ? portable.SchemaVersion : 2,
                 PlayniteGameId = playniteGameId,
                 ExcludedFromRefreshes = excludedFromRefreshes,
                 ExcludedFromSummaries = excludedFromSummaries,
@@ -152,6 +172,7 @@ namespace PlayniteAchievements.Models.Settings
                 ShadPS4MatchIdOverride = portable?.ShadPS4MatchIdOverride,
                 ForceUseExophase = portable?.ForceUseExophase,
                 ExophaseSlugOverride = portable?.ExophaseSlugOverride,
+                ProviderOverride = portable?.ProviderOverride?.Clone(),
                 ManualLink = portable?.ManualLink?.Clone()
             };
         }

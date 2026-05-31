@@ -153,9 +153,15 @@
     <Content Include="Resources\StartPage\StartPagePlugin.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Resources\Hoyoverse\**\*.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Providers\RetroAchievements\PlatformMapping\console-mappings.json" />
+    <EmbeddedResource Include="Providers\Hoyoverse\Data\starrailstation.json">
+      <LogicalName>PlayniteAchievements.Providers.Hoyoverse.Data.starrailstation.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>if exist "$(MSBuildProjectDirectory)\Localization\*.xaml" xcopy "$(MSBuildProjectDirectory)\Localization\*.xaml" "$(MSBuildProjectDirectory)\$(OutputPath)Localization" /Y /I /E

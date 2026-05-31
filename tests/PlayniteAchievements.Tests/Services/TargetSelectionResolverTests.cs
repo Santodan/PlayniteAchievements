@@ -296,6 +296,156 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveProviderForGame_SteamOverrideForcesSteamProvider()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "PSN", "Steam" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("PSN", _ => true),
+                    new FakeProvider("Steam", _ => false)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("Steam", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_ExophaseOverrideWithEmptyValueForcesExophaseProvider()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Exophase"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Steam", "Exophase" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Steam", _ => true),
+                    new FakeProvider("Exophase", _ => false)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("Exophase", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_ForcedProviderUnauthenticated_ReturnsNull()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Steam" });
+
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Steam", _ => true, isAuthenticated: false)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNull(resolved);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ResolveProviderForGame_NoOverride_RespectsProviderOrder()
         {
             var tempDir = CreateTempDirectory();
@@ -359,18 +509,20 @@ namespace PlayniteAchievements.Services.Tests
         private sealed class FakeProvider : IDataProvider
         {
             private readonly Func<Game, bool> _isCapable;
+            private readonly bool _isAuthenticated;
 
-            public FakeProvider(string providerKey, Func<Game, bool> isCapable)
+            public FakeProvider(string providerKey, Func<Game, bool> isCapable, bool isAuthenticated = true)
             {
                 ProviderKey = providerKey;
                 _isCapable = isCapable ?? (_ => false);
+                _isAuthenticated = isAuthenticated;
             }
 
             public string ProviderName => ProviderKey;
             public string ProviderKey { get; }
             public string ProviderIconKey => ProviderKey;
             public string ProviderColorHex => "#000000";
-            public bool IsAuthenticated => true;
+            public bool IsAuthenticated => _isAuthenticated;
             public ISessionManager AuthSession => null;
 
             public bool IsCapable(Game game) => _isCapable(game);

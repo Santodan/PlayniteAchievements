@@ -153,11 +153,22 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [TestMethod]
-        public void ShouldFallbackToProviderGameIdLookup_NonRetroAchievementsWithPlayniteId_ReturnsTrue()
+        public void ShouldFallbackToProviderGameIdLookup_NonRetroAchievementsWithPlayniteId_ReturnsFalse()
         {
             var shouldFallback = SqlNadoCacheBehavior.ShouldFallbackToProviderGameIdLookup(
                 "Steam",
                 Guid.NewGuid().ToString(),
+                12345);
+
+            Assert.IsFalse(shouldFallback);
+        }
+
+        [TestMethod]
+        public void ShouldFallbackToProviderGameIdLookup_NonRetroAchievementsWithoutPlayniteId_ReturnsTrue()
+        {
+            var shouldFallback = SqlNadoCacheBehavior.ShouldFallbackToProviderGameIdLookup(
+                "Steam",
+                null,
                 12345);
 
             Assert.IsTrue(shouldFallback);

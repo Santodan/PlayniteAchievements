@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
@@ -11,6 +12,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using PlayniteAchievements.Common;
+using PlayniteAchievements.Services;
 
 namespace PlayniteAchievements.Providers.RPCS3
 {
@@ -336,6 +338,11 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return false;
             }
 
+            if (TryGetMatchIdOverride(game.Id, out _))
+            {
+                return true;
+            }
+
             // Check source name
             var src = game.Source?.Name ?? string.Empty;
             if (src.IndexOf("RPCS3", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -353,6 +360,59 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             return false;
+        }
+
+        internal static bool TryGetMatchIdOverride(Guid gameId, out string matchIdOverride)
+        {
+            return GameCustomDataLookup.TryGetRpcs3MatchIdOverride(gameId, out matchIdOverride);
+        }
+
+        internal static bool TrySetMatchIdOverride(Guid gameId, string matchId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            if (!Rpcs3MatchIdHelper.TryNormalize(matchId, out var normalizedMatchId))
+            {
+                return false;
+            }
+
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null)
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, customData =>
+            {
+                customData.ProviderOverride = new ProviderOverrideData
+                {
+                    ProviderKey = "RPCS3",
+                    Value = normalizedMatchId
+                };
+            });
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Set RPCS3 match ID override for '{gameName}' to {normalizedMatchId}");
+            return true;
+        }
+
+        internal static bool TryClearMatchIdOverride(Guid gameId, string gameName, Action persistSettingsForUi, ILogger logger)
+        {
+            var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
+            if (customDataStore == null ||
+                !customDataStore.TryLoad(gameId, out var customData) ||
+                customData?.ProviderOverride == null ||
+                !string.Equals(customData.ProviderOverride.ProviderKey, "RPCS3", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            customDataStore.Update(gameId, data =>
+            {
+                data.ProviderOverride = null;
+            });
+
+            persistSettingsForUi?.Invoke();
+            logger?.Info($"Cleared RPCS3 match ID override for '{gameName}'");
+            return true;
         }
 
         /// <summary>

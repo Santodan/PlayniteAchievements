@@ -63,12 +63,12 @@ namespace PlayniteAchievements
 
         private static readonly string[] ProviderDisplayOrder =
         {
-            "Steam", "Epic", "GOG", "BattleNet", "EA", "Ubisoft", "PSN", "Xbox", "GooglePlay", "Apple", "RetroAchievements", "RPCS3", "ShadPS4", "Xenia", "Local", "Manual", "Exophase",
+            "Steam", "Epic", "GOG", "BattleNet", "EA", "Ubisoft", "PSN", "Xbox", "GooglePlay", "Apple", "RetroAchievements", "RPCS3", "ShadPS4", "Xenia", "Local", "Manual", "Exophase", "Hoyoverse",
         };
 
         private static readonly string[] ProviderRefreshOrder =
         {
-            "Manual", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "PSN", "Xbox", "Xenia", "RPCS3", "ShadPS4", "RetroAchievements", "Local",
+            "Manual", "Exophase", "Steam", "Epic", "GOG", "BattleNet", "Hoyoverse", "RPCS3", "ShadPS4", "PSN", "Xenia", "Xbox", "RetroAchievements", "Local",
         };
 
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;

@@ -135,6 +135,7 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                AssertProviderOverride(loaded, "RetroAchievements", "12345");
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
             finally
@@ -159,7 +160,7 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
-                Assert.AreEqual("4D5307E6", loaded.XeniaTitleIdOverride);
+                AssertProviderOverride(loaded, "Xenia", "4D5307E6");
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
             finally
@@ -184,7 +185,7 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
-                Assert.AreEqual("NPWR12345_00", loaded.ShadPS4MatchIdOverride);
+                AssertProviderOverride(loaded, "ShadPS4", "NPWR12345_00");
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
             finally
@@ -209,6 +210,7 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                AssertProviderOverride(loaded, "Exophase", null);
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
             }
             finally
@@ -233,7 +235,36 @@ namespace PlayniteAchievements.Services.Tests
                 });
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                AssertProviderOverride(loaded, "Exophase", "test-slug");
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void TryGetSteamAppIdOverride_ReadsCanonicalProviderOverride()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
+                    }
+                });
+
+                Assert.IsTrue(GameCustomDataLookup.TryGetSteamAppIdOverride(gameId, out var appId, store));
+                Assert.AreEqual(480, appId);
             }
             finally
             {
@@ -268,9 +299,11 @@ namespace PlayniteAchievements.Services.Tests
                     {
                         ["ach_one"] = " https://example.com/locked.png "
                     },
-                    RetroAchievementsGameIdOverride = 12345,
-                    XeniaTitleIdOverride = "0x4d5307e6",
-                    ShadPS4MatchIdOverride = "npwr12345_00"
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
+                    }
                 });
 
                 store.Export(gameId, exportPath);
@@ -288,9 +321,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides["ach_one"]);
                 Assert.AreEqual(1, portable.AchievementUnlockedIconOverrides.Count);
                 Assert.AreEqual(1, portable.AchievementLockedIconOverrides.Count);
-                Assert.AreEqual(12345, portable.RetroAchievementsGameIdOverride);
-                Assert.AreEqual("4D5307E6", portable.XeniaTitleIdOverride);
-                Assert.AreEqual("NPWR12345_00", portable.ShadPS4MatchIdOverride);
+                AssertProviderOverride(portable, "Steam", "480");
                 Assert.IsTrue(portable.UseSeparateLockedIconsOverride == true);
             }
             finally
@@ -368,6 +399,11 @@ namespace PlayniteAchievements.Services.Tests
                     AchievementLockedIconOverrides = new Dictionary<string, string>
                     {
                         [apiName] = "https://example.com/locked.png"
+                    },
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
                     }
                 });
 
@@ -379,6 +415,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual(1, result.OmittedLocalIconOverrideCount);
                 Assert.IsNull(portable.AchievementUnlockedIconOverrides);
                 Assert.AreEqual("https://example.com/locked.png", portable.AchievementLockedIconOverrides[apiName]);
+                AssertProviderOverride(portable, "Steam", "480");
             }
             finally
             {
@@ -453,6 +490,11 @@ namespace PlayniteAchievements.Services.Tests
                     AchievementLockedIconOverrides = new Dictionary<string, string>
                     {
                         [apiName] = lockedManagedPath
+                    },
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Steam",
+                        Value = "480"
                     }
                 });
 
@@ -471,6 +513,7 @@ namespace PlayniteAchievements.Services.Tests
                         var portable = JsonConvert.DeserializeObject<GameCustomDataPortableFile>(reader.ReadToEnd());
                         Assert.AreEqual("images/" + fileStem + ".png", portable.AchievementUnlockedIconOverrides[apiName]);
                         Assert.AreEqual("images/" + fileStem + ".locked.png", portable.AchievementLockedIconOverrides[apiName]);
+                        AssertProviderOverride(portable, "Steam", "480");
                     }
                 }
 
@@ -482,6 +525,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.IsTrue(imported.AchievementLockedIconOverrides[apiName].EndsWith(Path.Combine("icon_cache", importedGameId.ToString("D"), "custom", fileStem + ".locked.png")));
                 Assert.IsTrue(File.Exists(imported.AchievementUnlockedIconOverrides[apiName]));
                 Assert.IsTrue(File.Exists(imported.AchievementLockedIconOverrides[apiName]));
+                AssertProviderOverride(imported, "Steam", "480");
             }
             finally
             {
@@ -507,7 +551,11 @@ namespace PlayniteAchievements.Services.Tests
                     ExcludedFromSummaries = true,
                     UseSeparateLockedIconsOverride = true,
                     ManualCapstoneApiName = "old-capstone",
-                    RetroAchievementsGameIdOverride = 11
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "RetroAchievements",
+                        Value = "11"
+                    }
                 });
 
                 File.WriteAllText(
@@ -525,10 +573,11 @@ namespace PlayniteAchievements.Services.Tests
                             {
                                 ["ach_one"] = " https://example.com/new-locked.png "
                             },
-                            RetroAchievementsGameIdOverride = 444,
-                            XeniaTitleIdOverride = "0x4d5307e6",
-                            ShadPS4MatchIdOverride = "npwr12345_00",
-                            ForceUseExophase = true
+                            ProviderOverride = new ProviderOverrideData
+                            {
+                                ProviderKey = "Steam",
+                                Value = "480"
+                            }
                         }));
 
                 store.ImportReplace(gameId, importPath);
@@ -540,11 +589,38 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual("imported-capstone", imported.ManualCapstoneApiName);
                 Assert.AreEqual("https://example.com/new-unlocked.png", imported.AchievementUnlockedIconOverrides["ach_one"]);
                 Assert.AreEqual("https://example.com/new-locked.png", imported.AchievementLockedIconOverrides["ach_one"]);
-                Assert.AreEqual(444, imported.RetroAchievementsGameIdOverride);
-                Assert.AreEqual("4D5307E6", imported.XeniaTitleIdOverride);
-                Assert.AreEqual("NPWR12345_00", imported.ShadPS4MatchIdOverride);
-                Assert.IsTrue(imported.ForceUseExophase == true);
+                AssertProviderOverride(imported, "Steam", "480");
                 Assert.IsNull(imported.UseSeparateLockedIconsOverride);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ImportReplace_LegacyPortableProviderField_NormalizesToCanonicalOverride()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var importPath = Path.Combine(tempDir, "legacy-provider.json");
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+
+                File.WriteAllText(
+                    importPath,
+                    JsonConvert.SerializeObject(
+                        new GameCustomDataPortableFile
+                        {
+                            PlayniteGameId = Guid.NewGuid(),
+                            RetroAchievementsGameIdOverride = 444
+                        }));
+
+                var imported = store.ImportReplace(gameId, importPath);
+
+                AssertProviderOverride(imported, "RetroAchievements", "444");
             }
             finally
             {
@@ -791,7 +867,7 @@ namespace PlayniteAchievements.Services.Tests
                 Assert.AreEqual("existing-capstone", existing.ManualCapstoneApiName);
                 Assert.IsTrue(existing.UseSeparateLockedIconsOverride == true);
                 Assert.IsTrue(existing.ExcludedFromRefreshes == true);
-                Assert.AreEqual(222, existing.RetroAchievementsGameIdOverride);
+                AssertProviderOverride(existing, "RetroAchievements", "222");
 
                 Assert.IsTrue(store.TryLoad(legacyOnlyGameId, out var legacyOnly));
                 Assert.IsTrue(legacyOnly.ExcludedFromRefreshes == true);
@@ -801,9 +877,7 @@ namespace PlayniteAchievements.Services.Tests
                 CollectionAssert.AreEqual(new[] { "ach_one", "ach_two" }, legacyOnly.AchievementOrder);
                 Assert.AreEqual("Main", legacyOnly.AchievementCategoryOverrides["ach_one"]);
                 Assert.AreEqual("DLC|Singleplayer", legacyOnly.AchievementCategoryTypeOverrides["ach_one"]);
-                Assert.AreEqual(333, legacyOnly.RetroAchievementsGameIdOverride);
-                Assert.IsTrue(legacyOnly.ForceUseExophase == true);
-                Assert.AreEqual("legacy-slug", legacyOnly.ExophaseSlugOverride);
+                AssertProviderOverride(legacyOnly, "RetroAchievements", "333");
                 Assert.IsNotNull(legacyOnly.ManualLink);
                 Assert.AreEqual("Steam", legacyOnly.ManualLink.SourceKey);
                 Assert.AreEqual("999", legacyOnly.ManualLink.SourceGameId);
@@ -1092,6 +1166,38 @@ namespace PlayniteAchievements.Services.Tests
 
             Assert.IsTrue(manualJson.Contains(nameof(ManualSettings.ManualTrackingOverrideEnabled)));
             Assert.IsFalse(manualJson.Contains(nameof(ManualSettings.AchievementLinks)));
+        }
+
+        private static void AssertProviderOverride(
+            GameCustomDataFile data,
+            string providerKey,
+            string value)
+        {
+            Assert.IsNotNull(data);
+            Assert.IsNotNull(data.ProviderOverride);
+            Assert.AreEqual(providerKey, data.ProviderOverride.ProviderKey);
+            Assert.AreEqual(value, data.ProviderOverride.Value);
+            Assert.IsNull(data.RetroAchievementsGameIdOverride);
+            Assert.IsNull(data.XeniaTitleIdOverride);
+            Assert.IsNull(data.ShadPS4MatchIdOverride);
+            Assert.IsNull(data.ForceUseExophase);
+            Assert.IsNull(data.ExophaseSlugOverride);
+        }
+
+        private static void AssertProviderOverride(
+            GameCustomDataPortableFile data,
+            string providerKey,
+            string value)
+        {
+            Assert.IsNotNull(data);
+            Assert.IsNotNull(data.ProviderOverride);
+            Assert.AreEqual(providerKey, data.ProviderOverride.ProviderKey);
+            Assert.AreEqual(value, data.ProviderOverride.Value);
+            Assert.IsNull(data.RetroAchievementsGameIdOverride);
+            Assert.IsNull(data.XeniaTitleIdOverride);
+            Assert.IsNull(data.ShadPS4MatchIdOverride);
+            Assert.IsNull(data.ForceUseExophase);
+            Assert.IsNull(data.ExophaseSlugOverride);
         }
 
         private static string CreateTempDirectory()

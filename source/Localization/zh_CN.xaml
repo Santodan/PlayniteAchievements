@@ -236,6 +236,8 @@
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Completion">完成度</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_GameId">Playnite 游戏 ID</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LastUpdatedLocal">最后更新 (本地)</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_OpenAchievementPage">Source page</sys:String>
+    <sys:String x:Key="LOCPlayAch_GameOptions_Overview_AchievementPageUnavailable">No source page link is available for this game.</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_LibrarySource">库来源</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_Provider">提供程序</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Overview_RaOverride">RetroAchievements 覆盖</sys:String>

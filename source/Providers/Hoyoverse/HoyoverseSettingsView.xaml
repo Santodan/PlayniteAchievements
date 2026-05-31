@@ -1,0 +1,229 @@
+<settings:ProviderSettingsViewBase x:Class="PlayniteAchievements.Providers.Hoyoverse.HoyoverseSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Providers.Settings"
+             mc:Ignorable="d" d:DesignHeight="640" d:DesignWidth="760">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <Path Data="{StaticResource GeoHoyoverse}" Fill="#D4ACF8"/>
+                </Viewbox>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_Hoyoverse}"
+                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextBrush}"/>
+            </StackPanel>
+
+            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
+                          IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
+                          FontWeight="SemiBold" FontSize="{DynamicResource FontSize}"/>
+            </Border>
+
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Margin="0,0,0,16">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock x:Name="ConnectionLabel"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <Border Background="{DynamicResource PanelBackgroundBrush}"
+                            CornerRadius="8"
+                            Padding="14"
+                            BorderThickness="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#06FFA5"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                 Value="False">
+                                        <Setter Property="BorderBrush" Value="#F72585"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="{DynamicResource FontSize}"
+                                       Margin="0,0,12,0"
+                                       VerticalAlignment="Center">
+                                <TextBlock.RenderTransform>
+                                    <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
+                                </TextBlock.RenderTransform>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="&#xE73E;"/>
+                                        <Setter Property="Foreground" Value="#06FFA5"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                         Value="False">
+                                                <Setter Property="Text" Value="&#xE783;"/>
+                                                <Setter Property="Foreground" Value="#F72585"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       VerticalAlignment="Center"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,6">
+                            <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step1Prefix}"/>
+                            <Hyperlink NavigateUri="https://stardb.gg/en/import"
+                                       RequestNavigate="Hyperlink_RequestNavigate"
+                                       TextDecorations="Underline"
+                                       FontWeight="SemiBold"
+                                       Foreground="#4CC9F0">
+                                <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_StarDbImporter}"/>
+                            </Hyperlink>
+                            <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step1Suffix}"/>
+                        </TextBlock>
+
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,6">
+                            <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step2Prefix}"/>
+                            <Hyperlink NavigateUri="https://github.com/juliuskreutz/stardb-exporter"
+                                       RequestNavigate="Hyperlink_RequestNavigate"
+                                       TextDecorations="Underline"
+                                       FontWeight="SemiBold"
+                                       Foreground="#4CC9F0">
+                                <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_StarDbExporter}"/>
+                            </Hyperlink>
+                            <Run Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step2Suffix}"/>
+                        </TextBlock>
+
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step3}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Margin="0,0,0,6"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Step4}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextBrush}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_Instructions_Note}"
+                               Style="{StaticResource MutedTextStyle}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Hoyoverse_ExportFiles_Help}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,16"/>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Hoyoverse_EnableGenshin}"
+                              IsChecked="{Binding Settings.EnableGenshinImpact, Mode=TwoWay}"
+                              FontWeight="SemiBold"
+                              Margin="0,0,0,8"/>
+                    <Grid Margin="24,0,0,16" IsEnabled="{Binding Settings.EnableGenshinImpact}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding Settings.GenshinExportPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="4"
+                                 Margin="0,0,8,0"
+                                 KeyDown="ExportPath_KeyDown"
+                                 LostFocus="ExportPath_LostFocus"/>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Tag="Genshin"
+                                Click="BrowseExport_Click"
+                                Padding="10,4"/>
+                    </Grid>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Hoyoverse_EnableHsr}"
+                              IsChecked="{Binding Settings.EnableHonkaiStarRail, Mode=TwoWay}"
+                              FontWeight="SemiBold"
+                              Margin="0,0,0,8"/>
+                    <Grid Margin="24,0,0,16" IsEnabled="{Binding Settings.EnableHonkaiStarRail}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding Settings.HonkaiStarRailExportPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="4"
+                                 Margin="0,0,8,0"
+                                 KeyDown="ExportPath_KeyDown"
+                                 LostFocus="ExportPath_LostFocus"/>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Tag="Hsr"
+                                Click="BrowseExport_Click"
+                                Padding="10,4"/>
+                    </Grid>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_Settings_Hoyoverse_EnableZzz}"
+                              IsChecked="{Binding Settings.EnableZenlessZoneZero, Mode=TwoWay}"
+                              FontWeight="SemiBold"
+                              Margin="0,0,0,8"/>
+                    <Grid Margin="24,0,0,0" IsEnabled="{Binding Settings.EnableZenlessZoneZero}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding Settings.ZenlessZoneZeroExportPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="4"
+                                 Margin="0,0,8,0"
+                                 KeyDown="ExportPath_KeyDown"
+                                 LostFocus="ExportPath_LostFocus"/>
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Browse}"
+                                Tag="Zzz"
+                                Click="BrowseExport_Click"
+                                Padding="10,4"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</settings:ProviderSettingsViewBase>

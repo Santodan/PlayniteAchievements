@@ -46,7 +46,8 @@ namespace PlayniteAchievements.Providers
             new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 "Manual",
-                "Exophase"
+                "Exophase",
+                "Hoyoverse"
             };
 
         private static readonly HashSet<string> ExophaseServicedProviders =

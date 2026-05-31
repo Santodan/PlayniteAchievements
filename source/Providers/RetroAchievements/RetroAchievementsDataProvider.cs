@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.RetroAchievements.Hashing;
 using PlayniteAchievements.Providers.Settings;
@@ -258,7 +259,11 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 customDataStore.Update(gameId, customData =>
                 {
-                    customData.RetroAchievementsGameIdOverride = newId;
+                    customData.ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "RetroAchievements",
+                        Value = newId.ToString(CultureInfo.InvariantCulture)
+                    };
                 });
             }
             else
@@ -280,14 +285,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             if (customDataStore != null)
             {
                 if (!customDataStore.TryLoad(gameId, out var customData) ||
-                    !customData.RetroAchievementsGameIdOverride.HasValue)
+                    customData?.ProviderOverride == null ||
+                    !string.Equals(customData.ProviderOverride.ProviderKey, "RetroAchievements", StringComparison.OrdinalIgnoreCase))
                 {
                     return false;
                 }
 
                 customDataStore.Update(gameId, data =>
                 {
-                    data.RetroAchievementsGameIdOverride = null;
+                    data.ProviderOverride = null;
                 });
             }
             else

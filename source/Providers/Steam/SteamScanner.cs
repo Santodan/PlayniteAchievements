@@ -246,9 +246,19 @@ namespace PlayniteAchievements.Providers.Steam
         private static bool TryGetPlatformAppId(Game game, out int appId)
         {
             appId = 0;
-            return game != null &&
-                   !string.IsNullOrWhiteSpace(game.GameId) &&
-                   int.TryParse(game.GameId, out appId);
+            if (game == null)
+            {
+                return false;
+            }
+
+            if (GameCustomDataLookup.TryGetSteamAppIdOverride(game.Id, out appId))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(game.GameId) &&
+                   int.TryParse(game.GameId, out appId) &&
+                   appId > 0;
         }
 
         // ---------------------------------------------------------------------

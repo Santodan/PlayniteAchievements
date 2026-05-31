@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
@@ -257,7 +258,11 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
             customDataStore.Update(gameId, customData =>
             {
-                customData.ShadPS4MatchIdOverride = normalizedMatchId;
+                customData.ProviderOverride = new ProviderOverrideData
+                {
+                    ProviderKey = "ShadPS4",
+                    Value = normalizedMatchId
+                };
             });
 
             persistSettingsForUi?.Invoke();
@@ -270,14 +275,15 @@ namespace PlayniteAchievements.Providers.ShadPS4
             var customDataStore = PlayniteAchievementsPlugin.Instance?.GameCustomDataStore;
             if (customDataStore == null ||
                 !customDataStore.TryLoad(gameId, out var customData) ||
-                string.IsNullOrWhiteSpace(customData.ShadPS4MatchIdOverride))
+                customData?.ProviderOverride == null ||
+                !string.Equals(customData.ProviderOverride.ProviderKey, "ShadPS4", StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
 
             customDataStore.Update(gameId, data =>
             {
-                data.ShadPS4MatchIdOverride = null;
+                data.ProviderOverride = null;
             });
 
             persistSettingsForUi?.Invoke();

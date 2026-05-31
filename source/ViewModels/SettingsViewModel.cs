@@ -268,8 +268,9 @@ namespace PlayniteAchievements.ViewModels
 
         public void BeginEdit()
         {
-            // Create a clone for editing
-            _editingClone = Playnite.SDK.Data.Serialization.GetClone(Settings);
+            // Only persisted settings need an edit snapshot; runtime/theme data can be large.
+            _editingClone = new PlayniteAchievementsSettings(_plugin);
+            _editingClone.CopyPersistedFrom(Settings);
             _plugin.ProviderRegistry?.BeginEditSession();
         }
 
