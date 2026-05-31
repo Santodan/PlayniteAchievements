@@ -1,5 +1,15 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.3.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-05-31
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.3.0.1/PlayniteAchievementsSantodan_2_3_0_1.pext
+    Changelog:
+    - "v2.3.0 merge"
+    - "Added <rarityIcon> to the `Achievement Notification`"
+    - "Added stackable notification like in Steam"
+    - "Hopefully, fixed the settings reset issue"
+
   - Version: 2.2.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-05-29

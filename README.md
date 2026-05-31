@@ -96,7 +96,12 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-05-31 - v2.3.0.1
 
+- v2.3.0 merge
+- Added <rarityIcon> to the `Achievement Notification`
+- Added stackable notification like in Steam
+- Hopefully, fixed the settings reset issue
 
 ## 2026-05-29 - v2.2.0.1
 
