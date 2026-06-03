@@ -921,6 +921,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.TotalUltraRare = library.TotalUltraRare;
             _settings.ModernTheme.TotalRareAndUltraRare = library.TotalRareAndUltraRare;
             _settings.ModernTheme.TotalOverall = library.TotalOverall;
+            _settings.ModernTheme.CollectorScore = library.CollectorScore;
+            _settings.ModernTheme.CollectorLevel = library.CollectorLevel;
+            _settings.ModernTheme.CollectorLevelProgress = library.CollectorLevelProgress;
+            _settings.ModernTheme.CollectorRank = library.CollectorRank;
+            _settings.ModernTheme.PrestigeScore = library.PrestigeScore;
+            _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
+            _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
+            _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);

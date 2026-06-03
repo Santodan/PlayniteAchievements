@@ -12,8 +12,6 @@ namespace PlayniteAchievements.Providers.Exophase
     {
         private static readonly string[] DefaultManagedProviderTokens =
         {
-            "blizzard",
-            "origin",
             "android",
             "apple",
             "ubisoft"
@@ -41,12 +39,14 @@ namespace PlayniteAchievements.Providers.Exophase
         /// <summary>
         /// Provider/platform tokens that Exophase should automatically claim.
         /// Games matching these tokens will use Exophase instead of modern providers.
-        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro", "android", "apple", "ubisoft"
+        /// Valid values: "steam", "psn", "xbox", "gog", "epic", "blizzard", "origin", "retro", "android", "apple", "ubisoft".
         /// </summary>
         public HashSet<string> ManagedProviders
         {
             get => _managedProviders;
-            set => SetValue(ref _managedProviders, value ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            set => SetValue(
+                ref _managedProviders,
+                NormalizeManagedProviders(value));
         }
 
         /// <summary>
@@ -96,6 +96,39 @@ namespace PlayniteAchievements.Providers.Exophase
         public static HashSet<string> CreateDefaultManagedProviders()
         {
             return new HashSet<string>(DefaultManagedProviderTokens, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public override void DeserializeFromJson(string json)
+        {
+            base.DeserializeFromJson(json);
+            ManagedProviders = _managedProviders;
+        }
+
+        private static HashSet<string> NormalizeManagedProviders(IEnumerable<string> providers)
+        {
+            var normalized = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (providers == null)
+            {
+                return normalized;
+            }
+
+            foreach (var provider in providers)
+            {
+                if (string.IsNullOrWhiteSpace(provider))
+                {
+                    continue;
+                }
+
+                var token = provider.Trim();
+                if (string.Equals(token, "ea", StringComparison.OrdinalIgnoreCase))
+                {
+                    token = "origin";
+                }
+
+                normalized.Add(token);
+            }
+
+            return normalized;
         }
     }
 }

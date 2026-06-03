@@ -55,7 +55,6 @@ namespace PlayniteAchievements.Providers
             {
                 "GooglePlay",
                 "Apple",
-                "EA",
                 "Ubisoft"
             };
 

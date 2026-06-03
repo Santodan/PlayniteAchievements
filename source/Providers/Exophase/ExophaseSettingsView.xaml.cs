@@ -225,19 +225,20 @@ namespace PlayniteAchievements.Providers.Exophase
                 return;
             }
 
-            if (_exophaseSettings.ManagedProviders == null)
-            {
-                _exophaseSettings.ManagedProviders = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            }
+            var managedProviders = _exophaseSettings.ManagedProviders != null
+                ? new System.Collections.Generic.HashSet<string>(_exophaseSettings.ManagedProviders, StringComparer.OrdinalIgnoreCase)
+                : new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             if (checkbox.IsChecked == true)
             {
-                _exophaseSettings.ManagedProviders.Add(token);
+                managedProviders.Add(token);
             }
             else
             {
-                _exophaseSettings.ManagedProviders.Remove(token);
+                managedProviders.Remove(token);
             }
+
+            _exophaseSettings.ManagedProviders = managedProviders;
         }
     }
 }

@@ -127,9 +127,17 @@ namespace PlayniteAchievements.Providers.Exophase
         }
     }
 
-    internal sealed class ExophaseRarityEnricher
+    [Flags]
+    internal enum ExophaseMetadataFields
     {
-        public ExophaseRarityEnricher(
+        None = 0,
+        Rarity = 1,
+        IconPaths = 2
+    }
+
+    internal sealed class ExophaseMetadataEnricher
+    {
+        public ExophaseMetadataEnricher(
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
@@ -147,7 +155,8 @@ namespace PlayniteAchievements.Providers.Exophase
             IList<AchievementDetail> achievements,
             string fallbackPlatformSlug,
             string providerPlatformKey,
-            CancellationToken ct)
+            CancellationToken ct,
+            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
         {
             return Task.CompletedTask;
         }

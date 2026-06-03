@@ -175,7 +175,7 @@ namespace PlayniteAchievements.Providers.Xbox
             Game game,
             AuthorizationData authData,
             string xuid,
-            ExophaseRarityEnricher rarityEnricher,
+            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             cancel.ThrowIfCancellationRequested();
@@ -254,14 +254,14 @@ namespace PlayniteAchievements.Providers.Xbox
             return data;
         }
 
-        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
             if (_providerSettings?.UseExophaseForRarity != true)
             {
                 return null;
             }
 
-            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
             await enricher.InitializeAsync(cancel).ConfigureAwait(false);
             return enricher;
         }
@@ -269,7 +269,7 @@ namespace PlayniteAchievements.Providers.Xbox
         private static async Task EnrichRarityAsync(
             Game game,
             GameAchievementData data,
-            ExophaseRarityEnricher rarityEnricher,
+            ExophaseMetadataEnricher rarityEnricher,
             XboxAchievementSource achievementSource,
             CancellationToken cancel)
         {
@@ -293,9 +293,16 @@ namespace PlayniteAchievements.Providers.Xbox
                 }
             }
 
+            if (XboxTitleIdResolver.TryResolveFromGameInstall(game, _logger, out var localTitleId))
+            {
+                return localTitleId;
+            }
+
             // PC games: Use Title Hub API to resolve PFN to titleId
             if (!string.IsNullOrWhiteSpace(game.GameId))
             {
+                _logger?.Debug($"[XboxAch] Falling back to TitleHub PFN lookup for: {game.GameId}");
+
                 try
                 {
                     var titleInfo = await _apiClient.GetTitleInfoByPfnAsync(game.GameId, authData, cancel).ConfigureAwait(false);
@@ -310,6 +317,7 @@ namespace PlayniteAchievements.Providers.Xbox
                 }
             }
 
+            _logger?.Debug($"[XboxAch] All title ID resolution methods failed for game: {game?.Name} (GameId: {game?.GameId}, InstallDirectory: {game?.InstallDirectory})");
             return null;
         }
 

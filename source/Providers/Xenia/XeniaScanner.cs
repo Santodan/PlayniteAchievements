@@ -174,14 +174,14 @@ namespace PlayniteAchievements.Providers.Xenia
             return data;
         }
 
-        private async Task<ExophaseRarityEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
+        private async Task<ExophaseMetadataEnricher> CreateRarityEnricherAsync(CancellationToken cancel)
         {
             if (_providerSettings?.UseExophaseForRarity != true)
             {
                 return null;
             }
 
-            var enricher = new ExophaseRarityEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
+            var enricher = new ExophaseMetadataEnricher(_playniteApi, _logger, _settings, _pluginUserDataPath);
             await enricher.InitializeAsync(cancel).ConfigureAwait(false);
             return enricher;
         }
@@ -189,7 +189,7 @@ namespace PlayniteAchievements.Providers.Xenia
         private static async Task EnrichRarityAsync(
             Game game,
             GameAchievementData data,
-            ExophaseRarityEnricher rarityEnricher,
+            ExophaseMetadataEnricher rarityEnricher,
             CancellationToken cancel)
         {
             if (rarityEnricher == null || data?.Achievements == null || data.Achievements.Count == 0)

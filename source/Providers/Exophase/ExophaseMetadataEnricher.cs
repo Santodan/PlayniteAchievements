@@ -12,7 +12,15 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Exophase
 {
-    internal sealed class ExophaseRarityEnricher
+    [Flags]
+    internal enum ExophaseMetadataFields
+    {
+        None = 0,
+        Rarity = 1,
+        IconPaths = 2
+    }
+
+    internal sealed class ExophaseMetadataEnricher
     {
         private static readonly TimeSpan SlugCacheTtl = TimeSpan.FromHours(1);
 
@@ -26,7 +34,7 @@ namespace PlayniteAchievements.Providers.Exophase
         private bool _authChecked;
         private bool _isReady;
 
-        public ExophaseRarityEnricher(
+        public ExophaseMetadataEnricher(
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings,
@@ -54,7 +62,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
             if (_sessionManager == null || _apiClient == null)
             {
-                _logger?.Warn("[ExophaseRarity] Missing Playnite API or plugin data path; rarity enrichment disabled for this scan.");
+                _logger?.Warn("[ExophaseMetadata] Missing Playnite API or plugin data path; metadata enrichment disabled for this scan.");
                 return;
             }
 
@@ -65,7 +73,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 if (!_isReady)
                 {
-                    _logger?.Warn("[ExophaseRarity] Exophase authentication is required; native rarity will be kept.");
+                    _logger?.Warn("[ExophaseMetadata] Exophase authentication is required; native metadata will be kept.");
                 }
             }
             catch (OperationCanceledException)
@@ -74,7 +82,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, "[ExophaseRarity] Exophase auth probe failed; native rarity will be kept.");
+                _logger?.Warn(ex, "[ExophaseMetadata] Exophase auth probe failed; native metadata will be kept.");
             }
         }
 
@@ -83,9 +91,14 @@ namespace PlayniteAchievements.Providers.Exophase
             IList<AchievementDetail> achievements,
             string platformSlugHint,
             string providerPlatformKey,
-            CancellationToken ct)
+            CancellationToken ct,
+            ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
         {
-            if (!_isReady || game == null || achievements == null || achievements.Count == 0)
+            if (!_isReady ||
+                fields == ExophaseMetadataFields.None ||
+                game == null ||
+                achievements == null ||
+                achievements.Count == 0)
             {
                 return;
             }
@@ -96,7 +109,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 var slugs = await ResolveSlugsAsync(game, platformSlug, ct).ConfigureAwait(false);
                 if (slugs.Count == 0)
                 {
-                    _logger?.Debug($"[ExophaseRarity] No Exophase slug resolved for '{game.Name}'.");
+                    _logger?.Debug($"[ExophaseMetadata] No Exophase slug resolved for '{game.Name}'.");
                     return;
                 }
 
@@ -113,7 +126,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                     if (fetchedAchievements == null || fetchedAchievements.Count == 0)
                     {
-                        _logger?.Debug($"[ExophaseRarity] No Exophase achievements found for '{game.Name}' ({slug}).");
+                        _logger?.Debug($"[ExophaseMetadata] No Exophase achievements found for '{game.Name}' ({slug}).");
                         continue;
                     }
 
@@ -129,8 +142,8 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 ExophaseDataProvider.ApplyProviderOwnedRarity(exophaseAchievements, providerPlatformKey);
 
-                var updated = ApplyRarity(achievements, exophaseAchievements);
-                _logger?.Info($"[ExophaseRarity] Applied rarity to {updated}/{achievements.Count} achievements for '{game.Name}' using slug '{resolvedSlug}'.");
+                var updated = ApplyMetadata(achievements, exophaseAchievements, fields);
+                _logger?.Info($"[ExophaseMetadata] Applied {DescribeFields(fields)} to {updated}/{achievements.Count} achievements for '{game.Name}' using slug '{resolvedSlug}'.");
             }
             catch (OperationCanceledException)
             {
@@ -138,7 +151,7 @@ namespace PlayniteAchievements.Providers.Exophase
             }
             catch (Exception ex)
             {
-                _logger?.Warn(ex, $"[ExophaseRarity] Failed to enrich rarity for '{game?.Name}'. Native rarity will be kept.");
+                _logger?.Warn(ex, $"[ExophaseMetadata] Failed to enrich metadata for '{game?.Name}'. Native metadata will be kept.");
             }
         }
 
@@ -296,10 +309,15 @@ namespace PlayniteAchievements.Providers.Exophase
             return score;
         }
 
-        private static int ApplyRarity(IList<AchievementDetail> nativeAchievements, IList<AchievementDetail> exophaseAchievements)
+        private static int ApplyMetadata(
+            IList<AchievementDetail> nativeAchievements,
+            IList<AchievementDetail> exophaseAchievements,
+            ExophaseMetadataFields fields)
         {
             var exophaseByTitle = exophaseAchievements
-                .Where(achievement => achievement != null && achievement.GlobalPercentUnlocked.HasValue)
+                .Where(achievement =>
+                    achievement != null &&
+                    ShouldConsiderExophaseAchievement(achievement, fields))
                 .GroupBy(achievement => NormalizeAchievementTitle(achievement.DisplayName), StringComparer.OrdinalIgnoreCase)
                 .Where(group => !string.IsNullOrWhiteSpace(group.Key))
                 .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
@@ -332,18 +350,105 @@ namespace PlayniteAchievements.Providers.Exophase
                 }
 
                 var match = ResolveAchievementMatch(nativeAchievement, title, nativeTitleCounts, candidates, usedExophase);
-                if (match?.GlobalPercentUnlocked == null)
+                if (match == null)
                 {
                     continue;
                 }
 
-                nativeAchievement.GlobalPercentUnlocked = match.GlobalPercentUnlocked;
-                nativeAchievement.Rarity = match.Rarity;
+                var changed = false;
+
+                if (fields.HasFlag(ExophaseMetadataFields.Rarity) &&
+                    match.GlobalPercentUnlocked.HasValue)
+                {
+                    if (nativeAchievement.GlobalPercentUnlocked != match.GlobalPercentUnlocked ||
+                        nativeAchievement.Rarity != match.Rarity)
+                    {
+                        nativeAchievement.GlobalPercentUnlocked = match.GlobalPercentUnlocked;
+                        nativeAchievement.Rarity = match.Rarity;
+                        changed = true;
+                    }
+                }
+
+                if (fields.HasFlag(ExophaseMetadataFields.IconPaths))
+                {
+                    changed |= ApplyIconPaths(nativeAchievement, match);
+                }
+
                 usedExophase.Add(match);
-                updated++;
+
+                if (changed)
+                {
+                    updated++;
+                }
             }
 
             return updated;
+        }
+
+        private static bool ShouldConsiderExophaseAchievement(
+            AchievementDetail achievement,
+            ExophaseMetadataFields fields)
+        {
+            return
+                (fields.HasFlag(ExophaseMetadataFields.Rarity) &&
+                 achievement.GlobalPercentUnlocked.HasValue) ||
+                (fields.HasFlag(ExophaseMetadataFields.IconPaths) &&
+                 HasIconPath(achievement));
+        }
+
+        private static bool ApplyIconPaths(AchievementDetail nativeAchievement, AchievementDetail exophaseAchievement)
+        {
+            var updated = false;
+            var unlockedIconPath = FirstNonBlank(exophaseAchievement?.UnlockedIconPath, exophaseAchievement?.LockedIconPath);
+            var lockedIconPath = FirstNonBlank(exophaseAchievement?.LockedIconPath, exophaseAchievement?.UnlockedIconPath);
+
+            if (string.IsNullOrWhiteSpace(nativeAchievement.UnlockedIconPath) &&
+                !string.IsNullOrWhiteSpace(unlockedIconPath))
+            {
+                nativeAchievement.UnlockedIconPath = unlockedIconPath;
+                updated = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(nativeAchievement.LockedIconPath) &&
+                !string.IsNullOrWhiteSpace(lockedIconPath))
+            {
+                nativeAchievement.LockedIconPath = lockedIconPath;
+                updated = true;
+            }
+
+            return updated;
+        }
+
+        private static bool HasIconPath(AchievementDetail achievement)
+        {
+            return !string.IsNullOrWhiteSpace(achievement?.UnlockedIconPath) ||
+                !string.IsNullOrWhiteSpace(achievement?.LockedIconPath);
+        }
+
+        private static string FirstNonBlank(params string[] values)
+        {
+            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        }
+
+        private static string DescribeFields(ExophaseMetadataFields fields)
+        {
+            if (fields == ExophaseMetadataFields.Rarity)
+            {
+                return "rarity";
+            }
+
+            if (fields == ExophaseMetadataFields.IconPaths)
+            {
+                return "icons";
+            }
+
+            if ((fields & (ExophaseMetadataFields.Rarity | ExophaseMetadataFields.IconPaths)) ==
+                (ExophaseMetadataFields.Rarity | ExophaseMetadataFields.IconPaths))
+            {
+                return "rarity/icons";
+            }
+
+            return "metadata";
         }
 
         private static AchievementDetail ResolveAchievementMatch(

@@ -71,6 +71,8 @@ namespace PlayniteAchievements.Models.Settings
             target.UseUniformRarityBadges = source.UseUniformRarityBadges;
             target.UseCoverImages = source.UseCoverImages;
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
+            target.ShowSidebarCollectionScoreCard = source.ShowSidebarCollectionScoreCard;
+            target.ShowSidebarPrestigeScoreCard = source.ShowSidebarPrestigeScoreCard;
             target.ShowSidebarPieCharts = source.ShowSidebarPieCharts;
             target.ShowSidebarGamesPieChart = source.ShowSidebarGamesPieChart;
             target.ShowSidebarProviderPieChart = source.ShowSidebarProviderPieChart;
@@ -126,6 +128,7 @@ namespace PlayniteAchievements.Models.Settings
             target.GamesOverviewColumnWidths = source.GamesOverviewColumnWidths != null
                 ? new Dictionary<string, double>(source.GamesOverviewColumnWidths, StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            target.SidebarOverviewLeftColumnRatio = source.SidebarOverviewLeftColumnRatio;
 
             // General Settings
             target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;

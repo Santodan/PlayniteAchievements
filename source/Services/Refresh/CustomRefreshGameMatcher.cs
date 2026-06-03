@@ -2,6 +2,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Manual;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,6 +13,7 @@ namespace PlayniteAchievements.Services
     {
         internal const string SteamFamilySharingSelectionKey = "SteamFamilySharing";
         private const string LocalProviderKey = "Local";
+        private const string ManualProviderKey = "Manual";
         private static readonly string[] DefaultLocalExcludedSelectionKeys =
         {
             SteamRefreshTargeting.SteamProviderKey,
@@ -24,7 +26,7 @@ namespace PlayniteAchievements.Services
             "ShadPS4",
             "Xenia",
             "RPCS3",
-            "Manual",
+            ManualProviderKey,
             "Exophase"
         };
 
@@ -70,6 +72,13 @@ namespace PlayniteAchievements.Services
                 return false;
             }
 
+            if (IsManualProvider(resolvedProvider.ProviderKey))
+            {
+                return selectedProviders.Any(provider =>
+                    provider != null &&
+                    MatchesManualProviderSelection(game, provider.ProviderKey, provider.ProviderName));
+            }
+
             var selectedProvider = selectedProviders.FirstOrDefault(provider =>
                 provider != null &&
                 string.Equals(provider.ProviderKey, resolvedProvider.ProviderKey, StringComparison.OrdinalIgnoreCase));
@@ -98,6 +107,11 @@ namespace PlayniteAchievements.Services
             if (game == null || resolvedProvider == null || string.IsNullOrWhiteSpace(selectedProviderKey))
             {
                 return false;
+            }
+
+            if (IsManualProvider(resolvedProvider.ProviderKey))
+            {
+                return MatchesManualProviderSelection(game, selectedProviderKey, selectedProviderName);
             }
 
             if (!string.Equals(resolvedProvider.ProviderKey, selectedProviderKey, StringComparison.OrdinalIgnoreCase))
@@ -130,6 +144,38 @@ namespace PlayniteAchievements.Services
             }
 
             return SourceMatches(game, selectedProviderName, selectedProviderKey);
+        }
+
+        private static bool MatchesManualProviderSelection(Game game, string selectedProviderKey, string selectedProviderName)
+        {
+            if (game == null || game.Id == Guid.Empty || string.IsNullOrWhiteSpace(selectedProviderKey))
+            {
+                return false;
+            }
+
+            if (!ManualAchievementsProvider.TryGetManualLink(game.Id, out var link) || link == null)
+            {
+                return false;
+            }
+
+            if (string.Equals(selectedProviderKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var sourceKey = link.SourceKey?.Trim();
+            if (string.IsNullOrWhiteSpace(sourceKey))
+            {
+                return false;
+            }
+
+            return string.Equals(sourceKey, selectedProviderKey?.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(sourceKey, selectedProviderName?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsManualProvider(string providerKey)
+        {
+            return string.Equals(providerKey, ManualProviderKey, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool SourceMatches(Game game, params string[] expectedSourceNames)

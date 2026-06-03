@@ -397,6 +397,97 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveProviderForGame_EaAndExophaseCapable_DefaultsToEaRefreshOrder()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "EA", "Exophase" });
+
+                var game = new Game { Id = gameId, Name = "EA Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Exophase", _ => true),
+                    new FakeProvider("EA", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("EA", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_EaAndExophaseCapable_ExplicitExophaseOverrideStillWins()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Save(gameId, new GameCustomDataFile
+                {
+                    PlayniteGameId = gameId,
+                    ProviderOverride = new ProviderOverrideData
+                    {
+                        ProviderKey = "Exophase"
+                    }
+                });
+
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "EA", "Exophase" });
+
+                var game = new Game { Id = gameId, Name = "EA Game" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("EA", _ => true),
+                    new FakeProvider("Exophase", _ => true)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("Exophase", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ResolveProviderForGame_ForcedProviderUnauthenticated_ReturnsNull()
         {
             var tempDir = CreateTempDirectory();

@@ -173,9 +173,55 @@
 
             <!-- Button style that disables during refresh -->
             <Style x:Key="RefreshButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                <Setter Property="Padding" Value="12,6"/>
-                <Setter Property="MinWidth" Value="80"/>
+                <Setter Property="Padding" Value="10,3"/>
+                <Setter Property="MinWidth" Value="88"/>
+                <Setter Property="Height" Value="24"/>
                 <Setter Property="Margin" Value="0,0,6,0"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Opacity" Value="0.86"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="FontWeight" Value="ExtraBold"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="HeaderScorePanelStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,2"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreMetricChipStyle" TargetType="Border">
+                <Setter Property="Background" Value="#28FFFFFF"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Padding" Value="6,1"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="ClipToBounds" Value="True"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
+                <Setter Property="Height" Value="6"/>
+                <Setter Property="BorderThickness" Value="1"/>
             </Style>
 
             <!-- Game name button style with hover effect -->
@@ -546,18 +592,30 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ROW 0: Header with Title and Refresh Buttons -->
+        <!-- ROW 0: Header with Title, Scores, and Refresh Buttons -->
         <Border Grid.Row="0"
                 Background="{DynamicResource ControlBackgroundBrush}"
                 BorderBrush="{DynamicResource NormalBorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="16,12,16,12"
+                Padding="16,0,16,4"
                 WindowChrome.IsHitTestVisibleInChrome="True">
             <Grid>
-                <!-- Left: Back button and title -->
-                <StackPanel Orientation="Horizontal"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="24"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: Back button, title, and refresh controls -->
+                <StackPanel Grid.Row="1"
+                            Grid.Column="0"
+                            Orientation="Horizontal"
                             VerticalAlignment="Center"
-                            HorizontalAlignment="Left">
+                            HorizontalAlignment="Left"
+                            Margin="0,0,18,0">
                     <Button x:Name="CloseViewButton"
                             Command="{Binding CloseViewCommand}"
                             Content="&#xE72B;"
@@ -570,40 +628,114 @@
                                FontSize="20"
                                Foreground="{DynamicResource TextBrush}"
                                VerticalAlignment="Center"
+                               MaxWidth="230"
+                               TextTrimming="CharacterEllipsis"
                                Margin="12,0,0,0"/>
+
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="24,0,0,0">
+                        <Button x:Name="RefreshModeSelectionButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding RefreshModeSelectionText}"
+                                Click="RefreshModeSelectionButton_Click"
+                                HorizontalContentAlignment="Center"
+                                Width="94"
+                                Height="24"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center">
+                            <Button.ContextMenu>
+                                <ContextMenu x:Name="RefreshModeSelectionContextMenu"
+                                             ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
+                            </Button.ContextMenu>
+                        </Button>
+
+                        <Button x:Name="RefreshActionButton"
+                                Content="{Binding RefreshOrCancelButtonText}"
+                                Command="{Binding RefreshOrCancelCommand}"
+                                Style="{StaticResource RefreshButtonStyle}"
+                                Margin="0"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Center: Refresh controls -->
-                <StackPanel Orientation="Horizontal"
+                <!-- Right: Collection and Prestige scores -->
+                <StackPanel Grid.Row="1"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            HorizontalAlignment="Center">
-                    <Button x:Name="RefreshModeSelectionButton"
-                            Style="{StaticResource AchievementSelectorButtonStyle}"
-                            Content="{Binding RefreshModeSelectionText}"
-                            ToolTip="{Binding RefreshModeSelectionText}"
-                            Click="RefreshModeSelectionButton_Click"
-                            HorizontalContentAlignment="Center"
-                            MinWidth="100"
-                            MaxWidth="220"
-                            Height="30"
-                            Margin="0,0,8,0"
-                            VerticalAlignment="Center">
-                        <Button.ContextMenu>
-                            <ContextMenu x:Name="RefreshModeSelectionContextMenu"
-                                         ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
-                        </Button.ContextMenu>
-                    </Button>
+                            MaxWidth="740"
+                            Margin="18,0,0,0">
 
-                    <Button x:Name="RefreshActionButton"
-                            Content="{Binding RefreshActionButtonText}"
-                            Command="{Binding RefreshCommand}"
-                            Style="{StaticResource RefreshButtonStyle}"/>
-
-                    <Button x:Name="CancelRefreshButton"
-                            Content="{DynamicResource LOCPlayAch_Button_Cancel}"
-                            Command="{Binding CancelRefreshCommand}"
-                            Style="{StaticResource RefreshButtonStyle}"
-                            Margin="0,0,8,0"/>
+                    <Border Width="300"
+                            Style="{StaticResource HeaderScorePanelStyle}"
+                            Background="{Binding CollectionScoreAccentBackgroundBrush}"
+                            BorderBrush="{Binding CollectionScoreAccentBrush}"
+                            ToolTip="{Binding CollectionScoreDetailText}"
+                            Visibility="{Binding ShowSidebarCollectionScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding CollectionScoreLabel}"
+                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
+                                       TextAlignment="Left"
+                                       HorizontalAlignment="Stretch"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding CollectionLevelText}"
+                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                       TextAlignment="Right"
+                                       HorizontalAlignment="Right"/>
+                            <Image Grid.Row="0"
+                                   Grid.RowSpan="3"
+                                   Grid.Column="0"
+                                   Width="30"
+                                   Height="30"
+                                   Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   Source="{Binding CollectionScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                                   Effect="{StaticResource BadgeShadow}"
+                                   Style="{StaticResource RarityIcon}"/>
+                            <ProgressBar Grid.Row="1"
+                                         Grid.Column="1"
+                                         Value="{Binding CollectorLevelProgress, Mode=OneWay}"
+                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
+                                         BorderBrush="{Binding CollectionScoreAccentBrush}"
+                                         Foreground="{Binding CollectionScoreAccentBrush}"
+                                         Margin="0,3,0,0"/>
+                            <Grid Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,1,0,0"
+                                  ClipToBounds="True">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding CollectionTierText}"
+                                           Style="{StaticResource HeaderScoreTierTextStyle}"
+                                           Foreground="{Binding CollectionScoreAccentBrush}"
+                                           TextAlignment="Left"
+                                           HorizontalAlignment="Stretch"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding CollectionScorePointsText}"
+                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                           TextAlignment="Left"
+                                           MaxWidth="150"
+                                           Margin="10,1,0,0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
 
                     <Button x:Name="DefaultSortModeButton"
                             Style="{StaticResource AchievementSelectorButtonStyle}"
@@ -666,10 +798,85 @@
                             </Style>
                         </Button.Style>
                     </Button>
+
+                    <Border Background="{DynamicResource NormalBorderBrush}"
+                            Opacity="0.55"
+                            VerticalAlignment="Center"
+                            Width="1"
+                            Height="42"
+                            Margin="12,2"
+                            Visibility="{Binding ShowSidebarScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
+
+                    <Border Width="300"
+                            Style="{StaticResource HeaderScorePanelStyle}"
+                            Background="{Binding PrestigeScoreAccentBackgroundBrush}"
+                            BorderBrush="{Binding PrestigeScoreAccentBrush}"
+                            ToolTip="{Binding PrestigeScoreDetailText}"
+                            Visibility="{Binding ShowSidebarPrestigeScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Image Grid.Row="0"
+                                   Grid.RowSpan="3"
+                                   Grid.Column="0"
+                                   Width="30"
+                                   Height="30"
+                                   Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   Source="{Binding PrestigeScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                                   Effect="{StaticResource BadgeShadow}"
+                                   Style="{StaticResource RarityIcon}"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding PrestigeScoreLabel}"
+                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
+                                       TextAlignment="Left"
+                                       HorizontalAlignment="Stretch"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding PrestigeLevelText}"
+                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                       TextAlignment="Right"
+                                       HorizontalAlignment="Right"/>
+                            <ProgressBar Grid.Row="1"
+                                         Grid.Column="1"
+                                         Value="{Binding PrestigeLevelProgress, Mode=OneWay}"
+                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
+                                         BorderBrush="{Binding PrestigeScoreAccentBrush}"
+                                         Foreground="{Binding PrestigeScoreAccentBrush}"
+                                         Margin="0,3,0,0"/>
+                            <Grid Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,1,0,0"
+                                  ClipToBounds="True">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding PrestigeTierText}"
+                                           Style="{StaticResource HeaderScoreTierTextStyle}"
+                                           Foreground="{Binding PrestigeScoreAccentBrush}"
+                                           TextAlignment="Left"
+                                           HorizontalAlignment="Stretch"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PrestigeScorePointsText}"
+                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                           TextAlignment="Left"
+                                           MaxWidth="150"
+                                           Margin="10,1,0,0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
-                <!-- Right: Empty for balance (same width as back button) -->
-                <Grid Width="34" HorizontalAlignment="Right"/>
             </Grid>
         </Border>
 
@@ -697,9 +904,9 @@
             <!-- Overview Tab Content -->
             <Grid x:Name="OverviewContent" Visibility="Visible">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" MinWidth="560"/>
+                    <ColumnDefinition x:Name="OverviewLeftColumn" Width="*" MinWidth="560"/>
                     <ColumnDefinition Width="4"/>
-                    <ColumnDefinition Width="*" MinWidth="480"/>
+                    <ColumnDefinition x:Name="OverviewRightColumn" Width="*" MinWidth="480"/>
                 </Grid.ColumnDefinitions>
 
                 <Grid.RowDefinitions>
@@ -904,12 +1111,14 @@
                             Padding="16,10,16,10"
                             BorderBrush="{DynamicResource NormalBorderBrush}"
                             BorderThickness="0,0,1,1">
-                        <StackPanel Orientation="Horizontal">
+                        <Grid>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Sidebar_GamesOverview}"
                                        Style="{DynamicResource BaseTextBlockStyle}"
                                        FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"/>
-                        </StackPanel>
+                                       Foreground="{DynamicResource TextBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
                     </Border>
 
                     <!-- LEFT: Games List -->
@@ -1793,6 +2002,7 @@
                     <GridSplitter Grid.Column="1"
                         Grid.RowSpan="3"
                         Style="{StaticResource CenterLineSplitterStyle}"
+                        DragCompleted="OverviewGridSplitter_DragCompleted"
                         Focusable="False"
                         IsTabStop="False"
                         Panel.ZIndex="100"/>

@@ -80,6 +80,20 @@ namespace PlayniteAchievements.Services.Database
                    string.Equals(providerKey.Trim(), "RetroAchievements", StringComparison.OrdinalIgnoreCase);
         }
 
+        public static bool CanReclaimExophaseProxy(string incomingProviderKey)
+        {
+            var incomingProvider = NormalizeProviderKey(incomingProviderKey);
+
+            if (string.IsNullOrWhiteSpace(incomingProvider))
+            {
+                return false;
+            }
+
+            return !string.Equals(incomingProvider, "Exophase", StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(incomingProvider, "Manual", StringComparison.OrdinalIgnoreCase) &&
+                   !string.Equals(incomingProvider, "Unmapped", StringComparison.OrdinalIgnoreCase);
+        }
+
         public static bool ComputeIsCompleted(
             bool providerIsCompleted,
             int unlockedCount,
@@ -92,6 +106,13 @@ namespace PlayniteAchievements.Services.Database
             }
 
             return totalCount > 0 && unlockedCount >= totalCount;
+        }
+
+        private static string NormalizeProviderKey(string providerKey)
+        {
+            return string.IsNullOrWhiteSpace(providerKey)
+                ? null
+                : providerKey.Trim();
         }
     }
 }

@@ -24,6 +24,14 @@ namespace PlayniteAchievements.Services.Sidebar
         public int TotalUltraRare { get; set; }
         public int CompletedGames { get; set; }
         public double GlobalProgressionPercent { get; set; }
+        public int CollectorScore { get; set; }
+        public int CollectorLevel { get; set; }
+        public double CollectorLevelProgress { get; set; }
+        public string CollectorRank { get; set; } = "Bronze1";
+        public int PrestigeScore { get; set; }
+        public int PrestigeLevel { get; set; }
+        public double PrestigeLevelProgress { get; set; }
+        public string PrestigeRank { get; set; } = "Bronze1";
 
         /// <summary>
         /// Unlocked achievements per provider (for provider distribution pie chart).

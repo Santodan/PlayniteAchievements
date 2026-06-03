@@ -4,6 +4,7 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.ThemeIntegration;
@@ -554,6 +555,58 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var summary = FindSummary(context.Settings.DynamicGameSummaries, gameId);
             Assert.AreEqual(1, summary.UnlockedCount);
             Assert.AreEqual(2, summary.AchievementCount);
+        }
+
+        [TestMethod]
+        public void OpenAchievementWindow_PublishesModernScoresWithoutChangingLegacyScore()
+        {
+            using var context = CreateServiceContext();
+
+            var gameId = Guid.NewGuid();
+            var game = new Game
+            {
+                Id = gameId,
+                Name = "Modern Score Game",
+                LastActivity = Utc(2026, 4, 9, 8, 0, 0)
+            };
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = game,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Common Unlock", 75.0, unlocked: true),
+                    Achievement("Uncommon Unlock", 35.0, unlocked: true),
+                    Achievement("Rare Unlock", 8.0, unlocked: true),
+                    Achievement("Ultra Unlock", 2.5, unlocked: true),
+                    Achievement("Ultra Locked", 2.0, unlocked: false)
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { data };
+
+            var expectedModernScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+            var expectedLegacyLevel = AchievementLevelCalculator.CalculateLegacy(225);
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            Assert.AreEqual(315, context.Settings.CollectorScore);
+            Assert.AreEqual(expectedModernScores.PrestigeScore, context.Settings.PrestigeScore);
+            Assert.AreEqual(expectedModernScores.CollectorLevel.DisplayLevel, context.Settings.CollectorLevel);
+            Assert.AreEqual(expectedModernScores.CollectorLevel.LevelProgress, context.Settings.CollectorLevelProgress);
+            Assert.AreEqual(expectedModernScores.CollectorLevel.Rank, context.Settings.CollectorRank);
+            Assert.AreEqual(expectedModernScores.PrestigeLevel.DisplayLevel, context.Settings.PrestigeLevel);
+            Assert.AreEqual(expectedModernScores.PrestigeLevel.LevelProgress, context.Settings.PrestigeLevelProgress);
+            Assert.AreEqual(expectedModernScores.PrestigeLevel.Rank, context.Settings.PrestigeRank);
+
+            Assert.AreEqual("225", context.Settings.GSScore);
+            Assert.AreEqual(expectedLegacyLevel.Level.ToString(), context.Settings.GSLevel);
+            Assert.AreEqual(expectedLegacyLevel.LevelProgress, context.Settings.GSLevelProgress);
+            Assert.AreEqual(expectedLegacyLevel.Rank, context.Settings.GSRank);
+            Assert.AreEqual(expectedLegacyLevel.Level, context.Settings.Level);
+            Assert.AreEqual(expectedLegacyLevel.LevelProgress, context.Settings.LevelProgress);
+            Assert.AreEqual(expectedLegacyLevel.Rank, context.Settings.Rank);
         }
 
         [TestMethod]

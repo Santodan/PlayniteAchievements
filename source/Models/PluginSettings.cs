@@ -705,6 +705,62 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public int CollectorScore
+        {
+            get => ModernTheme.CollectorScore;
+            set => ModernTheme.CollectorScore = value;
+        }
+
+        [DontSerialize]
+        public int CollectorLevel
+        {
+            get => ModernTheme.CollectorLevel;
+            set => ModernTheme.CollectorLevel = value;
+        }
+
+        [DontSerialize]
+        public double CollectorLevelProgress
+        {
+            get => ModernTheme.CollectorLevelProgress;
+            set => ModernTheme.CollectorLevelProgress = value;
+        }
+
+        [DontSerialize]
+        public string CollectorRank
+        {
+            get => ModernTheme.CollectorRank;
+            set => ModernTheme.CollectorRank = value;
+        }
+
+        [DontSerialize]
+        public int PrestigeScore
+        {
+            get => ModernTheme.PrestigeScore;
+            set => ModernTheme.PrestigeScore = value;
+        }
+
+        [DontSerialize]
+        public int PrestigeLevel
+        {
+            get => ModernTheme.PrestigeLevel;
+            set => ModernTheme.PrestigeLevel = value;
+        }
+
+        [DontSerialize]
+        public double PrestigeLevelProgress
+        {
+            get => ModernTheme.PrestigeLevelProgress;
+            set => ModernTheme.PrestigeLevelProgress = value;
+        }
+
+        [DontSerialize]
+        public string PrestigeRank
+        {
+            get => ModernTheme.PrestigeRank;
+            set => ModernTheme.PrestigeRank = value;
+        }
+
+        [DontSerialize]
         public int Level
         {
             get => LegacyTheme.Level;

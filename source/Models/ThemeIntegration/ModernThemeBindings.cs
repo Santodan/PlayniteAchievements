@@ -143,6 +143,22 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private AchievementRarityStats _totalRareAndUltraRare = new AchievementRarityStats();
         [DontSerialize]
         private AchievementRarityStats _totalOverall = new AchievementRarityStats();
+        [DontSerialize]
+        private int _collectorScore;
+        [DontSerialize]
+        private int _collectorLevel;
+        [DontSerialize]
+        private double _collectorLevelProgress;
+        [DontSerialize]
+        private string _collectorRank = "Bronze1";
+        [DontSerialize]
+        private int _prestigeScore;
+        [DontSerialize]
+        private int _prestigeLevel;
+        [DontSerialize]
+        private double _prestigeLevelProgress;
+        [DontSerialize]
+        private string _prestigeRank = "Bronze1";
 
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _steamGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -583,6 +599,62 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _totalOverall;
             set => SetValue(ref _totalOverall, value);
+        }
+
+        [DontSerialize]
+        public int CollectorScore
+        {
+            get => _collectorScore;
+            set => SetValue(ref _collectorScore, value < 0 ? 0 : value);
+        }
+
+        [DontSerialize]
+        public int CollectorLevel
+        {
+            get => _collectorLevel;
+            set => SetValue(ref _collectorLevel, value < 0 ? 0 : value);
+        }
+
+        [DontSerialize]
+        public double CollectorLevelProgress
+        {
+            get => _collectorLevelProgress;
+            set => SetValue(ref _collectorLevelProgress, value);
+        }
+
+        [DontSerialize]
+        public string CollectorRank
+        {
+            get => _collectorRank;
+            set => SetValue(ref _collectorRank, value ?? "Bronze1");
+        }
+
+        [DontSerialize]
+        public int PrestigeScore
+        {
+            get => _prestigeScore;
+            set => SetValue(ref _prestigeScore, value < 0 ? 0 : value);
+        }
+
+        [DontSerialize]
+        public int PrestigeLevel
+        {
+            get => _prestigeLevel;
+            set => SetValue(ref _prestigeLevel, value < 0 ? 0 : value);
+        }
+
+        [DontSerialize]
+        public double PrestigeLevelProgress
+        {
+            get => _prestigeLevelProgress;
+            set => SetValue(ref _prestigeLevelProgress, value);
+        }
+
+        [DontSerialize]
+        public string PrestigeRank
+        {
+            get => _prestigeRank;
+            set => SetValue(ref _prestigeRank, value ?? "Bronze1");
         }
 
         [DontSerialize]

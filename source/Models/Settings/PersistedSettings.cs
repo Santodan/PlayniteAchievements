@@ -20,6 +20,9 @@ namespace PlayniteAchievements.Models.Settings
     public class PersistedSettings : ObservableObject
     {
         public const double DefaultAchievementDataGridMaxHeight = 600d;
+        public const double DefaultSidebarOverviewLeftColumnRatio = 0.5d;
+        public const double MinSidebarOverviewLeftColumnRatio = 0.01d;
+        public const double MaxSidebarOverviewLeftColumnRatio = 0.99d;
 
         public PersistedSettings()
         {
@@ -53,6 +56,8 @@ namespace PlayniteAchievements.Models.Settings
         private bool _includeUnplayedGames = true;
         private string _sidebarDefaultRefreshModeKey = RefreshModeType.Installed.GetKey();
         private string _sidebarDefaultPlayStatusFilter = "played";
+        private bool _showSidebarCollectionScoreCard = true;
+        private bool _showSidebarPrestigeScoreCard = true;
         private bool _showSidebarPieCharts = true;
         private bool _showSidebarGamesPieChart = true;
         private bool _showSidebarProviderPieChart = true;
@@ -98,6 +103,7 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, bool> _gamesOverviewColumnVisibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, double> _gamesOverviewColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _gamesOverviewColumnOrder = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private double _sidebarOverviewLeftColumnRatio = DefaultSidebarOverviewLeftColumnRatio;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
@@ -462,6 +468,24 @@ namespace PlayniteAchievements.Models.Settings
                 ? "played"
                 : _sidebarDefaultPlayStatusFilter;
             set => SetValue(ref _sidebarDefaultPlayStatusFilter, NormalizeSidebarDefaultPlayStatusFilter(value));
+        }
+
+        /// <summary>
+        /// When true, shows the collection score card in the sidebar header.
+        /// </summary>
+        public bool ShowSidebarCollectionScoreCard
+        {
+            get => _showSidebarCollectionScoreCard;
+            set => SetValue(ref _showSidebarCollectionScoreCard, value);
+        }
+
+        /// <summary>
+        /// When true, shows the prestige score card in the sidebar header.
+        /// </summary>
+        public bool ShowSidebarPrestigeScoreCard
+        {
+            get => _showSidebarPrestigeScoreCard;
+            set => SetValue(ref _showSidebarPrestigeScoreCard, value);
         }
 
         /// <summary>
@@ -1357,6 +1381,22 @@ namespace PlayniteAchievements.Models.Settings
                     : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
         }
 
+        /// <summary>
+        /// Persisted sidebar overview splitter position. Represents left column width
+        /// as a ratio of the combined left and right overview columns.
+        /// </summary>
+        public double SidebarOverviewLeftColumnRatio
+        {
+            get => _sidebarOverviewLeftColumnRatio;
+            set
+            {
+                var normalized = double.IsNaN(value) || double.IsInfinity(value)
+                    ? DefaultSidebarOverviewLeftColumnRatio
+                    : Math.Max(MinSidebarOverviewLeftColumnRatio, Math.Min(MaxSidebarOverviewLeftColumnRatio, value));
+                SetValue(ref _sidebarOverviewLeftColumnRatio, normalized);
+            }
+        }
+
         #endregion
 
         #region General Settings
@@ -1572,6 +1612,8 @@ namespace PlayniteAchievements.Models.Settings
                 IncludeUnplayedGames = this.IncludeUnplayedGames,
                 SidebarDefaultRefreshModeKey = this.SidebarDefaultRefreshModeKey,
                 SidebarDefaultPlayStatusFilter = this.SidebarDefaultPlayStatusFilter,
+                ShowSidebarCollectionScoreCard = this.ShowSidebarCollectionScoreCard,
+                ShowSidebarPrestigeScoreCard = this.ShowSidebarPrestigeScoreCard,
                 ShowSidebarPieCharts = this.ShowSidebarPieCharts,
                 ShowSidebarGamesPieChart = this.ShowSidebarGamesPieChart,
                 ShowSidebarProviderPieChart = this.ShowSidebarProviderPieChart,
@@ -1677,6 +1719,7 @@ namespace PlayniteAchievements.Models.Settings
                 GamesOverviewColumnOrder = this.GamesOverviewColumnOrder != null
                     ? new Dictionary<string, int>(this.GamesOverviewColumnOrder, StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
+                SidebarOverviewLeftColumnRatio = this.SidebarOverviewLeftColumnRatio,
 
                 // General Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,

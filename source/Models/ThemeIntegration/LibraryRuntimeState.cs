@@ -48,6 +48,14 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public int Level { get; set; }
         public double LevelProgress { get; set; }
         public string Rank { get; set; } = "Bronze1";
+        public int CollectorScore { get; set; }
+        public int CollectorLevel { get; set; }
+        public double CollectorLevelProgress { get; set; }
+        public string CollectorRank { get; set; } = "Bronze1";
+        public int PrestigeScore { get; set; }
+        public int PrestigeLevel { get; set; }
+        public double PrestigeLevelProgress { get; set; }
+        public string PrestigeRank { get; set; } = "Bronze1";
 
         public List<AchievementDetail> AllAchievementsUnlockAsc { get; set; } = new List<AchievementDetail>();
         public List<AchievementDetail> AllAchievementsUnlockDesc { get; set; } = new List<AchievementDetail>();

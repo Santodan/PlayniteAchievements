@@ -1,5 +1,21 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+
+  - Version: 2.4.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-06-03
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.4.0.1/PlayniteAchievementsSantodan_2_4_0_1.pext
+    Changelog:
+    - "v2.4.0 merge"
+    - "Fixed manual tracking custom refresh matching for manually linked games."
+    - "Added native support for EA achievements. These do not come with Icons or Rarity data natively at the moment, but this additional data can be fetched from Exophase."
+    - "Added new Library Scores in the Sidebar. The Collection Score prioritizes the total number of earned achievements, weighted by rarity, while the Prestige Score highly prioritizes rare achievements, and deprioritizes common achievements. More granular scoring display may follow, to show much each achievement boosts your score."
+    - "Middle divider position in the Sidebar now saves its position."
+    - "Added option in Display to hide Score cards."
+    - "Fixed issue where Exophase was trying to provide data even when it was not enabled. A refresh may be necessary to fix any games which were affected."
+    - "Fixed issue where some PC Gamepass Games were not being detected."
+    - "Localization updates."
+
   - Version: 2.3.0.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-05-31

@@ -8,6 +8,7 @@ using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Providers.Xenia;
 
@@ -96,6 +97,39 @@ namespace PlayniteAchievements.Providers.Tests
             Assert.AreEqual("old-path", GetPersistedAccountPath(context.Settings));
         }
 
+        [TestMethod]
+        public void CommitEditSession_RemovesCollectionEntriesFromEditedProviderSettings()
+        {
+            var settings = new PlayniteAchievementsSettings();
+            var liveSettings = new ExophaseSettings
+            {
+                ManagedProviders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "steam",
+                    "origin"
+                }
+            };
+
+            var provider = new FakeProvider(liveSettings);
+            var registry = new ProviderRegistry(settings, new[] { "Exophase" });
+            RegisterProvider(registry, provider);
+            registry.PersistAllProviderSettings(false);
+
+            var edited = (ExophaseSettings)registry.GetSettingsForEdit("Exophase");
+            edited.ManagedProviders.Remove("steam");
+
+            registry.CommitEditSession(false);
+            registry.PersistAllProviderSettings(false);
+
+            var persistedManagedProviders = settings.Persisted.ProviderSettings["Exophase"]["ManagedProviders"]
+                .ToObject<List<string>>();
+
+            Assert.IsFalse(liveSettings.ManagedProviders.Contains("steam"));
+            Assert.IsTrue(liveSettings.ManagedProviders.Contains("origin"));
+            Assert.IsFalse(persistedManagedProviders.Contains("steam"));
+            Assert.IsTrue(persistedManagedProviders.Contains("origin"));
+        }
+
         private static RegistryContext CreateRegistryContext(string initialAccountPath)
         {
             var settings = new PlayniteAchievementsSettings();
@@ -171,6 +205,48 @@ namespace PlayniteAchievements.Providers.Tests
             public ISessionManager AuthSession => null;
 
             public XeniaSettings Settings { get; }
+
+            public bool IsCapable(Game game) => true;
+
+            public Task<RebuildPayload> RefreshAsync(
+                IReadOnlyList<Game> gamesToRefresh,
+                Action<Game> onGameStarting,
+                Func<Game, GameAchievementData, Task> onGameCompleted,
+                CancellationToken cancel)
+            {
+                return Task.FromResult(new RebuildPayload());
+            }
+
+            public IProviderSettings GetSettings() => Settings;
+
+            public void ApplySettings(IProviderSettings settings)
+            {
+                Settings.CopyFrom(settings);
+            }
+
+            public ProviderSettingsViewBase CreateSettingsView() => new FakeProviderSettingsView();
+        }
+
+        private sealed class FakeProvider : IDataProvider
+        {
+            public FakeProvider(ProviderSettingsBase settings)
+            {
+                Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            }
+
+            public string ProviderName => ProviderKey;
+
+            public string ProviderKey => Settings.ProviderKey;
+
+            public string ProviderIconKey => $"ProviderIcon{ProviderKey}";
+
+            public string ProviderColorHex => "#92C83E";
+
+            public bool IsAuthenticated => true;
+
+            public ISessionManager AuthSession => null;
+
+            public ProviderSettingsBase Settings { get; }
 
             public bool IsCapable(Game game) => true;
 

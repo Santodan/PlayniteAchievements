@@ -84,6 +84,9 @@
     <Compile Include="..\..\source\Providers\AchievementPageLinkResolver.cs" Link="Source\Providers\AchievementPageLinkResolver.cs" />
     <Compile Include="..\..\source\Providers\IAchievementPageLinkProvider.cs" Link="Source\Providers\IAchievementPageLinkProvider.cs" />
     <Compile Include="..\..\source\Common\RateLimiter.cs" Link="Source\Common\RateLimiter.cs" />
+    <Compile Include="..\..\source\Providers\EA\EAAuthModels.cs" Link="Source\Providers\EA\EAAuthModels.cs" />
+    <Compile Include="..\..\source\Providers\EA\EAModels.cs" Link="Source\Providers\EA\EAModels.cs" />
+    <Compile Include="..\..\source\Providers\EA\EAProviderSupport.cs" Link="Source\Providers\EA\EAProviderSupport.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetApiClient.cs" Link="Source\Providers\BattleNet\BattleNetApiClient.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSupport.cs" Link="Source\Providers\BattleNet\BattleNetSupport.cs" />
     <Compile Include="..\..\source\Providers\BattleNet\BattleNetSettings.cs" Link="Source\Providers\BattleNet\BattleNetSettings.cs" />
@@ -126,6 +129,7 @@
     <Compile Include="..\..\source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" Link="Source\Providers\RetroAchievements\Hashing\Hashers\SegaCdSaturnCustomHasher.cs" />
     <Compile Include="..\..\source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" Link="Source\Providers\RetroAchievements\PlatformMapping\ConsoleMapping.cs" />
     <Compile Include="..\..\source\Providers\Exophase\ExophaseSettings.cs" Link="Source\Providers\Exophase\ExophaseSettings.cs" />
+    <Compile Include="..\..\source\Providers\Xbox\XboxTitleIdResolver.cs" Link="Source\Providers\Xbox\XboxTitleIdResolver.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaSettings.cs" Link="Source\Providers\Xenia\XeniaSettings.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaTitleIdHelper.cs" Link="Source\Providers\Xenia\XeniaTitleIdHelper.cs" />
     <Compile Include="..\..\source\Providers\Xenia\XeniaScanner.cs" Link="Source\Providers\Xenia\XeniaScanner.cs" />
@@ -184,6 +188,14 @@
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStats.cs" Link="Source\Models\Achievements\AchievementRarityStats.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementRarityStatsCombiner.cs" Link="Source\Models\Achievements\AchievementRarityStatsCombiner.cs" />
     <Compile Include="..\..\source\Models\Achievements\AchievementCompletionPercentCalculator.cs" Link="Source\Models\Achievements\AchievementCompletionPercentCalculator.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementLevelCurveSettings.cs" Link="Source\Models\Achievements\Scoring\AchievementLevelCurveSettings.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementLevelCalculator.cs" Link="Source\Models\Achievements\Scoring\AchievementLevelCalculator.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementLevelSnapshot.cs" Link="Source\Models\Achievements\Scoring\AchievementLevelSnapshot.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementRank.cs" Link="Source\Models\Achievements\Scoring\AchievementRank.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementRankDebugRow.cs" Link="Source\Models\Achievements\Scoring\AchievementRankDebugRow.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementRankThreshold.cs" Link="Source\Models\Achievements\Scoring\AchievementRankThreshold.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementScoreCalculator.cs" Link="Source\Models\Achievements\Scoring\AchievementScoreCalculator.cs" />
+    <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementScoreSnapshot.cs" Link="Source\Models\Achievements\Scoring\AchievementScoreSnapshot.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\GameAchievementSummary.cs" Link="Source\Models\ThemeIntegration\GameAchievementSummary.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeViewState.cs" Link="Source\Models\ThemeIntegration\DynamicThemeViewState.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\LegacyThemeBindings.cs" Link="Source\Models\ThemeIntegration\LegacyThemeBindings.cs" />

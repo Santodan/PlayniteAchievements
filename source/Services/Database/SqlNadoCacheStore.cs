@@ -1036,6 +1036,12 @@ namespace PlayniteAchievements.Services.Database
                     var userId = UpsertCurrentUser(db, effectiveUser, nowIso);
                     var gameId = UpsertGame(db, effectiveProviderKey, payload, nowIso, updatedIso);
                     var existingProgress = LoadUserGameProgress(db, userId, gameId, cacheKey);
+                    if (existingProgress == null)
+                    {
+                        // Reuse stale Exophase proxy progress when a native provider reclaims the same game.
+                        existingProgress = LoadReclaimableExophaseProgress(db, cacheKey, effectiveProviderKey);
+                    }
+                    var previousGameId = existingProgress?.GameId;
 
                     // Use payload.HasAchievements directly - callers are responsible for setting it correctly
                     // Default is true; only false when a scan explicitly finds no achievements
@@ -1052,6 +1058,15 @@ namespace PlayniteAchievements.Services.Database
                         totalCount,
                         updatedIso,
                         nowIso);
+
+                    if (previousGameId.HasValue && previousGameId.Value != gameId)
+                    {
+                        db.ExecuteNonQuery(
+                            @"DELETE FROM Games
+                              WHERE Id = ?
+                                AND NOT EXISTS (SELECT 1 FROM UserGameProgress WHERE GameId = Games.Id);",
+                            previousGameId.Value);
+                    }
 
                     var definitionIds = UpsertAchievementDefinitions(
                         db,
@@ -1662,6 +1677,39 @@ namespace PlayniteAchievements.Services.Database
                   LIMIT 1;",
                 userId,
                 gameId).FirstOrDefault();
+        }
+
+        private UserGameProgressRow LoadReclaimableExophaseProgress(
+            SQLiteDatabase db,
+            string cacheKey,
+            string incomingProviderKey)
+        {
+            if (string.IsNullOrWhiteSpace(cacheKey) ||
+                !SqlNadoCacheBehavior.CanReclaimExophaseProxy(incomingProviderKey))
+            {
+                return null;
+            }
+
+            return db.Load<UserGameProgressRow>(
+                @"SELECT ugp.Id, ugp.UserId, ugp.GameId, ugp.CacheKey, ugp.HasAchievements,
+                         ugp.AchievementsUnlocked, ugp.TotalAchievements,
+                         ugp.LastUpdatedUtc, ugp.CreatedUtc, ugp.UpdatedUtc
+                  FROM UserGameProgress ugp
+                  INNER JOIN Users u ON ugp.UserId = u.Id
+                  INNER JOIN Games g ON ugp.GameId = g.Id
+                  WHERE ugp.CacheKey = ?
+                    AND u.IsCurrentUser = 1
+                    AND g.ProviderKey = 'Exophase'
+                    AND (
+                        g.ProviderPlatformKey IS NULL
+                        OR TRIM(g.ProviderPlatformKey) = ''
+                        OR g.ProviderPlatformKey = 'Unknown'
+                        OR g.ProviderPlatformKey = ?
+                    )
+                  ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                  LIMIT 1;",
+                cacheKey,
+                incomingProviderKey.Trim()).FirstOrDefault();
         }
 
         private long UpsertUserGameProgress(

@@ -201,6 +201,22 @@ namespace PlayniteAchievements.SqlNado.Tests
         }
 
         [DataTestMethod]
+        [DataRow("Steam", true)]
+        [DataRow("GOG", true)]
+        [DataRow("Exophase", false)]
+        [DataRow("Manual", false)]
+        [DataRow("Unmapped", false)]
+        [DataRow("", false)]
+        [DataRow(null, false)]
+        public void CanReclaimExophaseProxy_AllowsNativeProvidersOnly(
+            string incomingProviderKey,
+            bool expected)
+        {
+            var actual = SqlNadoCacheBehavior.CanReclaimExophaseProxy(incomingProviderKey);
+            Assert.AreEqual(expected, actual);
+        }
+
+        [DataTestMethod]
         [DataRow(false, 1, 10, false, false)]
         [DataRow(true, 1, 10, false, true)]
         [DataRow(false, 10, 10, false, true)]

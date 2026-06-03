@@ -246,9 +246,18 @@ namespace PlayniteAchievements.Services
                 return AchievementGridSortAction.ResetToDefault();
             }
 
+            var nextDirection = cycleDirections[currentDirectionIndex + 1];
+            var configuredSort = GetConfiguredDefaultSort(settings, surface);
+            if (!configuredSort.PreservesSourceOrder &&
+                string.Equals(configuredSort.SortMemberPath, clickedSortMemberPath, StringComparison.Ordinal) &&
+                configuredSort.Direction == nextDirection)
+            {
+                return AchievementGridSortAction.ResetToDefault();
+            }
+
             return AchievementGridSortAction.ApplySort(
                 clickedSortMemberPath,
-                cycleDirections[currentDirectionIndex + 1]);
+                nextDirection);
         }
 
         public static List<AchievementDetail> ResolveSelectedGameAchievements(

@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Providers;
 using System;
@@ -29,6 +30,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             var summariesById = new Dictionary<Guid, GameAchievementSummary>();
             var allGames = new List<GameAchievementSummary>();
+            var scoreableData = new List<GameAchievementData>();
 
             foreach (var data in allData)
             {
@@ -44,6 +46,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 {
                     continue;
                 }
+
+                scoreableData.Add(data);
 
                 var unlocked = 0;
                 var latestUnlockUtc = DateTime.MinValue;
@@ -158,20 +162,49 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
             PopulateProviderLists(state, allData, summariesById);
 
-            if (state.TotalTrophies > 0)
-            {
-                state.Score = state.PlatinumTrophies * 300 +
-                              state.GoldTrophies * 90 +
-                              state.SilverTrophies * 30 +
-                              state.BronzeTrophies * 15;
-                ComputeLevel(state.Score, out var level, out var levelProgress);
-                state.Level = level;
-                state.LevelProgress = levelProgress;
-                state.Rank = RankFromLevel(level);
-            }
+            var scoreSnapshot = AchievementScoreCalculator.CalculateLibraryScores(
+                scoreableData,
+                state.PlatinumTrophies,
+                state.GoldTrophies,
+                state.SilverTrophies,
+                state.BronzeTrophies);
+            ApplyScores(state, scoreSnapshot);
 
             PopulateAchievementLists(state, allData, token, includeHeavyAchievementLists);
             return state;
+        }
+
+        private static void ApplyScores(LibraryRuntimeState state, AchievementScoreSnapshot scoreSnapshot)
+        {
+            if (state == null || scoreSnapshot == null)
+            {
+                return;
+            }
+
+            state.Score = scoreSnapshot.LegacyScore;
+            state.Level = scoreSnapshot.LegacyLevel?.Level ?? 0;
+            state.LevelProgress = scoreSnapshot.LegacyLevel?.LevelProgress ?? 0;
+            state.Rank = scoreSnapshot.LegacyLevel?.Rank ?? "Bronze1";
+
+            state.CollectorScore = scoreSnapshot.CollectorScore;
+            state.CollectorLevel = GetDisplayLevel(scoreSnapshot.CollectorLevel);
+            state.CollectorLevelProgress = scoreSnapshot.CollectorLevel?.LevelProgress ?? 0;
+            state.CollectorRank = scoreSnapshot.CollectorLevel?.Rank ?? "Bronze1";
+
+            state.PrestigeScore = scoreSnapshot.PrestigeScore;
+            state.PrestigeLevel = GetDisplayLevel(scoreSnapshot.PrestigeLevel);
+            state.PrestigeLevelProgress = scoreSnapshot.PrestigeLevel?.LevelProgress ?? 0;
+            state.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze1";
+        }
+
+        private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return 0;
+            }
+
+            return snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
         }
 
         private static void PopulateProviderLists(
@@ -515,51 +548,6 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }
 
             return timestamp.Kind == DateTimeKind.Local ? timestamp.ToUniversalTime() : timestamp;
-        }
-
-        private static void ComputeLevel(int score, out int level, out int levelProgressPercent)
-        {
-            level = 0;
-            levelProgressPercent = 0;
-
-            if (score <= 0)
-            {
-                return;
-            }
-
-            var rangeMin = 0;
-            var rangeMax = 100;
-            var step = 100;
-
-            while (score > rangeMax)
-            {
-                level++;
-                rangeMin = rangeMax + 1;
-                step += 100;
-                rangeMax = rangeMin + step - 1;
-            }
-
-            var rangeSpan = rangeMax - rangeMin + 1;
-            var progress = (int)(((double)(score - rangeMin) / rangeSpan) * 100);
-            levelProgressPercent = Math.Max(0, Math.Min(100, progress));
-        }
-
-        private static string RankFromLevel(int level)
-        {
-            if (level <= 0) return "Bronze1";
-            if (level <= 3) return "Bronze1";
-            if (level <= 7) return "Bronze2";
-            if (level <= 12) return "Bronze3";
-            if (level <= 21) return "Silver1";
-            if (level <= 31) return "Silver2";
-            if (level <= 44) return "Silver3";
-            if (level <= 59) return "Gold1";
-            if (level <= 77) return "Gold2";
-            if (level <= 97) return "Gold3";
-            if (level <= 119) return "Plat1";
-            if (level <= 144) return "Plat2";
-            if (level <= 171) return "Plat3";
-            return "Plat";
         }
 
         private static string ResolveEffectiveProviderKey(string providerKey, string providerPlatformKey)

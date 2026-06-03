@@ -133,11 +133,11 @@
                 </TextBlock.Style>
             </TextBlock>
 
-            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseExophaseForRarity}"
+            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata}"
                       IsChecked="{Binding Settings.UseExophaseForRarity, Mode=TwoWay}"
                       IsEnabled="{Binding Settings.IsEnabled}"
                       Margin="0,0,0,4"/>
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseExophaseForRarity_Help}"
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseExophaseForMetadata_Help}"
                        Margin="24,0,0,16"
                        TextWrapping="Wrap">
                 <TextBlock.Style>
