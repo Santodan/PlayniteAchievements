@@ -79,3 +79,10 @@ DatabasePlan.md
 wiki/
 PlayniteAchievementsWiki/
 PlayniteAchievements.code-workspace
+tools/NotificationTemplates/SAN Videos
+extract_san_video_frames.py
+generate_san_notification_templates.py
+tools/NotificationTemplates/Backup
+tools/SteamAchievementNotifier-reference
+tools/NotificationTemplates/SAN Export templates
+tools/SAN-source
