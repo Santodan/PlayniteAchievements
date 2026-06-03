@@ -62,6 +62,19 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         #endregion
 
+        public static readonly DependencyProperty CompactFirstItemOffsetProperty =
+            DependencyProperty.Register(
+                nameof(CompactFirstItemOffset),
+                typeof(double),
+                typeof(CompactAchievementControlBase),
+                new FrameworkPropertyMetadata(0.0));
+
+        public double CompactFirstItemOffset
+        {
+            get => (double)GetValue(CompactFirstItemOffsetProperty);
+            protected set => SetValue(CompactFirstItemOffsetProperty, value);
+        }
+
         /// <summary>
         /// Gets the source collection to display. Derived classes implement this to provide
         /// either the filtered locked achievements or the unlocked achievements.
@@ -178,6 +191,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             OnPropertyChanged(GetHasAchievementPropertyName());
             OnPropertyChanged(GetTotalCountPropertyName());
             OnPropertyChanged(nameof(RemainingCount));
+            OnVisibleAchievementsChanged();
 
             // Defer layout update to ensure the element has been rendered
             Dispatcher?.BeginInvoke(new Action(() => UpdateCompactLayout()), System.Windows.Threading.DispatcherPriority.Loaded);
@@ -193,6 +207,24 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             return GetTotalCount();
         }
 
+        /// <summary>
+        /// Gets the number of leading achievements reserved for a derived control's
+        /// featured preview area instead of the compact icon row.
+        /// </summary>
+        protected virtual int CompactRowStartIndex => 0;
+
+        /// <summary>
+        /// Gets any left padding around the compact grid before the first icon slot.
+        /// </summary>
+        protected virtual double CompactRowLeftPadding => 0;
+
+        /// <summary>
+        /// Called after the source achievement list changes.
+        /// </summary>
+        protected virtual void OnVisibleAchievementsChanged()
+        {
+        }
+
         private void UpdateCompactLayout()
         {
             if (CompactViewGrid == null || double.IsNaN(CompactViewGrid.ActualWidth))
@@ -204,11 +236,20 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 CompactViewGrid.Children.Clear();
                 CompactViewGrid.ColumnDefinitions.Clear();
+                CompactFirstItemOffset = 0;
                 return;
             }
 
             CompactViewGrid.Children.Clear();
             CompactViewGrid.ColumnDefinitions.Clear();
+
+            int rowStartIndex = Math.Max(0, Math.Min(CompactRowStartIndex, _visibleAchievements.Count));
+            int rowItemCount = Math.Max(0, _visibleAchievements.Count - rowStartIndex);
+            int rowTotalCount = Math.Max(0, GetRemainingTotalCount() - rowStartIndex);
+            if (rowItemCount == 0)
+            {
+                return;
+            }
 
             double actualWidth = CompactViewGrid.ActualWidth;
             if (actualWidth <= 0)
@@ -217,6 +258,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             }
             double iconSize = IconHeight + 10;
             int nbGrid = Math.Max(1, (int)(actualWidth / iconSize));
+            double columnWidth = actualWidth / nbGrid;
+            CompactFirstItemOffset = CompactRowLeftPadding + Math.Max(0, (columnWidth - IconHeight) / 2);
 
             for (int i = 0; i < nbGrid; i++)
             {
@@ -226,18 +269,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 };
                 CompactViewGrid.ColumnDefinitions.Add(gridCol);
 
-                if (i < _visibleAchievements.Count)
+                if (i < rowItemCount)
                 {
                     if (i < nbGrid - 1)
                     {
-                        var achievement = _visibleAchievements[i];
+                        var achievement = _visibleAchievements[rowStartIndex + i];
                         var achievementImage = CreateAchievementImage(achievement);
                         achievementImage.SetValue(Grid.ColumnProperty, i);
                         CompactViewGrid.Children.Add(achievementImage);
                     }
                     else
                     {
-                        int remaining = GetRemainingTotalCount() - i;
+                        int remaining = rowTotalCount - i;
                         if (remaining > 0)
                         {
                             var more = CreateMoreBadge(remaining);
@@ -247,11 +290,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                         break;
                     }
                 }
-                else if (_visibleAchievements.Count > 0)
+                else if (rowItemCount > 0)
                 {
                     if (i == nbGrid - 1)
                     {
-                        int remaining = GetRemainingTotalCount() - i;
+                        int remaining = rowTotalCount - i;
                         if (remaining > 0)
                         {
                             var more = CreateMoreBadge(remaining);
@@ -284,7 +327,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 double actualWidth = CompactViewGrid?.ActualWidth ?? 0;
                 if (actualWidth <= 0 || IconHeight <= 0) return 0;
                 int nbGrid = Math.Max(1, (int)(actualWidth / (IconHeight + 10)));
-                int total = GetRemainingTotalCount();
+                int total = Math.Max(0, GetRemainingTotalCount() - Math.Max(0, CompactRowStartIndex));
                 if (nbGrid >= total) return 0;
                 return Math.Max(0, total - (nbGrid - 1));
             }

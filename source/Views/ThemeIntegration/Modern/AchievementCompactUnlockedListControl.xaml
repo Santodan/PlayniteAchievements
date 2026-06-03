@@ -39,7 +39,7 @@
                 <controls:AchievementCompactItemControl Grid.Column="0"
                                                        DataContext="{Binding FeaturedItem, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
                                                        IconSize="44"
-                                                       Margin="0,0,10,0"/>
+                                                       Margin="4,0,10,0"/>
 
                 <StackPanel Grid.Column="1"
                             VerticalAlignment="Center"
