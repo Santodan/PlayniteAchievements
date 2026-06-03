@@ -464,6 +464,13 @@
                                   VerticalContentAlignment="Center"
                                   IsEnabled="{Binding HasThemesToMigrate}"/>
 
+                        <CheckBox Content="Scrollable achievements"
+                                  IsChecked="{Binding UseScrollableAchievementsForThemeMigration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  IsEnabled="{Binding HasThemesToMigrate}"
+                                  HorizontalAlignment="Center"
+                                  Margin="0,0,0,12"
+                                  ToolTip="Use the main fork's scrollable compact achievement lists. Leave unchecked for the highlighted +X layout."/>
+
                         <!-- Migration Buttons -->
                         <StackPanel x:Name="ThemeMigrationPresetButtons"
                                     Orientation="Horizontal"

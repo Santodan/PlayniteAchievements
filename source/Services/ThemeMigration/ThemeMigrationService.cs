@@ -797,7 +797,14 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             if (mode == MigrationMode.Full)
             {
-                return ControlMappings.LegacyToModernControlNames;
+                var mappings = ControlMappings.LegacyToModernControlNames.AsEnumerable();
+                if (customSelection?.ModernizeCompactAchievementLists == false)
+                {
+                    mappings = mappings.Where(mapping =>
+                        !ControlMappings.CompactAchievementListControlNames.Contains(mapping.Key));
+                }
+
+                return mappings;
             }
 
             if (mode != MigrationMode.Custom || customSelection == null)

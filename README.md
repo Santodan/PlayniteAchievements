@@ -96,6 +96,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Added the option for a scrollable area in the `Theme Migration` maintaining the original fork option
 ## 2026-05-31 - v2.3.0.1
 
 - v2.3.0 merge

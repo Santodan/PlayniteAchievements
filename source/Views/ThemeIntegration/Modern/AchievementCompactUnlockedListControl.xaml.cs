@@ -24,7 +24,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         public AchievementCompactUnlockedListControl()
         {
-            VisibleCount = 6;
             InitializeComponent();
         }
 

@@ -332,6 +332,19 @@ namespace PlayniteAchievements.Views
             set => SetValue(HasThemesToMigrateProperty, value);
         }
 
+        public static readonly DependencyProperty UseScrollableAchievementsForThemeMigrationProperty =
+            DependencyProperty.Register(
+                nameof(UseScrollableAchievementsForThemeMigration),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false, OnUseScrollableAchievementsForThemeMigrationChanged));
+
+        public bool UseScrollableAchievementsForThemeMigration
+        {
+            get => (bool)GetValue(UseScrollableAchievementsForThemeMigrationProperty);
+            set => SetValue(UseScrollableAchievementsForThemeMigrationProperty, value);
+        }
+
         public static readonly DependencyProperty HasRevertableThemesProperty =
             DependencyProperty.Register(
                 nameof(HasRevertableThemes),
@@ -2844,7 +2857,7 @@ namespace PlayniteAchievements.Views
 
         private async void MigrateThemeFull_Click(object sender, RoutedEventArgs e)
         {
-            await ExecuteThemeMigrationAsync(MigrationMode.Full);
+            await ExecuteThemeMigrationAsync(MigrationMode.Full, BuildFullMigrationSelection());
         }
 
         private async void MigrateThemeCustom_Click(object sender, RoutedEventArgs e)
@@ -3156,15 +3169,18 @@ namespace PlayniteAchievements.Views
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
                 "LOCPlayAch_Settings_CompactListPreview",
-                "Compact List"));
+                "Compact List",
+                isModern: UseScrollableAchievementsForThemeMigration));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
                 "LOCPlayAch_Settings_CompactLockedListPreview",
-                "Compact Locked List"));
+                "Compact Locked List",
+                isModern: UseScrollableAchievementsForThemeMigration));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
                 "LOCPlayAch_Settings_CompactUnlockedListPreview",
-                "Compact Unlocked List"));
+                "Compact Unlocked List",
+                isModern: UseScrollableAchievementsForThemeMigration));
             ThemeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
                 "LOCPlayAch_Settings_AchievementDataGridPreview",
@@ -3186,13 +3202,24 @@ namespace PlayniteAchievements.Views
         private ThemeMigrationElementOption CreateThemeMigrationControlOption(
             string key,
             string resourceKey,
-            string fallback)
+            string fallback,
+            bool isModern = true)
         {
             return new ThemeMigrationElementOption(
                 key,
                 L(resourceKey, fallback),
                 isBindingOption: false,
-                isModern: true);
+                isModern: isModern);
+        }
+
+        private static void OnUseScrollableAchievementsForThemeMigrationChanged(
+            DependencyObject d,
+            DependencyPropertyChangedEventArgs e)
+        {
+            if (d is SettingsControl control)
+            {
+                control.SetCompactAchievementMigrationOptions((bool)e.NewValue);
+            }
         }
 
         private static void OnSelectedThemePathChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -3237,7 +3264,20 @@ namespace PlayniteAchievements.Views
                 .Select(option => option.Key)
                 .ToList();
 
-            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true);
+            return new CustomMigrationSelection(modernControlNames, modernizeBindings: true)
+            {
+                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
+            };
+        }
+
+        private CustomMigrationSelection BuildFullMigrationSelection()
+        {
+            return new CustomMigrationSelection(
+                ControlMappings.LegacyToModernControlNames.Keys,
+                modernizeBindings: true)
+            {
+                ModernizeCompactAchievementLists = UseScrollableAchievementsForThemeMigration
+            };
         }
 
         private void ThemeMigrationRowSetLegacy_Click(object sender, RoutedEventArgs e)
@@ -3261,6 +3301,17 @@ namespace PlayniteAchievements.Views
             foreach (var option in ThemeMigrationCustomOptions)
             {
                 option.IsModern = isModern;
+            }
+        }
+
+        private void SetCompactAchievementMigrationOptions(bool isModern)
+        {
+            foreach (var option in ThemeMigrationCustomOptions)
+            {
+                if (ControlMappings.CompactAchievementListControlNames.Contains(option.Key))
+                {
+                    option.IsModern = isModern;
+                }
             }
         }
 

@@ -3231,6 +3231,12 @@
                                               IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"/>
                                 </Grid>
 
+                                <CheckBox Content="Scrollable achievements"
+                                          IsChecked="{Binding UseScrollableAchievementsForThemeMigration, ElementName=SettingsControlRoot, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding HasThemesToMigrate, ElementName=SettingsControlRoot}"
+                                          Margin="0,8,0,0"
+                                          ToolTip="Use the main fork's scrollable compact achievement lists. Leave unchecked for the highlighted +X layout."/>
+
                                 <!-- Migration Buttons -->
                                 <StackPanel Orientation="Horizontal"
                                             HorizontalAlignment="Right"

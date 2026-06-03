@@ -112,21 +112,34 @@
                 </ItemsControl.Style>
                 <ItemsControl.Template>
                     <ControlTemplate TargetType="ItemsControl">
-                        <ItemsPresenter/>
+                        <ScrollViewer CanContentScroll="True"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      Padding="0"
+                                      ClipToBounds="False"
+                                      UseLayoutRounding="True"
+                                      SnapsToDevicePixels="True">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
                     </ControlTemplate>
                 </ItemsControl.Template>
 
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"
-                                    IsItemsHost="True"
-                                    ClipToBounds="False"/>
+                        <VirtualizingStackPanel Orientation="Horizontal"
+                                                IsItemsHost="True"
+                                                VirtualizationMode="Recycling"
+                                                ClipToBounds="False"
+                                                UseLayoutRounding="True"
+                                                SnapsToDevicePixels="True"/>
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter">
                         <Setter Property="ClipToBounds" Value="False"/>
+                        <Setter Property="UseLayoutRounding" Value="True"/>
+                        <Setter Property="SnapsToDevicePixels" Value="True"/>
                     </Style>
                 </ItemsControl.ItemContainerStyle>
 
