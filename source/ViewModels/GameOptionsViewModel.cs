@@ -1578,8 +1578,12 @@ namespace PlayniteAchievements.ViewModels
                 var allowManualOverride = ManualAchievementsProvider.IsTrackingOverrideEnabled();
                 var isExcluded = _plugin?.IsGameExcluded(_gameId) ?? false;
                 var hasNonManualProviderData = ShouldWarnAboutManualTrackingOverride(out _);
-                ShowManualTrackingTab = allowManualOverride ||
-                    (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData));
+                var hasExplicitProviderOverride = !string.IsNullOrWhiteSpace(preferredProviderOverride);
+                var hasManualProviderOverride = IsManualProviderKey(preferredProviderOverride);
+                ShowManualTrackingTab = hasManualProviderOverride ||
+                    (!hasExplicitProviderOverride &&
+                        (allowManualOverride ||
+                         (!isExcluded && (!_cachedHasAchievements || !hasNonManualProviderData))));
                 ProviderName = ResolveProviderDisplayName(gameData);
                 LibrarySourceName = ResolveLibrarySourceDisplayName(game, gameData?.LibrarySourceName);
 
@@ -3313,8 +3317,6 @@ namespace PlayniteAchievements.ViewModels
 
         private void PrepareManualProviderOverride(Playnite.SDK.Models.Game game)
         {
-            EnsureManualTrackingOverrideEnabled();
-
             _achievementOverridesService?.ClearGameData(_gameId, game?.Name);
             _gameDataSnapshotProvider?.Invalidate();
             _refreshService?.Cache?.NotifyCacheInvalidated();
@@ -3330,18 +3332,6 @@ namespace PlayniteAchievements.ViewModels
                 (providerKey ?? string.Empty).Trim(),
                 "Manual",
                 StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void EnsureManualTrackingOverrideEnabled()
-        {
-            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
-            if (manualSettings.ManualTrackingOverrideEnabled)
-            {
-                return;
-            }
-
-            manualSettings.ManualTrackingOverrideEnabled = true;
-            ProviderRegistry.Write(manualSettings, persistToDisk: true);
         }
 
         private bool TryClearPreferredProviderOverride()
