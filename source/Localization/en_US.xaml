@@ -52,6 +52,7 @@
     <sys:String x:Key="LOCPlayAch_Common_None">None</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_NoOverrideSet">No override set</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Status_NotLinked">Not linked</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Status_OverrideSetValue">Override set: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Unlocked">Unlocked</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_UnlockedCount">Unlocked Count</sys:String>
     <sys:String x:Key="LOCPlayAch_Completed">Completed</sys:String>
