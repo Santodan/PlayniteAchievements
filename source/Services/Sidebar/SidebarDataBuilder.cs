@@ -205,7 +205,7 @@ namespace PlayniteAchievements.Services.Sidebar
             snapshot.TotalUncommonPossible = totalUncommonPossible;
             snapshot.TotalRarePossible = totalRarePossible;
             snapshot.TotalUltraRarePossible = totalUltraRarePossible;
-            ApplyScoreSnapshotFromCounts(snapshot);
+            ApplyScoreSnapshotFromVisibleData(snapshot);
 
             return snapshot;
         }
@@ -344,7 +344,7 @@ namespace PlayniteAchievements.Services.Sidebar
             snapshot.GlobalProgressionPercent = snapshot.TotalAchievements > 0
                 ? (double)snapshot.TotalUnlocked / snapshot.TotalAchievements * 100
                 : 0;
-            ApplyScoreSnapshotFromCounts(snapshot);
+            ApplyScoreSnapshotFromVisibleData(snapshot);
 
             snapshot.Achievements = BuildAllAchievementItems(settings, revealedKeys, providerLookup, cancel);
 
@@ -427,11 +427,25 @@ namespace PlayniteAchievements.Services.Sidebar
                 AchievementSortScope.RecentAchievements);
         }
 
-        private static void ApplyScoreSnapshotFromCounts(SidebarDataSnapshot snapshot)
+        private void ApplyScoreSnapshotFromVisibleData(SidebarDataSnapshot snapshot)
         {
             if (snapshot == null)
             {
                 return;
+            }
+
+            try
+            {
+                var allData = _achievementDataService.GetAllVisibleGameAchievementDataForSidebar();
+                if (allData != null && allData.Count > 0)
+                {
+                    ApplyScoreSnapshot(snapshot, AchievementScoreCalculator.CalculateModernScores(allData));
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to calculate sidebar score snapshot from visible achievement data.");
             }
 
             ApplyScoreSnapshot(snapshot, AchievementScoreCalculator.CalculateModernScoresFromCounts(

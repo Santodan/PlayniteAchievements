@@ -11,6 +11,7 @@ namespace PlayniteAchievements.Services
         public List<GameAchievementData> AllGameData { get; set; } = new List<GameAchievementData>();
         public Dictionary<Guid, GameAchievementData> VisibleGameDataById { get; } = new Dictionary<Guid, GameAchievementData>();
         public List<GameAchievementData> VisibleAllGameData { get; set; }
+        internal CachedSummaryData CachedSummaryDataForSidebar { get; set; }
 
         public virtual GameAchievementData GetGameAchievementData(Guid playniteGameId)
         {
@@ -39,6 +40,11 @@ namespace PlayniteAchievements.Services
             return VisibleAllGameData ?? GetAllGameAchievementDataForTheme();
         }
 
+        internal CachedSummaryData GetCachedSummaryDataForSidebar(int recentAchievementDetailLimit = 0)
+        {
+            return CachedSummaryDataForSidebar;
+        }
+
         public virtual List<string> GetCachedGameIds()
         {
             var result = new List<string>();
@@ -49,5 +55,21 @@ namespace PlayniteAchievements.Services
 
             return result;
         }
+    }
+
+    internal sealed class CachedSummaryData
+    {
+        public List<CachedGameSummaryData> Games { get; set; } = new List<CachedGameSummaryData>();
+    }
+
+    internal sealed class CachedGameSummaryData
+    {
+        public int TotalAchievements { get; set; }
+        public int UnlockedAchievements { get; set; }
+        public int CommonCount { get; set; }
+        public int UncommonCount { get; set; }
+        public int RareCount { get; set; }
+        public int UltraRareCount { get; set; }
+        public bool HasAchievements { get; set; }
     }
 }

@@ -246,6 +246,8 @@ namespace PlayniteAchievements.ViewModels
             ClearGameSelectionCommand = new RelayCommand(_ => ClearGameSelection());
             NavigateToGameCommand = new RelayCommand(param => NavigateToGame(param as GameOverviewItem));
 
+            SeedScoreCardsFromThemeBindings();
+
             // Subscribe to progress events
             _refreshService.RebuildProgress += OnRebuildProgress;
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
@@ -259,6 +261,25 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+        }
+
+        private void SeedScoreCardsFromThemeBindings()
+        {
+            var theme = _settings?.ModernTheme;
+            if (theme == null || (theme.CollectorScore <= 0 && theme.PrestigeScore <= 0))
+            {
+                return;
+            }
+
+            CollectorScore = theme.CollectorScore;
+            CollectorLevel = theme.CollectorLevel;
+            CollectorLevelProgress = theme.CollectorLevelProgress;
+            CollectorRank = theme.CollectorRank;
+            PrestigeScore = theme.PrestigeScore;
+            PrestigeLevel = theme.PrestigeLevel;
+            PrestigeLevelProgress = theme.PrestigeLevelProgress;
+            PrestigeRank = theme.PrestigeRank;
+            MarkSnapshotApplied();
         }
 
         private void CloseFullscreenWindow()
@@ -2131,16 +2152,30 @@ namespace PlayniteAchievements.ViewModels
             snapshot.TotalUncommonPossible = snapshot.GamesOverview.Sum(g => g?.TotalUncommonPossible ?? 0);
             snapshot.TotalRarePossible = snapshot.GamesOverview.Sum(g => g?.TotalRarePossible ?? 0);
             snapshot.TotalUltraRarePossible = snapshot.GamesOverview.Sum(g => g?.TotalUltraRarePossible ?? 0);
-            ApplyScoreSnapshotFromCounts(snapshot);
+            ApplyScoreSnapshotFromVisibleData(snapshot);
 
             return snapshot;
         }
 
-        private static void ApplyScoreSnapshotFromCounts(SidebarDataSnapshot snapshot)
+        private void ApplyScoreSnapshotFromVisibleData(SidebarDataSnapshot snapshot)
         {
             if (snapshot == null)
             {
                 return;
+            }
+
+            try
+            {
+                var allData = _achievementDataService.GetAllVisibleGameAchievementDataForSidebar();
+                if (allData != null && allData.Count > 0)
+                {
+                    ApplyScoreSnapshot(snapshot, AchievementScoreCalculator.CalculateModernScores(allData));
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to calculate sidebar score snapshot from visible achievement data.");
             }
 
             var scoreSnapshot = AchievementScoreCalculator.CalculateModernScoresFromCounts(
@@ -2148,6 +2183,16 @@ namespace PlayniteAchievements.ViewModels
                 snapshot.TotalUncommon,
                 snapshot.TotalRare,
                 snapshot.TotalUltraRare);
+
+            ApplyScoreSnapshot(snapshot, scoreSnapshot);
+        }
+
+        private static void ApplyScoreSnapshot(SidebarDataSnapshot snapshot, AchievementScoreSnapshot scoreSnapshot)
+        {
+            if (snapshot == null || scoreSnapshot == null)
+            {
+                return;
+            }
 
             snapshot.CollectorScore = scoreSnapshot.CollectorScore;
             snapshot.CollectorLevel = GetDisplayLevel(scoreSnapshot.CollectorLevel);
@@ -2261,7 +2306,7 @@ namespace PlayniteAchievements.ViewModels
 
             if (snapshot.TotalUnlocked > 0)
             {
-                ApplyScoreSnapshotFromCounts(snapshot);
+                ApplyScoreSnapshotFromVisibleData(snapshot);
                 return;
             }
 

@@ -73,6 +73,14 @@ namespace PlayniteAchievements.Models.Settings
             target.IncludeUnplayedGames = source.IncludeUnplayedGames;
             target.ShowSidebarCollectionScoreCard = source.ShowSidebarCollectionScoreCard;
             target.ShowSidebarPrestigeScoreCard = source.ShowSidebarPrestigeScoreCard;
+            target.LastAllGamesCollectorScore = source.LastAllGamesCollectorScore;
+            target.LastAllGamesCollectorLevel = source.LastAllGamesCollectorLevel;
+            target.LastAllGamesCollectorLevelProgress = source.LastAllGamesCollectorLevelProgress;
+            target.LastAllGamesCollectorRank = source.LastAllGamesCollectorRank;
+            target.LastAllGamesPrestigeScore = source.LastAllGamesPrestigeScore;
+            target.LastAllGamesPrestigeLevel = source.LastAllGamesPrestigeLevel;
+            target.LastAllGamesPrestigeLevelProgress = source.LastAllGamesPrestigeLevelProgress;
+            target.LastAllGamesPrestigeRank = source.LastAllGamesPrestigeRank;
             target.ShowSidebarPieCharts = source.ShowSidebarPieCharts;
             target.ShowSidebarGamesPieChart = source.ShowSidebarGamesPieChart;
             target.ShowSidebarProviderPieChart = source.ShowSidebarProviderPieChart;

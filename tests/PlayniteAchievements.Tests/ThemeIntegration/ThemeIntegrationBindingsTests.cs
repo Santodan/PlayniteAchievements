@@ -610,6 +610,313 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void OpenAchievementWindow_DuringRebuildPreservesExistingScoresForEmptyProjection()
+        {
+            using var context = CreateServiceContext();
+            context.RefreshRuntime.IsRebuilding = true;
+
+            context.Settings.ModernTheme.CollectorScore = 1234;
+            context.Settings.ModernTheme.CollectorLevel = 7;
+            context.Settings.ModernTheme.CollectorLevelProgress = 42.5;
+            context.Settings.ModernTheme.CollectorRank = "Silver1";
+            context.Settings.ModernTheme.PrestigeScore = 5678;
+            context.Settings.ModernTheme.PrestigeLevel = 11;
+            context.Settings.ModernTheme.PrestigeLevelProgress = 66.25;
+            context.Settings.ModernTheme.PrestigeRank = "Gold2";
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>();
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            Assert.AreEqual(1234, context.Settings.CollectorScore);
+            Assert.AreEqual(7, context.Settings.CollectorLevel);
+            Assert.AreEqual(42.5, context.Settings.CollectorLevelProgress);
+            Assert.AreEqual("Silver1", context.Settings.CollectorRank);
+            Assert.AreEqual(5678, context.Settings.PrestigeScore);
+            Assert.AreEqual(11, context.Settings.PrestigeLevel);
+            Assert.AreEqual(66.25, context.Settings.PrestigeLevelProgress);
+            Assert.AreEqual("Gold2", context.Settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void OpenAchievementWindow_DuringRebuildAppliesPopulatedProjectionEvenWhenScoresDecrease()
+        {
+            using var context = CreateServiceContext();
+            context.RefreshRuntime.IsRebuilding = true;
+
+            context.Settings.ModernTheme.CollectorScore = 1234;
+            context.Settings.ModernTheme.CollectorLevel = 7;
+            context.Settings.ModernTheme.CollectorLevelProgress = 42.5;
+            context.Settings.ModernTheme.CollectorRank = "Silver1";
+            context.Settings.ModernTheme.PrestigeScore = 5678;
+            context.Settings.ModernTheme.PrestigeLevel = 11;
+            context.Settings.ModernTheme.PrestigeLevelProgress = 66.25;
+            context.Settings.ModernTheme.PrestigeRank = "Gold2";
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = Guid.NewGuid(),
+                    Game = new Game { Id = Guid.NewGuid(), Name = "Partial Rebuild Game" },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("Partial Common", 75.0, unlocked: true)
+                    }
+                }
+            };
+
+            var expectedScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            Assert.AreEqual(expectedScores.CollectorScore, context.Settings.CollectorScore);
+            Assert.AreEqual(expectedScores.CollectorLevel.DisplayLevel, context.Settings.CollectorLevel);
+            Assert.AreEqual(expectedScores.CollectorLevel.LevelProgress, context.Settings.CollectorLevelProgress);
+            Assert.AreEqual(expectedScores.CollectorLevel.Rank, context.Settings.CollectorRank);
+            Assert.AreEqual(expectedScores.PrestigeScore, context.Settings.PrestigeScore);
+            Assert.AreEqual(expectedScores.PrestigeLevel.DisplayLevel, context.Settings.PrestigeLevel);
+            Assert.AreEqual(expectedScores.PrestigeLevel.LevelProgress, context.Settings.PrestigeLevelProgress);
+            Assert.AreEqual(expectedScores.PrestigeLevel.Rank, context.Settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void RefreshCompleted_RebuildsAllGamesScoresWithoutRestart()
+        {
+            using var context = CreateServiceContext();
+            context.Settings.ModernTheme.CollectorScore = 15;
+            context.Settings.ModernTheme.PrestigeScore = 15;
+
+            var gameId = Guid.NewGuid();
+            var game = new Game { Id = gameId, Name = "Refresh Completed Game" };
+            var refreshedData = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = game,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Common", 75.0, unlocked: true),
+                    Achievement("Uncommon", 25.0, unlocked: true),
+                    Achievement("Rare", 8.0, unlocked: true),
+                    Achievement("Ultra", 2.0, unlocked: true)
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { refreshedData };
+            var expectedScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+
+            context.RefreshCoordinator.ExecuteAsync(new RefreshRequest()).GetAwaiter().GetResult();
+
+            Assert.AreEqual(expectedScores.CollectorScore, context.Settings.CollectorScore);
+            Assert.AreEqual(expectedScores.CollectorLevel.DisplayLevel, context.Settings.CollectorLevel);
+            Assert.AreEqual(expectedScores.CollectorLevel.Rank, context.Settings.CollectorRank);
+            Assert.AreEqual(expectedScores.PrestigeScore, context.Settings.PrestigeScore);
+            Assert.AreEqual(expectedScores.PrestigeLevel.DisplayLevel, context.Settings.PrestigeLevel);
+            Assert.AreEqual(expectedScores.PrestigeLevel.Rank, context.Settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void CacheInvalidated_WhenNotRebuilding_RebuildsAllGamesScoresWithoutRestart()
+        {
+            using var context = CreateServiceContext();
+            context.Settings.ModernTheme.CollectorScore = 15;
+            context.Settings.ModernTheme.PrestigeScore = 15;
+
+            var gameId = Guid.NewGuid();
+            var game = new Game { Id = gameId, Name = "Cache Invalidated Game" };
+            var updatedData = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = game,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Common", 75.0, unlocked: true),
+                    Achievement("Exact Ultra", 0.1, unlocked: true)
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { updatedData };
+            var expectedScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+
+            context.RefreshRuntime.RaiseCacheInvalidated();
+
+            Assert.AreEqual(expectedScores.CollectorScore, context.Settings.CollectorScore);
+            Assert.AreEqual(expectedScores.CollectorLevel.DisplayLevel, context.Settings.CollectorLevel);
+            Assert.AreEqual(expectedScores.CollectorLevel.Rank, context.Settings.CollectorRank);
+            Assert.AreEqual(expectedScores.PrestigeScore, context.Settings.PrestigeScore);
+            Assert.AreEqual(expectedScores.PrestigeLevel.DisplayLevel, context.Settings.PrestigeLevel);
+            Assert.AreEqual(expectedScores.PrestigeLevel.Rank, context.Settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void Constructor_SeedsModernScoresFromPersistedSnapshotBeforeAllGamesLoad()
+        {
+            var settings = new PlayniteAchievementsSettings();
+            settings.Persisted.LastAllGamesCollectorScore = 1234;
+            settings.Persisted.LastAllGamesCollectorLevel = 7;
+            settings.Persisted.LastAllGamesCollectorLevelProgress = 42.5;
+            settings.Persisted.LastAllGamesCollectorRank = "Silver1";
+            settings.Persisted.LastAllGamesPrestigeScore = 5678;
+            settings.Persisted.LastAllGamesPrestigeLevel = 11;
+            settings.Persisted.LastAllGamesPrestigeLevelProgress = 66.25;
+            settings.Persisted.LastAllGamesPrestigeRank = "Gold2";
+            var plugin = new PlayniteAchievementsPlugin
+            {
+                Settings = settings
+            };
+            PlayniteAchievementsPlugin.Instance = plugin;
+
+            var api = new FakePlayniteApi();
+            var refreshRuntime = new RefreshRuntime();
+            var achievementDataService = new AchievementDataService();
+            var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
+            var windowService = new FullscreenWindowService(api, settings, _ => { });
+            var logger = new FakeLogger();
+
+            using var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
+
+            Assert.AreEqual(1234, settings.CollectorScore);
+            Assert.AreEqual(7, settings.CollectorLevel);
+            Assert.AreEqual(42.5, settings.CollectorLevelProgress);
+            Assert.AreEqual("Silver1", settings.CollectorRank);
+            Assert.AreEqual(5678, settings.PrestigeScore);
+            Assert.AreEqual(11, settings.PrestigeLevel);
+            Assert.AreEqual(66.25, settings.PrestigeLevelProgress);
+            Assert.AreEqual("Gold2", settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void Constructor_DoesNotOverwritePersistedSnapshotWithCachedDataSeed()
+        {
+            var settings = new PlayniteAchievementsSettings();
+            settings.Persisted.LastAllGamesCollectorScore = 1234;
+            settings.Persisted.LastAllGamesCollectorLevel = 7;
+            settings.Persisted.LastAllGamesCollectorLevelProgress = 42.5;
+            settings.Persisted.LastAllGamesCollectorRank = "Silver1";
+            settings.Persisted.LastAllGamesPrestigeScore = 5678;
+            settings.Persisted.LastAllGamesPrestigeLevel = 11;
+            settings.Persisted.LastAllGamesPrestigeLevelProgress = 66.25;
+            settings.Persisted.LastAllGamesPrestigeRank = "Gold2";
+            var plugin = new PlayniteAchievementsPlugin
+            {
+                Settings = settings
+            };
+            PlayniteAchievementsPlugin.Instance = plugin;
+
+            var api = new FakePlayniteApi();
+            var refreshRuntime = new RefreshRuntime();
+            var achievementDataService = new AchievementDataService
+            {
+                VisibleAllGameData = new List<GameAchievementData>
+                {
+                    new GameAchievementData
+                    {
+                        PlayniteGameId = Guid.NewGuid(),
+                        Game = new Game { Id = Guid.NewGuid(), Name = "Different Cached Seed Game" },
+                        HasAchievements = true,
+                        Achievements = new List<AchievementDetail>
+                        {
+                            Achievement("Different Ultra", 0.1, unlocked: true)
+                        }
+                    }
+                }
+            };
+            var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
+            var windowService = new FullscreenWindowService(api, settings, _ => { });
+            var logger = new FakeLogger();
+
+            using var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
+
+            Assert.AreEqual(1234, settings.CollectorScore);
+            Assert.AreEqual(7, settings.CollectorLevel);
+            Assert.AreEqual(42.5, settings.CollectorLevelProgress);
+            Assert.AreEqual("Silver1", settings.CollectorRank);
+            Assert.AreEqual(5678, settings.PrestigeScore);
+            Assert.AreEqual(11, settings.PrestigeLevel);
+            Assert.AreEqual(66.25, settings.PrestigeLevelProgress);
+            Assert.AreEqual("Gold2", settings.PrestigeRank);
+        }
+
+        [TestMethod]
+        public void OpenAchievementWindow_PersistsFinalAllGamesScoreSnapshot()
+        {
+            using var context = CreateServiceContext();
+
+            var gameId = Guid.NewGuid();
+            var game = new Game { Id = gameId, Name = "Persisted Score Game" };
+            var data = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                Game = game,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Common", 75.0, unlocked: true),
+                    Achievement("Exact Ultra", 0.1, unlocked: true)
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData> { data };
+            var expectedScores = AchievementScoreCalculator.CalculateModernScores(context.AchievementDataService.VisibleAllGameData);
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            Assert.AreEqual(expectedScores.CollectorScore, context.Settings.Persisted.LastAllGamesCollectorScore);
+            Assert.AreEqual(expectedScores.CollectorLevel.DisplayLevel, context.Settings.Persisted.LastAllGamesCollectorLevel);
+            Assert.AreEqual(expectedScores.CollectorLevel.LevelProgress, context.Settings.Persisted.LastAllGamesCollectorLevelProgress);
+            Assert.AreEqual(expectedScores.CollectorLevel.Rank, context.Settings.Persisted.LastAllGamesCollectorRank);
+            Assert.AreEqual(expectedScores.PrestigeScore, context.Settings.Persisted.LastAllGamesPrestigeScore);
+            Assert.AreEqual(expectedScores.PrestigeLevel.DisplayLevel, context.Settings.Persisted.LastAllGamesPrestigeLevel);
+            Assert.AreEqual(expectedScores.PrestigeLevel.LevelProgress, context.Settings.Persisted.LastAllGamesPrestigeLevelProgress);
+            Assert.AreEqual(expectedScores.PrestigeLevel.Rank, context.Settings.Persisted.LastAllGamesPrestigeRank);
+            Assert.AreSame(context.Settings, PlayniteAchievementsPlugin.Instance.Settings);
+        }
+
+        [TestMethod]
+        public void Constructor_SeedsModernScoresFromCachedDataBeforeAllGamesLoad()
+        {
+            var settings = new PlayniteAchievementsSettings();
+            var plugin = new PlayniteAchievementsPlugin
+            {
+                Settings = settings
+            };
+            PlayniteAchievementsPlugin.Instance = plugin;
+
+            var api = new FakePlayniteApi();
+            var refreshRuntime = new RefreshRuntime();
+            var achievementDataService = new AchievementDataService
+            {
+                VisibleAllGameData = new List<GameAchievementData>
+                {
+                    new GameAchievementData
+                    {
+                        PlayniteGameId = Guid.NewGuid(),
+                        Game = new Game { Id = Guid.NewGuid(), Name = "Seed Score Game" },
+                        HasAchievements = true,
+                        Achievements = new List<AchievementDetail>
+                        {
+                            Achievement("Exact Common", 75.0, unlocked: true),
+                            Achievement("Exact Uncommon", 25.0, unlocked: true),
+                            Achievement("Exact Rare", 8.0, unlocked: true),
+                            Achievement("Exact Ultra", 0.1, unlocked: true)
+                        }
+                    }
+                }
+            };
+            var expectedScores = AchievementScoreCalculator.CalculateModernScores(achievementDataService.VisibleAllGameData);
+            var refreshCoordinator = new RefreshEntryPoint(refreshRuntime, logger: null);
+            var windowService = new FullscreenWindowService(api, settings, _ => { });
+            var logger = new FakeLogger();
+
+            using var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
+
+            Assert.AreEqual(expectedScores.CollectorScore, settings.CollectorScore);
+            Assert.AreEqual(expectedScores.CollectorLevel.DisplayLevel, settings.CollectorLevel);
+            Assert.AreEqual(expectedScores.CollectorLevel.Rank, settings.CollectorRank);
+            Assert.AreEqual(expectedScores.PrestigeScore, settings.PrestigeScore);
+            Assert.AreEqual(expectedScores.PrestigeLevel.DisplayLevel, settings.PrestigeLevel);
+            Assert.AreEqual(expectedScores.PrestigeLevel.Rank, settings.PrestigeRank);
+        }
+
+        [TestMethod]
         public void NotifyCustomDataChanged_RefreshesLoadedThemeBindings()
         {
             using var context = CreateServiceContext();
@@ -1095,7 +1402,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             var logger = new FakeLogger();
             var service = new ThemeIntegrationService(api, refreshRuntime, achievementDataService, refreshCoordinator, settings, windowService, logger);
 
-            return new ServiceTestContext(settings, achievementDataService, logger, service);
+            return new ServiceTestContext(settings, refreshRuntime, refreshCoordinator, achievementDataService, logger, service);
         }
 
         private static void DrainDispatcher(Dispatcher dispatcher)
@@ -1229,17 +1536,25 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         {
             public ServiceTestContext(
                 PlayniteAchievementsSettings settings,
+                RefreshRuntime refreshRuntime,
+                RefreshEntryPoint refreshCoordinator,
                 AchievementDataService achievementDataService,
                 FakeLogger logger,
                 ThemeIntegrationService service)
             {
                 Settings = settings;
+                RefreshRuntime = refreshRuntime;
+                RefreshCoordinator = refreshCoordinator;
                 AchievementDataService = achievementDataService;
                 Logger = logger;
                 Service = service;
             }
 
             public PlayniteAchievementsSettings Settings { get; }
+
+            public RefreshRuntime RefreshRuntime { get; }
+
+            public RefreshEntryPoint RefreshCoordinator { get; }
 
             public AchievementDataService AchievementDataService { get; }
 

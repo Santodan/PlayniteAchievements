@@ -90,5 +90,43 @@ namespace PlayniteAchievements.Models.Tests
             Assert.IsFalse(target.ShowSidebarCollectionScoreCard);
             Assert.IsFalse(target.ShowSidebarPrestigeScoreCard);
         }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveLastAllGamesScoreSnapshot()
+        {
+            var source = new PersistedSettings
+            {
+                LastAllGamesCollectorScore = 1234,
+                LastAllGamesCollectorLevel = 7,
+                LastAllGamesCollectorLevelProgress = 42.5,
+                LastAllGamesCollectorRank = "Silver1",
+                LastAllGamesPrestigeScore = 5678,
+                LastAllGamesPrestigeLevel = 11,
+                LastAllGamesPrestigeLevelProgress = 66.25,
+                LastAllGamesPrestigeRank = "Gold2"
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(1234, clone.LastAllGamesCollectorScore);
+            Assert.AreEqual(7, clone.LastAllGamesCollectorLevel);
+            Assert.AreEqual(42.5, clone.LastAllGamesCollectorLevelProgress);
+            Assert.AreEqual("Silver1", clone.LastAllGamesCollectorRank);
+            Assert.AreEqual(5678, clone.LastAllGamesPrestigeScore);
+            Assert.AreEqual(11, clone.LastAllGamesPrestigeLevel);
+            Assert.AreEqual(66.25, clone.LastAllGamesPrestigeLevelProgress);
+            Assert.AreEqual("Gold2", clone.LastAllGamesPrestigeRank);
+
+            Assert.AreEqual(1234, target.LastAllGamesCollectorScore);
+            Assert.AreEqual(7, target.LastAllGamesCollectorLevel);
+            Assert.AreEqual(42.5, target.LastAllGamesCollectorLevelProgress);
+            Assert.AreEqual("Silver1", target.LastAllGamesCollectorRank);
+            Assert.AreEqual(5678, target.LastAllGamesPrestigeScore);
+            Assert.AreEqual(11, target.LastAllGamesPrestigeLevel);
+            Assert.AreEqual(66.25, target.LastAllGamesPrestigeLevelProgress);
+            Assert.AreEqual("Gold2", target.LastAllGamesPrestigeRank);
+        }
     }
 }

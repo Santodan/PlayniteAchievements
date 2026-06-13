@@ -17,6 +17,7 @@ namespace PlayniteAchievements.Services
         public List<Guid> LastRefreshedGameIds { get; } = new List<Guid>();
         public List<GameAchievementData> AllGameData { get; set; } = new List<GameAchievementData>();
         public Dictionary<Guid, GameAchievementData> GameDataById { get; } = new Dictionary<Guid, GameAchievementData>();
+        public bool IsRebuilding { get; set; }
 
         public virtual bool ValidateCanStartRefresh()
         {

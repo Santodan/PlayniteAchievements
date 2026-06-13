@@ -191,16 +191,22 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 ApplyDynamicGameSummaryBindings,
                 ThemeDelegatedPropertyCatalog.DynamicAllGames);
 
+            if (!SeedScoreCardsFromPersistedSnapshot())
+            {
+                SeedAllGamesScoresFromCachedData();
+            }
             ApplyDynamicSelectedGameBindings();
             ApplyDynamicLibraryAchievementBindings();
             ApplyDynamicGameSummaryBindings();
 
             _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
+            _refreshCoordinator.RefreshCompleted += RefreshCoordinator_RefreshCompleted;
         }
 
         public void Dispose()
         {
             try { _refreshService.CacheInvalidated -= RefreshService_CacheInvalidated; } catch { }
+            try { _refreshCoordinator.RefreshCompleted -= RefreshCoordinator_RefreshCompleted; } catch { }
 
             lock (_refreshLock)
             {
@@ -215,6 +221,86 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 try { _activeUpdateCts?.Dispose(); } catch { }
                 _activeUpdateCts = null;
             }
+        }
+
+        private void SeedAllGamesScoresFromCachedData()
+        {
+            try
+            {
+                var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme();
+                if (allData == null || allData.Count == 0)
+                {
+                    return;
+                }
+
+                var scoreSnapshot = Models.Achievements.Scoring.AchievementScoreCalculator.CalculateModernScores(allData);
+
+                if (scoreSnapshot == null || (scoreSnapshot.CollectorScore <= 0 && scoreSnapshot.PrestigeScore <= 0))
+                {
+                    return;
+                }
+
+                ApplyModernScoresToSettings(scoreSnapshot);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to seed all-games scores from cached data.");
+            }
+        }
+
+        private bool SeedScoreCardsFromPersistedSnapshot()
+        {
+            try
+            {
+                var persisted = _settings?.Persisted;
+                if (persisted == null ||
+                    (persisted.LastAllGamesCollectorScore <= 0 && persisted.LastAllGamesPrestigeScore <= 0))
+                {
+                    return false;
+                }
+
+                _settings.ModernTheme.CollectorScore = persisted.LastAllGamesCollectorScore;
+                _settings.ModernTheme.CollectorLevel = persisted.LastAllGamesCollectorLevel;
+                _settings.ModernTheme.CollectorLevelProgress = persisted.LastAllGamesCollectorLevelProgress;
+                _settings.ModernTheme.CollectorRank = persisted.LastAllGamesCollectorRank;
+                _settings.ModernTheme.PrestigeScore = persisted.LastAllGamesPrestigeScore;
+                _settings.ModernTheme.PrestigeLevel = persisted.LastAllGamesPrestigeLevel;
+                _settings.ModernTheme.PrestigeLevelProgress = persisted.LastAllGamesPrestigeLevelProgress;
+                _settings.ModernTheme.PrestigeRank = persisted.LastAllGamesPrestigeRank;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to seed all-games scores from persisted snapshot.");
+                return false;
+            }
+        }
+
+        private void ApplyModernScoresToSettings(Models.Achievements.Scoring.AchievementScoreSnapshot scoreSnapshot)
+        {
+            if (scoreSnapshot == null)
+            {
+                return;
+            }
+
+            _settings.ModernTheme.CollectorScore = scoreSnapshot.CollectorScore;
+            _settings.ModernTheme.CollectorLevel = GetDisplayLevel(scoreSnapshot.CollectorLevel);
+            _settings.ModernTheme.CollectorLevelProgress = scoreSnapshot.CollectorLevel?.LevelProgress ?? 0;
+            _settings.ModernTheme.CollectorRank = scoreSnapshot.CollectorLevel?.Rank ?? "Bronze1";
+            _settings.ModernTheme.PrestigeScore = scoreSnapshot.PrestigeScore;
+            _settings.ModernTheme.PrestigeLevel = GetDisplayLevel(scoreSnapshot.PrestigeLevel);
+            _settings.ModernTheme.PrestigeLevelProgress = scoreSnapshot.PrestigeLevel?.LevelProgress ?? 0;
+            _settings.ModernTheme.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze1";
+        }
+
+        private static int GetDisplayLevel(Models.Achievements.Scoring.AchievementLevelSnapshot snapshot)
+        {
+            if (snapshot == null)
+            {
+                return 0;
+            }
+
+            return snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level;
         }
 
         public void NotifySelectionChanged(Guid? selectedGameId)
@@ -332,6 +418,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void RefreshService_CacheInvalidated(object sender, EventArgs e)
         {
+            if (_refreshService?.IsRebuilding != true)
+            {
+                try
+                {
+                    EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to refresh all-games theme state after cache invalidation.");
+                }
+            }
+
             if (IsFullscreen() && _fullscreenInitialized)
             {
                 RequestRefresh();
@@ -910,6 +1008,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         {
             _runtimeState.Library = state ?? new LibraryRuntimeState();
             var library = _runtimeState.Library;
+            PreserveExistingScoresDuringTransientRebuild(library);
 
             _settings.ModernTheme.CompletedGamesAsc = ProjectGameSummaries(library.CompletedGamesAsc);
             _settings.ModernTheme.CompletedGamesDesc = ProjectGameSummaries(library.CompletedGamesDesc);
@@ -929,6 +1028,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.PrestigeLevel = library.PrestigeLevel;
             _settings.ModernTheme.PrestigeLevelProgress = library.PrestigeLevelProgress;
             _settings.ModernTheme.PrestigeRank = library.PrestigeRank;
+            PersistScoreSnapshot(library);
             _settings.ModernTheme.SteamGames = ProjectGameSummaries(library.SteamGames);
             _settings.ModernTheme.GOGGames = ProjectGameSummaries(library.GOGGames);
             _settings.ModernTheme.EpicGames = ProjectGameSummaries(library.EpicGames);
@@ -997,6 +1097,94 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesHeavy);
             }
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.DynamicAllGames);
+        }
+
+        private void PersistScoreSnapshot(LibraryRuntimeState library)
+        {
+            try
+            {
+                if (library == null || !library.HasData)
+                {
+                    return;
+                }
+
+                var persisted = _settings?.Persisted;
+                if (persisted == null)
+                {
+                    return;
+                }
+
+                if (persisted.LastAllGamesCollectorScore == library.CollectorScore &&
+                    persisted.LastAllGamesCollectorLevel == library.CollectorLevel &&
+                    Math.Abs(persisted.LastAllGamesCollectorLevelProgress - library.CollectorLevelProgress) < 0.0001 &&
+                    string.Equals(persisted.LastAllGamesCollectorRank, library.CollectorRank, StringComparison.Ordinal) &&
+                    persisted.LastAllGamesPrestigeScore == library.PrestigeScore &&
+                    persisted.LastAllGamesPrestigeLevel == library.PrestigeLevel &&
+                    Math.Abs(persisted.LastAllGamesPrestigeLevelProgress - library.PrestigeLevelProgress) < 0.0001 &&
+                    string.Equals(persisted.LastAllGamesPrestigeRank, library.PrestigeRank, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                persisted.LastAllGamesCollectorScore = library.CollectorScore;
+                persisted.LastAllGamesCollectorLevel = library.CollectorLevel;
+                persisted.LastAllGamesCollectorLevelProgress = library.CollectorLevelProgress;
+                persisted.LastAllGamesCollectorRank = library.CollectorRank;
+                persisted.LastAllGamesPrestigeScore = library.PrestigeScore;
+                persisted.LastAllGamesPrestigeLevel = library.PrestigeLevel;
+                persisted.LastAllGamesPrestigeLevelProgress = library.PrestigeLevelProgress;
+                persisted.LastAllGamesPrestigeRank = library.PrestigeRank;
+
+                try { PlayniteAchievementsPlugin.Instance?.SaveSettingsSafely(_settings); } catch { }
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to persist all-games score snapshot.");
+            }
+        }
+
+        private void PreserveExistingScoresDuringTransientRebuild(LibraryRuntimeState library)
+        {
+            if (library == null || library.HasData || _refreshService?.IsRebuilding != true)
+            {
+                return;
+            }
+
+            var theme = _settings?.ModernTheme;
+            if (theme == null || (theme.CollectorScore <= 0 && theme.PrestigeScore <= 0))
+            {
+                return;
+            }
+
+            library.CollectorScore = theme.CollectorScore;
+            library.CollectorLevel = theme.CollectorLevel;
+            library.CollectorLevelProgress = theme.CollectorLevelProgress;
+            library.CollectorRank = theme.CollectorRank;
+            library.PrestigeScore = theme.PrestigeScore;
+            library.PrestigeLevel = theme.PrestigeLevel;
+            library.PrestigeLevelProgress = theme.PrestigeLevelProgress;
+            library.PrestigeRank = theme.PrestigeRank;
+        }
+
+        private void RefreshCoordinator_RefreshCompleted(List<Guid> gameIds)
+        {
+            try
+            {
+                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                {
+                    dispatcher.BeginInvoke(
+                        new Action(() => PopulateAllGamesDataSync(_lastLibraryRefreshIncludedHeavyAchievementLists)),
+                        DispatcherPriority.Background);
+                    return;
+                }
+
+                PopulateAllGamesDataSync(_lastLibraryRefreshIncludedHeavyAchievementLists);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to refresh all-games theme state after achievement refresh completed.");
+            }
         }
 
         #endregion

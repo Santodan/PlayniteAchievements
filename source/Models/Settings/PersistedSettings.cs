@@ -58,6 +58,14 @@ namespace PlayniteAchievements.Models.Settings
         private string _sidebarDefaultPlayStatusFilter = "played";
         private bool _showSidebarCollectionScoreCard = true;
         private bool _showSidebarPrestigeScoreCard = true;
+        private int _lastAllGamesCollectorScore;
+        private int _lastAllGamesCollectorLevel;
+        private double _lastAllGamesCollectorLevelProgress;
+        private string _lastAllGamesCollectorRank = "Bronze1";
+        private int _lastAllGamesPrestigeScore;
+        private int _lastAllGamesPrestigeLevel;
+        private double _lastAllGamesPrestigeLevelProgress;
+        private string _lastAllGamesPrestigeRank = "Bronze1";
         private bool _showSidebarPieCharts = true;
         private bool _showSidebarGamesPieChart = true;
         private bool _showSidebarProviderPieChart = true;
@@ -486,6 +494,54 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _showSidebarPrestigeScoreCard;
             set => SetValue(ref _showSidebarPrestigeScoreCard, value);
+        }
+
+        public int LastAllGamesCollectorScore
+        {
+            get => _lastAllGamesCollectorScore;
+            set => SetValue(ref _lastAllGamesCollectorScore, value < 0 ? 0 : value);
+        }
+
+        public int LastAllGamesCollectorLevel
+        {
+            get => _lastAllGamesCollectorLevel;
+            set => SetValue(ref _lastAllGamesCollectorLevel, value < 0 ? 0 : value);
+        }
+
+        public double LastAllGamesCollectorLevelProgress
+        {
+            get => _lastAllGamesCollectorLevelProgress;
+            set => SetValue(ref _lastAllGamesCollectorLevelProgress, value);
+        }
+
+        public string LastAllGamesCollectorRank
+        {
+            get => string.IsNullOrWhiteSpace(_lastAllGamesCollectorRank) ? "Bronze1" : _lastAllGamesCollectorRank;
+            set => SetValue(ref _lastAllGamesCollectorRank, string.IsNullOrWhiteSpace(value) ? "Bronze1" : value);
+        }
+
+        public int LastAllGamesPrestigeScore
+        {
+            get => _lastAllGamesPrestigeScore;
+            set => SetValue(ref _lastAllGamesPrestigeScore, value < 0 ? 0 : value);
+        }
+
+        public int LastAllGamesPrestigeLevel
+        {
+            get => _lastAllGamesPrestigeLevel;
+            set => SetValue(ref _lastAllGamesPrestigeLevel, value < 0 ? 0 : value);
+        }
+
+        public double LastAllGamesPrestigeLevelProgress
+        {
+            get => _lastAllGamesPrestigeLevelProgress;
+            set => SetValue(ref _lastAllGamesPrestigeLevelProgress, value);
+        }
+
+        public string LastAllGamesPrestigeRank
+        {
+            get => string.IsNullOrWhiteSpace(_lastAllGamesPrestigeRank) ? "Bronze1" : _lastAllGamesPrestigeRank;
+            set => SetValue(ref _lastAllGamesPrestigeRank, string.IsNullOrWhiteSpace(value) ? "Bronze1" : value);
         }
 
         /// <summary>
@@ -1614,6 +1670,14 @@ namespace PlayniteAchievements.Models.Settings
                 SidebarDefaultPlayStatusFilter = this.SidebarDefaultPlayStatusFilter,
                 ShowSidebarCollectionScoreCard = this.ShowSidebarCollectionScoreCard,
                 ShowSidebarPrestigeScoreCard = this.ShowSidebarPrestigeScoreCard,
+                LastAllGamesCollectorScore = this.LastAllGamesCollectorScore,
+                LastAllGamesCollectorLevel = this.LastAllGamesCollectorLevel,
+                LastAllGamesCollectorLevelProgress = this.LastAllGamesCollectorLevelProgress,
+                LastAllGamesCollectorRank = this.LastAllGamesCollectorRank,
+                LastAllGamesPrestigeScore = this.LastAllGamesPrestigeScore,
+                LastAllGamesPrestigeLevel = this.LastAllGamesPrestigeLevel,
+                LastAllGamesPrestigeLevelProgress = this.LastAllGamesPrestigeLevelProgress,
+                LastAllGamesPrestigeRank = this.LastAllGamesPrestigeRank,
                 ShowSidebarPieCharts = this.ShowSidebarPieCharts,
                 ShowSidebarGamesPieChart = this.ShowSidebarGamesPieChart,
                 ShowSidebarProviderPieChart = this.ShowSidebarProviderPieChart,
