@@ -3301,8 +3301,47 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
+            if (IsManualProviderKey(normalizedProviderKey))
+            {
+                PrepareManualProviderOverride(game);
+                return true;
+            }
+
             TriggerRefreshForProvider(normalizedProviderKey);
             return true;
+        }
+
+        private void PrepareManualProviderOverride(Playnite.SDK.Models.Game game)
+        {
+            EnsureManualTrackingOverrideEnabled();
+
+            _achievementOverridesService?.ClearGameData(_gameId, game?.Name);
+            _gameDataSnapshotProvider?.Invalidate();
+            _refreshService?.Cache?.NotifyCacheInvalidated();
+
+            ShowManualTrackingTab = true;
+            _manualTrackingWarningAcceptedForProvider = _cachedProviderKey;
+            SelectedTab = GameOptionsTab.ManualTracking;
+        }
+
+        private static bool IsManualProviderKey(string providerKey)
+        {
+            return string.Equals(
+                (providerKey ?? string.Empty).Trim(),
+                "Manual",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void EnsureManualTrackingOverrideEnabled()
+        {
+            var manualSettings = ProviderRegistry.Settings<ManualSettings>();
+            if (manualSettings.ManualTrackingOverrideEnabled)
+            {
+                return;
+            }
+
+            manualSettings.ManualTrackingOverrideEnabled = true;
+            ProviderRegistry.Write(manualSettings, persistToDisk: true);
         }
 
         private bool TryClearPreferredProviderOverride()
