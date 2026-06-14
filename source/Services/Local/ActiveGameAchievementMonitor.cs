@@ -19,6 +19,7 @@ namespace PlayniteAchievements.Services.Local
         private readonly NotificationPublisher _notifications;
         private readonly LocalAchievementScreenshotService _screenshotService;
         private readonly Func<Guid, bool> _isRealtimeNotificationDisabled;
+        private readonly Func<Guid, bool> _isExcludedFromRefreshes;
         private readonly ILogger _logger;
 
         private readonly object _sync = new object();
@@ -35,6 +36,7 @@ namespace PlayniteAchievements.Services.Local
             NotificationPublisher notifications,
             LocalAchievementScreenshotService screenshotService,
             Func<Guid, bool> isRealtimeNotificationDisabled,
+            Func<Guid, bool> isExcludedFromRefreshes,
             ILogger logger)
         {
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
@@ -42,6 +44,7 @@ namespace PlayniteAchievements.Services.Local
             _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
             _screenshotService = screenshotService ?? throw new ArgumentNullException(nameof(screenshotService));
             _isRealtimeNotificationDisabled = isRealtimeNotificationDisabled;
+            _isExcludedFromRefreshes = isExcludedFromRefreshes;
             _logger = logger;
         }
 
@@ -300,9 +303,20 @@ namespace PlayniteAchievements.Services.Local
             }
 
             var localSettings = ProviderRegistry.Settings<LocalSettings>();
-            return localSettings?.IsEnabled == true &&
-                   localSettings.EnableActiveGameMonitoring &&
-                   _providerRegistry.IsProviderEnabled("Local");
+            if (localSettings?.IsEnabled != true ||
+                !localSettings.EnableActiveGameMonitoring ||
+                !_providerRegistry.IsProviderEnabled("Local"))
+            {
+                return false;
+            }
+
+            if (_isExcludedFromRefreshes?.Invoke(game.Id) == true)
+            {
+                _logger?.Info($"Skipping active Local achievement monitor for '{game.Name}' because the game is excluded from refreshes.");
+                return false;
+            }
+
+            return true;
         }
 
         private TimeSpan GetPollInterval()

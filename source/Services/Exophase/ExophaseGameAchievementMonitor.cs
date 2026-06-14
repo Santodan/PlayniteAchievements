@@ -27,6 +27,7 @@ namespace PlayniteAchievements.Services.Exophase
         private readonly ProviderRegistry _providerRegistry;
         private readonly NotificationPublisher _notifications;
         private readonly Func<Guid, bool> _isRealtimeNotificationDisabled;
+        private readonly Func<Guid, bool> _isExcludedFromRefreshes;
         private readonly ILogger _logger;
 
         private readonly object _sync = new object();
@@ -41,12 +42,14 @@ namespace PlayniteAchievements.Services.Exophase
             ProviderRegistry providerRegistry,
             NotificationPublisher notifications,
             Func<Guid, bool> isRealtimeNotificationDisabled,
+            Func<Guid, bool> isExcludedFromRefreshes,
             ILogger logger)
         {
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
             _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
             _isRealtimeNotificationDisabled = isRealtimeNotificationDisabled;
+            _isExcludedFromRefreshes = isExcludedFromRefreshes;
             _logger = logger;
         }
 
@@ -204,6 +207,12 @@ namespace PlayniteAchievements.Services.Exophase
 
             if (!_providerRegistry.IsProviderEnabled("Exophase"))
                 return false;
+
+            if (_isExcludedFromRefreshes?.Invoke(game.Id) == true)
+            {
+                _logger?.Info($"[ExophaseMonitor] Skipping monitor for '{game.Name}' because the game is excluded from refreshes.");
+                return false;
+            }
 
             // Only monitor games that actually use Exophase as their data provider
             var exophaseProvider = _providerRegistry.GetProvider("Exophase");

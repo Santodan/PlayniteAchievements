@@ -368,12 +368,14 @@ namespace PlayniteAchievements
                         _notifications,
                         localAchievementScreenshotService,
                         IsRealtimeNotificationDisabledForGame,
+                        IsGameExcluded,
                         _logger);
                     _exophaseGameAchievementMonitor = new Services.Exophase.ExophaseGameAchievementMonitor(
                         _cacheManager,
                         _providerRegistry,
                         _notifications,
                         IsRealtimeNotificationDisabledForGame,
+                        IsGameExcluded,
                         _logger);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
