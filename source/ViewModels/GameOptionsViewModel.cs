@@ -1290,7 +1290,13 @@ namespace PlayniteAchievements.ViewModels
         public bool LocalRefreshOnGameCloseOverrideValue
         {
             get => _localRefreshOnGameCloseOverrideValue;
-            private set => SetValue(ref _localRefreshOnGameCloseOverrideValue, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _localRefreshOnGameCloseOverrideValue, value))
+                {
+                    OnPropertyChanged(nameof(LocalRefreshOnGameCloseStatusText));
+                }
+            }
         }
 
         public bool LocalRefreshOnGameCloseOverrideInput
