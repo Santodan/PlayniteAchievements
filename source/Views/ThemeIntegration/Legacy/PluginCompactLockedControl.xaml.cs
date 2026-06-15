@@ -7,6 +7,7 @@ using System.Windows.Input;
 using Playnite.SDK;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 using PlayniteAchievements.Views.ThemeIntegration.Legacy.Controls;
 
@@ -44,7 +45,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 }
             }
 
-            return result;
+            var configuredSort = AchievementSortHelper.GetConfiguredDefaultSort(
+                EffectiveSettings?.Persisted,
+                AchievementSortSurface.CompactLockedList);
+            if (configuredSort.PreservesSourceOrder)
+            {
+                return result;
+            }
+
+            return AchievementSortHelper.CreateSortedDetailList(
+                result,
+                configuredSort.SortMemberPath,
+                configuredSort.Direction);
         }
 
         protected override int GetTotalCount()
@@ -69,6 +81,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 nameof(LegacyThemeBindings.ListAchievements),
                 nameof(LegacyThemeBindings.Locked)
             };
+        }
+
+        protected override bool ShouldHandleSettingsDataChange(string propertyName)
+        {
+            return AchievementSortHelper.IsConfiguredDefaultSortPropertyName(
+                propertyName,
+                AchievementSortSurface.CompactLockedList);
         }
 
         protected override AchievementImage CreateAchievementImage(AchievementDetail achievement)

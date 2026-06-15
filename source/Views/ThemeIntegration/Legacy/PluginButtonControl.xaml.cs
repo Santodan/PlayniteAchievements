@@ -38,11 +38,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void PART_PluginButton_Click(object sender, RoutedEventArgs e)
         {
-            // Open the per-game achievements view for the currently selected game
+            // Open View Achievements for the currently selected game.
             var game = Plugin?.Settings?.SelectedGame;
             if (game != null)
             {
-                Plugin?.OpenSingleGameAchievementsView(game.Id);
+                Plugin?.OpenViewAchievementsWindow(game.Id);
             }
         }
     }

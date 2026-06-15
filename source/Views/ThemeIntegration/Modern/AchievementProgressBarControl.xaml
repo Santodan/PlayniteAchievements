@@ -71,7 +71,7 @@
                        Panel.ZIndex="1"/>
         </Grid>
 
-        <!-- Footer mirrors the sidebar progress entry layout -->
+        <!-- Footer mirrors the overview progress entry layout -->
         <Grid Style="{StaticResource ProgressFooterStyle}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>

@@ -57,30 +57,30 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void BuildSidebarMetadataText_JoinsAllSegments()
+        public void BuildOverviewMetadataText_JoinsAllSegments()
         {
             Assert.AreEqual(
                 "PlayStation 3 • 125h28m • Japan",
-                PlayniteGameMetadataFormatter.BuildSidebarMetadataText("PlayStation 3", "125h28m", "Japan"));
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText("PlayStation 3", "125h28m", "Japan"));
         }
 
         [TestMethod]
-        public void BuildSidebarMetadataText_ReturnsPlaytimeOnlyWhenOtherSegmentsMissing()
+        public void BuildOverviewMetadataText_ReturnsPlaytimeOnlyWhenOtherSegmentsMissing()
         {
             Assert.AreEqual(
                 "0m",
-                PlayniteGameMetadataFormatter.BuildSidebarMetadataText(string.Empty, "0m", string.Empty));
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(string.Empty, "0m", string.Empty));
         }
 
         [TestMethod]
-        public void BuildSidebarMetadataText_OmitsMissingPlatformOrRegion()
+        public void BuildOverviewMetadataText_OmitsMissingPlatformOrRegion()
         {
             Assert.AreEqual(
                 "PlayStation 3 • 4h",
-                PlayniteGameMetadataFormatter.BuildSidebarMetadataText("PlayStation 3", "4h", string.Empty));
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText("PlayStation 3", "4h", string.Empty));
             Assert.AreEqual(
                 "4h • Japan",
-                PlayniteGameMetadataFormatter.BuildSidebarMetadataText(string.Empty, "4h", "Japan"));
+                PlayniteGameMetadataFormatter.BuildOverviewMetadataText(string.Empty, "4h", "Japan"));
         }
     }
 }

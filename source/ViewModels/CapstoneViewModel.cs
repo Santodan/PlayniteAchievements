@@ -15,7 +15,7 @@ namespace PlayniteAchievements.ViewModels
     {
         private readonly Guid _gameId;
         private readonly AchievementOverridesService _achievementOverridesService;
-        private readonly GameOptionsDataSnapshotProvider _gameDataSnapshotProvider;
+        private readonly ManageAchievementsDataSnapshotProvider _gameDataSnapshotProvider;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
@@ -27,7 +27,7 @@ namespace PlayniteAchievements.ViewModels
         public CapstoneViewModel(
             Guid gameId,
             AchievementOverridesService achievementOverridesService,
-            GameOptionsDataSnapshotProvider gameDataSnapshotProvider,
+            ManageAchievementsDataSnapshotProvider gameDataSnapshotProvider,
             IPlayniteAPI playniteApi,
             ILogger logger,
             PlayniteAchievementsSettings settings)
@@ -373,8 +373,6 @@ namespace PlayniteAchievements.ViewModels
             get => _isCurrentMarker;
             set => SetValue(ref _isCurrentMarker, value);
         }
-
-        public bool IsCapstone { get; set; }
     }
 }
 

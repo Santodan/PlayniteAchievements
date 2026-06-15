@@ -34,9 +34,18 @@ namespace PlayniteAchievements.Services
 
         public Dictionary<string, string> AchievementCategoryTypeOverrides { get; set; } =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> FilteredAchievementApiNames { get; set; } =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> SummaryFilteredAchievementApiNames { get; set; } =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, string> AchievementNotes { get; set; } =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    internal sealed class ResolvedSidebarGameCustomData
+    internal sealed class ResolvedOverviewGameCustomData
     {
         public bool ExcludedFromSummaries { get; set; }
 
@@ -45,13 +54,13 @@ namespace PlayniteAchievements.Services
 
     internal static class GameCustomDataLookup
     {
-        public static ResolvedSidebarGameCustomData ResolveSidebarGameCustomData(
+        public static ResolvedOverviewGameCustomData ResolveOverviewGameCustomData(
             Guid gameId,
             PersistedSettings fallbackSettings = null,
             GameCustomDataStore store = null)
         {
             var resolved = ResolveGameCustomData(gameId, fallbackSettings, store);
-            return new ResolvedSidebarGameCustomData
+            return new ResolvedOverviewGameCustomData
             {
                 ExcludedFromSummaries = resolved.ExcludedFromSummaries,
                 UseSeparateLockedIcons = resolved.UseSeparateLockedIcons
@@ -110,7 +119,16 @@ namespace PlayniteAchievements.Services
                                         : fallbackSettings?.AchievementCategoryTypeOverrides != null &&
                                             fallbackSettings.AchievementCategoryTypeOverrides.TryGetValue(gameId, out var configuredCategoryTypeOverrides)
                                                 ? CloneStringMap(configuredCategoryTypeOverrides)
-                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                                                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                FilteredAchievementApiNames = hasCustomData
+                    ? CloneApiNameSet(customData?.FilteredAchievementApiNames)
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                SummaryFilteredAchievementApiNames = hasCustomData
+                    ? CloneApiNameSet(customData?.SummaryFilteredAchievementApiNames)
+                    : new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                AchievementNotes = hasCustomData
+                    ? CloneNoteMap(customData?.AchievementNotes)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             };
 
             return resolved;
@@ -282,6 +300,48 @@ namespace PlayniteAchievements.Services
             GameCustomDataStore store = null)
         {
             return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementCategoryTypeOverrides;
+        }
+
+        public static HashSet<string> GetFilteredAchievementApiNames(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).FilteredAchievementApiNames;
+        }
+
+        public static HashSet<string> GetSummaryFilteredAchievementApiNames(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).SummaryFilteredAchievementApiNames;
+        }
+
+        public static Dictionary<string, string> GetAchievementNotes(
+            Guid gameId,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            return ResolveGameCustomData(gameId, fallbackSettings, store).AchievementNotes;
+        }
+
+        public static string GetAchievementNote(
+            Guid gameId,
+            string apiName,
+            PersistedSettings fallbackSettings = null,
+            GameCustomDataStore store = null)
+        {
+            var normalizedApiName = NormalizeValue(apiName);
+            if (string.IsNullOrWhiteSpace(normalizedApiName))
+            {
+                return null;
+            }
+
+            var notes = GetAchievementNotes(gameId, fallbackSettings, store);
+            return notes != null && notes.TryGetValue(normalizedApiName, out var note)
+                ? note
+                : null;
         }
 
         public static Dictionary<string, string> GetAchievementUnlockedIconOverrides(
@@ -612,6 +672,49 @@ namespace PlayniteAchievements.Services
             {
                 var key = NormalizeValue(pair.Key);
                 var value = NormalizeValue(pair.Value);
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                map[key] = value;
+            }
+
+            return map;
+        }
+
+        private static HashSet<string> CloneApiNameSet(IEnumerable<string> source)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (source == null)
+            {
+                return set;
+            }
+
+            foreach (var value in source)
+            {
+                var normalized = NormalizeValue(value);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    set.Add(normalized);
+                }
+            }
+
+            return set;
+        }
+
+        private static Dictionary<string, string> CloneNoteMap(IReadOnlyDictionary<string, string> source)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (source == null)
+            {
+                return map;
+            }
+
+            foreach (var pair in source)
+            {
+                var key = NormalizeValue(pair.Key);
+                var value = AchievementNoteHelper.NormalizeNote(pair.Value);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
                 {
                     continue;

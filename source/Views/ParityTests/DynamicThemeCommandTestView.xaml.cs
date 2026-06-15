@@ -164,7 +164,7 @@ namespace PlayniteAchievements.Views.ParityTests
             }
         }
 
-        private void OpenGameView_Click(object sender, RoutedEventArgs e)
+        private void OpenViewAchievements_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -173,13 +173,41 @@ namespace PlayniteAchievements.Views.ParityTests
                     return;
                 }
 
-                _plugin.OpenSingleGameAchievementsView(_game.Id);
+                var command = _plugin.Settings.OpenViewAchievementsWindow;
+                if (command?.CanExecute(_game.Id) == true)
+                {
+                    command.Execute(_game.Id);
+                }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to open single-game achievements view from test view.");
+                _logger.Error(ex, "Failed to open View Achievements from test view.");
                 _plugin?.PlayniteApi?.Dialogs?.ShowErrorMessage(
-                    $"Failed to open game view: {ex.Message}",
+                    $"Failed to open View Achievements: {ex.Message}",
+                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
+            }
+        }
+
+        private void OpenManageAchievements_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (!HasSelectedGame)
+                {
+                    return;
+                }
+
+                var command = _plugin.Settings.OpenManageAchievementsWindow;
+                if (command?.CanExecute(_game.Id) == true)
+                {
+                    command.Execute(_game.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to open Manage Achievements from test view.");
+                _plugin?.PlayniteApi?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open Manage Achievements: {ex.Message}",
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"));
             }
         }

@@ -89,6 +89,10 @@
       <HintPath>packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="StartPage.SDK, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>packages\StartPage.SDK.1.0.0\lib\net462\StartPage.SDK.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="SQLNado, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>packages\SQLNado.dll</HintPath>
       <Private>True</Private>

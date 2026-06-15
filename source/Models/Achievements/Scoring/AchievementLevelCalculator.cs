@@ -36,21 +36,38 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             int score,
             AchievementLevelCurveSettings settings)
         {
+            var safeScore = Math.Max(0, score);
             var snapshot = new AchievementLevelSnapshot();
-            if (score <= 0)
-            {
-                return snapshot;
-            }
-
             settings = AchievementLevelCurveSettings.Normalize(settings);
-            var range = FindLevelRangeForScore(score, settings);
+            var range = FindLevelRangeForScore(safeScore, settings);
             var rank = RankFromLevelValue(range.Level, settings);
+            var maxInternalLevel = GetMaxInternalLevel(settings);
+            var isMaxLevel = range.Level >= maxInternalLevel;
 
             snapshot.Level = range.Level;
-            snapshot.DisplayLevel = range.Level + 1;
-            snapshot.LevelProgress = CalculateProgress(score, range);
+            snapshot.DisplayLevel = settings.MaxDisplayLevel == int.MaxValue
+                ? range.Level + 1
+                : Math.Min(settings.MaxDisplayLevel, range.Level);
+            snapshot.LevelProgress = isMaxLevel ? 100 : CalculateProgress(safeScore, range);
+            snapshot.CurrentLevelStartScore = range.StartScore;
+            snapshot.CurrentLevelEndScore = range.EndScore;
+            snapshot.CurrentLevelTotalPoints = range.Size;
+            snapshot.CurrentLevelPoints = CalculateCurrentLevelPoints(safeScore, range);
+            snapshot.PointsUntilNextLevel = isMaxLevel
+                ? 0
+                : Math.Max(0, range.EndScore - safeScore + 1);
+            snapshot.IsMaxLevel = isMaxLevel;
             snapshot.RankValue = rank;
             snapshot.Rank = rank.ToString();
+            if (!isMaxLevel && TryGetNextRankInfo(range.Level, settings, out var nextRank, out var nextRankStartLevel))
+            {
+                var nextRankRange = GetLevelRange(nextRankStartLevel, settings);
+                snapshot.NextRankValue = nextRank;
+                snapshot.NextRank = nextRank.ToString();
+                snapshot.NextRankScoreThreshold = nextRankRange.StartScore;
+                snapshot.PointsUntilNextRank = Math.Max(0, nextRankRange.StartScore - safeScore);
+            }
+
             return snapshot;
         }
 
@@ -64,7 +81,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             AchievementLevelCurveSettings settings = null)
         {
             settings = AchievementLevelCurveSettings.Normalize(settings);
-            var normalizedLevel = Math.Max(0, level);
+            var normalizedLevel = Math.Min(GetMaxInternalLevel(settings), Math.Max(0, level));
             foreach (var threshold in GetOrderedRankThresholds(settings))
             {
                 if (normalizedLevel <= threshold.MaxLevel)
@@ -73,7 +90,8 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 }
             }
 
-            return AchievementRank.Plat;
+            var fallback = GetOrderedRankThresholds(settings).LastOrDefault();
+            return fallback?.Rank ?? AchievementRank.Bronze5;
         }
 
         public static IReadOnlyList<AchievementRankDebugRow> BuildRankDebugTable(
@@ -121,7 +139,10 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             AchievementLevelCurveSettings settings)
         {
             var range = GetInitialLevelRange(settings);
-            while (score > range.EndScore && range.EndScore < int.MaxValue)
+            var maxInternalLevel = GetMaxInternalLevel(settings);
+            while (score > range.EndScore &&
+                range.EndScore < int.MaxValue &&
+                range.Level < maxInternalLevel)
             {
                 range = GetNextLevelRange(range, settings);
             }
@@ -134,7 +155,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             AchievementLevelCurveSettings settings)
         {
             var range = GetInitialLevelRange(settings);
-            var targetLevel = Math.Max(0, level);
+            var targetLevel = Math.Min(GetMaxInternalLevel(settings), Math.Max(0, level));
             while (range.Level < targetLevel && range.EndScore < int.MaxValue)
             {
                 range = GetNextLevelRange(range, settings);
@@ -196,6 +217,19 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
             return ClampPercent(progress);
         }
 
+        private static int CalculateCurrentLevelPoints(
+            int score,
+            AchievementLevelRange range)
+        {
+            if (score < range.StartScore)
+            {
+                return 0;
+            }
+
+            var clampedScore = Math.Min(score, range.EndScore);
+            return Math.Max(0, Math.Min(range.Size, clampedScore - range.StartScore + 1));
+        }
+
         private static int ClampPercent(double progress)
         {
             if (double.IsNaN(progress) || double.IsInfinity(progress))
@@ -221,6 +255,52 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 .OrderBy(threshold => threshold.MaxLevel)
                 .ToList()
                 .AsReadOnly();
+        }
+
+        private static bool TryGetNextRankInfo(
+            int currentLevel,
+            AchievementLevelCurveSettings settings,
+            out AchievementRank nextRank,
+            out int nextRankStartLevel)
+        {
+            var thresholds = GetOrderedRankThresholds(settings);
+            var normalizedLevel = Math.Min(GetMaxInternalLevel(settings), Math.Max(0, currentLevel));
+            for (var i = 0; i < thresholds.Count; i++)
+            {
+                var threshold = thresholds[i];
+                if (normalizedLevel > threshold.MaxLevel)
+                {
+                    continue;
+                }
+
+                if (i >= thresholds.Count - 1 || threshold.MaxLevel == int.MaxValue)
+                {
+                    break;
+                }
+
+                nextRankStartLevel = threshold.MaxLevel + 1;
+                if (nextRankStartLevel > GetMaxInternalLevel(settings))
+                {
+                    break;
+                }
+
+                nextRank = thresholds[i + 1].Rank;
+                return true;
+            }
+
+            nextRank = AchievementRank.Bronze5;
+            nextRankStartLevel = 0;
+            return false;
+        }
+
+        private static int GetMaxInternalLevel(AchievementLevelCurveSettings settings)
+        {
+            if (settings.MaxDisplayLevel == int.MaxValue)
+            {
+                return int.MaxValue;
+            }
+
+            return Math.Max(0, settings.MaxDisplayLevel);
         }
 
         private static int AddClamped(int current, int value)

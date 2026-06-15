@@ -15,6 +15,7 @@
     <converters:BooleanConverter x:Key="InverseBoolToVis" Mode="InvertedToVisibility"/>
     <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
     <converters:DefaultGameImageConverter x:Key="DefaultGameImage"/>
+    <converters:ImageFitDimensionConverter x:Key="ImageFitDimension"/>
 
     <!-- Menu highlight brush used by AchievementMultiSelectMenuItemStyle.
          Overridden in FullscreenResources.xaml for dark backgrounds. -->
@@ -33,7 +34,8 @@
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Padding" Value="10,6"/>
-        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="HorizontalContentAlignment"
+                Value="{Binding RelativeSource={RelativeSource Self}, Path=Column.(helpers:DataGridAlignmentBehavior.HeaderHorizontalAlignment)}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -43,28 +45,16 @@
                                           VerticalAlignment="Center"
                                           Margin="{TemplateBinding Padding}"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                        <StackPanel HorizontalAlignment="Right"
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    Margin="0,0,10,0">
-                            <!-- Sort level number badge (shown for secondary+ sorts when Tag is > 1) -->
-                            <TextBlock x:Name="SortLevelBadge"
-                                       Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=DataGridColumnHeader}}"
-                                       FontSize="9"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Opacity="0.75"
-                                       Margin="0,0,2,0"
-                                       Visibility="Collapsed"/>
-                            <Path x:Name="SortArrow"
-                                  Fill="{DynamicResource TextBrush}"
-                                  Width="8"
-                                  Height="6"
-                                  Data="M 0,0 L 4,6 L 8,0"
-                                  VerticalAlignment="Center"
-                                  RenderTransformOrigin="0.5,0.5"
-                                  Visibility="Collapsed"/>
-                        </StackPanel>
+                        <Path x:Name="SortArrow"
+                              HorizontalAlignment="Right"
+                              Fill="{DynamicResource TextBrush}"
+                              Width="8"
+                              Height="6"
+                              Data="M 0,0 L 4,6 L 8,0"
+                              VerticalAlignment="Center"
+                              Margin="0,0,10,0"
+                              RenderTransformOrigin="0.5,0.5"
+                              Visibility="Collapsed"/>
                         <Thumb x:Name="PART_LeftHeaderGripper"
                                Width="0"
                                Background="Transparent"
@@ -80,12 +70,14 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="#18FFFFFF"/>
                         </Trigger>
+                        <Trigger Property="HorizontalContentAlignment" Value="Right">
+                            <Setter Property="Padding" Value="10,6,26,6"/>
+                        </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter Property="Background" Value="#20FFFFFF"/>
                         </Trigger>
                         <Trigger Property="SortDirection" Value="Ascending">
                             <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="SortLevelBadge" Property="Visibility" Value="Visible"/>
                             <Setter TargetName="SortArrow" Property="RenderTransform">
                                 <Setter.Value>
                                     <ScaleTransform ScaleY="-1"/>
@@ -94,7 +86,6 @@
                         </Trigger>
                         <Trigger Property="SortDirection" Value="Descending">
                             <Setter TargetName="SortArrow" Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="SortLevelBadge" Property="Visibility" Value="Visible"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -106,6 +97,8 @@
     <Style x:Key="AchievementColumnHeaderWithMenuStyle"
            TargetType="DataGridColumnHeader"
            BasedOn="{StaticResource AchievementColumnHeaderStyle}">
+        <Setter Property="HorizontalContentAlignment"
+                Value="{Binding RelativeSource={RelativeSource Self}, Path=Column.(helpers:DataGridAlignmentBehavior.HeaderHorizontalAlignment)}"/>
         <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Tooltip_RightClickShowHide}"/>
     </Style>
 
@@ -113,7 +106,6 @@
     <Style x:Key="AchievementColumnHeaderLeftStyle"
            TargetType="DataGridColumnHeader"
            BasedOn="{StaticResource AchievementColumnHeaderStyle}">
-        <Setter Property="HorizontalContentAlignment" Value="Left"/>
     </Style>
 
     <!-- DataGrid Cell Style -->
@@ -125,14 +117,14 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="UseLayoutRounding" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
-        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="Padding" Value="10,6"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
                     <Border Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
-                        <ContentPresenter VerticalAlignment="Stretch"
+                        <ContentPresenter VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                                           HorizontalAlignment="Stretch"/>
                     </Border>
                 </ControlTemplate>
@@ -151,9 +143,6 @@
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsKeyboardFocusWithin}" Value="True">
                 <Setter Property="Background" Value="#30FFFFFF"/>
             </DataTrigger>
-            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                <Setter Property="Padding" Value="8,0"/>
-            </DataTrigger>
             <MultiDataTrigger>
                 <MultiDataTrigger.Conditions>
                     <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=DataGridRow}, Path=IsMouseOver}" Value="True"/>
@@ -171,14 +160,20 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="GameOptionsDataGridCellStyle"
+    <Style x:Key="ManageAchievementsDataGridCellStyle"
            TargetType="DataGridCell"
            BasedOn="{StaticResource AchievementCellStyle}">
     </Style>
 
-    <Style x:Key="GameOptionsControllerCellStyle"
+    <Style x:Key="ManageAchievementsColumnHeaderStyle"
+        TargetType="{x:Type DataGridColumnHeader}"
+        BasedOn="{StaticResource AchievementColumnHeaderStyle}">
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="ManageAchievementsControllerCellStyle"
            TargetType="DataGridCell"
-           BasedOn="{StaticResource GameOptionsDataGridCellStyle}">
+           BasedOn="{StaticResource ManageAchievementsDataGridCellStyle}">
         <Setter Property="BorderBrush" Value="{DynamicResource NormalBorderBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Template">
@@ -189,8 +184,7 @@
                             BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
-                        <ContentPresenter VerticalAlignment="Stretch"
-                                          HorizontalAlignment="Stretch"/>
+                        <ContentPresenter HorizontalAlignment="Stretch"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -207,10 +201,31 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="GameOptionsCheckBoxCellStyle"
+    <Style x:Key="ManageAchievementsIconCellStyle"
            TargetType="DataGridCell"
-           BasedOn="{StaticResource GameOptionsControllerCellStyle}">
-        <Setter Property="Padding" Value="0"/>
+           BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+        <Setter Property="Padding" Value="6"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            ClipToBounds="False"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="ManageAchievementsCheckBoxCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource ManageAchievementsControllerCellStyle}">
+        <Setter Property="Padding" Value="0,6"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
@@ -229,29 +244,37 @@
 
     <!-- Icon Column Cell Style - centered horizontally for circular achievement icons -->
     <Style x:Key="AchievementIconCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
+        <Setter Property="Padding" Value="6"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
                     <Border Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
+                            ClipToBounds="False"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                          VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
+    <Style x:Key="AchievementGlowIconCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementIconCellStyle}">
+        <Setter Property="Padding" Value="6"/>
+    </Style>
+
     <Style x:Key="AchievementStatusCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource AchievementCellStyle}">
-        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Padding" Value="0,6"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="DataGridCell">
                     <Border Background="{TemplateBinding Background}"
-                            Padding="0"
+                            Padding="{TemplateBinding Padding}"
                             ClipToBounds="False"
                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ContentPresenter HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                          VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
@@ -268,14 +291,9 @@
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="MinHeight" Value="66"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                <Setter Property="MinHeight" Value="50"/>
-            </DataTrigger>
-        </Style.Triggers>
     </Style>
 
-    <Style x:Key="GameOptionsDataGridRowStyle"
+    <Style x:Key="ManageAchievementsDataGridRowStyle"
            TargetType="DataGridRow"
            BasedOn="{StaticResource AchievementRowStyle}">
         <Setter Property="Focusable" Value="False"/>
@@ -287,17 +305,20 @@
            BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="TextWrapping" Value="Wrap"/>
         <Setter Property="TextTrimming" Value="None"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment"
+                Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"/>
+        <Setter Property="HorizontalAlignment"
+                Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"/>
+        <Setter Property="TextAlignment"
+                Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
     </Style>
 
     <Style x:Key="WrappedCenteredDataGridTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource WrappedDataGridTextStyle}">
-        <Setter Property="HorizontalAlignment" Value="Center"/>
-        <Setter Property="TextAlignment" Value="Center"/>
     </Style>
 
-    <!-- Shared selector button + menu item styles (sidebar/single-game/game-options) -->
+    <!-- Shared selector button + menu item styles (overview/view-achievements/manage-achievements) -->
     <Style x:Key="AchievementSelectorButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource {x:Type Button}}">
@@ -432,66 +453,146 @@
         </Setter>
     </Style>
 
-    <Style x:Key="AchievementCascadeMenuItemStyle"
-           TargetType="MenuItem">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
-        <Setter Property="FontWeight" Value="Normal"/>
-    </Style>
-
     <!-- =======================
          ACHIEVEMENT TEMPLATES
          ======================= -->
 
-    <!-- Achievement Status Template: Checkmark (unlocked) or Padlock (locked) -->
+    <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
     <DataTemplate x:Key="AchievementStatusTemplate">
-        <Grid Width="36"
-              Height="36"
-              VerticalAlignment="Center"
-              HorizontalAlignment="Center"
-              ClipToBounds="False"
-              UseLayoutRounding="True"
-              SnapsToDevicePixels="True">
-            <TextBlock Text="&#x2713;"
-                       FontSize="16"
-                       FontWeight="Bold"
-                       Foreground="{DynamicResource GlyphBrush}"
+        <Viewbox Stretch="Uniform"
+                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                 ClipToBounds="False"
+                 UseLayoutRounding="True"
+                 SnapsToDevicePixels="True">
+            <Viewbox.Width>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,12,18">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Viewbox.Width>
+            <Viewbox.Height>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,8,12,18">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Viewbox.Height>
+
+            <Grid Width="18" Height="18">
+                <Path Data="M 3,9 L 7,13 L 15,5"
+                      Stroke="{DynamicResource GlyphBrush}"
+                      StrokeThickness="2.3"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Path.Style>
+                        <Style TargetType="Path">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Path.Style>
+                </Path>
+
+                <Image Source="{StaticResource BadgeCompletedGame}"
+                       Effect="{StaticResource BadgeShadow}"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+
+                <Grid Opacity="0.65"
+                      UseLayoutRounding="True"
+                      SnapsToDevicePixels="True"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Path Stretch="None"
+                          Fill="#B0B0B0"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                        <Path.Data>
+                            <CombinedGeometry GeometryCombineMode="Exclude">
+                                <CombinedGeometry.Geometry1>
+                                    <PathGeometry Figures="M 9,1 L 16,5 L 16,13 L 9,17 L 2,13 L 2,5 Z"/>
+                                </CombinedGeometry.Geometry1>
+                                <CombinedGeometry.Geometry2>
+                                    <PathGeometry Figures="M 68.9792,102.7712 H 57.344 L 59.0848,85.568 C 56.9216,84.224 55.488,81.8432 55.488,79.0912 C 55.488,74.8672 58.9184,71.4368 63.1552,71.4368 C 67.3792,71.4368 70.8096,74.8672 70.8096,79.0912 C 70.8096,81.8304 69.376,84.2368 67.1872,85.568 L 68.9792,102.7712 Z">
+                                        <PathGeometry.Transform>
+                                            <MatrixTransform Matrix="0.22,0,0,0.22,-4.893,-10.163"/>
+                                        </PathGeometry.Transform>
+                                    </PathGeometry>
+                                </CombinedGeometry.Geometry2>
+                            </CombinedGeometry>
+                        </Path.Data>
+                    </Path>
+                </Grid>
+
+                <Image Source="{StaticResource BadgeLocked}"
+                       Opacity="0.65"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center">
+                    <Image.Style>
+                        <Style TargetType="Image">
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                    <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                </MultiDataTrigger.Conditions>
                                 <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
+                            </MultiDataTrigger>
                         </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-            <Image Source="{StaticResource BadgeLocked}"
-                   Width="16" Height="16"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Opacity="0.65">
-                <Image.Style>
-                    <Style TargetType="Image">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Unlocked}" Value="False">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Image.Style>
-            </Image>
-        </Grid>
+                        </Style>
+                    </Image.Style>
+                </Image>
+            </Grid>
+        </Viewbox>
     </DataTemplate>
 
     <!-- Achievement Rarity Template -->
     <DataTemplate x:Key="AchievementRarityTemplate">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
             <Image Width="16" Height="16" Margin="0,0,4,0"
                    Effect="{StaticResource BadgeShadow}"
                    VerticalAlignment="Center">
@@ -524,11 +625,61 @@
         </StackPanel>
     </DataTemplate>
 
+    <DataTemplate x:Key="AchievementRarityTierTemplate">
+        <Image HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+               Effect="{StaticResource BadgeShadow}">
+            <Image.Width>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Image.Width>
+            <Image.Height>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Image.Height>
+            <Image.Style>
+                <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.UltraRare}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityUltraRare}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Rare}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityRare}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Uncommon}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityUncommon}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Common}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
+        </Image>
+    </DataTemplate>
+
     <!-- Achievement Trophy Template -->
     <DataTemplate x:Key="AchievementTrophyTemplate">
-        <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
-            <Image Width="20" Height="20"
-                   Effect="{StaticResource BadgeShadow}">
+        <Grid VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+              HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+            <Image Effect="{StaticResource BadgeShadow}">
+                <Image.Width>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Image.Width>
+                <Image.Height>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Image.Height>
                 <Image.Style>
                     <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -575,8 +726,9 @@
     <!-- Achievement Points Template -->
     <DataTemplate x:Key="AchievementPointsTemplate">
         <TextBlock Text="{Binding PointsText}"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
                    Style="{DynamicResource BaseTextBlockStyle}"
                    FontSize="{DynamicResource FontSizeSmall}"
                    FontWeight="SemiBold"
@@ -586,185 +738,141 @@
 
     <!-- Achievement Game Column Template - Icon or Cover with toggle support -->
     <DataTemplate x:Key="AchievementGameColumnTemplate">
-        <Grid VerticalAlignment="Center"
-              HorizontalAlignment="Center"
-              UseLayoutRounding="True"
-              SnapsToDevicePixels="True">
-            <Border x:Name="GameImageBorder"
-                    CornerRadius="6"
-                    RenderOptions.BitmapScalingMode="HighQuality"
-                    UseLayoutRounding="True"
-                    SnapsToDevicePixels="True"
-                    ToolTip="{Binding GameName}">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <!-- Default: Icon mode (44x44 square) -->
-                        <Setter Property="Width" Value="44"/>
-                        <Setter Property="Height" Value="44"/>
-                        <Setter Property="Background">
-                            <Setter.Value>
-                                <ImageBrush Stretch="UniformToFill"
-                                            helpers:AsyncImage.Uri="{Binding GameIconPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"
-                                            helpers:AsyncImage.DecodePixel="96"/>
-                            </Setter.Value>
-                        </Setter>
-                        <Style.Triggers>
-                            <!-- Cover mode (40x60 portrait) when UseCoverImages is true on ancestor -->
-                            <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="Width" Value="40"/>
-                                <Setter Property="Height" Value="60"/>
-                                <Setter Property="Background">
-                                    <Setter.Value>
-                                        <ImageBrush Stretch="UniformToFill"
-                                                    helpers:AsyncImage.Uri="{Binding GameCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
-                                                    helpers:AsyncImage.DecodePixel="128"/>
-                                    </Setter.Value>
-                                </Setter>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="Width" Value="36"/>
-                                <Setter Property="Height" Value="36"/>
-                            </DataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Width" Value="32"/>
-                                <Setter Property="Height" Value="48"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
-        </Grid>
+        <ContentControl Padding="4,6"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        UseLayoutRounding="True"
+                        SnapsToDevicePixels="True">
+            <Grid>
+                <Border CornerRadius="6"
+                        ClipToBounds="True"
+                        Margin="2"
+                        HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                        RenderOptions.BitmapScalingMode="HighQuality"
+                        UseLayoutRounding="True"
+                        SnapsToDevicePixels="True"
+                        ToolTip="{Binding GameName}">
+                    <Border.Width>
+                        <MultiBinding Converter="{StaticResource ImageFitDimension}"
+                                    ConverterParameter="auto,width,12,8,12">
+                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                            <Binding RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}" Path="UseCoverImages"/>
+                        </MultiBinding>
+                    </Border.Width>
+
+                    <Border.Height>
+                        <MultiBinding Converter="{StaticResource ImageFitDimension}"
+                                    ConverterParameter="auto,height,12,8,12">
+                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                            <Binding RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}" Path="UseCoverImages"/>
+                        </MultiBinding>
+                    </Border.Height>
+
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <ImageBrush Stretch="Uniform"
+                                                helpers:AsyncImage.Uri="{Binding GameIconPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"
+                                                helpers:AsyncImage.DecodePixel="96"/>
+                                </Setter.Value>
+                            </Setter>
+
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                            Value="True">
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <ImageBrush Stretch="Uniform"
+                                                        helpers:AsyncImage.Uri="{Binding GameCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"
+                                                        helpers:AsyncImage.DecodePixel="128"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
+        </ContentControl>
     </DataTemplate>
 
     <!-- Achievement Icon Template - glow is isolated behind an unaffected front icon -->
-    <!-- Fits in 78px column with 10px cell padding each side = 58px available -->
     <DataTemplate x:Key="AchievementIconTemplate">
-        <Grid VerticalAlignment="Center"
-              HorizontalAlignment="Center"
+        <Grid HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+              VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
               ClipToBounds="False"
               UseLayoutRounding="True"
               SnapsToDevicePixels="True">
-            <Grid.Style>
-                <Style TargetType="Grid">
-                    <Setter Property="Width" Value="56"/>
-                    <Setter Property="Height" Value="72"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                            <Setter Property="Width" Value="42"/>
-                            <Setter Property="Height" Value="54"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Grid.Style>
-            <Grid HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
-                  ClipToBounds="False"
-                  UseLayoutRounding="True"
-                  SnapsToDevicePixels="True">
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="Width" Value="52"/>
-                        <Setter Property="Height" Value="52"/>
+            <Grid.Width>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="icon,width,12,8,12">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Grid.Width>
+            <Grid.Height>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="icon,height,12,8,12">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Grid.Height>
+
+            <Image Stretch="Uniform"
+                   Margin="2"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
+                   IsHitTestVisible="False"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                   helpers:AsyncImage.DecodePixel="128">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Setter Property="Effect" Value="{x:Null}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="Width" Value="39"/>
-                                <Setter Property="Height" Value="39"/>
-                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Grid.Style>
+                </Image.Style>
+            </Image>
 
-                <Image HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Stretch="Uniform"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       SnapsToDevicePixels="True"
-                       IsHitTestVisible="False"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
-                    <Image.Style>
-                        <Style TargetType="Image">
-                            <Setter Property="Width" Value="52"/>
-                            <Setter Property="Height" Value="52"/>
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Setter Property="Effect" Value="{x:Null}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                    <Setter Property="Width" Value="39"/>
-                                    <Setter Property="Height" Value="39"/>
-                                </DataTrigger>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
-                                        <Condition Binding="{Binding ShowRarityGlow}" Value="True"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Image.Style>
-                </Image>
-
-                <Image HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Stretch="Uniform"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       SnapsToDevicePixels="True"
-                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
-                       helpers:AsyncImage.DecodePixel="128">
-                    <Image.Style>
-                        <Style TargetType="Image">
-                            <Setter Property="Width" Value="52"/>
-                            <Setter Property="Height" Value="52"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                    <Setter Property="Width" Value="39"/>
-                                    <Setter Property="Height" Value="39"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Image.Style>
-                </Image>
-            </Grid>
+            <Image Stretch="Uniform"
+                   Margin="2"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                   helpers:AsyncImage.DecodePixel="128"/>
         </Grid>
     </DataTemplate>
 
     <!-- Achievement Info Template with Hidden Styling -->
     <DataTemplate x:Key="AchievementInfoTemplate">
-        <StackPanel VerticalAlignment="Center" Background="Transparent">
-            <StackPanel.Style>
-                <Style TargetType="StackPanel">
-                    <Setter Property="Margin" Value="12,10"/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                            <Setter Property="Margin" Value="8,6"/>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </StackPanel.Style>
+        <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                    Background="Transparent">
             <TextBlock FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextBrush}">
+                       Foreground="{DynamicResource TextBrush}"
+                       TextWrapping="Wrap"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
                         <Setter Property="Opacity" Value="0.7"/>
-                        <Setter Property="TextWrapping" Value="NoWrap"/>
-                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding Unlocked}" Value="True">
                                 <Setter Property="Opacity" Value="1"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                <Setter Property="TextTrimming" Value="None"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -778,33 +886,18 @@
             <TextBlock Text="{Binding DescriptionResolved}"
                        FontSize="{DynamicResource FontSizeSmall}"
                        Foreground="{DynamicResource TextBrush}"
-                       Opacity="0.7">
+                       Opacity="0.7"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Margin" Value="0,3,0,0"/>
-                        <Setter Property="MaxHeight" Value="22"/>
-                        <Setter Property="TextWrapping" Value="NoWrap"/>
-                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                        <Setter Property="MaxHeight" Value="44"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
                                 <Setter Property="FontStyle" Value="Italic"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="Margin" Value="0,1,0,0"/>
-                                <Setter Property="MaxHeight" Value="16"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                <Setter Property="TextTrimming" Value="None"/>
-                                <Setter Property="MaxHeight" Value="44"/>
-                            </DataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                    <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="MaxHeight" Value="32"/>
-                            </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBlock.Style>
@@ -814,51 +907,34 @@
 
     <!-- Unlock Date / Progress Template -->
     <DataTemplate x:Key="AchievementUnlockDateTemplate">
-        <Grid>
+        <Grid HorizontalAlignment="Stretch">
             <TextBlock Text="{Binding UnlockTimeText}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource TextBrush}"
-                       Opacity="0.7"
-                       Visibility="{Binding Unlocked, Converter={StaticResource BoolToVis}}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
-                        <Setter Property="TextWrapping" Value="NoWrap"/>
-                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                <Setter Property="TextTrimming" Value="None"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-            <Grid Visibility="{Binding Unlocked, Converter={StaticResource InverseBoolToVis}}" Margin="4,0">
-                <ProgressBar Value="{Binding ProgressPercent, Mode=OneWay}"
-                             Minimum="0" Maximum="100"
-                             Background="{DynamicResource ControlBackgroundBrush}"
-                             Foreground="{DynamicResource HighlightGlyphBrush}"
-                             Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}">
-                    <ProgressBar.Style>
-                        <Style TargetType="ProgressBar">
-                            <Setter Property="Height" Value="18"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                    <Setter Property="Height" Value="14"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ProgressBar.Style>
-                </ProgressBar>
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    Style="{DynamicResource BaseTextBlockStyle}"
+                    Foreground="{DynamicResource TextBrush}"
+                    Opacity="0.7"
+                    TextWrapping="Wrap"
+                    TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                    Visibility="{Binding Unlocked, Converter={StaticResource BoolToVis}}"/>
+
+            <Grid Visibility="{Binding Unlocked, Converter={StaticResource InverseBoolToVis}}"
+                Margin="4,0"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+
+                <ProgressBar Style="{StaticResource GameProgressBar}"
+                            Value="{Binding ProgressPercent, Mode=OneWay}"
+                            Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+
                 <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Style="{DynamicResource BaseTextBlockStyle}"
-                           FontSize="{DynamicResource FontSizeSmall}"
-                           FontWeight="SemiBold"
-                           Foreground="White"
-                           Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource BaseTextBlockStyle}"
+                        FontSize="{DynamicResource FontSizeSmall}"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
             </Grid>
         </Grid>
     </DataTemplate>

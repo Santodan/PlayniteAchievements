@@ -224,7 +224,8 @@ namespace PlayniteAchievements.ViewModels
             try
             {
                 var migratedJson = ProviderSettingsMigration.MigrateFromJson(rawJson);
-                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(migratedJson);
+                var overviewMigratedJson = OverviewSettingsMigration.MigrateFromJson(migratedJson);
+                var fullyMigratedJson = GameCustomDataStore.MigrateLegacyConfig(overviewMigratedJson);
 
                 // If migration changed the JSON, save the migrated version
                 if (fullyMigratedJson != rawJson)

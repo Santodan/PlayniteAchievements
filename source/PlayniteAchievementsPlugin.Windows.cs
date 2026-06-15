@@ -11,7 +11,7 @@ namespace PlayniteAchievements
     {
         private void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Guid? singleGameRefreshId = null)
         {
-            _windowService.ShowRefreshProgressControlAndRun(refreshTask, OpenSingleGameAchievementsView, singleGameRefreshId);
+            _windowService.ShowRefreshProgressControlAndRun(refreshTask, OpenViewAchievementsWindow, singleGameRefreshId);
         }
 
         private void ShowRefreshProgressControl(
@@ -19,16 +19,16 @@ namespace PlayniteAchievements
             Func<Task> refreshTask = null,
             bool validateCanStart = false)
         {
-            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, OpenSingleGameAchievementsView, validateCanStart);
+            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, OpenViewAchievementsWindow, validateCanStart);
         }
 
         /// <summary>
-        /// Opens the per-game achievements view window for the specified game.
+        /// Opens the View Achievements window for the specified game.
         /// Public for access from theme integration controls.
         /// </summary>
-        public void OpenSingleGameAchievementsView(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId)
         {
-            _windowService.OpenSingleGameAchievementsView(gameId);
+            _windowService.OpenViewAchievementsWindow(gameId);
         }
 
         /// <summary>
@@ -47,9 +47,9 @@ namespace PlayniteAchievements
             _windowService.OpenDynamicThemeCommandTestView(gameId);
         }
 
-        public void OpenGameOptionsView(Guid gameId, GameOptionsTab initialTab = GameOptionsTab.Overview)
+        public void OpenManageAchievementsView(Guid gameId, ManageAchievementsTab initialTab = ManageAchievementsTab.Overview)
         {
-            _windowService.OpenGameOptionsView(gameId, initialTab);
+            _windowService.OpenManageAchievementsView(gameId, initialTab);
         }
 
         public void OpenCapstoneView(Guid gameId)
@@ -69,7 +69,7 @@ namespace PlayniteAchievements
 
         private void OpenOverviewWindow()
         {
-            var view = new SidebarControl(
+            var view = new OverviewControl(
                 PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi,
                 _achievementOverridesService, _achievementDataService, _refreshCoordinator, _settingsViewModel.Settings);
 

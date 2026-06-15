@@ -5,6 +5,7 @@ using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.ViewModels;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
@@ -74,6 +75,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly AchievementDataService _achievementDataService;
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly Func<RefreshRequest, string, bool, Action<bool>, Task> _runRefreshWithGlobalProgressAsync;
+        private readonly Action<Guid> _openManageAchievementsView;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly FullscreenWindowService _windowService;
         private readonly ThemeRuntimeState _runtimeState = new ThemeRuntimeState();
@@ -104,24 +106,30 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             PlayniteAchievementsSettings settings,
             FullscreenWindowService windowService,
             ILogger logger,
-            Func<RefreshRequest, string, bool, Action<bool>, Task> runRefreshWithGlobalProgressAsync = null)
+            Func<RefreshRequest, string, bool, Action<bool>, Task> runRefreshWithGlobalProgressAsync = null,
+            Action<Guid> openManageAchievementsView = null)
         {
             _api = api ?? throw new ArgumentNullException(nameof(api));
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _runRefreshWithGlobalProgressAsync = runRefreshWithGlobalProgressAsync ?? RunRefreshWithoutGlobalProgressAsync;
+            _openManageAchievementsView = openManageAchievementsView;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _windowService = windowService ?? throw new ArgumentNullException(nameof(windowService));
             _logger = logger;
 
             var openOverviewCommand = new RelayCommand(_ => OpenOverviewWindow());
             var openSelectedGameCommand = new RelayCommand(_ => OpenSelectedGameWindow());
+            var openViewAchievementsCommand = new RelayCommand(OpenViewAchievementsWindowCommand);
+            var openManageAchievementsCommand = new RelayCommand(OpenManageAchievementsWindow);
 
             // Command surfaces referenced by themes.
             _settings.OpenFullscreenAchievementWindow = openSelectedGameCommand;
             _settings.OpenAchievementWindow = openOverviewCommand;
             _settings.OpenGameAchievementWindow = openSelectedGameCommand;
+            _settings.OpenViewAchievementsWindow = openViewAchievementsCommand;
+            _settings.OpenManageAchievementsWindow = openManageAchievementsCommand;
             _settings.SingleGameRefreshCommand = new RelayCommand(_ => RefreshWithMode(RefreshModeType.Single));
             _settings.RecentRefreshCommand = new RelayCommand(_ => RefreshWithMode(RefreshModeType.Recent));
             _settings.FavoritesRefreshCommand = new RelayCommand(_ => RefreshWithMode(RefreshModeType.Favorites));
@@ -671,10 +679,66 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 return;
             }
 
-            OpenGameWindow(id.Value);
+            OpenViewAchievementsWindow(id.Value);
         }
 
-        public void OpenGameWindow(Guid gameId)
+        private void OpenManageAchievementsWindow(object parameter)
+        {
+            if (!TryResolveThemeCommandGameId(parameter, out var gameId))
+            {
+                return;
+            }
+
+            _openManageAchievementsView?.Invoke(gameId);
+        }
+
+        private void OpenViewAchievementsWindowCommand(object parameter)
+        {
+            if (!TryResolveThemeCommandGameId(parameter, out var gameId))
+            {
+                return;
+            }
+
+            OpenViewAchievementsWindow(gameId);
+        }
+
+        private bool TryResolveThemeCommandGameId(object parameter, out Guid gameId)
+        {
+            gameId = Guid.Empty;
+
+            switch (parameter)
+            {
+                case GameAchievementSummary summary when summary.GameId != Guid.Empty:
+                    gameId = summary.GameId;
+                    return true;
+                case AchievementDetail achievement when achievement.Game?.Id != Guid.Empty:
+                    gameId = achievement.Game.Id;
+                    return true;
+                case AchievementDisplayItem item when item.PlayniteGameId.HasValue && item.PlayniteGameId.Value != Guid.Empty:
+                    gameId = item.PlayniteGameId.Value;
+                    return true;
+                case Game game when game.Id != Guid.Empty:
+                    gameId = game.Id;
+                    return true;
+                case Guid id when id != Guid.Empty:
+                    gameId = id;
+                    return true;
+                case string idText when Guid.TryParse(idText, out var parsedId) && parsedId != Guid.Empty:
+                    gameId = parsedId;
+                    return true;
+            }
+
+            var selectedId = ResolveSelectedGameIdForThemeUpdate();
+            if (!selectedId.HasValue || selectedId.Value == Guid.Empty)
+            {
+                return false;
+            }
+
+            gameId = selectedId.Value;
+            return true;
+        }
+
+        public void OpenViewAchievementsWindow(Guid gameId)
         {
             EnsureFullscreenInitialized();
 
@@ -683,7 +747,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             // async theme updates complete, showing stale data from the previous selection.
             PopulateSingleGameDataSync(gameId);
 
-            _windowService.OpenGameWindow(gameId);
+            _windowService.OpenViewAchievementsWindow(gameId);
         }
 
         #endregion
@@ -1061,7 +1125,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.LegacyTheme.BronzeTrophies = library.BronzeTrophies;
             _settings.LegacyTheme.Level = library.Level;
             _settings.LegacyTheme.LevelProgress = library.LevelProgress;
-            _settings.LegacyTheme.Rank = !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze1";
+            _settings.LegacyTheme.Rank = !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze5";
 
             _settings.LegacyTheme.AllGamesWithAchievements = ProjectGameSummaries(library.AllGamesWithAchievements);
             _settings.PlatinumGames = ProjectGameSummaries(library.PlatinumGames);
@@ -1074,7 +1138,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.LegacyTheme.GSScore = library.TotalTrophies > 0 ? library.Score.ToString("N0") : "0";
             _settings.LegacyTheme.GSLevel = library.TotalTrophies > 0 ? library.Level.ToString() : "0";
             _settings.LegacyTheme.GSLevelProgress = library.TotalTrophies > 0 ? library.LevelProgress : 0;
-            _settings.LegacyTheme.GSRank = library.TotalTrophies > 0 && !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze1";
+            _settings.LegacyTheme.GSRank = library.TotalTrophies > 0 && !string.IsNullOrWhiteSpace(library.Rank) ? library.Rank : "Bronze5";
 
             var shouldUpdateHeavyLists = library.HeavyListsBuilt || !library.HasData;
             if (shouldUpdateHeavyLists)
@@ -1308,7 +1372,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.BronzeCount,
                     item.IsCompleted,
                     item.LastUnlockDate,
-                    new RelayCommand(_ => OpenGameWindow(item.GameId)),
+                    new RelayCommand(_ => OpenViewAchievementsWindow(item.GameId)),
                     item.Common,
                     item.Uncommon,
                     item.Rare,
@@ -1319,7 +1383,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.ProviderName,
                     item.LastPlayed,
                     item.UnlockedCount,
-                    item.AchievementCount))
+                    item.AchievementCount,
+                    openManageAchievementsWindow: new RelayCommand(_ => OpenManageAchievementsWindow(item.GameId))))
                 .ToList();
 
             return new ObservableCollection<GameAchievementSummary>(projected);

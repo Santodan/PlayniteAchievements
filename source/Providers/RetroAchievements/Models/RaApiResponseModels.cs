@@ -78,6 +78,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
         [JsonProperty("Title")]
         public string GameTitle { get; set; }
 
+        [JsonProperty("ConsoleID")]
+        public int ConsoleId { get; set; }
+
         [JsonProperty("NumDistinctPlayers")]
         public int NumDistinctPlayers { get; set; }
 

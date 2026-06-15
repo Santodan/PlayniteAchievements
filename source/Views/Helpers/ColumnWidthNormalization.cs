@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -14,6 +15,9 @@ namespace PlayniteAchievements.Views.Helpers
     {
         private const double MinimumColumnWidthRatio = 0.1;
         private const double WidthNormalizationSafetyPadding = 1.0;
+
+        private static readonly ConditionalWeakTable<DataGridColumn, ConfiguredColumnMinWidth> ConfiguredMinWidths =
+            new ConditionalWeakTable<DataGridColumn, ConfiguredColumnMinWidth>();
 
         public static bool IsValidWidth(double width)
         {
@@ -75,31 +79,30 @@ namespace PlayniteAchievements.Views.Helpers
                 return 0;
             }
 
+            var chrome = grid.BorderThickness.Left + grid.BorderThickness.Right + grid.Padding.Left + grid.Padding.Right + 2;
+            var availableWidth = Math.Max(0, width - chrome);
             var scrollViewer = VisualTreeHelpers.FindVisualChild<ScrollViewer>(grid);
+            if (scrollViewer != null && IsValidWidth(scrollViewer.ActualWidth))
+            {
+                availableWidth = Math.Min(availableWidth, scrollViewer.ActualWidth);
+            }
+
             var viewportWidth = scrollViewer?.ViewportWidth ?? 0;
             if (IsValidWidth(viewportWidth))
             {
-                return Math.Max(0, viewportWidth);
+                return Math.Max(0, Math.Min(viewportWidth, availableWidth));
             }
-
-            var chrome = grid.BorderThickness.Left + grid.BorderThickness.Right + grid.Padding.Left + grid.Padding.Right + 2;
-            width -= chrome;
 
             if (scrollViewer != null)
             {
-                var scrollBarWidth = scrollViewer.ActualWidth - scrollViewer.ViewportWidth;
-                if (IsValidWidth(scrollBarWidth))
+                if (scrollViewer.ComputedVerticalScrollBarVisibility == Visibility.Visible ||
+                    scrollViewer.VerticalScrollBarVisibility == ScrollBarVisibility.Visible)
                 {
-                    width -= scrollBarWidth;
-                }
-                else if (scrollViewer.ComputedVerticalScrollBarVisibility == Visibility.Visible ||
-                         scrollViewer.VerticalScrollBarVisibility == ScrollBarVisibility.Visible)
-                {
-                    width -= SystemParameters.VerticalScrollBarWidth;
+                    availableWidth -= SystemParameters.VerticalScrollBarWidth;
                 }
             }
 
-            return Math.Max(0, width);
+            return Math.Max(0, availableWidth);
         }
 
         public static double GetContainerRelativeMinimumColumnWidth(double availableWidth)
@@ -185,13 +188,19 @@ namespace PlayniteAchievements.Views.Helpers
 
         public static double ResolveColumnMinimumWidth(DataGridColumn column, double fallbackMinWidth)
         {
-            if (column != null && !column.CanUserResize)
+            if (column == null)
             {
-                if (IsValidWidth(column.MinWidth))
-                {
-                    return column.MinWidth;
-                }
+                return fallbackMinWidth;
+            }
 
+            var configuredMinWidth = GetConfiguredMinimumWidth(column);
+            if (configuredMinWidth.HasValue)
+            {
+                return configuredMinWidth.Value;
+            }
+
+            if (!column.CanUserResize)
+            {
                 var currentWidth = GetCurrentWidth(column);
                 if (IsValidWidth(currentWidth))
                 {
@@ -200,6 +209,32 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             return fallbackMinWidth;
+        }
+
+        private static double? GetConfiguredMinimumWidth(DataGridColumn column)
+        {
+            if (column == null)
+            {
+                return null;
+            }
+
+            if (!ConfiguredMinWidths.TryGetValue(column, out var stored))
+            {
+                var localValue = column.ReadLocalValue(DataGridColumn.MinWidthProperty);
+                var configured = localValue is double width && IsValidWidth(width)
+                    ? width
+                    : double.NaN;
+
+                stored = new ConfiguredColumnMinWidth { Value = configured };
+                ConfiguredMinWidths.Add(column, stored);
+            }
+
+            return IsValidWidth(stored.Value) ? stored.Value : (double?)null;
+        }
+
+        private sealed class ConfiguredColumnMinWidth
+        {
+            public double Value { get; set; }
         }
 
         public static double ResolveFixedColumnMaximumWidth(DataGridColumn column, double fallbackWidth)
@@ -292,7 +327,10 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        public static List<int> BuildAbsorberOrder(IReadOnlyList<string> keys, string protectedColumnKey)
+        public static List<int> BuildAbsorberOrder(
+            IReadOnlyList<string> keys,
+            string protectedColumnKey,
+            string preferredAbsorberKey = null)
         {
             var order = new List<int>();
             if (keys == null || keys.Count == 0)
@@ -300,31 +338,55 @@ namespace PlayniteAchievements.Views.Helpers
                 return order;
             }
 
-            var preferredIndex = -1;
-            for (var i = keys.Count - 1; i >= 0; i--)
+            var protectedIndex = -1;
+            for (var i = 0; i < keys.Count; i++)
             {
                 if (KeysEqual(keys[i], protectedColumnKey))
                 {
-                    continue;
+                    protectedIndex = i;
+                    break;
                 }
-
-                preferredIndex = i;
-                break;
             }
 
-            if (preferredIndex >= 0)
+            void AddIfAvailable(int index)
             {
-                order.Add(preferredIndex);
-            }
-
-            for (var i = keys.Count - 1; i >= 0; i--)
-            {
-                if (i == preferredIndex || KeysEqual(keys[i], protectedColumnKey))
+                if (index < 0 ||
+                    index >= keys.Count ||
+                    index == protectedIndex ||
+                    order.Contains(index))
                 {
-                    continue;
+                    return;
                 }
 
-                order.Add(i);
+                order.Add(index);
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferredAbsorberKey))
+            {
+                for (var i = 0; i < keys.Count; i++)
+                {
+                    if (KeysEqual(keys[i], preferredAbsorberKey))
+                    {
+                        AddIfAvailable(i);
+                        break;
+                    }
+                }
+            }
+
+            if (protectedIndex >= 0)
+            {
+                for (var offset = 1; offset < keys.Count; offset++)
+                {
+                    AddIfAvailable(protectedIndex + offset);
+                    AddIfAvailable(protectedIndex - offset);
+                }
+            }
+            else
+            {
+                for (var i = 0; i < keys.Count; i++)
+                {
+                    AddIfAvailable(i);
+                }
             }
 
             if (order.Count == 0)
@@ -345,10 +407,11 @@ namespace PlayniteAchievements.Views.Helpers
             IReadOnlyList<double> floorWidths,
             IReadOnlyList<string> keys,
             string protectedKey,
+            string preferredAbsorberKey,
             double delta,
             double targetWidth)
         {
-            var absorberOrder = BuildAbsorberOrder(keys, protectedKey);
+            var absorberOrder = BuildAbsorberOrder(keys, protectedKey, preferredAbsorberKey);
             if (absorberOrder.Count == 0)
             {
                 absorberOrder.Add(keys.Count - 1);
@@ -417,11 +480,117 @@ namespace PlayniteAchievements.Views.Helpers
         }
 
         public static bool TryBuildNormalizedWidths(
+            IReadOnlyList<string> keys,
+            IReadOnlyList<double> seedWidths,
+            IReadOnlyList<double> floorWidths,
+            string protectedKey,
+            bool rescaleAll,
+            double targetWidth,
+            out Dictionary<string, double> normalized)
+        {
+            return TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey,
+                preferredAbsorberKey: null,
+                rescaleAll,
+                targetWidth,
+                out normalized);
+        }
+
+        public static bool TryBuildNormalizedWidths(
+            IReadOnlyList<string> keys,
+            IReadOnlyList<double> seedWidths,
+            IReadOnlyList<double> floorWidths,
+            string protectedKey,
+            string preferredAbsorberKey,
+            bool rescaleAll,
+            double targetWidth,
+            out Dictionary<string, double> normalized)
+        {
+            normalized = null;
+            if (keys == null ||
+                seedWidths == null ||
+                floorWidths == null ||
+                keys.Count == 0 ||
+                keys.Count != seedWidths.Count ||
+                keys.Count != floorWidths.Count ||
+                !IsValidWidth(targetWidth))
+            {
+                return false;
+            }
+
+            var widths = new List<double>(keys.Count);
+            var floors = new List<double>(keys.Count);
+            var normalizedKeys = new List<string>(keys.Count);
+
+            for (var i = 0; i < keys.Count; i++)
+            {
+                var key = (keys[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    return false;
+                }
+
+                var floor = IsValidWidth(floorWidths[i]) ? floorWidths[i] : 1;
+                var seed = IsValidWidth(seedWidths[i]) ? seedWidths[i] : floor;
+                normalizedKeys.Add(key);
+                floors.Add(floor);
+                widths.Add(Math.Max(floor, seed));
+            }
+
+            var totalWidth = widths.Sum();
+            var delta = targetWidth - totalWidth;
+
+            if (Math.Abs(delta) > 0.2)
+            {
+                if (rescaleAll)
+                {
+                    RescaleWidthsProportionally(widths, floors, targetWidth);
+                }
+                else
+                {
+                    DistributeDelta(widths, floors, normalizedKeys, protectedKey, preferredAbsorberKey, delta, targetWidth);
+                }
+            }
+
+            normalized = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < normalizedKeys.Count; i++)
+            {
+                normalized[normalizedKeys[i]] = Math.Max(RoundPixelWidth(floors[i]), RoundPixelWidth(widths[i]));
+            }
+
+            return true;
+        }
+
+        public static bool TryBuildNormalizedWidths(
             DataGrid grid,
             string protectedKey,
             bool rescaleAll,
             IReadOnlyDictionary<string, double> preferredWidthsByKey,
             double fallbackAvailableWidth,
+            out Dictionary<string, double> normalized)
+        {
+            return TryBuildNormalizedWidths(
+                grid,
+                protectedKey,
+                preferredAbsorberKey: null,
+                rescaleAll,
+                preferredWidthsByKey,
+                fallbackAvailableWidth,
+                useEqualWidthForMissing: false,
+                out normalized);
+        }
+
+        public static bool TryBuildNormalizedWidths(
+            DataGrid grid,
+            string protectedKey,
+            string preferredAbsorberKey,
+            bool rescaleAll,
+            IReadOnlyDictionary<string, double> preferredWidthsByKey,
+            double fallbackAvailableWidth,
+            bool useEqualWidthForMissing,
             out Dictionary<string, double> normalized)
         {
             normalized = null;
@@ -432,6 +601,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             var visibleColumns = grid.Columns
                 .Where(c => c != null && c.Visibility == Visibility.Visible)
+                .OrderBy(c => c.DisplayIndex)
                 .ToList();
             if (visibleColumns.Count == 0)
             {
@@ -458,9 +628,7 @@ namespace PlayniteAchievements.Views.Helpers
                     Column = c,
                     Key = GetColumnKey(c),
                     MinWidth = GetColumnMinimumWidth(minimumWidths, c, minimumWidth),
-                    IsResizable = c.CanUserResize,
-                    SeedWidth = ResolveSeedWidth(GetColumnKey(c), c, preferredWidthsByKey,
-                        GetColumnMinimumWidth(minimumWidths, c, minimumWidth))
+                    IsResizable = c.CanUserResize
                 })
                 .Where(e => !string.IsNullOrWhiteSpace(e.Key) && e.IsResizable)
                 .ToList();
@@ -482,30 +650,68 @@ namespace PlayniteAchievements.Views.Helpers
 
             var keys = keyColumns.Select(e => e.Key).ToList();
             var floorWidths = keyColumns.Select(e => e.MinWidth).ToList();
-            var widths = keyColumns.Select(e => Math.Max(e.MinWidth, e.SeedWidth)).ToList();
+            var equalWidth = targetWidth / keyColumns.Count;
+            var seedWidths = keyColumns
+                .Select(e => ResolveNormalizationSeedWidth(
+                    e.Key,
+                    e.Column,
+                    preferredWidthsByKey,
+                    e.MinWidth,
+                    useEqualWidthForMissing ? equalWidth : (double?)null))
+                .ToList();
 
-            var totalWidth = widths.Sum();
-            var delta = targetWidth - totalWidth;
+            return TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey,
+                preferredAbsorberKey,
+                rescaleAll,
+                targetWidth,
+                out normalized);
+        }
 
-            if (Math.Abs(delta) > 0.2)
+        public static bool TryBuildNormalizedWidths(
+            DataGrid grid,
+            string protectedKey,
+            bool rescaleAll,
+            IReadOnlyDictionary<string, double> preferredWidthsByKey,
+            double fallbackAvailableWidth,
+            bool useEqualWidthForMissing,
+            out Dictionary<string, double> normalized)
+        {
+            return TryBuildNormalizedWidths(
+                grid,
+                protectedKey,
+                preferredAbsorberKey: null,
+                rescaleAll,
+                preferredWidthsByKey,
+                fallbackAvailableWidth,
+                useEqualWidthForMissing,
+                out normalized);
+        }
+
+        private static double ResolveNormalizationSeedWidth(
+            string key,
+            DataGridColumn column,
+            IReadOnlyDictionary<string, double> preferredWidthsByKey,
+            double fallbackMinimumWidth,
+            double? missingPreferredWidth)
+        {
+            if (!string.IsNullOrWhiteSpace(key) &&
+                preferredWidthsByKey != null &&
+                preferredWidthsByKey.TryGetValue(key, out var preferredWidth) &&
+                IsValidWidth(preferredWidth))
             {
-                if (rescaleAll)
-                {
-                    RescaleWidthsProportionally(widths, floorWidths, targetWidth);
-                }
-                else
-                {
-                    DistributeDelta(widths, floorWidths, keys, protectedKey, delta, targetWidth);
-                }
+                return preferredWidth;
             }
 
-            normalized = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-            for (var i = 0; i < keys.Count; i++)
+            if (missingPreferredWidth.HasValue && IsValidWidth(missingPreferredWidth.Value))
             {
-                normalized[keys[i]] = Math.Max(RoundPixelWidth(floorWidths[i]), RoundPixelWidth(widths[i]));
+                return missingPreferredWidth.Value;
             }
 
-            return true;
+            return ResolveSeedWidth(key, column, preferredWidthsByKey, fallbackMinimumWidth);
         }
 
         public static void ApplyWidthsByKey(

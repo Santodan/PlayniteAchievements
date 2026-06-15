@@ -16,7 +16,6 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderIcons.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
@@ -25,6 +24,7 @@
               ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=OneWay}"
               MaxHeight="{Binding DataGridMaxHeight, RelativeSource={RelativeSource AncestorType=UserControl}}"
               Sorting="DataGrid_Sorting"
+              LoadingRow="AchievementsDataGrid_LoadingRow"
               AutoGenerateColumns="False"
               IsReadOnly="True"
               SelectionMode="Single"
@@ -52,6 +52,7 @@
               UseLayoutRounding="True"
               SnapsToDevicePixels="True"
               Tag="ControllerCellFocus"
+              helpers:DataGridAlignmentBehavior.IsEnabled="True"
               ColumnHeaderStyle="{StaticResource AchievementColumnHeaderWithMenuStyle}"
               PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
 
@@ -81,133 +82,174 @@
                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="AchievementRow_PreviewMouseLeftButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="AchievementRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="AchievementRow_PreviewMouseRightButtonUp"/>
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                        <Setter Property="MinHeight" Value="56"/>
-                    </DataTrigger>
-                    <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                        <Setter Property="MinHeight" Value="108"/>
-                    </DataTrigger>
-                    <MultiDataTrigger>
-                        <MultiDataTrigger.Conditions>
-                            <Condition Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                            <Condition Binding="{Binding IsCompactMode, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
-                        </MultiDataTrigger.Conditions>
-                        <Setter Property="MinHeight" Value="72"/>
-                    </MultiDataTrigger>
-                </Style.Triggers>
             </Style>
         </DataGrid.RowStyle>
 
         <DataGrid.Columns>
             <!-- Status: Checkmark (unlocked) or Padlock (locked) -->
             <DataGridTemplateColumn x:Name="StatusColumn"
-                                    Width="36" MinWidth="36" MaxWidth="36" CanUserSort="False" CanUserResize="False"
-                                    Header=" "
+                                    Width="*" MinWidth="22" CanUserSort="False" CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_Status}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Status"
                                     CellStyle="{StaticResource AchievementStatusCellStyle}"
-                                    CellTemplate="{StaticResource AchievementStatusTemplate}"/>
+                                    CellTemplate="{StaticResource AchievementStatusTemplate}">
+                <DataGridTemplateColumn.HeaderTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Opacity="0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.HeaderTemplate>
+            </DataGridTemplateColumn>
+            
 
             <!-- Achievement Icon -->
-            <DataGridTemplateColumn Width="78" MinWidth="78" MaxWidth="78" CanUserResize="False"
-                                    Header=""
-                                    SortMemberPath="DisplayOrder"
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_Icon}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
-                                    CellStyle="{StaticResource AchievementIconCellStyle}"
-                                    CellTemplate="{StaticResource AchievementIconTemplate}"/>
+                                    CellStyle="{StaticResource AchievementGlowIconCellStyle}"
+                                    CellTemplate="{StaticResource AchievementIconTemplate}">
+                <DataGridTemplateColumn.HeaderTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Opacity="0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.HeaderTemplate>
+            </DataGridTemplateColumn>
 
             <!-- Achievement Info -->
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement"
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Achievement}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Achievement"
                                     CellTemplate="{StaticResource AchievementInfoTemplate}"/>
-            
-            <!-- Game Column - shown in sidebar recent achievements -->
-            <DataGridTemplateColumn x:Name="GameColumn"
-                                    Width="64" MinWidth="64" MaxWidth="64" CanUserResize="False"
-                                    Header="{DynamicResource LOCPlayAch_Column_Game}"
-                                    SortMemberPath="SortingName"
-                                    helpers:ColumnVisibilityHelper.ColumnKey="Game"
-                                    Visibility="Collapsed"
-                                    CellTemplate="{StaticResource AchievementGameColumnTemplate}"/>
 
-            <!-- Unlock Date / Progress -->
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Unlocked}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
-                                    CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
-
-            <!-- RetroAchievements display order (provider-defined progression order) -->
-            <DataGridTextColumn Width="86"
-                                MinWidth="72"
-                                SortMemberPath="DisplayOrder"
-                                Binding="{Binding DisplayOrder}"
-                                helpers:ColumnVisibilityHelper.ColumnKey="DisplayOrder">
-                <DataGridTextColumn.HeaderTemplate>
-                    <DataTemplate>
-                        <Viewbox Width="48" Height="16" Stretch="Uniform">
-                            <Path Data="{StaticResource GeoRetroAchievements}"
-                                  Fill="{DynamicResource TextBrush}"/>
-                        </Viewbox>
-                    </DataTemplate>
-                </DataGridTextColumn.HeaderTemplate>
-            </DataGridTextColumn>
-
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Label_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_AchievementName}" SortMemberPath="DisplayName" helpers:ColumnVisibilityHelper.ColumnKey="Title"
+                                    Visibility="Collapsed">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding CategoryTypeDisplay}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Opacity="0.7">
+                        <TextBlock Foreground="{DynamicResource TextBrush}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
                             <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
-                                    <Setter Property="TextWrapping" Value="NoWrap"/>
-                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                            <Setter Property="TextWrapping" Value="Wrap"/>
-                                            <Setter Property="TextTrimming" Value="None"/>
+                                <Style TargetType="TextBlock">
+                                     <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
+                                     <Setter Property="Opacity" Value="0.7"/>
+                                     <Setter Property="TextAlignment"
+                                             Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+                                     <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                            <Setter Property="Opacity" Value="1"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                            <Setter Property="FontStyle" Value="Italic"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
+                            <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                            <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                                 FontStyle="Italic"
+                                 FontSize="{DynamicResource FontSizeSmall}"
+                                 Foreground="{DynamicResource TextBrushDarker}"/>
                         </TextBlock>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
+            
+            <!-- Game Column - shown in overview recent achievements -->
+            <DataGridTemplateColumn x:Name="GameColumn"
+                                    Width="*"
+                                    MinWidth="22"
+                                    CanUserResize="True"
+                                    Header="{DynamicResource LOCPlayAch_Column_Game}"
+                                    SortMemberPath="SortingName"
+                                    helpers:ColumnVisibilityHelper.ColumnKey="Game"
+                                    Visibility="Collapsed"
+                                    CellTemplate="{StaticResource AchievementGameColumnTemplate}">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell"
+                        BasedOn="{StaticResource AchievementCellStyle}">
+                        <Setter Property="Padding" Value="0"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
+            </DataGridTemplateColumn>
 
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Common_Label_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+            <!-- Unlock Date / Progress -->
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Unlocked}" SortMemberPath="UnlockTime" helpers:ColumnVisibilityHelper.ColumnKey="UnlockDate"
+                                    CellTemplate="{StaticResource AchievementUnlockDateTemplate}"/>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Label_Type}" SortMemberPath="CategoryType" helpers:ColumnVisibilityHelper.ColumnKey="CategoryType">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding CategoryLabel}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
+                        <TextBlock Text="{Binding CategoryTypeDisplay}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource TextBrush}"
-                                   Opacity="0.7">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
-                                    <Setter Property="TextWrapping" Value="NoWrap"/>
-                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsTextWrapEnabled, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                            <Setter Property="TextWrapping" Value="Wrap"/>
-                                            <Setter Property="TextTrimming" Value="None"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                                   Opacity="0.7"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_Label_Category}" SortMemberPath="CategoryLabel" helpers:ColumnVisibilityHelper.ColumnKey="CategoryLabel">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding CategoryLabelDisplay}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.7"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
             <!-- Trophy -->
-            <DataGridTemplateColumn Width="100" MinWidth="90" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="True" SortMemberPath="TrophyType"
+            <DataGridTemplateColumn Width="*" MinWidth="22" Header="{DynamicResource LOCPlayAch_Column_Trophy}" CanUserResize="True" SortMemberPath="TrophyType" helpers:ColumnVisibilityHelper.ColumnKey="Trophy"
                                     CellTemplate="{StaticResource AchievementTrophyTemplate}"/>
 
             <!-- Rarity -->
-            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Rarity}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="Rarity"
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Rarity}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="Rarity"
                                     CellTemplate="{StaticResource AchievementRarityTemplate}"/>
 
-            <DataGridTemplateColumn Width="72" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="Points"
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_RarityTier}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="RarityTier"
+                                    Visibility="Collapsed"
+                                    CellTemplate="{StaticResource AchievementRarityTierTemplate}">
+                <DataGridTemplateColumn.HeaderTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Opacity="0"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.HeaderTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_RarityPercent}" SortMemberPath="RaritySortValue" helpers:ColumnVisibilityHelper.ColumnKey="RarityPercent"
+                                    Visibility="Collapsed">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding GlobalPercentText}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.8"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_CollectionScore}" SortMemberPath="CollectionScore" helpers:ColumnVisibilityHelper.ColumnKey="CollectionScore">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding CollectionScore, StringFormat={}{0:N0}}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.7"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_PrestigeScore}" SortMemberPath="PrestigeScore" helpers:ColumnVisibilityHelper.ColumnKey="PrestigeScore">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding PrestigeScore, StringFormat={}{0:N0}}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.7"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="Points"
                                     CellTemplate="{StaticResource AchievementPointsTemplate}"/>
         </DataGrid.Columns>
     </DataGrid>

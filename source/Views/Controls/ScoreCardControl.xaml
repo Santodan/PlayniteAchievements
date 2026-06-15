@@ -1,0 +1,236 @@
+<UserControl x:Class="PlayniteAchievements.Views.Controls.ScoreCardControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             x:Name="Root"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:ResourceKeyToImageSourceConverter x:Key="ResourceKeyToImage"/>
+
+            <Style x:Key="ScoreInfoButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Width" Value="18"/>
+                <Setter Property="Height" Value="18"/>
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Opacity" Value="0.72"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Score_Info_ButtonTooltip}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border"
+                                    Width="{TemplateBinding Width}"
+                                    Height="{TemplateBinding Height}"
+                                    CornerRadius="9"
+                                    Background="{TemplateBinding Background}">
+                                <TextBlock Text="{TemplateBinding Content}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           FontFamily="{TemplateBinding FontFamily}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#22FFFFFF"/>
+                                    <Setter Property="Opacity" Value="1"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#22FFFFFF"/>
+                                    <Setter Property="Opacity" Value="1"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ScoreCardLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Opacity" Value="0.86"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="FontWeight" Value="ExtraBold"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="ScoreCardMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="ScoreCardPanelStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,2"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="ScoreCardProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
+                <Setter Property="Height" Value="6"/>
+                <Setter Property="BorderThickness" Value="1"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PopupBackgroundBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="12"/>
+                <Setter Property="Width" Value="300"/>
+                <Setter Property="MaxWidth" Value="300"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipLineBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="#14FFFFFF"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Padding" Value="8,5"/>
+                <Setter Property="Margin" Value="0,4,0,0"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipLineTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid DataContext="{Binding ScoreCard, ElementName=Root}">
+        <Border Style="{StaticResource ScoreCardPanelStyle}"
+                Background="{Binding AccentBackgroundBrush}"
+                BorderBrush="{Binding AccentBrush}">
+            <Border.ToolTip>
+                <ToolTip DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                         Placement="Bottom"
+                         HorizontalOffset="0"
+                         VerticalOffset="4"
+                         Width="300"
+                         Padding="0"
+                         BorderThickness="0"
+                         Background="{DynamicResource PopupBackgroundBrush}"
+                         HorizontalContentAlignment="Stretch"
+                         HasDropShadow="True">
+                    <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
+                            BorderBrush="{Binding AccentBrush}">
+                        <StackPanel>
+                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                <TextBlock Text="{Binding CurrentLevelPointsText}"
+                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                            </Border>
+                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                <TextBlock Text="{Binding PointsUntilNextLevelText}"
+                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                            </Border>
+                            <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                <TextBlock Text="{Binding NextTierThresholdText}"
+                                           Style="{StaticResource ScoreCardTooltipLineTextStyle}"
+                                           Foreground="{Binding NextTierAccentBrush}"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                </ToolTip>
+            </Border.ToolTip>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Image Grid.Row="0"
+                       Grid.RowSpan="3"
+                       Grid.Column="0"
+                       Width="30"
+                       Height="30"
+                       Margin="0,0,10,0"
+                       VerticalAlignment="Center"
+                       Source="{Binding BadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                       Effect="{StaticResource BadgeShadow}"
+                       Style="{StaticResource RarityIcon}"/>
+                <Grid Grid.Row="0"
+                      Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Label}"
+                               Style="{StaticResource ScoreCardLabelTextStyle}"
+                               TextAlignment="Left"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="132"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Content="&#xE946;"
+                            Style="{StaticResource ScoreInfoButtonStyle}"
+                            Click="ScoreInfoButton_Click"
+                            Margin="5,0,0,0"
+                            VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding PointsText}"
+                               Style="{StaticResource ScoreCardMetricTextStyle}"
+                               TextAlignment="Right"
+                               HorizontalAlignment="Right"/>
+                </Grid>
+                <ProgressBar Grid.Row="1"
+                             Grid.Column="1"
+                             Value="{Binding LevelProgress, Mode=OneWay}"
+                             Style="{StaticResource ScoreCardProgressBarStyle}"
+                             BorderBrush="{Binding AccentBrush}"
+                             Foreground="{Binding AccentBrush}"
+                             Margin="0,3,0,0"/>
+                <Grid Grid.Row="2"
+                      Grid.Column="1"
+                      Margin="0,1,0,0"
+                      ClipToBounds="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding TierText}"
+                               Style="{StaticResource ScoreCardTierTextStyle}"
+                               Foreground="{Binding AccentBrush}"
+                               TextAlignment="Left"
+                               HorizontalAlignment="Stretch"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding LevelText}"
+                               Style="{StaticResource ScoreCardTierTextStyle}"
+                               Foreground="{Binding AccentBrush}"
+                               TextAlignment="Left"
+                               MaxWidth="150"
+                               Margin="10,1,0,0"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

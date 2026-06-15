@@ -38,12 +38,12 @@ namespace PlayniteAchievements.Views
 
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Action _saveSettings;
-        private readonly List<GameOverviewItem> _overviewSource = new List<GameOverviewItem>();
+        private readonly List<GameSummaryItem> _overviewSource = new List<GameSummaryItem>();
         private readonly List<AchievementDisplayItem> _recentSource = new List<AchievementDisplayItem>();
         private readonly List<AchievementDisplayItem> _allSource = new List<AchievementDisplayItem>();
         private readonly List<AchievementDisplayItem> _selectedSource = new List<AchievementDisplayItem>();
 
-        private ColumnWidthPersistenceService _gamesOverviewPersistence;
+        private DataGridColumnLayoutService _gamesOverviewPersistence;
 
         private string _overviewSortPath;
         private ListSortDirection _overviewSortDirection;
@@ -69,7 +69,7 @@ namespace PlayniteAchievements.Views
         private readonly List<SortOption> _achievementOptionsWithGame;
         private readonly List<SortOption> _achievementOptionsNoGame;
 
-        public ObservableCollection<GameOverviewItem> GamesOverviewItems { get; } = new ObservableCollection<GameOverviewItem>();
+        public ObservableCollection<GameSummaryItem> GamesOverviewItems { get; } = new ObservableCollection<GameSummaryItem>();
 
         public ObservableCollection<AchievementDisplayItem> RecentItems { get; } = new ObservableCollection<AchievementDisplayItem>();
 
@@ -173,18 +173,25 @@ namespace PlayniteAchievements.Views
             if (_gamesOverviewPersistence != null || _settings?.Persisted == null)
             {
                 return;
-            }
-
-            _gamesOverviewPersistence = new ColumnWidthPersistenceService(
+            }            _gamesOverviewPersistence = new DataGridColumnLayoutService(
                 GamesOverviewGrid,
                 null,
-                () => _settings.Persisted.GamesOverviewColumnWidths,
-                map => _settings.Persisted.GamesOverviewColumnWidths = map,
-                () => _settings.Persisted.GamesOverviewColumnVisibility,
-                map => _settings.Persisted.GamesOverviewColumnVisibility = map,
+                () => _settings.Persisted.OverviewGameSummariesColumnWidths,
+                map => _settings.Persisted.OverviewGameSummariesColumnWidths = map,
+                () => _settings.Persisted.OverviewGameSummariesColumnVisibility,
+                map => _settings.Persisted.OverviewGameSummariesColumnVisibility = map,
                 _saveSettings,
-                getColumnOrder: () => _settings.Persisted.GamesOverviewColumnOrder,
-                setColumnOrder: map => _settings.Persisted.GamesOverviewColumnOrder = map);
+                getOrder: () => _settings.Persisted.OverviewGameSummariesColumnOrder,
+                setOrder: map => _settings.Persisted.OverviewGameSummariesColumnOrder = map,
+                getCellAlignments: () => _settings.Persisted.OverviewGameSummariesColumnAlignments,
+                setCellAlignments: map => _settings.Persisted.OverviewGameSummariesColumnAlignments = map,
+                getDefaultCellAlignment: () => _settings.Persisted.GridCellAlignment,
+                getCellVerticalAlignments: () => _settings.Persisted.OverviewGameSummariesColumnVerticalAlignments,
+                setCellVerticalAlignments: map => _settings.Persisted.OverviewGameSummariesColumnVerticalAlignments = map,
+                getDefaultCellVerticalAlignment: () => _settings.Persisted.GridCellVerticalAlignment,
+                getHeaderHorizontalAlignments: () => _settings.Persisted.OverviewGameSummariesColumnHeaderAlignments,
+                setHeaderHorizontalAlignments: map => _settings.Persisted.OverviewGameSummariesColumnHeaderAlignments = map,
+                getDefaultHeaderHorizontalAlignment: () => _settings.Persisted.GridColumnHeaderAlignment);
 
             _gamesOverviewPersistence.Attach();
         }
@@ -280,16 +287,16 @@ namespace PlayniteAchievements.Views
             UpdateDirectionButtons();
         }
 
-        private List<GameOverviewItem> CreateOverviewPreviewItems()
+        private List<GameSummaryItem> CreateOverviewPreviewItems()
         {
             var baseDate = DateTime.Today;
-            return new List<GameOverviewItem>
+            return new List<GameSummaryItem>
             {
-                new GameOverviewItem { GameName = "Celeste", SortingName = "Celeste", TotalAchievements = 30, UnlockedAchievements = 28, LastPlayed = baseDate.AddDays(-1).AddHours(21).AddMinutes(10), PlaytimeSeconds = 84200 },
-                new GameOverviewItem { GameName = "Hades", SortingName = "Hades", TotalAchievements = 49, UnlockedAchievements = 36, LastPlayed = baseDate.AddDays(-1).AddHours(9).AddMinutes(40), PlaytimeSeconds = 126400 },
-                new GameOverviewItem { GameName = "Dead Cells", SortingName = "Dead Cells", TotalAchievements = 58, UnlockedAchievements = 18, LastPlayed = baseDate.AddDays(-4).AddHours(23).AddMinutes(5), PlaytimeSeconds = 40500 },
-                new GameOverviewItem { GameName = "Hollow Knight", SortingName = "Hollow Knight", TotalAchievements = 63, UnlockedAchievements = 63, LastPlayed = baseDate.AddDays(-2).AddHours(15).AddMinutes(30), PlaytimeSeconds = 152000 },
-                new GameOverviewItem { GameName = "Cuphead", SortingName = "Cuphead", TotalAchievements = 42, UnlockedAchievements = 17, LastPlayed = baseDate.AddDays(-7).AddHours(8).AddMinutes(20), PlaytimeSeconds = 29200 }
+                new GameSummaryItem { GameName = "Celeste", SortingName = "Celeste", TotalAchievements = 30, UnlockedAchievements = 28, LastPlayed = baseDate.AddDays(-1).AddHours(21).AddMinutes(10), PlaytimeSeconds = 84200 },
+                new GameSummaryItem { GameName = "Hades", SortingName = "Hades", TotalAchievements = 49, UnlockedAchievements = 36, LastPlayed = baseDate.AddDays(-1).AddHours(9).AddMinutes(40), PlaytimeSeconds = 126400 },
+                new GameSummaryItem { GameName = "Dead Cells", SortingName = "Dead Cells", TotalAchievements = 58, UnlockedAchievements = 18, LastPlayed = baseDate.AddDays(-4).AddHours(23).AddMinutes(5), PlaytimeSeconds = 40500 },
+                new GameSummaryItem { GameName = "Hollow Knight", SortingName = "Hollow Knight", TotalAchievements = 63, UnlockedAchievements = 63, LastPlayed = baseDate.AddDays(-2).AddHours(15).AddMinutes(30), PlaytimeSeconds = 152000 },
+                new GameSummaryItem { GameName = "Cuphead", SortingName = "Cuphead", TotalAchievements = 42, UnlockedAchievements = 17, LastPlayed = baseDate.AddDays(-7).AddHours(8).AddMinutes(20), PlaytimeSeconds = 29200 }
             };
         }
 
@@ -477,7 +484,7 @@ namespace PlayniteAchievements.Views
             var items = _overviewSource.ToList();
             var currentPath = sortPath;
             var currentDirection = direction;
-            if (!GamesOverviewSortHelper.TrySortItems(items, sortPath, direction, secondaries, ref currentPath, ref currentDirection))
+            if (!GameSummariesSortHelper.TrySortItems(items, sortPath, direction, secondaries, ref currentPath, ref currentDirection))
             {
                 return;
             }
@@ -873,9 +880,7 @@ namespace PlayniteAchievements.Views
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             ApplyCurrentSelectionStates();
-            PersistSortSettings();
-            _gamesOverviewPersistence?.FlushPendingChanges();
-            _saveSettings?.Invoke();
+            PersistSortSettings();            _saveSettings?.Invoke();
             DialogResult = true;
             RequestClose?.Invoke(this, EventArgs.Empty);
         }

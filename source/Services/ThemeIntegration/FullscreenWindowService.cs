@@ -57,10 +57,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         }
 
         /// <summary>
-        /// Opens the achievement window for a specific game.
+        /// Opens the View Achievements fullscreen window for a specific game.
         /// Changes Playnite's selection so theme bindings resolve to this game.
         /// </summary>
-        public void OpenGameWindow(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId)
         {
             if (gameId == Guid.Empty)
             {

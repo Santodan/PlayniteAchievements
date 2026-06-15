@@ -445,12 +445,14 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
                 _logger?.Info($"[RA] Parsed {achievements.Count} achievements for '{gameInfo?.GameTitle}'.");
 
+                var subsetConsoleId = RetroAchievementsSubsetConsoleResolver.Resolve(gameInfo, consoleId);
+
                 // Fetch subset achievements if enabled.
-                if (raSettings.EnableRaSubsetScanning && consoleId.HasValue)
+                if (raSettings.EnableRaSubsetScanning && subsetConsoleId.HasValue)
                 {
                     try
                     {
-                        var subsets = await _hashIndexStore.GetSubsetsForGameAsync(gameId, consoleId.Value, cancel).ConfigureAwait(false);
+                        var subsets = await _hashIndexStore.GetSubsetsForGameAsync(gameId, subsetConsoleId.Value, cancel).ConfigureAwait(false);
                         if (subsets != null && subsets.Count > 0)
                         {
                             foreach (var subset in subsets)

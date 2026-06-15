@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
+using PlayniteAchievements.Services;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Views.Helpers
@@ -332,14 +334,21 @@ namespace PlayniteAchievements.Views.Helpers
             // Keep the preview deterministic: source order is newest-first by default.
             themeData.AchievementsNewestFirst = new List<AchievementDetail>(all);
 
-            var oldestFirst = new List<AchievementDetail>(all);
-            oldestFirst.Reverse();
-            themeData.AchievementsOldestFirst = oldestFirst;
+            themeData.AchievementsOldestFirst = AchievementSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.UnlockTime),
+                ListSortDirection.Ascending);
 
-            themeData.AchievementsRarityAsc = new List<AchievementDetail>(all);
-            themeData.AchievementsRarityDesc = new List<AchievementDetail>(all);
-            themeData.AllAchievementsRarityAsc = new List<AchievementDetail>(all);
-            themeData.AllAchievementsRarityDesc = new List<AchievementDetail>(all);
+            themeData.AchievementsRarityAsc = AchievementSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.RaritySortValue),
+                ListSortDirection.Ascending);
+            themeData.AchievementsRarityDesc = AchievementSortHelper.CreateSortedDetailList(
+                all,
+                nameof(AchievementDisplayItem.RaritySortValue),
+                ListSortDirection.Descending);
+            themeData.AllAchievementsRarityAsc = new List<AchievementDetail>(themeData.AchievementsRarityAsc);
+            themeData.AllAchievementsRarityDesc = new List<AchievementDetail>(themeData.AchievementsRarityDesc);
         }
 
         /// <summary>

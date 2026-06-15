@@ -56,7 +56,7 @@ namespace PlayniteAchievements.Services
             return $"{totalMinutes}m";
         }
 
-        public static string BuildSidebarMetadataText(
+        public static string BuildOverviewMetadataText(
             string platformText,
             string playtimeText,
             string regionText)

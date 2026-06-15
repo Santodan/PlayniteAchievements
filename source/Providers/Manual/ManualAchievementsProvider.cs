@@ -237,22 +237,22 @@ namespace PlayniteAchievements.Providers.Manual
                 fallbackSettings: ProviderRegistry.Settings<ManualSettings>());
         }
 
-        internal static string GetGameOptionsLinkSummary(ManualAchievementLink link)
+        internal static string GetManageAchievementsLinkSummary(ManualAchievementLink link)
         {
             if (link == null)
             {
-                return L("LOCPlayAch_GameOptions_Manual_LinkSummary_None", "No manual link configured.");
+                return L("LOCPlayAch_ManageAchievements_Manual_LinkSummary_None", "No manual link configured.");
             }
 
             return string.Format(
-                L("LOCPlayAch_GameOptions_Manual_LinkSummary", "{0} ({1})"),
+                L("LOCPlayAch_ManageAchievements_Manual_LinkSummary", "{0} ({1})"),
                 string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
                 string.IsNullOrWhiteSpace(link.SourceGameId)
-                    ? L("LOCPlayAch_GameOptions_Value_NotAvailable", "N/A")
+                    ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable", "N/A")
                     : link.SourceGameId);
         }
 
-        internal static bool TryUnlinkGameOptionsLink(
+        internal static bool TryUnlinkManageAchievementsLink(
             Guid gameId,
             string gameName,
             IPlayniteAPI playniteApi,

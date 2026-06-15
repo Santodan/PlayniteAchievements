@@ -6,19 +6,31 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 {
     public enum AchievementRank
     {
-        Bronze1,
-        Bronze2,
+        Bronze5,
+        Bronze4,
         Bronze3,
-        Silver1,
-        Silver2,
+        Bronze2,
+        Bronze1,
+        Silver5,
+        Silver4,
         Silver3,
-        Gold1,
-        Gold2,
+        Silver2,
+        Silver1,
+        Gold5,
+        Gold4,
         Gold3,
-        Plat1,
-        Plat2,
+        Gold2,
+        Gold1,
+        Plat5,
+        Plat4,
         Plat3,
-        Plat
+        Plat2,
+        Plat1,
+        Master5,
+        Master4,
+        Master3,
+        Master2,
+        Master1
     }
 
     public static class AchievementRankPresentation
@@ -54,6 +66,11 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                     rankText.Substring("Plat".Length));
             }
 
+            if (rankText.StartsWith("Master", StringComparison.Ordinal))
+            {
+                return FormatNumberedTier("Master", rankText.Substring("Master".Length));
+            }
+
             return rankText;
         }
 
@@ -61,13 +78,18 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
         {
             return TryParseRank(rank, out var parsed)
                 ? FormatRank(parsed)
-                : FormatRank(AchievementRank.Bronze1);
+                : FormatRank(AchievementRank.Bronze5);
         }
 
         public static string GetBadgeIconKey(
             AchievementRank rank,
             bool useUniformRarityBadges = false)
         {
+            if (rank.ToString().StartsWith("Master", StringComparison.Ordinal))
+            {
+                return "BadgeCompletedGame";
+            }
+
             switch (GetRarityTier(rank))
             {
                 case RarityTier.UltraRare:
@@ -87,13 +109,14 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
         {
             return TryParseRank(rank, out var parsed)
                 ? GetBadgeIconKey(parsed, useUniformRarityBadges)
-                : GetBadgeIconKey(AchievementRank.Bronze1, useUniformRarityBadges);
+                : GetBadgeIconKey(AchievementRank.Bronze5, useUniformRarityBadges);
         }
 
         public static RarityTier GetRarityTier(AchievementRank rank)
         {
             var rankText = rank.ToString();
-            if (rankText.StartsWith("Plat", StringComparison.Ordinal))
+            if (rankText.StartsWith("Plat", StringComparison.Ordinal) ||
+                rankText.StartsWith("Master", StringComparison.Ordinal))
             {
                 return RarityTier.UltraRare;
             }
@@ -120,9 +143,33 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         private static string FormatNumberedTier(string tierName, string tierNumber)
         {
+            if (int.TryParse(tierNumber, out var parsedNumber))
+            {
+                tierNumber = ToRomanNumeral(parsedNumber);
+            }
+
             return string.IsNullOrWhiteSpace(tierNumber)
                 ? tierName
                 : $"{tierName} {tierNumber}";
+        }
+
+        private static string ToRomanNumeral(int value)
+        {
+            switch (value)
+            {
+                case 1:
+                    return "I";
+                case 2:
+                    return "II";
+                case 3:
+                    return "III";
+                case 4:
+                    return "IV";
+                case 5:
+                    return "V";
+                default:
+                    return value.ToString();
+            }
         }
 
         private static string GetLocalizedTierName(string resourceKey, string fallback)
@@ -151,7 +198,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 return true;
             }
 
-            parsed = AchievementRank.Bronze1;
+            parsed = AchievementRank.Bronze5;
             return false;
         }
     }

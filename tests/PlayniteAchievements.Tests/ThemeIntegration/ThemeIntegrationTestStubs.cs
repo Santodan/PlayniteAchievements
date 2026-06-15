@@ -86,6 +86,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         public bool IsCapstone { get; set; }
 
+        public bool IsFiltered { get; set; }
+
+        public bool IsFilteredFromSummaries { get; set; }
+
+        public string AchievementNote { get; set; }
+
         public DateTime? UnlockTimeUtc { get; set; }
 
         public double? GlobalPercentUnlocked { get; set; }
@@ -131,6 +137,12 @@ namespace PlayniteAchievements.Models.Achievements
                     : band + 999_999;
             }
         }
+
+        public int CollectionScore =>
+            PlayniteAchievements.Models.Achievements.Scoring.AchievementScoreCalculator.GetCollectionValue(Rarity);
+
+        public int PrestigeScore =>
+            PlayniteAchievements.Models.Achievements.Scoring.AchievementScoreCalculator.GetPrestigeValue(GlobalPercentUnlocked, Rarity);
     }
 
     public sealed class GameAchievementData
@@ -278,6 +290,10 @@ namespace PlayniteAchievements.ViewModels
 
         public double RaritySortValue { get; set; }
 
+        public int CollectionScore { get; set; }
+
+        public int PrestigeScore { get; set; }
+
         public int? PointsValue { get; set; }
 
         public int Points => PointsValue ?? 0;
@@ -350,6 +366,34 @@ namespace PlayniteAchievements.ViewModels
 
         public void ApplyAppearanceSettings(PlayniteAchievements.Models.PlayniteAchievementsSettings settings)
         {
+        }
+
+        public AchievementDisplayItem Clone()
+        {
+            return new AchievementDisplayItem
+            {
+                DisplayName = DisplayName,
+                Description = Description,
+                SortingName = SortingName,
+                GameName = GameName,
+                PlayniteGameId = PlayniteGameId,
+                ApiName = ApiName,
+                TrophyType = TrophyType,
+                CategoryType = CategoryType,
+                CategoryLabel = CategoryLabel,
+                Hidden = Hidden,
+                Unlocked = Unlocked,
+                UnlockTimeUtc = UnlockTimeUtc,
+                GlobalPercentUnlocked = GlobalPercentUnlocked,
+                Rarity = Rarity,
+                RaritySortValue = RaritySortValue,
+                CollectionScore = CollectionScore,
+                PrestigeScore = PrestigeScore,
+                PointsValue = PointsValue,
+                ProgressNum = ProgressNum,
+                ProgressDenom = ProgressDenom,
+                ShowHiddenSuffix = ShowHiddenSuffix
+            };
         }
 
         public void UpdateFrom(

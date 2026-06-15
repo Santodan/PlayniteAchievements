@@ -168,6 +168,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(RarityPercentValue));
                     OnPropertyChanged(nameof(Percent));
                     OnPropertyChanged(nameof(RaritySortValue));
+                    OnPropertyChanged(nameof(PrestigeScore));
                 }
             }
         }
@@ -200,6 +201,8 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(RarityDetailText));
                     OnPropertyChanged(nameof(GamerScore));
                     OnPropertyChanged(nameof(RaritySortValue));
+                    OnPropertyChanged(nameof(CollectionScore));
+                    OnPropertyChanged(nameof(PrestigeScore));
                 }
             }
         }
@@ -222,6 +225,16 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(IsUnlock));
                 }
             }
+        }
+
+        public bool IsCapstone
+        {
+            get => _source?.IsCapstone == true;
+            set => SetSourceValue(
+                source => source.IsCapstone,
+                (source, next) => source.IsCapstone = next,
+                value,
+                nameof(IsCapstone));
         }
 
         public bool Hidden
@@ -258,6 +271,22 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
         }
+
+        public string AchievementNote
+        {
+            get => _source?.AchievementNote;
+            set
+            {
+                SetSourceValue(
+                    source => source.AchievementNote,
+                    (source, next) => source.AchievementNote = next,
+                    AchievementNoteHelper.NormalizeNote(value),
+                    nameof(AchievementNote),
+                    nameof(HasAchievementNote));
+            }
+        }
+
+        public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
 
         // Hidden achievement visibility settings
         private bool _showHiddenIcon;
@@ -465,12 +494,20 @@ namespace PlayniteAchievements.ViewModels
         public string CategoryLabel
         {
             get => _categoryLabel;
-            set => SetValue(ref _categoryLabel, value);
+            set
+            {
+                if (SetValueAndReturn(ref _categoryLabel, value))
+                {
+                    OnPropertyChanged(nameof(CategoryLabelDisplay));
+                }
+            }
         }
+
+        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         /// <summary>
         /// Path to the game's icon image.
-        /// Used by the Game column in sidebar recent achievements.
+        /// Used by the Game column in overview recent achievements.
         /// </summary>
         public string GameIconPath
         {
@@ -480,7 +517,7 @@ namespace PlayniteAchievements.ViewModels
 
         /// <summary>
         /// Path to the game's cover image.
-        /// Used by the Game column in sidebar recent achievements when UseCoverImages is true.
+        /// Used by the Game column in overview recent achievements when UseCoverImages is true.
         /// </summary>
         public string GameCoverPath
         {
@@ -501,7 +538,7 @@ namespace PlayniteAchievements.ViewModels
         /// <summary>
         /// Text representation of progress as "ProgressNum / ProgressDenom".
         /// </summary>
-        public string ProgressText => HasProgress ? $"{ProgressNum.Value} / {ProgressDenom.Value}" : string.Empty;
+        public string ProgressText => HasProgress ? $"{ProgressNum.Value}/{ProgressDenom.Value}" : string.Empty;
 
         /// <summary>
         /// Progress percentage (0-100) for progress bar binding.
@@ -738,6 +775,10 @@ namespace PlayniteAchievements.ViewModels
         public int Points => PointsValue ?? 0;
 
         public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString() : "-";
+
+        public int CollectionScore => _source?.CollectionScore ?? 0;
+
+        public int PrestigeScore => _source?.PrestigeScore ?? 0;
 
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
 
@@ -1048,12 +1089,17 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(RarityPercentValue));
             OnPropertyChanged(nameof(Percent));
             OnPropertyChanged(nameof(RaritySortValue));
+            OnPropertyChanged(nameof(CollectionScore));
+            OnPropertyChanged(nameof(PrestigeScore));
             OnPropertyChanged(nameof(Rarity));
             OnPropertyChanged(nameof(GamerScore));
             OnPropertyChanged(nameof(Unlocked));
+            OnPropertyChanged(nameof(IsCapstone));
             OnPropertyChanged(nameof(Hidden));
             OnPropertyChanged(nameof(IsUnlock));
             OnPropertyChanged(nameof(ApiName));
+            OnPropertyChanged(nameof(AchievementNote));
+            OnPropertyChanged(nameof(HasAchievementNote));
             OnPropertyChanged(nameof(ProgressNum));
             OnPropertyChanged(nameof(ProgressDenom));
             OnPropertyChanged(nameof(HasProgress));

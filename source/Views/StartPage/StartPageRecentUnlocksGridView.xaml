@@ -1,0 +1,23 @@
+<UserControl x:Class="PlayniteAchievements.Views.StartPage.StartPageRecentUnlocksGridView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             xmlns:services="clr-namespace:PlayniteAchievements.Services"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+    <Grid Margin="4">
+        <controls:AchievementDataGridControl ItemsSource="{Binding Items}"
+                                             x:Name="RecentUnlocksGrid"
+                                             ShowGameColumn="True"
+                                             UseCoverImages="{Binding UseCoverImages}"
+                                             ShowColumnHeaders="{Binding ShowColumnHeaders}"
+                                             FixedRowHeight="{Binding RowHeight}"
+                                             SortScope="{x:Static services:AchievementSortScope.RecentAchievements}"
+                                             AllowLayoutPersistence="True"
+                                             AllowColumnVisibilityMenu="True"
+                                             ColumnSettingsKey="StartPageAchievements"
+                                             DataGridMaxHeight="10000"
+                                             RowPreviewMouseRightButtonDown="GridRow_PreviewMouseRightButtonDown"
+                                             RowPreviewMouseRightButtonUp="GridRow_PreviewMouseRightButtonUp"/>
+    </Grid>
+</UserControl>

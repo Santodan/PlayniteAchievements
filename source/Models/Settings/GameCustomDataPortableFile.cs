@@ -9,7 +9,7 @@ namespace PlayniteAchievements.Models.Settings
     /// </summary>
     public sealed class GameCustomDataPortableFile
     {
-        public int SchemaVersion { get; set; } = 2;
+        public int SchemaVersion { get; set; } = 4;
 
         public Guid PlayniteGameId { get; set; }
 
@@ -23,11 +23,16 @@ namespace PlayniteAchievements.Models.Settings
 
         public Dictionary<string, string> AchievementCategoryTypeOverrides { get; set; }
 
+        public List<string> FilteredAchievementApiNames { get; set; }
+
+        public List<string> SummaryFilteredAchievementApiNames { get; set; }
+
         public Dictionary<string, string> AchievementUnlockedIconOverrides { get; set; }
 
         public Dictionary<string, string> AchievementLockedIconOverrides { get; set; }
 
         public bool? ViewAchievementsIconFetchEnabled { get; set; }
+        public Dictionary<string, string> AchievementNotes { get; set; }
 
         public int? RetroAchievementsGameIdOverride { get; set; }
 
@@ -62,6 +67,12 @@ namespace PlayniteAchievements.Models.Settings
                 AchievementCategoryTypeOverrides = AchievementCategoryTypeOverrides != null
                     ? new Dictionary<string, string>(AchievementCategoryTypeOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
+                FilteredAchievementApiNames = FilteredAchievementApiNames != null
+                    ? new List<string>(FilteredAchievementApiNames)
+                    : null,
+                SummaryFilteredAchievementApiNames = SummaryFilteredAchievementApiNames != null
+                    ? new List<string>(SummaryFilteredAchievementApiNames)
+                    : null,
                 AchievementUnlockedIconOverrides = AchievementUnlockedIconOverrides != null
                     ? new Dictionary<string, string>(AchievementUnlockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
@@ -69,6 +80,9 @@ namespace PlayniteAchievements.Models.Settings
                     ? new Dictionary<string, string>(AchievementLockedIconOverrides, StringComparer.OrdinalIgnoreCase)
                     : null,
                 ViewAchievementsIconFetchEnabled = ViewAchievementsIconFetchEnabled,
+                AchievementNotes = AchievementNotes != null
+                    ? new Dictionary<string, string>(AchievementNotes, StringComparer.OrdinalIgnoreCase)
+                    : null,
                 RetroAchievementsGameIdOverride = RetroAchievementsGameIdOverride,
                 SteamAccountIdOverride = SteamAccountIdOverride,
                 XeniaTitleIdOverride = XeniaTitleIdOverride,

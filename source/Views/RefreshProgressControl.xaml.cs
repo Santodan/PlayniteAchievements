@@ -19,7 +19,7 @@ namespace PlayniteAchievements.Views
             RefreshRuntime refreshRuntime,
             ILogger logger,
             Guid? singleGameRefreshId = null,
-            Action<Guid> openSingleGameAction = null)
+            Action<Guid> openViewAchievementsAction = null)
         {
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _logger = logger;
@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Views
                 refreshRuntime,
                 logger,
                 singleGameRefreshId,
-                openSingleGameAction);
+                openViewAchievementsAction);
             DataContext = _viewModel;
 
             InitializeComponent();

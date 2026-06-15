@@ -114,11 +114,11 @@
                         IsDefault="True"
                         Visibility="{Binding ShowCompleteButtons, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                <Button Content="{DynamicResource LOCPlayAch_Progress_ButtonOpenGame}"
-                        Command="{Binding OpenSingleGameCommand}"
+                <Button Content="{DynamicResource LOCPlayAch_Progress_ButtonViewAchievements}"
+                        Command="{Binding OpenViewAchievementsCommand}"
                         Padding="12,6"
                         MinWidth="120"
-                        Visibility="{Binding ShowOpenSingleGameButton, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        Visibility="{Binding ShowOpenViewAchievementsButton, Converter={StaticResource BooleanToVisibilityConverter}}"/>
             </StackPanel>
         </Border>
     </Grid>

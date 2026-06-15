@@ -1,8 +1,5 @@
 namespace PlayniteAchievements.Models.Settings
 {
-    /// <summary>
-    /// Sort mode for the sidebar games overview grid.
-    /// </summary>
     public enum GamesOverviewSortMode
     {
         RecentUnlock = 0,

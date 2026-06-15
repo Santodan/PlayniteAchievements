@@ -1,10 +1,10 @@
 using System;
 using System.Globalization;
-using System.IO;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace PlayniteAchievements.Views.Converters
 {
@@ -100,21 +100,14 @@ namespace PlayniteAchievements.Views.Converters
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            if (values.Length >= 1 && values[0] is string iconKey && !string.IsNullOrEmpty(iconKey))
+            if (values.Length >= 2 &&
+                values[0] is string iconKey &&
+                values[1] is string colorHex &&
+                !string.IsNullOrEmpty(iconKey) &&
+                !string.IsNullOrEmpty(colorHex))
             {
                 try
                 {
-                    var customImage = TryLoadCustomProviderImage(iconKey);
-                    if (customImage != null)
-                    {
-                        return customImage;
-                    }
-
-                    if (!(values.Length >= 2 && values[1] is string colorHex && !string.IsNullOrEmpty(colorHex)))
-                    {
-                        return null;
-                    }
-
                     // Try to find a "Geo" + iconName resource (e.g., GeoSteam for ProviderIconSteam)
                     string geoKey = "Geo" + iconKey.Replace("ProviderIcon", "");
 
@@ -148,51 +141,6 @@ namespace PlayniteAchievements.Views.Converters
         {
             throw new NotImplementedException();
         }
-
-        private static ImageSource TryLoadCustomProviderImage(string iconKey)
-        {
-            if (string.IsNullOrWhiteSpace(iconKey))
-            {
-                return null;
-            }
-
-            Uri uri = null;
-            if (Path.IsPathRooted(iconKey))
-            {
-                if (!File.Exists(iconKey))
-                {
-                    return null;
-                }
-
-                uri = new Uri(iconKey, UriKind.Absolute);
-            }
-            else if (Uri.TryCreate(iconKey, UriKind.Absolute, out var parsedUri) &&
-                     (parsedUri.Scheme == Uri.UriSchemeFile ||
-                      parsedUri.Scheme == Uri.UriSchemeHttp ||
-                      parsedUri.Scheme == Uri.UriSchemeHttps))
-            {
-                if (parsedUri.IsFile && !File.Exists(parsedUri.LocalPath))
-                {
-                    return null;
-                }
-
-                uri = parsedUri;
-            }
-
-            if (uri == null)
-            {
-                return null;
-            }
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            bitmap.UriSource = uri;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
-        }
     }
 
     /// <summary>
@@ -205,9 +153,9 @@ namespace PlayniteAchievements.Views.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             // If value is a non-empty string, return it (AsyncImage will handle async loading)
-            if (value is string str && !string.IsNullOrWhiteSpace(str))
+            if (value is string str && !string.IsNullOrEmpty(str))
             {
-                return str.Trim();
+                return value;
             }
 
             // If null/empty, return the appropriate default resource from the theme
@@ -295,6 +243,172 @@ namespace PlayniteAchievements.Views.Converters
             return double.TryParse(parameterText, NumberStyles.Float | NumberStyles.AllowThousands, culture, out var cultureValue)
                 ? cultureValue
                 : 0;
+        }
+    }
+
+    /// <summary>
+    /// Converts a TextBox string to nullable int, treating blank input as null.
+    /// </summary>
+    public class NullableIntTextConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is int intValue)
+            {
+                return intValue.ToString(culture);
+            }
+
+            return string.Empty;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return null;
+            }
+
+            if (int.TryParse(text, NumberStyles.Integer | NumberStyles.AllowThousands, culture, out var parsed))
+            {
+                var minimum = ParseMinimum(parameter, culture);
+                if (minimum > 0 && parsed > 0 && parsed < minimum)
+                {
+                    return minimum;
+                }
+
+                return parsed;
+            }
+
+            return Binding.DoNothing;
+        }
+
+        private static int ParseMinimum(object parameter, CultureInfo culture)
+        {
+            if (parameter == null)
+            {
+                return 0;
+            }
+
+            var parameterText = parameter.ToString();
+            if (string.IsNullOrWhiteSpace(parameterText))
+            {
+                return 0;
+            }
+
+            if (int.TryParse(parameterText, NumberStyles.Integer | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var invariantValue))
+            {
+                return invariantValue;
+            }
+
+            return int.TryParse(parameterText, NumberStyles.Integer | NumberStyles.AllowThousands, culture, out var cultureValue)
+                ? cultureValue
+                : 0;
+        }
+    }
+
+    /// <summary>
+    /// Sizes image cells from the available column width. Platform badges keep row-aware uniform sizing.
+    /// ConverterParameter: mode,dimension,horizontalPadding,verticalPadding,fallbackSize.
+    /// mode is icon, cover, platform, or auto. dimension is width or height.
+    /// </summary>
+    public class ImageFitDimensionConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            var parts = (parameter?.ToString() ?? "icon,width").Split(',');
+            var mode = parts.Length > 0 ? parts[0].Trim().ToLowerInvariant() : "icon";
+            var dimension = parts.Length > 1 ? parts[1].Trim().ToLowerInvariant() : "width";
+            var useCover = mode == "cover" ||
+                (mode == "auto" && values != null && values.Length > 2 && values[2] is bool boolValue && boolValue);
+            var aspectRatio = useCover ? 2d / 3d : 1d;
+            var horizontalPadding = ParseDouble(parts, 2, 8d);
+            var verticalPadding = ParseDouble(parts, 3, 8d);
+            var fallbackSize = ParseDouble(parts, 4, 12d);
+
+            var cellWidth = GetFiniteDouble(values, 1);
+            var rowHeight = GetFiniteDouble(values, 0);
+            var availableWidth = cellWidth.HasValue
+                ? Math.Max(1d, cellWidth.Value - horizontalPadding)
+                : fallbackSize;
+            var availableHeight = rowHeight.HasValue
+                ? Math.Max(1d, rowHeight.Value - verticalPadding)
+                : fallbackSize / aspectRatio;
+            var fitWidth = mode == "icon" || mode == "cover" || mode == "auto";
+            var height = fitWidth
+                ? availableWidth / aspectRatio
+                : Math.Min(availableHeight, availableWidth / aspectRatio);
+            if (double.IsNaN(height) || double.IsInfinity(height) || height <= 0)
+            {
+                height = fallbackSize / aspectRatio;
+            }
+
+            return dimension == "height" ? height : height * aspectRatio;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static double? GetFiniteDouble(object[] values, int index)
+        {
+            if (values == null || values.Length <= index || !(values[index] is double value))
+            {
+                return null;
+            }
+
+            return double.IsNaN(value) || double.IsInfinity(value) || value <= 0
+                ? (double?)null
+                : value;
+        }
+
+        private static double ParseDouble(string[] parts, int index, double fallback)
+        {
+            if (parts == null ||
+                parts.Length <= index ||
+                !double.TryParse(parts[index], NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
+            {
+                return fallback;
+            }
+
+            return Math.Max(0d, value);
+        }
+    }
+
+    public class DataGridCompletedBorderThicknessConverter : IMultiValueConverter
+    {
+        private static readonly Thickness MiddleColumnThickness = new Thickness(0, 2, 0, 2);
+
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            var cell = values != null && values.Length > 0 ? values[0] as DataGridCell : null;
+            var grid = values != null
+                ? values.OfType<DataGrid>().FirstOrDefault()
+                : null;
+            var column = cell?.Column;
+            if (column == null || grid?.Columns == null)
+            {
+                return MiddleColumnThickness;
+            }
+
+            var visibleColumns = grid.Columns
+                .Where(item => item?.Visibility == Visibility.Visible)
+                .OrderBy(item => item.DisplayIndex)
+                .ToList();
+            if (visibleColumns.Count == 0)
+            {
+                return MiddleColumnThickness;
+            }
+
+            var left = ReferenceEquals(column, visibleColumns[0]) ? 2d : 0d;
+            var right = ReferenceEquals(column, visibleColumns[visibleColumns.Count - 1]) ? 2d : 0d;
+            return new Thickness(left, 2, right, 2);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 

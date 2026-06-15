@@ -102,7 +102,7 @@ namespace PlayniteAchievements.Models.Achievements
         public List<string> AchievementOrder { get; set; }
 
         /// <summary>
-        /// Runtime-only exclusion flag for summary surfaces such as the sidebar/theme views.
+        /// Runtime-only exclusion flag for summary surfaces such as the overview/theme views.
         /// Not persisted in cache/database.
         /// </summary>
         [IgnoreDataMember]

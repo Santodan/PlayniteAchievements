@@ -2,6 +2,7 @@ using System;
 using System.Runtime.Serialization;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -68,6 +69,26 @@ namespace PlayniteAchievements.Models.Achievements
         /// Auto-set to true for platinum trophies; can be manually configured via Capstone control.
         /// </summary>
         public bool IsCapstone { get; set; }
+
+        /// <summary>
+        /// Runtime-only user filter flag. Filtered achievements are hidden from
+        /// achievement views and removed from counts.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsFiltered { get; set; }
+
+        /// <summary>
+        /// Runtime-only user filter flag. Summary-filtered achievements stay visible
+        /// in achievement views but are removed from summary surfaces.
+        /// </summary>
+        [IgnoreDataMember]
+        public bool IsFilteredFromSummaries { get; set; }
+
+        /// <summary>
+        /// Runtime-only user note stored in per-game custom data.
+        /// </summary>
+        [IgnoreDataMember]
+        public string AchievementNote { get; set; }
 
         /// <summary>
         /// Playnite Game reference for theme bindings.
@@ -156,6 +177,12 @@ namespace PlayniteAchievements.Models.Achievements
 
         [IgnoreDataMember]
         public double RaritySortValue => AchievementRarityResolver.GetSortValue(GlobalPercentUnlocked, Rarity);
+
+        [IgnoreDataMember]
+        public int CollectionScore => AchievementScoreCalculator.GetCollectionValue(Rarity);
+
+        [IgnoreDataMember]
+        public int PrestigeScore => AchievementScoreCalculator.GetPrestigeValue(this);
 
         [IgnoreDataMember]
         public DateTime? DateUnlocked

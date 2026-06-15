@@ -7,7 +7,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 {
     /// <summary>
     /// Modern PlayniteAchievements bar chart control for theme integration.
-    /// Displays unlock timeline using LiveCharts with the same TimelineViewModel as the sidebar.
+    /// Displays unlock timeline using LiveCharts with the same TimelineViewModel as the overview.
     /// Uses the effective theme source so settings previews can inject mock data.
     /// </summary>
     public partial class AchievementBarChartControl : ThemeControlBase
@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         /// <summary>
         /// Gets the timeline view model that manages chart data and state.
-        /// Shared with the sidebar for consistent behavior and styling.
+        /// Shared with the overview for consistent behavior and styling.
         /// </summary>
         public TimelineViewModel TimelineViewModel { get; } = new TimelineViewModel();
 

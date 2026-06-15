@@ -393,8 +393,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var rawVisible = Achievement("Visible", 75.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 1, 9, 0, 0));
             var rawAlsoVisible = Achievement("Visible Too", 25.0, unlocked: false);
-            var rawIgnored = Achievement("Ignored Entry", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 2, 9, 0, 0));
-            rawIgnored.CategoryType = "Ignored";
+            var rawIgnored = Achievement("Filtered Entry", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 2, 9, 0, 0));
+            rawIgnored.IsFiltered = true;
 
             var visibleData = new GameAchievementData
             {
@@ -521,8 +521,8 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             var visibleUnlocked = Achievement("Visible Unlock", 8.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 1, 9, 0, 0));
             var visibleLocked = Achievement("Visible Locked", 75.0, unlocked: false);
-            var ignored = Achievement("Ignored Unlock", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 2, 9, 0, 0));
-            ignored.CategoryType = "Ignored";
+            var ignored = Achievement("Filtered Unlock", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 2, 9, 0, 0));
+            ignored.IsFiltered = true;
 
             context.AchievementDataService.AllGameData = new List<GameAchievementData>
             {

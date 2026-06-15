@@ -184,17 +184,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             state.Score = scoreSnapshot.LegacyScore;
             state.Level = scoreSnapshot.LegacyLevel?.Level ?? 0;
             state.LevelProgress = scoreSnapshot.LegacyLevel?.LevelProgress ?? 0;
-            state.Rank = scoreSnapshot.LegacyLevel?.Rank ?? "Bronze1";
+            state.Rank = scoreSnapshot.LegacyLevel?.Rank ?? "Bronze5";
 
             state.CollectorScore = scoreSnapshot.CollectorScore;
             state.CollectorLevel = GetDisplayLevel(scoreSnapshot.CollectorLevel);
             state.CollectorLevelProgress = scoreSnapshot.CollectorLevel?.LevelProgress ?? 0;
-            state.CollectorRank = scoreSnapshot.CollectorLevel?.Rank ?? "Bronze1";
+            state.CollectorRank = scoreSnapshot.CollectorLevel?.Rank ?? "Bronze5";
 
             state.PrestigeScore = scoreSnapshot.PrestigeScore;
             state.PrestigeLevel = GetDisplayLevel(scoreSnapshot.PrestigeLevel);
             state.PrestigeLevelProgress = scoreSnapshot.PrestigeLevel?.LevelProgress ?? 0;
-            state.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze1";
+            state.PrestigeRank = scoreSnapshot.PrestigeLevel?.Rank ?? "Bronze5";
         }
 
         private static int GetDisplayLevel(AchievementLevelSnapshot snapshot)

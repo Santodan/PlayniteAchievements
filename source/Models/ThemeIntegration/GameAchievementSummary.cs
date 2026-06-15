@@ -6,7 +6,7 @@ using PlayniteAchievements.Models.Achievements;
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
     /// <summary>
-    /// Summary of achievement progress for a single game, used in all-games overview displays.
+    /// Summary of achievement progress for a single game, used in library overview displays.
     /// Represents a "trophy card" showing progress, trophy counts, and metadata for one game.
     /// </summary>
     public sealed class GameAchievementSummary : ObservableObject
@@ -155,9 +155,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public int AchievementCount { get; }
 
         /// <summary>
-        /// Command to open the detailed achievement view for this game.
+        /// Command to open the View Achievements window for this game.
+        /// Prefer OpenViewAchievementsWindow in new themes.
         /// </summary>
         public ICommand OpenAchievementWindow { get; }
+
+        /// <summary>
+        /// Command to open the View Achievements window for this game.
+        /// </summary>
+        public ICommand OpenViewAchievementsWindow { get; }
+
+        /// <summary>
+        /// Command to open the Manage Achievements window for this game.
+        /// </summary>
+        public ICommand OpenManageAchievementsWindow { get; }
 
         #region Legacy Aliases for Aniki ReMake/Helper Compatibility
 
@@ -194,7 +205,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             int bronzeCount,
             bool isCompleted,
             DateTime lastUnlockDate,
-            ICommand openAchievementWindow,
+            ICommand openAchievementWindow = null,
             AchievementRarityStats common = null,
             AchievementRarityStats uncommon = null,
             AchievementRarityStats rare = null,
@@ -205,7 +216,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             string providerName = null,
             DateTime? lastPlayed = null,
             int unlockedCount = 0,
-            int achievementCount = 0)
+            int achievementCount = 0,
+            ICommand openViewAchievementsWindow = null,
+            ICommand openManageAchievementsWindow = null)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
@@ -224,7 +237,9 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             LastPlayed = lastPlayed;
             UnlockedCount = Math.Max(0, unlockedCount);
             AchievementCount = Math.Max(0, achievementCount);
-            OpenAchievementWindow = openAchievementWindow;
+            OpenViewAchievementsWindow = openViewAchievementsWindow ?? openAchievementWindow;
+            OpenAchievementWindow = openAchievementWindow ?? OpenViewAchievementsWindow;
+            OpenManageAchievementsWindow = openManageAchievementsWindow;
             Common = common ?? new AchievementRarityStats();
             Uncommon = uncommon ?? new AchievementRarityStats();
             Rare = rare ?? new AchievementRarityStats();

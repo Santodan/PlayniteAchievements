@@ -150,7 +150,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private double _collectorLevelProgress;
         [DontSerialize]
-        private string _collectorRank = "Bronze1";
+        private string _collectorRank = "Bronze5";
         [DontSerialize]
         private int _prestigeScore;
         [DontSerialize]
@@ -158,7 +158,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private double _prestigeLevelProgress;
         [DontSerialize]
-        private string _prestigeRank = "Bronze1";
+        private string _prestigeRank = "Bronze5";
 
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _steamGames = new BulkObservableCollection<GameAchievementSummary>();
@@ -626,7 +626,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public string CollectorRank
         {
             get => _collectorRank;
-            set => SetValue(ref _collectorRank, value ?? "Bronze1");
+            set => SetValue(ref _collectorRank, value ?? "Bronze5");
         }
 
         [DontSerialize]
@@ -654,7 +654,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public string PrestigeRank
         {
             get => _prestigeRank;
-            set => SetValue(ref _prestigeRank, value ?? "Bronze1");
+            set => SetValue(ref _prestigeRank, value ?? "Bronze5");
         }
 
         [DontSerialize]

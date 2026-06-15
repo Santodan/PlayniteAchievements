@@ -13,7 +13,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly RefreshRuntime _refreshService;
         private readonly ILogger _logger;
         private readonly Guid? _singleGameRefreshId;
-        private readonly Action<Guid> _openSingleGameAction;
+        private readonly Action<Guid> _openViewAchievementsAction;
 
         private double _progressPercent;
         private string _progressMessage;
@@ -43,17 +43,17 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(ShowInProgressButtons));
                     OnPropertyChanged(nameof(ShowCompleteButtons));
-                    OnPropertyChanged(nameof(ShowOpenSingleGameButton));
+                    OnPropertyChanged(nameof(ShowOpenViewAchievementsButton));
                 }
             }
         }
 
         public bool ShowInProgressButtons => !IsCompleted && IsRefreshing;
         public bool ShowCompleteButtons => IsCompleted;
-        public bool ShowOpenSingleGameButton => IsCompleted &&
+        public bool ShowOpenViewAchievementsButton => IsCompleted &&
                                                 _completedSuccessfully &&
                                                 _singleGameRefreshId.HasValue &&
-                                                _openSingleGameAction != null;
+                                                _openViewAchievementsAction != null;
 
         public string RefreshRunningNote => ResourceProvider.GetString("LOCPlayAch_Progress_RefreshRunningNote");
 
@@ -62,23 +62,23 @@ namespace PlayniteAchievements.ViewModels
         public ICommand HideCommand { get; }
         public RelayCommand CancelCommand { get; }
         public ICommand ContinueCommand { get; }
-        public RelayCommand OpenSingleGameCommand { get; }
+        public RelayCommand OpenViewAchievementsCommand { get; }
 
         public RefreshProgressViewModel(
             RefreshRuntime refreshRuntime,
             ILogger logger,
             Guid? singleGameRefreshId = null,
-            Action<Guid> openSingleGameAction = null)
+            Action<Guid> openViewAchievementsAction = null)
         {
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _logger = logger;
             _singleGameRefreshId = singleGameRefreshId;
-            _openSingleGameAction = openSingleGameAction;
+            _openViewAchievementsAction = openViewAchievementsAction;
 
             HideCommand = new RelayCommand(_ => HideWindow());
             CancelCommand = new RelayCommand(_ => CancelRefresh(), _ => _refreshService.IsRebuilding);
             ContinueCommand = new RelayCommand(_ => Continue());
-            OpenSingleGameCommand = new RelayCommand(_ => OpenSingleGame(), _ => ShowOpenSingleGameButton);
+            OpenViewAchievementsCommand = new RelayCommand(_ => OpenViewAchievements(), _ => ShowOpenViewAchievementsButton);
 
             IsCompleted = false;
             ProgressPercent = 0;
@@ -106,7 +106,7 @@ namespace PlayniteAchievements.ViewModels
             if (_completedSuccessfully != completedSuccessfully)
             {
                 _completedSuccessfully = completedSuccessfully;
-                OnPropertyChanged(nameof(ShowOpenSingleGameButton));
+                OnPropertyChanged(nameof(ShowOpenViewAchievementsButton));
             }
 
             if (status.IsFinal || status.IsCanceled)
@@ -121,10 +121,10 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(IsRefreshing));
             OnPropertyChanged(nameof(ShowInProgressButtons));
             OnPropertyChanged(nameof(ShowCompleteButtons));
-            OnPropertyChanged(nameof(ShowOpenSingleGameButton));
+            OnPropertyChanged(nameof(ShowOpenViewAchievementsButton));
 
             CancelCommand?.RaiseCanExecuteChanged();
-            OpenSingleGameCommand?.RaiseCanExecuteChanged();
+            OpenViewAchievementsCommand?.RaiseCanExecuteChanged();
         }
 
         private void HideWindow()
@@ -143,15 +143,15 @@ namespace PlayniteAchievements.ViewModels
             RequestClose?.Invoke(this, EventArgs.Empty);
         }
 
-        private void OpenSingleGame()
+        private void OpenViewAchievements()
         {
-            if (!ShowOpenSingleGameButton || !_singleGameRefreshId.HasValue)
+            if (!ShowOpenViewAchievementsButton || !_singleGameRefreshId.HasValue)
             {
                 return;
             }
 
             RequestClose?.Invoke(this, EventArgs.Empty);
-            _openSingleGameAction?.Invoke(_singleGameRefreshId.Value);
+            _openViewAchievementsAction?.Invoke(_singleGameRefreshId.Value);
         }
 
         public event EventHandler RequestClose;

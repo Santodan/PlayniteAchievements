@@ -145,23 +145,23 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
-        public void SettingsExtensions_CopyFromAndClone_PreserveShowSidebarGameMetadata()
+        public void SettingsExtensions_CopyFromAndClone_PreserveShowOverviewGameMetadata()
         {
             var source = new PersistedSettings
             {
-                ShowSidebarGameMetadata = false
+                ShowOverviewGameMetadata = false
             };
 
             var target = new PersistedSettings
             {
-                ShowSidebarGameMetadata = true
+                ShowOverviewGameMetadata = true
             };
 
             target.CopyFrom(source);
-            Assert.IsFalse(target.ShowSidebarGameMetadata);
+            Assert.IsFalse(target.ShowOverviewGameMetadata);
 
             var clone = SettingsExtensions.Clone(source);
-            Assert.IsFalse(clone.ShowSidebarGameMetadata);
+            Assert.IsFalse(clone.ShowOverviewGameMetadata);
         }
 
         [TestMethod]
@@ -421,10 +421,9 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("Base|DLC|Multiplayer", normalized);
             Assert.AreEqual("Base, DLC, Multiplayer", AchievementCategoryTypeHelper.ToDisplayText(normalized));
 
-            var ignoredNormalized = AchievementCategoryTypeHelper.Normalize("ignored|dlc");
-            Assert.AreEqual("DLC|Ignored", ignoredNormalized);
-            Assert.AreEqual("DLC, Ignored", AchievementCategoryTypeHelper.ToDisplayText(ignoredNormalized));
-            Assert.IsTrue(AchievementCategoryTypeHelper.IsIgnored(ignoredNormalized));
+            var filteredLegacyNormalized = AchievementCategoryTypeHelper.Normalize("ignored|dlc");
+            Assert.AreEqual("DLC", filteredLegacyNormalized);
+            Assert.AreEqual("DLC", AchievementCategoryTypeHelper.ToDisplayText(filteredLegacyNormalized));
         }
 
         [TestMethod]
@@ -435,7 +434,6 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual("DLC|Multiplayer", AchievementCategoryTypeHelper.Normalize("default|dlc|multiplayer"));
             Assert.AreEqual("Default", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(null));
             Assert.AreEqual("Label", AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(" Label "));
-            Assert.IsFalse(AchievementCategoryTypeHelper.IsIgnored("DLC|Multiplayer"));
         }
     }
 }

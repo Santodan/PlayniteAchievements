@@ -26,7 +26,7 @@ namespace PlayniteAchievements.Models
     ///
     /// Theme integration data is organized into:
     /// - Persisted: User-configurable settings
-    /// - Theme: Unified modern theme integration data (per-game + all-games overview)
+    /// - Theme: Unified modern theme integration data (per-game + library overview)
     /// - LegacyTheme: Legacy compatibility data (SuccessStory, Aniki ReMake, old inline properties)
     ///
     /// Keep runtime/theme members clearly marked with [DontSerialize] on both the backing field
@@ -46,7 +46,7 @@ namespace PlayniteAchievements.Models
 
         /// <summary>
         /// Unified modern theme integration data (runtime, not serialized).
-        /// Contains both per-game achievement data and all-games overview data.
+        /// Contains both per-game achievement data and library overview data.
         /// </summary>
         [DontSerialize]
         private ModernThemeBindings _modernTheme;
@@ -90,6 +90,10 @@ namespace PlayniteAchievements.Models
         private ICommand _openAchievementWindow;
         [DontSerialize]
         private ICommand _openGameAchievementWindow;
+        [DontSerialize]
+        private ICommand _openViewAchievementsWindow;
+        [DontSerialize]
+        private ICommand _openManageAchievementsWindow;
         [DontSerialize]
         private ICommand _setDynamicAchievementsFilterCommand;
         [DontSerialize]
@@ -163,6 +167,20 @@ namespace PlayniteAchievements.Models
         {
             get => _openGameAchievementWindow;
             set => SetValue(ref _openGameAchievementWindow, value);
+        }
+
+        [DontSerialize]
+        public ICommand OpenViewAchievementsWindow
+        {
+            get => _openViewAchievementsWindow;
+            set => SetValue(ref _openViewAchievementsWindow, value);
+        }
+
+        [DontSerialize]
+        public ICommand OpenManageAchievementsWindow
+        {
+            get => _openManageAchievementsWindow;
+            set => SetValue(ref _openManageAchievementsWindow, value);
         }
 
         [DontSerialize]
@@ -308,7 +326,7 @@ namespace PlayniteAchievements.Models
         [DontSerialize]
         public string DynamicAchievementsSortDirectionLabel => ModernTheme.DynamicAchievementsSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
 
-        // === All-Games Overview Data ===
+        // === Library Overview Data ===
 
         [DontSerialize]
         public ObservableCollection<GameAchievementSummary> CompletedGamesAsc

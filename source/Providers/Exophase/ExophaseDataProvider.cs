@@ -467,7 +467,7 @@ namespace PlayniteAchievements.Providers.Exophase
             ApplyProviderOwnedRarity(achievements, ResolveManualPlatformKey(link.SourceGameId));
         }
 
-        internal static void GetGameOptionsState(
+        internal static void GetManageAchievementsState(
             Game game,
             Guid gameId,
             out bool showToggle,

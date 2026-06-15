@@ -35,14 +35,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
         /// <summary>
         /// Handles the button click event.
-        /// Opens the per-game achievements view for the currently selected game.
+        /// Opens View Achievements for the currently selected game.
         /// </summary>
         private void PART_PluginButton_Click(object sender, RoutedEventArgs e)
         {
             var game = Plugin?.Settings?.SelectedGame;
             if (game != null)
             {
-                Plugin?.OpenSingleGameAchievementsView(game.Id);
+                Plugin?.OpenViewAchievementsWindow(game.Id);
             }
         }
     }

@@ -893,7 +893,8 @@ namespace PlayniteAchievements.Services
                     GlobalPercentUnlocked = achievement.GlobalPercentUnlocked,
                     Rarity = achievement.Rarity,
                     ProgressNum = achievement.ProgressNum,
-                    ProgressDenom = achievement.ProgressDenom
+                    ProgressDenom = achievement.ProgressDenom,
+                    AchievementNote = achievement.AchievementNote
                 });
             }
 
@@ -937,6 +938,14 @@ namespace PlayniteAchievements.Services
         public int TotalAchievements { get; set; }
 
         public int UnlockedAchievements { get; set; }
+
+        public int CollectionScore { get; set; }
+
+        public int CollectionScoreTotal { get; set; }
+
+        public int PrestigeScore { get; set; }
+
+        public int PrestigeScoreTotal { get; set; }
 
         public int CommonCount { get; set; }
 
@@ -1016,6 +1025,8 @@ namespace PlayniteAchievements.Services
         public bool Hidden { get; set; }
 
         public bool IsCapstone { get; set; }
+
+        public string AchievementNote { get; set; }
 
         public double? GlobalPercentUnlocked { get; set; }
 

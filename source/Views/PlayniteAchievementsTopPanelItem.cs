@@ -11,6 +11,8 @@ namespace PlayniteAchievements.Views
 {
     public class PlayniteAchievementsTopPanelItem : TopPanelItem
     {
+        private const string OverviewWindowPlacementKey = "Overview";
+
         public PlayniteAchievementsTopPanelItem(
             IPlayniteAPI api,
             ILogger logger,
@@ -26,7 +28,7 @@ namespace PlayniteAchievements.Views
             Title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
             Activated = () =>
             {
-                var view = new SidebarControl(api, logger, refreshRuntime, cacheManager, persistSettingsForUi, achievementOverridesService, achievementDataService, refreshEntryPoint, settings);
+                var view = new OverviewControl(api, logger, refreshRuntime, cacheManager, persistSettingsForUi, achievementOverridesService, achievementDataService, refreshEntryPoint, settings);
 
                 var windowOptions = new WindowOptions
                 {
@@ -39,8 +41,14 @@ namespace PlayniteAchievements.Views
                 };
 
                 var window = PlayniteUiProvider.CreateExtensionWindow(Title, view, windowOptions);
+                WindowPlacementPersistenceService.Attach(
+                    window,
+                    settings?.Persisted,
+                    persistSettingsForUi,
+                    OverviewWindowPlacementKey,
+                    logger);
 
-                // Activate the sidebar control when the window loads
+                // Activate the overview control when the window loads
                 window.Loaded += (s, e) => view.Activate();
 
                 // Deactivate and dispose when the window closes

@@ -1,6 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Services;
-using PlayniteAchievements.Services.Sidebar;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -61,7 +61,7 @@ namespace PlayniteAchievements.Services.Tests
                 "Missing"
             };
 
-            var options = SidebarAchievementFilters.BuildSelectedGameFilterOptions(
+            var options = OverviewAchievementFilters.BuildSelectedGameFilterOptions(
                 new[]
                 {
                     new AchievementDisplayItem { CategoryType = "Default", CategoryLabel = "Original Game" },

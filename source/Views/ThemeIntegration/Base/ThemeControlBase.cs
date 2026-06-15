@@ -529,6 +529,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 [nameof(PlayniteAchievementsSettings.SetDynamicAchievementsFilterCommand)] = nameof(SetDynamicAchievementsFilterCommand),
                 [nameof(PlayniteAchievementsSettings.SortDynamicAchievementsCommand)] = nameof(SortDynamicAchievementsCommand),
                 [nameof(PlayniteAchievementsSettings.SetDynamicAchievementsSortDirectionCommand)] = nameof(SetDynamicAchievementsSortDirectionCommand),
+                [nameof(PlayniteAchievementsSettings.OpenViewAchievementsWindow)] = nameof(OpenViewAchievementsWindow),
+                [nameof(PlayniteAchievementsSettings.OpenManageAchievementsWindow)] = nameof(OpenManageAchievementsWindow),
                 [nameof(PlayniteAchievementsSettings.FilterDynamicLibraryAchievementsByProviderCommand)] = nameof(FilterDynamicLibraryAchievementsByProviderCommand),
                 [nameof(PlayniteAchievementsSettings.SortDynamicLibraryAchievementsCommand)] = nameof(SortDynamicLibraryAchievementsCommand),
                 [nameof(PlayniteAchievementsSettings.SetDynamicLibraryAchievementsSortDirectionCommand)] = nameof(SetDynamicLibraryAchievementsSortDirectionCommand),
@@ -742,6 +744,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public System.Windows.Input.ICommand SortDynamicAchievementsCommand => _settings?.SortDynamicAchievementsCommand;
 
         public System.Windows.Input.ICommand SetDynamicAchievementsSortDirectionCommand => _settings?.SetDynamicAchievementsSortDirectionCommand;
+
+        public System.Windows.Input.ICommand OpenViewAchievementsWindow => _settings?.OpenViewAchievementsWindow;
+
+        public System.Windows.Input.ICommand OpenManageAchievementsWindow => _settings?.OpenManageAchievementsWindow;
 
         public System.Windows.Input.ICommand FilterDynamicLibraryAchievementsByProviderCommand => _settings?.FilterDynamicLibraryAchievementsByProviderCommand;
 

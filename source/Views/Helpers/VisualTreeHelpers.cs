@@ -76,18 +76,28 @@ namespace PlayniteAchievements.Views.Helpers
         /// </summary>
         public static bool IsColumnResizeThumbHit(DependencyObject source)
         {
+            return TryFindColumnResizeThumb(source, out _);
+        }
+
+        /// <summary>
+        /// Finds the column resize thumb for the specified source element.
+        /// </summary>
+        public static bool TryFindColumnResizeThumb(DependencyObject source, out Thumb resizeThumb)
+        {
             while (source != null)
             {
                 if (source is Thumb thumb &&
                     (string.Equals(thumb.Name, "PART_LeftHeaderGripper", System.StringComparison.Ordinal) ||
                      string.Equals(thumb.Name, "PART_RightHeaderGripper", System.StringComparison.Ordinal)))
                 {
+                    resizeThumb = thumb;
                     return true;
                 }
 
                 source = GetParentForHitTesting(source);
             }
 
+            resizeThumb = null;
             return false;
         }
 

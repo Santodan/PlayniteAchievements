@@ -62,7 +62,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private double _levelProgress;
         [DontSerialize]
-        private string _rank = "Bronze1";
+        private string _rank = "Bronze5";
         [DontSerialize]
         private string _gsTotal = "0";
         [DontSerialize]
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private double _gsLevelProgress;
         [DontSerialize]
-        private string _gsRank = "Bronze1";
+        private string _gsRank = "Bronze5";
 
         [DontSerialize]
         public bool HasData
@@ -240,7 +240,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public string Rank
         {
             get => _rank;
-            set => SetValue(ref _rank, value ?? "Bronze1");
+            set => SetValue(ref _rank, value ?? "Bronze5");
         }
 
         [DontSerialize]
@@ -310,7 +310,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public string GSRank
         {
             get => _gsRank;
-            set => SetValue(ref _gsRank, value ?? "Bronze1");
+            set => SetValue(ref _gsRank, value ?? "Bronze5");
         }
 
         private void ReplaceCollection<T>(BulkObservableCollection<T> target, IEnumerable<T> value, string propertyName)

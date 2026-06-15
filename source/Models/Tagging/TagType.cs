@@ -42,7 +42,7 @@ namespace PlayniteAchievements.Models.Tagging
         Excluded,
 
         /// <summary>
-        /// Game is excluded from sidebar summaries.
+        /// Game is excluded from overview summaries.
         /// </summary>
         ExcludedFromSummaries
     }

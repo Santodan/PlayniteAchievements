@@ -232,7 +232,37 @@ namespace PlayniteAchievements.ViewModels
         public string CategoryLabel
         {
             get => _categoryLabel;
-            set => SetValue(ref _categoryLabel, value);
+            set
+            {
+                if (SetValueAndReturn(ref _categoryLabel, value))
+                {
+                    OnPropertyChanged(nameof(CategoryLabelDisplay));
+                }
+            }
+        }
+
+        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+
+        private string _achievementNote;
+        public string AchievementNote
+        {
+            get => _achievementNote;
+            set
+            {
+                if (SetValueAndReturn(ref _achievementNote, AchievementNoteHelper.NormalizeNote(value)))
+                {
+                    OnPropertyChanged(nameof(HasAchievementNote));
+                }
+            }
+        }
+
+        public bool HasAchievementNote => !string.IsNullOrWhiteSpace(AchievementNote);
+
+        private bool _isCapstone;
+        public bool IsCapstone
+        {
+            get => _isCapstone;
+            set => SetValue(ref _isCapstone, value);
         }
 
         /// <summary>
@@ -279,6 +309,8 @@ namespace PlayniteAchievements.ViewModels
             TrophyType = other.TrophyType;
             CategoryType = other.CategoryType;
             CategoryLabel = other.CategoryLabel;
+            AchievementNote = other.AchievementNote;
+            IsCapstone = other.IsCapstone;
         }
     }
 }

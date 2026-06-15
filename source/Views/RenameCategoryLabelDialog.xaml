@@ -17,7 +17,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="{DynamicResource LOCPlayAch_GameOptions_Category_RenameDialog_Hint}"
+                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_RenameDialog_Hint}"
                    Foreground="{DynamicResource TextBrush}"
                    Opacity="0.8"
                    TextWrapping="Wrap"

@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
-using System.Windows.Media;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
@@ -12,8 +11,8 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
-using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Providers.Manual;
+using PlayniteAchievements.Providers.Local;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views;
@@ -26,6 +25,9 @@ namespace PlayniteAchievements.Services.UI
     /// </summary>
     internal class PluginWindowService
     {
+        private const string ViewAchievementsWindowPlacementKey = "SingleGameAchievements";
+        private const string ManageAchievementsWindowPlacementKey = "ManageAchievements";
+
         private readonly IPlayniteAPI _api;
         private readonly ILogger _logger;
         private readonly RefreshRuntime _refreshService;
@@ -102,15 +104,30 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        public void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Action<Guid> openSingleGameAchievementsView, Guid? singleGameRefreshId = null)
+        private void AttachWindowPlacement(Window window, string key, bool isFullscreen)
         {
-            ShowRefreshProgressControl(singleGameRefreshId, refreshTask, openSingleGameAchievementsView, validateCanStart: false);
+            if (isFullscreen)
+            {
+                return;
+            }
+
+            WindowPlacementPersistenceService.Attach(
+                window,
+                _settings?.Persisted,
+                _persistSettingsForUi,
+                key,
+                _logger);
+        }
+
+        public void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Action<Guid> openViewAchievementsWindow, Guid? singleGameRefreshId = null)
+        {
+            ShowRefreshProgressControl(singleGameRefreshId, refreshTask, openViewAchievementsWindow, validateCanStart: false);
         }
 
         public void ShowRefreshProgressControl(
             Guid? singleGameRefreshId,
             Func<Task> refreshTask,
-            Action<Guid> openSingleGameAchievementsView,
+            Action<Guid> openViewAchievementsWindow,
             bool validateCanStart)
         {
             try
@@ -118,7 +135,7 @@ namespace PlayniteAchievements.Services.UI
                 InvokeOnUiThread(() => ShowRefreshProgressControlCore(
                     singleGameRefreshId,
                     refreshTask,
-                    openSingleGameAchievementsView));
+                    openViewAchievementsWindow));
             }
             catch (Exception ex)
             {
@@ -129,7 +146,7 @@ namespace PlayniteAchievements.Services.UI
         private void ShowRefreshProgressControlCore(
             Guid? singleGameRefreshId,
             Func<Task> refreshTask,
-            Action<Guid> openSingleGameAchievementsView)
+            Action<Guid> openViewAchievementsWindow)
         {
             var isFullscreen = DetectFullscreenMode();
 
@@ -137,7 +154,7 @@ namespace PlayniteAchievements.Services.UI
                 _refreshService,
                 _logger,
                 singleGameRefreshId,
-                openSingleGameAchievementsView);
+                openViewAchievementsWindow);
 
             var windowOptions = new WindowOptions
             {
@@ -447,17 +464,13 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        public void OpenSingleGameAchievementsView(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId)
         {
             try
             {
                 var isFullscreen = DetectFullscreenMode();
 
-                // Some themes don't define the shared base styles our controls expect.
-                // Ensure plugin resource dictionaries are loaded before constructing the view.
-                _ensureAchievementResourcesLoaded?.Invoke();
-
-                var view = new SingleGameControl(
+                var view = new ViewAchievementsControl(
                     gameId,
                     _refreshService,
                     _achievementDataService,
@@ -484,6 +497,7 @@ namespace PlayniteAchievements.Services.UI
 
                 window.MinWidth = 450;
                 window.MinHeight = 500;
+                AttachWindowPlacement(window, ViewAchievementsWindowPlacementKey, isFullscreen);
                 try
                 {
                     if (window.Owner == null)
@@ -505,9 +519,9 @@ namespace PlayniteAchievements.Services.UI
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Failed to open per-game achievements view for gameId={gameId}");
+                _logger.Error(ex, $"Failed to open View Achievements window for gameId={gameId}");
                 _api?.Dialogs?.ShowErrorMessage(
-                    $"Failed to open achievements view: {ex.Message}",
+                    $"Failed to open View Achievements: {ex.Message}",
                     "Playnite Achievements");
             }
         }
@@ -625,7 +639,7 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        public void OpenGameOptionsView(Guid gameId, GameOptionsTab initialTab)
+        public void OpenManageAchievementsView(Guid gameId, ManageAchievementsTab initialTab)
         {
             try
             {
@@ -642,7 +656,7 @@ namespace PlayniteAchievements.Services.UI
 
                 _ensureAchievementResourcesLoaded?.Invoke();
 
-                var view = new GameOptionsControl(
+                var view = new ManageAchievementsControl(
                     gameId,
                     initialTab,
                     _refreshService,
@@ -673,6 +687,7 @@ namespace PlayniteAchievements.Services.UI
 
                 window.MinWidth = 860;
                 window.MinHeight = 620;
+                AttachWindowPlacement(window, ManageAchievementsWindowPlacementKey, isFullscreen);
                 try
                 {
                     if (window.Owner == null)
@@ -694,18 +709,17 @@ namespace PlayniteAchievements.Services.UI
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"Failed to open Game Options view for gameId={gameId}");
+                _logger.Error(ex, $"Failed to open Manage Achievements view for gameId={gameId}");
                 _api?.Dialogs?.ShowErrorMessage(
-                    $"Failed to open game options view: {ex.Message}",
+                    $"Failed to open manage achievements view: {ex.Message}",
                     "Playnite Achievements");
             }
         }
 
         public void OpenCapstoneView(Guid gameId)
         {
-            OpenGameOptionsView(gameId, GameOptionsTab.Capstones);
+            OpenManageAchievementsView(gameId, ManageAchievementsTab.Capstones);
         }
-
         public void OpenLocalAchievementsEditorView(Guid gameId)
         {
             try
@@ -765,7 +779,6 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 window.Closed += (s, e) => view.Cleanup();
-
                 ShowWindow(window, isFullscreen);
             }
             catch (Exception ex)
@@ -847,21 +860,6 @@ namespace PlayniteAchievements.Services.UI
                     EnsureMergedDictionaryLoaded(app.Resources, "/PlayniteAchievements;component/Resources/MigrationStyles.xaml");
                     PercentRarityHelper.ApplyBadgeApplicationResources(
                         _settings?.Persisted?.UseUniformRarityBadges ?? false);
-
-                    // Defensive fallbacks for themes missing these keys: templates depend on them.
-                    if (app.TryFindResource("BaseTextBlockStyle") == null)
-                    {
-                        var fallbackBaseTextBlockStyle = new Style(typeof(TextBlock));
-                        fallbackBaseTextBlockStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.White));
-                        app.Resources["BaseTextBlockStyle"] = fallbackBaseTextBlockStyle;
-                    }
-
-                    if (app.TryFindResource("SearchTextBoxStyle") == null)
-                    {
-                        var fallbackSearchTextBoxStyle = new Style(typeof(TextBox));
-                        fallbackSearchTextBoxStyle.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
-                        app.Resources["SearchTextBoxStyle"] = fallbackSearchTextBoxStyle;
-                    }
                 }
 
                 if (app.Dispatcher.CheckAccess())

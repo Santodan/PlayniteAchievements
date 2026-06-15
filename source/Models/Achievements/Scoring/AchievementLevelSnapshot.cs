@@ -8,8 +8,28 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public double LevelProgress { get; set; }
 
-        public AchievementRank RankValue { get; set; } = AchievementRank.Bronze1;
+        public int CurrentLevelStartScore { get; set; }
 
-        public string Rank { get; set; } = AchievementRank.Bronze1.ToString();
+        public int CurrentLevelEndScore { get; set; }
+
+        public int CurrentLevelPoints { get; set; }
+
+        public int CurrentLevelTotalPoints { get; set; }
+
+        public int PointsUntilNextLevel { get; set; }
+
+        public AchievementRank? NextRankValue { get; set; }
+
+        public string NextRank { get; set; }
+
+        public int NextRankScoreThreshold { get; set; }
+
+        public int PointsUntilNextRank { get; set; }
+
+        public bool IsMaxLevel { get; set; }
+
+        public AchievementRank RankValue { get; set; } = AchievementRank.Bronze5;
+
+        public string Rank { get; set; } = AchievementRank.Bronze5.ToString();
     }
 }

@@ -12,8 +12,57 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         private const double MinimumPrestigeRarityPercent = 0.1;
         private const double MaximumPrestigeRarityPercent = 100;
-        private const int MinimumPrestigeValue = 10;
-        private const int MaximumPrestigeValue = 500;
+        private const int MinimumPrestigeValue = 1;
+        private const int MaximumPrestigeValue = 300;
+        private static readonly double[] PrestigeCurvePositions =
+        {
+            0,
+            25,
+            50,
+            60,
+            65,
+            70,
+            75,
+            78,
+            80,
+            82,
+            85,
+            87.5,
+            90,
+            92,
+            94,
+            95,
+            96,
+            97.5,
+            99,
+            99.5,
+            99.9
+        };
+        private static readonly double[] PrestigeCurveScores =
+        {
+            MinimumPrestigeValue,
+            5,
+            10,
+            16,
+            22,
+            32,
+            50,
+            70,
+            90,
+            110,
+            130,
+            145,
+            162,
+            178,
+            195,
+            210,
+            225,
+            255,
+            282,
+            292,
+            MaximumPrestigeValue
+        };
+        private static readonly double[] PrestigeCurveTangents = CreatePrestigeCurveTangents();
 
         public static AchievementScoreSnapshot CalculateLibraryScores(
             IEnumerable<GameAchievementData> allData,
@@ -53,8 +102,8 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                         continue;
                     }
 
-                    collectorScore = AddClamped(collectorScore, GetCollectorValue(achievement.Rarity));
-                    prestigeScore = AddClamped(prestigeScore, GetPrestigeValue(achievement));
+                    collectorScore = AddClamped(collectorScore, achievement.CollectionScore);
+                    prestigeScore = AddClamped(prestigeScore, achievement.PrestigeScore);
                 }
             }
 
@@ -125,6 +174,21 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
 
         public static int GetCollectorValue(RarityTier tier)
         {
+            return GetCollectionValue(tier);
+        }
+
+        public static int GetCollectionValue(AchievementDetail achievement)
+        {
+            if (achievement == null)
+            {
+                return 0;
+            }
+
+            return GetCollectionValue(achievement.Rarity);
+        }
+
+        public static int GetCollectionValue(RarityTier tier)
+        {
             switch (tier)
             {
                 case RarityTier.UltraRare:
@@ -151,7 +215,7 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
         public static int GetPrestigeValue(double? globalPercentUnlocked, RarityTier fallbackTier)
         {
             var rarityPercent = GetPrestigeRarityPercent(globalPercentUnlocked, fallbackTier);
-            var rawValue = 100 * Math.Log10((100 / rarityPercent) + 1);
+            var rawValue = EvaluatePrestigeCurve(rarityPercent);
             var roundedValue = (int)Math.Round(rawValue, MidpointRounding.AwayFromZero);
             return Math.Max(MinimumPrestigeValue, Math.Min(MaximumPrestigeValue, roundedValue));
         }
@@ -187,6 +251,111 @@ namespace PlayniteAchievements.Models.Achievements.Scoring
                 default:
                     return 75;
             }
+        }
+
+        private static double EvaluatePrestigeCurve(double rarityPercent)
+        {
+            var percent = Math.Max(
+                MinimumPrestigeRarityPercent,
+                Math.Min(MaximumPrestigeRarityPercent, rarityPercent));
+
+            var position = MaximumPrestigeRarityPercent - percent;
+            if (position <= PrestigeCurvePositions[0])
+            {
+                return PrestigeCurveScores[0];
+            }
+
+            var lastIndex = PrestigeCurvePositions.Length - 1;
+            if (position >= PrestigeCurvePositions[lastIndex])
+            {
+                return PrestigeCurveScores[lastIndex];
+            }
+
+            var segmentIndex = 0;
+            while (segmentIndex < lastIndex - 1 && position > PrestigeCurvePositions[segmentIndex + 1])
+            {
+                segmentIndex++;
+            }
+
+            var startPosition = PrestigeCurvePositions[segmentIndex];
+            var endPosition = PrestigeCurvePositions[segmentIndex + 1];
+            var span = endPosition - startPosition;
+            var t = (position - startPosition) / span;
+            var t2 = t * t;
+            var t3 = t2 * t;
+
+            var startScore = PrestigeCurveScores[segmentIndex];
+            var endScore = PrestigeCurveScores[segmentIndex + 1];
+            var startTangent = PrestigeCurveTangents[segmentIndex];
+            var endTangent = PrestigeCurveTangents[segmentIndex + 1];
+
+            return ((2 * t3) - (3 * t2) + 1) * startScore
+                + (t3 - (2 * t2) + t) * span * startTangent
+                + ((-2 * t3) + (3 * t2)) * endScore
+                + (t3 - t2) * span * endTangent;
+        }
+
+        private static double[] CreatePrestigeCurveTangents()
+        {
+            var pointCount = PrestigeCurvePositions.Length;
+            var intervals = new double[pointCount - 1];
+            var slopes = new double[pointCount - 1];
+            for (var i = 0; i < pointCount - 1; i++)
+            {
+                intervals[i] = PrestigeCurvePositions[i + 1] - PrestigeCurvePositions[i];
+                slopes[i] = (PrestigeCurveScores[i + 1] - PrestigeCurveScores[i]) / intervals[i];
+            }
+
+            var tangents = new double[pointCount];
+            tangents[0] = CalculateEndpointTangent(intervals[0], intervals[1], slopes[0], slopes[1]);
+            for (var i = 1; i < pointCount - 1; i++)
+            {
+                if (slopes[i - 1] * slopes[i] <= 0)
+                {
+                    tangents[i] = 0;
+                    continue;
+                }
+
+                var previousInterval = intervals[i - 1];
+                var currentInterval = intervals[i];
+                var previousSlope = slopes[i - 1];
+                var currentSlope = slopes[i];
+                var firstWeight = (2 * currentInterval) + previousInterval;
+                var secondWeight = currentInterval + (2 * previousInterval);
+                tangents[i] = (firstWeight + secondWeight) /
+                    ((firstWeight / previousSlope) + (secondWeight / currentSlope));
+            }
+
+            var lastIndex = pointCount - 1;
+            tangents[lastIndex] = CalculateEndpointTangent(
+                intervals[lastIndex - 1],
+                intervals[lastIndex - 2],
+                slopes[lastIndex - 1],
+                slopes[lastIndex - 2]);
+            return tangents;
+        }
+
+        private static double CalculateEndpointTangent(
+            double currentInterval,
+            double adjacentInterval,
+            double currentSlope,
+            double adjacentSlope)
+        {
+            var tangent = (((2 * currentInterval) + adjacentInterval) * currentSlope -
+                (currentInterval * adjacentSlope)) / (currentInterval + adjacentInterval);
+
+            if (Math.Sign(tangent) != Math.Sign(currentSlope))
+            {
+                return 0;
+            }
+
+            if (Math.Sign(currentSlope) != Math.Sign(adjacentSlope) &&
+                Math.Abs(tangent) > Math.Abs(3 * currentSlope))
+            {
+                return 3 * currentSlope;
+            }
+
+            return tangent;
         }
 
         private static int AddClamped(int current, int value)

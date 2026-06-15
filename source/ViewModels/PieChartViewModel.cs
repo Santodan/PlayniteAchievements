@@ -56,7 +56,7 @@ namespace PlayniteAchievements.ViewModels
         public ObservableCollection<LegendItem> LegendItems { get; } = new ObservableCollection<LegendItem>();
 
         private ObservableCollection<string> _highlightedLabels = new ObservableCollection<string>();
-        private SidebarPieSmallSliceMode _smallSliceMode = SidebarPieSmallSliceMode.Round;
+        private OverviewPieSmallSliceMode _smallSliceMode = OverviewPieSmallSliceMode.Round;
         private int _exactUnlockedCount;
         private int _exactTotalCount;
         private bool _alwaysShowSmallSliceIcons;
@@ -70,7 +70,7 @@ namespace PlayniteAchievements.ViewModels
             private set => SetValue(ref _highlightedLabels, value);
         }
 
-        public SidebarPieSmallSliceMode SmallSliceMode
+        public OverviewPieSmallSliceMode SmallSliceMode
         {
             get => _smallSliceMode;
             set => SetValue(ref _smallSliceMode, value);
@@ -498,16 +498,16 @@ namespace PlayniteAchievements.ViewModels
         {
             switch (SmallSliceMode)
             {
-                case SidebarPieSmallSliceMode.Exact:
+                case OverviewPieSmallSliceMode.Exact:
                     return BuildExactSlices(
                         dataPoints,
                         minSlice,
                         pieTotalCount,
                         hideSmallIcons: false,
                         suppressOnCollision: !AlwaysShowSmallSliceIcons);
-                case SidebarPieSmallSliceMode.Hide:
+                case OverviewPieSmallSliceMode.Hide:
                     return BuildHiddenSlices(dataPoints, minSlice, pieTotalCount);
-                case SidebarPieSmallSliceMode.Round:
+                case OverviewPieSmallSliceMode.Round:
                 default:
                     if (TryBuildRoundedSlices(dataPoints, minSlice, pieTotalCount, out var roundedSlices))
                     {
@@ -669,7 +669,7 @@ namespace PlayniteAchievements.ViewModels
                 return dataPoint.Count.ToString();
             }
 
-            return $"{dataPoint.UnlockedCount} / {dataPoint.TotalCount}";
+            return $"{dataPoint.UnlockedCount}/{dataPoint.TotalCount}";
         }
 
         private static string FormatSecondaryMetricText(PieSliceInputData dataPoint, int pieTotalCount)

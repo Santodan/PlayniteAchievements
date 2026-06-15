@@ -1,6 +1,7 @@
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Providers.Settings;
@@ -162,6 +163,13 @@ namespace PlayniteAchievements.Services.Database
             public string PlayniteGameId { get; set; }
             public string UnlockDateUtc { get; set; }
             public long UnlockCount { get; set; }
+        }
+
+        private sealed class CachedUnlockedScoreRow
+        {
+            public string CacheKey { get; set; }
+            public double? GlobalPercentUnlocked { get; set; }
+            public string Rarity { get; set; }
         }
 
         private sealed class ResolvedUser
@@ -631,6 +639,8 @@ namespace PlayniteAchievements.Services.Database
             return WithDb(db =>
             {
                 var gameRows = LoadCachedGameSummaryRows(db);
+                var scoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: true);
+                var possibleScoreTotalsByCacheKey = LoadCachedScoreTotals(db, unlockedOnly: false);
                 var timelineRows = LoadCachedUnlockTimelineRows(db);
                 var requestedRecentLimit = recentAchievementDetailLimit > 0 ? recentAchievementDetailLimit : 0;
                 var boundedRecentLimit = requestedRecentLimit > 0 ? requestedRecentLimit + 1 : 0;
@@ -646,10 +656,13 @@ namespace PlayniteAchievements.Services.Database
                         continue;
                     }
 
+                    var cacheKey = row.CacheKey?.Trim();
+                    scoreTotalsByCacheKey.TryGetValue(cacheKey ?? string.Empty, out var scoreTotals);
+                    possibleScoreTotalsByCacheKey.TryGetValue(cacheKey ?? string.Empty, out var possibleScoreTotals);
                     var playniteGameId = ResolveCachedPlayniteGameId(row.CacheKey, row.PlayniteGameId);
                     result.Games.Add(new CachedGameSummaryData
                     {
-                        CacheKey = row.CacheKey?.Trim(),
+                        CacheKey = cacheKey,
                         PlayniteGameId = playniteGameId,
                         ProviderKey = row.ProviderKey,
                         ProviderPlatformKey = row.ProviderPlatformKey,
@@ -659,6 +672,10 @@ namespace PlayniteAchievements.Services.Database
                         LastUpdatedUtc = ParseUtc(row.LastUpdatedUtc) ?? DateTime.UtcNow,
                         TotalAchievements = (int)Math.Max(0, row.TotalAchievements),
                         UnlockedAchievements = (int)Math.Max(0, row.AchievementsUnlocked),
+                        CollectionScore = scoreTotals.CollectionScore,
+                        PrestigeScore = scoreTotals.PrestigeScore,
+                        CollectionScoreTotal = possibleScoreTotals.CollectionScore,
+                        PrestigeScoreTotal = possibleScoreTotals.PrestigeScore,
                         CommonCount = (int)Math.Max(0, row.CommonCount),
                         UncommonCount = (int)Math.Max(0, row.UncommonCount),
                         RareCount = (int)Math.Max(0, row.RareCount),
@@ -797,6 +814,63 @@ namespace PlayniteAchievements.Services.Database
                     lp.PlayniteGameId,
                     lp.GameName
                 ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;").ToList();
+        }
+
+        private static Dictionary<string, (int CollectionScore, int PrestigeScore)> LoadCachedScoreTotals(
+            SQLiteDatabase db,
+            bool unlockedOnly)
+        {
+            var userAchievementJoin = unlockedOnly
+                ? @"INNER JOIN UserAchievements ua
+                    ON ua.AchievementDefinitionId = ad.Id
+                   AND ua.UserGameProgressId = lp.UserGameProgressId
+                   AND ua.Unlocked = 1"
+                : string.Empty;
+
+            var rows = db.Load<CachedUnlockedScoreRow>(
+                @"WITH LatestProgress AS (
+                    SELECT
+                        ugp.Id AS UserGameProgressId,
+                        ugp.GameId AS GameId,
+                        TRIM(ugp.CacheKey) AS CacheKey,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY ugp.CacheKey
+                            ORDER BY ugp.LastUpdatedUtc DESC, ugp.Id DESC
+                        ) AS RowNum
+                    FROM UserGameProgress ugp
+                    INNER JOIN Users u ON u.Id = ugp.UserId
+                    WHERE u.IsCurrentUser = 1
+                      AND ugp.CacheKey IS NOT NULL
+                      AND TRIM(ugp.CacheKey) <> ''
+                )
+                SELECT
+                    lp.CacheKey AS CacheKey,
+                    ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
+                    ad.Rarity AS Rarity
+                FROM LatestProgress lp
+                INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
+                " + userAchievementJoin + @"
+                WHERE lp.RowNum = 1
+                ORDER BY lp.CacheKey;").ToList();
+
+            var totals = new Dictionary<string, (int CollectionScore, int PrestigeScore)>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                var cacheKey = row?.CacheKey?.Trim();
+                if (string.IsNullOrWhiteSpace(cacheKey))
+                {
+                    continue;
+                }
+
+                totals.TryGetValue(cacheKey, out var current);
+                var rarity = ParseStoredRarity(row.Rarity);
+                totals[cacheKey] = (
+                    AddClamped(current.CollectionScore, AchievementScoreCalculator.GetCollectionValue(rarity)),
+                    AddClamped(current.PrestigeScore, AchievementScoreCalculator.GetPrestigeValue(row.GlobalPercentUnlocked, rarity)));
+            }
+
+            return totals;
         }
 
         private static List<CachedUnlockTimelineRow> LoadCachedUnlockTimelineRows(SQLiteDatabase db)
@@ -983,6 +1057,21 @@ namespace PlayniteAchievements.Services.Database
             {
                 counts[date] = amount;
             }
+        }
+
+        private static int AddClamped(int current, int value)
+        {
+            if (value <= 0)
+            {
+                return current;
+            }
+
+            if (current > int.MaxValue - value)
+            {
+                return int.MaxValue;
+            }
+
+            return current + value;
         }
 
         public void SaveCurrentUserGameData(string key, GameAchievementData data)

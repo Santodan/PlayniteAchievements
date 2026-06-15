@@ -81,7 +81,7 @@ namespace PlayniteAchievements.Models
         public string DisplayName { get; set; }
 
         /// <summary>
-        /// Localized short display name for this refresh mode (for sidebar dropdown).
+        /// Localized short display name for this refresh mode (for overview dropdown).
         /// </summary>
         public string ShortDisplayName { get; set; }
 
@@ -104,7 +104,7 @@ namespace PlayniteAchievements.Models
         public string DisplayNameResourceKey { get; set; }
 
         /// <summary>
-        /// Resource key for localized short display name (for sidebar).
+        /// Resource key for localized short display name (for overview).
         /// </summary>
         public string ShortDisplayNameResourceKey { get; set; }
     }

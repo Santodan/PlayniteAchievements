@@ -1,0 +1,14 @@
+<UserControl x:Class="PlayniteAchievements.Views.StartPage.StartPageScoreCardWidgetView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True">
+    <Grid Margin="4">
+        <controls:ScoreCardControl Width="300"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   ScoreCard="{Binding ScoreCard}"
+                                   InfoRequested="ScoreCard_InfoRequested"/>
+    </Grid>
+</UserControl>

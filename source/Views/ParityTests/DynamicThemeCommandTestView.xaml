@@ -3,9 +3,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="900"
              d:DesignWidth="1300">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
 
     <Grid Margin="14">
         <Grid.RowDefinitions>
@@ -52,9 +61,14 @@
                             Click="RequestUpdate_Click"
                             MinWidth="120"
                             Margin="0,0,8,0" />
-                    <Button Content="Open Game View"
-                            Click="OpenGameView_Click"
+                    <Button Content="Open View Achievements"
+                            Click="OpenViewAchievements_Click"
                             MinWidth="120"
+                            Margin="0,0,8,0"
+                            IsEnabled="{Binding HasSelectedGame, Mode=OneWay}" />
+                    <Button Content="Open Manage Achievements"
+                            Click="OpenManageAchievements_Click"
+                            MinWidth="170"
                             IsEnabled="{Binding HasSelectedGame, Mode=OneWay}" />
                 </WrapPanel>
             </StackPanel>
@@ -110,9 +124,11 @@
                                   IsReadOnly="True"
                                   Height="230"
                                   CanUserAddRows="False"
-                                  CanUserDeleteRows="False">
+                                  CanUserDeleteRows="False"
+                                  ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
-                                <Style TargetType="TextBlock">
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                     <Setter Property="TextWrapping" Value="Wrap" />
                                 </Style>
                             </DataGrid.Resources>
@@ -170,9 +186,11 @@
                                   IsReadOnly="True"
                                   Height="230"
                                   CanUserAddRows="False"
-                                  CanUserDeleteRows="False">
+                                  CanUserDeleteRows="False"
+                                  ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
-                                <Style TargetType="TextBlock">
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                     <Setter Property="TextWrapping" Value="Wrap" />
                                 </Style>
                             </DataGrid.Resources>
@@ -230,9 +248,11 @@
                                   IsReadOnly="True"
                                   Height="230"
                                   CanUserAddRows="False"
-                                  CanUserDeleteRows="False">
+                                  CanUserDeleteRows="False"
+                                  ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
-                                <Style TargetType="TextBlock">
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
                                     <Setter Property="TextWrapping" Value="Wrap" />
                                 </Style>
                             </DataGrid.Resources>

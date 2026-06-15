@@ -45,6 +45,14 @@ namespace PlayniteAchievements.Services.Hydration
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var hasCategoryTypeOverrides = categoryTypeOverrides.Count > 0;
 
+            var filteredApiNames = customData.FilteredAchievementApiNames ??
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var summaryFilteredApiNames = customData.SummaryFilteredAchievementApiNames ??
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var achievementNotes = customData.AchievementNotes ??
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var detail in details)
             {
                 if (detail == null)
@@ -54,20 +62,20 @@ namespace PlayniteAchievements.Services.Hydration
 
                 detail.ProviderKey = providerKey;
 
+                var apiName = (detail.ApiName ?? string.Empty).Trim();
                 var providerCategory = NormalizeCategory(detail.Category);
                 var providerCategoryType = AchievementCategoryTypeHelper.Normalize(detail.CategoryType);
 
                 if (hasManualCapstone)
                 {
                     detail.IsCapstone = string.Equals(
-                        detail.ApiName,
+                        apiName,
                         manualCapstone,
                         StringComparison.OrdinalIgnoreCase);
                 }
 
                 if (hasCategoryOverrides)
                 {
-                    var apiName = (detail.ApiName ?? string.Empty).Trim();
                     if (!string.IsNullOrWhiteSpace(apiName) &&
                         categoryOverrides.TryGetValue(apiName, out var overrideCategory) &&
                         !string.IsNullOrWhiteSpace(overrideCategory))
@@ -78,7 +86,6 @@ namespace PlayniteAchievements.Services.Hydration
 
                 if (hasCategoryTypeOverrides)
                 {
-                    var apiName = (detail.ApiName ?? string.Empty).Trim();
                     if (!string.IsNullOrWhiteSpace(apiName) &&
                         categoryTypeOverrides.TryGetValue(apiName, out var overrideCategoryType) &&
                         !string.IsNullOrWhiteSpace(overrideCategoryType))
@@ -89,6 +96,13 @@ namespace PlayniteAchievements.Services.Hydration
 
                 detail.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategory);
                 detail.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType);
+                detail.IsFiltered = !string.IsNullOrWhiteSpace(apiName) && filteredApiNames.Contains(apiName);
+                detail.IsFilteredFromSummaries = !string.IsNullOrWhiteSpace(apiName) &&
+                                                 summaryFilteredApiNames.Contains(apiName);
+                detail.AchievementNote = !string.IsNullOrWhiteSpace(apiName) &&
+                                         achievementNotes.TryGetValue(apiName, out var note)
+                    ? note
+                    : null;
             }
         }
 
