@@ -183,11 +183,44 @@ namespace PlayniteAchievements.Services
             LocalSettings overrideLocalSettings = null,
             string notificationProviderKey = "Local")
         {
-            var names = unlockedAchievementNames?
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList() ?? new List<string>();
-            var unlockCount = Math.Max(unlockedAchievementNames?.Count ?? 0, names.Count);
+            var achievementItems = unlockedAchievementNames?
+                .Select((name, index) => new AchievementUnlockNotificationItem(
+                    name,
+                    index == 0 ? unlockedAchievementIconPath : null,
+                    index == 0 ? achievementDescription : null,
+                    index == 0 ? achievementPoints : null,
+                    index == 0 ? achievementRarity : null,
+                    index == 0 ? achievementTrophy : null))
+                .ToList();
+
+            ShowLocalAchievementUnlocked(
+                gameName,
+                achievementItems,
+                customSoundPath,
+                forcedStyle,
+                forcedDeliveryMode,
+                overrideLocalSettings,
+                notificationProviderKey,
+                game);
+        }
+
+        public void ShowLocalAchievementUnlocked(
+            string gameName,
+            IReadOnlyList<AchievementUnlockNotificationItem> unlockedAchievements,
+            string customSoundPath,
+            string forcedStyle = null,
+            LocalUnlockNotificationDeliveryMode? forcedDeliveryMode = null,
+            LocalSettings overrideLocalSettings = null,
+            string notificationProviderKey = "Local",
+            Game game = null)
+        {
+            var achievements = unlockedAchievements?
+                .Where(item => !string.IsNullOrWhiteSpace(item?.Name))
+                .GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList() ?? new List<AchievementUnlockNotificationItem>();
+            var names = achievements.Select(item => item.Name.Trim()).ToList();
+            var unlockCount = Math.Max(unlockedAchievements?.Count ?? 0, achievements.Count);
             if (unlockCount <= 0)
             {
                 return;
@@ -250,24 +283,23 @@ namespace PlayniteAchievements.Services
                 }
             }
 
-            if (names.Count > 0)
+            if (achievements.Count > 0)
             {
                 var soundLeadMs = Math.Max(0, localSettings?.UnlockSoundLeadMilliseconds ?? 0);
                 void SendAllUnlockPopups()
                 {
-                    for (var i = 0; i < names.Count; i++)
+                    foreach (var achievement in achievements)
                     {
-                        var isFirstAchievement = i == 0;
                         SendUnlockPopup(
                             safeGameName,
-                            names[i],
-                            isFirstAchievement ? unlockedAchievementIconPath : null,
+                            achievement.Name,
+                            achievement.IconPath,
                             providerKey: resolvedProviderKey,
                             game: game,
-                            achievementDescription: isFirstAchievement ? achievementDescription : null,
-                            achievementPoints: isFirstAchievement ? achievementPoints : null,
-                            achievementRarity: isFirstAchievement ? achievementRarity : null,
-                            achievementTrophy: isFirstAchievement ? achievementTrophy : null,
+                            achievementDescription: achievement.Description,
+                            achievementPoints: achievement.Points,
+                            achievementRarity: achievement.Rarity,
+                            achievementTrophy: achievement.Trophy,
                             forcedStyle: forcedStyle,
                             forcedDeliveryMode: forcedDeliveryMode,
                             overrideLocalSettings: localSettings);
@@ -2772,5 +2804,36 @@ steamImage +
 
             return Path.GetFullPath(Path.Combine(assemblyDirectory, trimmedPath));
         }
+    }
+
+    public sealed class AchievementUnlockNotificationItem
+    {
+        public AchievementUnlockNotificationItem(
+            string name,
+            string iconPath = null,
+            string description = null,
+            int? points = null,
+            string rarity = null,
+            string trophy = null)
+        {
+            Name = name ?? string.Empty;
+            IconPath = iconPath;
+            Description = description;
+            Points = points;
+            Rarity = rarity;
+            Trophy = trophy;
+        }
+
+        public string Name { get; }
+
+        public string IconPath { get; }
+
+        public string Description { get; }
+
+        public int? Points { get; }
+
+        public string Rarity { get; }
+
+        public string Trophy { get; }
     }
 }

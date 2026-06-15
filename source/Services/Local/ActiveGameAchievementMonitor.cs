@@ -144,10 +144,15 @@ namespace PlayniteAchievements.Services.Local
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
                 var soundPath = localSettings?.UnlockSoundPath;
                 var unlockNames = newlyUnlocked.Select(item => item.DisplayName).ToList();
-                var firstUnlocked = newlyUnlocked.FirstOrDefault();
-                var firstIconPath = newlyUnlocked
-                    .Select(item => item.UnlockedIconPath)
-                    .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+                var unlockNotifications = newlyUnlocked
+                    .Select(item => new AchievementUnlockNotificationItem(
+                        item.DisplayName,
+                        item.UnlockedIconPath,
+                        item.Description,
+                        item.Points,
+                        item.Rarity,
+                        item.Trophy))
+                    .ToList();
 
                 _logger?.Info($"[LocalMonitor] Detected {newlyUnlocked.Count} late Local unlock(s) for '{game.Name}' after game stop.");
 
@@ -159,14 +164,9 @@ namespace PlayniteAchievements.Services.Local
                 {
                     _notifications.ShowLocalAchievementUnlocked(
                         game.Name,
-                        unlockNames,
+                        unlockNotifications,
                         soundPath,
-                        firstIconPath,
-                        game,
-                        firstUnlocked?.Description,
-                        firstUnlocked?.Points,
-                        firstUnlocked?.Rarity,
-                        firstUnlocked?.Trophy);
+                        game: game);
                 }
 
                 _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
@@ -244,10 +244,15 @@ namespace PlayniteAchievements.Services.Local
                         var unlockNames = newlyUnlocked
                             .Select(item => item.DisplayName)
                             .ToList();
-                        var firstUnlocked = newlyUnlocked.FirstOrDefault();
-                        var firstIconPath = newlyUnlocked
-                            .Select(item => item.UnlockedIconPath)
-                            .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path));
+                        var unlockNotifications = newlyUnlocked
+                            .Select(item => new AchievementUnlockNotificationItem(
+                                item.DisplayName,
+                                item.UnlockedIconPath,
+                                item.Description,
+                                item.Points,
+                                item.Rarity,
+                                item.Trophy))
+                            .ToList();
 
                         _logger?.Info($"Detected {newlyUnlocked.Count} newly unlocked Local achievement(s) for '{game.Name}'.");
 
@@ -260,14 +265,9 @@ namespace PlayniteAchievements.Services.Local
                         {
                             _notifications.ShowLocalAchievementUnlocked(
                                 game.Name,
-                                unlockNames,
+                                unlockNotifications,
                                 soundPath,
-                                firstIconPath,
-                                game,
-                                firstUnlocked?.Description,
-                                firstUnlocked?.Points,
-                                firstUnlocked?.Rarity,
-                                firstUnlocked?.Trophy);
+                                game: game);
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)

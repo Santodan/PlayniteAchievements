@@ -147,11 +147,15 @@ namespace PlayniteAchievements.Services.Exophase
 
                     if (previousSnapshot != null && newlyUnlocked.Count > 0)
                     {
-                        var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
-                        var firstUnlocked = newlyUnlocked.FirstOrDefault();
-                        var firstIconPath = newlyUnlocked
-                            .Select(i => i.UnlockedIconPath)
-                            .FirstOrDefault(p => !string.IsNullOrWhiteSpace(p));
+                        var unlockNotifications = newlyUnlocked
+                            .Select(i => new AchievementUnlockNotificationItem(
+                                i.DisplayName,
+                                i.UnlockedIconPath,
+                                i.Description,
+                                i.Points,
+                                i.Rarity,
+                                i.Trophy))
+                            .ToList();
 
                         _logger?.Info($"[ExophaseMonitor] {newlyUnlocked.Count} new Exophase unlock(s) for '{game.Name}'.");
 
@@ -165,14 +169,9 @@ namespace PlayniteAchievements.Services.Exophase
                             var soundPath = localSettings?.UnlockSoundPath;
                             _notifications.ShowLocalAchievementUnlocked(
                                 game.Name,
-                                unlockNames,
+                                unlockNotifications,
                                 soundPath,
-                                firstIconPath,
-                                game,
-                                firstUnlocked?.Description,
-                                firstUnlocked?.Points,
-                                firstUnlocked?.Rarity,
-                                firstUnlocked?.Trophy,
+                                game: game,
                                 notificationProviderKey: "Exophase");
                         }
                     }
