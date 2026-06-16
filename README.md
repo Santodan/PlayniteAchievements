@@ -97,7 +97,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 
-##  - v2.5.0.1
+## 2026-06-16 - v2.5.0.1
 - v2.5.0 merge
 - Possibility to change to `Manual` from inside the `Overrides`
 - Correct string in the `Provider` inside the `Override` menu when set to something different than `Automatic`
