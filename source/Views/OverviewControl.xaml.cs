@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -35,11 +35,40 @@ namespace PlayniteAchievements.Views
         private Guid? _lastSelectedOverviewGameId;
         private DataGridRow _pendingRightClickRow;
         private bool _committingOverviewSelection;
-        private DataGrid GameSummariesGrid => GameSummariesGridControl?.InternalDataGrid;
+
+        // Column persistence state (for GameSummariesGrid only - AchievementDataGridControl handles its own)
+        private readonly Dictionary<DataGridColumn, EventHandler> _columnWidthChangedHandlers = new Dictionary<DataGridColumn, EventHandler>();
+        private readonly Dictionary<string, double> _pendingOverviewWidthUpdates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        private DispatcherTimer _saveTimer;
+        private bool _isApplyingWidths;
+        private bool _isResizeInProgress;
+        private string _lastOverviewResizedKey;
+
+        private static readonly IReadOnlyDictionary<string, double> DefaultAchievementWidthSeeds =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Achievement"] = 520,
+                ["UnlockDate"] = 230,
+                ["CategoryType"] = 200,
+                ["CategoryLabel"] = 200,
+                ["Rarity"] = 170,
+                ["Points"] = 120
+            };
+
+        private static readonly IReadOnlyDictionary<string, double> DefaultOverviewWidthSeeds =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["OverviewGameName"] = 500,
+                ["OverviewLastPlayed"] = 240,
+                ["OverviewPlaytime"] = 170,
+                ["OverviewProgression"] = 360,
+                ["TotalAchievements"] = 180
+            };
 
         public OverviewControl()
         {
             InitializeComponent();
+            InitSaveTimer();
         }
 
         public OverviewControl(
@@ -54,6 +83,7 @@ namespace PlayniteAchievements.Views
             PlayniteAchievementsSettings settings)
         {
             InitializeComponent();
+            InitSaveTimer();
 
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settings = settings;
@@ -78,10 +108,13 @@ namespace PlayniteAchievements.Views
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
         }
 
-        private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
+        private void InitSaveTimer()
         {
-            e.Handled = true;
-            ScoreInfoDialogPresenter.Show();
+            _saveTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(350)
+            };
+            _saveTimer.Tick += SaveTimer_Tick;
         }
 
         public void Activate()
@@ -89,6 +122,19 @@ namespace PlayniteAchievements.Views
             if (_isActive) return;
             _isActive = true;
             _viewModel?.SetActive(true);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                ApplyWidthsToGrids();
+                RecentAchievementsDataGrid?.Refresh();
+                SidebarAllAchievementsDataGrid?.Refresh();
+                GameAchievementsGrid?.Refresh();
+                ResetOverviewSortDirection();
+                ResetAchievementsSortDirection();
+                ResetRecentAchievementsSortDirection();
+                ResetSidebarAllAchievementsSortDirection();
+            }), DispatcherPriority.Loaded);
+
             FocusInitialFullscreenControllerTarget();
         }
 
@@ -123,6 +169,7 @@ namespace PlayniteAchievements.Views
         public void Deactivate()
         {
             if (!_isActive) return;
+            FlushPendingUpdates();
             _isActive = false;
             _viewModel?.SetActive(false);
         }
@@ -142,9 +189,8 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
-                GameSummariesGridControl?.Dispose();
-                RecentAchievementsDataGrid?.Dispose();
-                GameAchievementsGrid?.Dispose();
+                FlushPendingUpdates();
+                DetachAllHandlers();
                 _viewModel?.Dispose();
             }
             catch (Exception ex)
@@ -157,12 +203,17 @@ namespace PlayniteAchievements.Views
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
+            EnsureDefaultSeeds();
+            AttachHandlers(GameSummariesGrid);
+            // RecentAchievementsDataGrid is now AchievementDataGridControl, uses built-in persistence
+            // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
             ApplyOverviewColumnRatio();
-            GameSummariesGridControl?.Refresh();
-            RecentAchievementsDataGrid?.Refresh();
-            GameAchievementsGrid?.Refresh();
+            ApplyVisibilityToGrids();
+            ApplyWidthsToGrids();
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+            ResetRecentAchievementsSortDirection();
+            ResetSidebarAllAchievementsSortDirection();
             UpdatePieChartLayout();
         }
 
@@ -170,6 +221,8 @@ namespace PlayniteAchievements.Views
         {
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+            ResetRecentAchievementsSortDirection();
+            ResetSidebarAllAchievementsSortDirection();
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -202,25 +255,74 @@ namespace PlayniteAchievements.Views
             if (e.PropertyName != nameof(OverviewViewModel.IsGameSelected) &&
                 e.PropertyName != nameof(OverviewViewModel.IsSelectedGameContentReady)) return;
 
-            // Defer sort updates to Render priority so they batch with the panel visibility change.
-            // The selected-game grid normalizes from its visibility/size events; refreshing here
-            // reapplies persisted widths and produces a second visible layout pass.
+            // Defer grid operations to Render priority to batch with visibility change
+            // This prevents flicker by ensuring all layout happens in one render pass
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 ResetAchievementsSortDirection();
 
-                if (_viewModel.IsGameSelected)
-                {
-                    return;
-                }
-
-                ResetRecentAchievementsToDefaultSort();
-                RecentAchievementsDataGrid?.Refresh();
+                if (TryApplyPendingToggleWidths()) return;
+                QueueActiveGridNormalization(rescaleAll: false);
             }), DispatcherPriority.Render);
+        }
+
+        private void SaveTimer_Tick(object sender, EventArgs e)
+        {
+            _saveTimer?.Stop();
+            var shouldNormalizeOverview = _pendingOverviewWidthUpdates.Count > 0;
+            FlushPendingUpdates();
+
+            if (_isResizeInProgress) return;
+
+            if (shouldNormalizeOverview)
+            {
+                NormalizeGridColumns(GameSummariesGrid);
+            }
         }
 
         private void ClearLeftSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearLeftSearch();
         private void ClearRightSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearRightSearch();
+
+        private void DefaultSortModeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null || !(sender is Button button))
+            {
+                return;
+            }
+
+            var menu = button.ContextMenu;
+            if (menu == null)
+            {
+                return;
+            }
+
+            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            var current = _viewModel.DefaultAchievementSortMode;
+
+            var modes = new[]
+            {
+                (Mode: CompactListSortMode.None,         Key: "LOCPlayAch_Common_Default",              Fallback: "Default"),
+                (Mode: CompactListSortMode.DisplayOrder, Key: "LOCPlayAch_SortMode_RetroAchievements",  Fallback: "RetroAchievements"),
+                (Mode: CompactListSortMode.Custom,       Key: "LOCPlayAch_SortMode_CustomManual",       Fallback: "Custom (Manual)"),
+            };
+
+            menu.Items.Clear();
+            foreach (var (mode, locKey, fallback) in modes)
+            {
+                var label = ResourceProvider.GetString(locKey) ?? fallback;
+                var item = new MenuItem
+                {
+                    Header = label,
+                    IsChecked = (mode == current),
+                    Style = itemStyle,
+                };
+                var capturedMode = mode;
+                item.Click += (s, _) => _viewModel.DefaultAchievementSortMode = capturedMode;
+                menu.Items.Add(item);
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
 
         private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)
         {
@@ -234,6 +336,36 @@ namespace PlayniteAchievements.Views
                 _viewModel.RefreshModes,
                 _viewModel.SelectedRefreshMode,
                 selectedKey => _viewModel.SelectedRefreshMode = selectedKey);
+        }
+
+        private void ToggleDefaultAchievementSortDescending_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            _viewModel.DefaultAchievementSortDescending = !_viewModel.DefaultAchievementSortDescending;
+        }
+
+        private void ConfigureDefaultAchievementSort_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null)
+            {
+                return;
+            }
+
+            if (ManualAchievementSortDialog.TryShowDialog(_settings, _persistSettingsForUi))
+            {
+                _persistSettingsForUi?.Invoke();
+                _viewModel?.RefreshManualSortSettings();
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    ResetAchievementsSortDirection();
+                    ResetSidebarAllAchievementsSortDirection();
+                    QueueActiveGridNormalization(rescaleAll: true);
+                }), DispatcherPriority.Render);
+            }
         }
 
         private static void OpenSingleSelectRefreshModeContextMenu(
@@ -260,23 +392,32 @@ namespace PlayniteAchievements.Views
             }
 
             var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var mode in modes.Where(mode => mode != null && !string.IsNullOrWhiteSpace(mode.Key)))
+            var submenuStyle = button.TryFindResource("AchievementCascadeMenuItemStyle") as Style;
+            var availableModes = modes
+                .Where(mode => mode != null && !string.IsNullOrWhiteSpace(mode.Key))
+                .ToList();
+
+            foreach (var mode in availableModes.Where(mode => !IsPresetRefreshMode(mode)))
             {
-                var modeKey = mode.Key;
-                var item = new MenuItem
+                menu.Items.Add(CreateRefreshModeMenuItem(mode, selectedModeKey, setSelection, itemStyle));
+            }
+
+            var presetModes = availableModes.Where(IsPresetRefreshMode).ToList();
+            if (presetModes.Count > 0)
+            {
+                var presetsMenuItem = new MenuItem
                 {
-                    Header = !string.IsNullOrWhiteSpace(mode.ShortDisplayName)
-                        ? mode.ShortDisplayName
-                        : (!string.IsNullOrWhiteSpace(mode.DisplayName) ? mode.DisplayName : modeKey),
-                    IsCheckable = true,
-                    IsChecked = string.Equals(modeKey, selectedModeKey, StringComparison.Ordinal)
+                    Header = ResourceProvider.GetString("LOCPlayAch_CustomRefresh_PresetsHeader") ?? "Presets",
+                    ItemContainerStyle = itemStyle,
+                    Style = submenuStyle
                 };
-                if (itemStyle != null)
+
+                foreach (var presetMode in presetModes)
                 {
-                    item.Style = itemStyle;
+                    presetsMenuItem.Items.Add(CreateRefreshModeMenuItem(presetMode, selectedModeKey, setSelection, itemStyle));
                 }
-                item.Click += (_, __) => setSelection(modeKey);
-                menu.Items.Add(item);
+
+                menu.Items.Add(presetsMenuItem);
             }
 
             if (menu.Items.Count == 0)
@@ -285,6 +426,38 @@ namespace PlayniteAchievements.Views
             }
 
             OpenSelectorContextMenu(button, menu);
+        }
+
+        private static bool IsPresetRefreshMode(RefreshMode mode)
+        {
+            return mode != null
+                && !string.IsNullOrWhiteSpace(mode.Key)
+                && mode.Key.StartsWith("CustomPreset:", StringComparison.Ordinal);
+        }
+
+        private static MenuItem CreateRefreshModeMenuItem(
+            RefreshMode mode,
+            string selectedModeKey,
+            Action<string> setSelection,
+            Style itemStyle)
+        {
+            var modeKey = mode.Key;
+            var item = new MenuItem
+            {
+                Header = !string.IsNullOrWhiteSpace(mode.ShortDisplayName)
+                    ? mode.ShortDisplayName
+                    : (!string.IsNullOrWhiteSpace(mode.DisplayName) ? mode.DisplayName : modeKey),
+                IsCheckable = true,
+                IsChecked = string.Equals(modeKey, selectedModeKey, StringComparison.Ordinal)
+            };
+
+            if (itemStyle != null)
+            {
+                item.Style = itemStyle;
+            }
+
+            item.Click += (_, __) => setSelection(modeKey);
+            return item;
         }
 
         private void ProviderFilterSelectionButton_Click(object sender, RoutedEventArgs e)
@@ -445,6 +618,10 @@ namespace PlayniteAchievements.Views
 
         private void ClearGameSelection_Click(object sender, RoutedEventArgs e)
         {
+            if (_viewModel?.IsGameSelected == true)
+            {
+                PrecomputeToggleWidths(toGameSelected: false);
+            }
             _viewModel?.ClearGameSelection();
             _lastSelectedOverviewGameId = null;
         }
@@ -496,7 +673,7 @@ namespace PlayniteAchievements.Views
 
         private bool TryHandleControllerUp()
         {
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (focusedGrid != null)
             {
                 if (IsGridColumnHeaderFocused(focusedGrid))
@@ -515,7 +692,7 @@ namespace PlayniteAchievements.Views
 
         private bool TryHandleControllerDown()
         {
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (focusedGrid != null && IsGridColumnHeaderFocused(focusedGrid))
             {
                 return FullscreenControllerNavigationService.FocusDataGrid(focusedGrid);
@@ -535,7 +712,7 @@ namespace PlayniteAchievements.Views
 
         private bool TryHandleControllerLeft()
         {
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (focusedGrid != null)
             {
                 if (ReferenceEquals(focusedGrid, RecentAchievementsDataGrid?.InternalDataGrid) ||
@@ -565,7 +742,7 @@ namespace PlayniteAchievements.Views
 
         private bool TryHandleControllerRight()
         {
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (focusedGrid != null)
             {
                 if (ReferenceEquals(focusedGrid, GameSummariesGrid))
@@ -606,7 +783,7 @@ namespace PlayniteAchievements.Views
 
         private bool TryHandleControllerActivation()
         {
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (IsGridColumnHeaderFocused(focusedGrid))
             {
                 return ActivateFocusedGridColumnHeader(focusedGrid);
@@ -637,7 +814,7 @@ namespace PlayniteAchievements.Views
                 return true;
             }
 
-            var focusedGrid = GetFocusedOverviewGrid();
+            var focusedGrid = GetFocusedSidebarGrid();
             if (focusedGrid == null)
             {
                 return false;
@@ -736,7 +913,9 @@ namespace PlayniteAchievements.Views
 
             if (ReferenceEquals(grid, GameSummariesGrid))
             {
-                return GameSummariesGridControl?.OpenColumnVisibilityMenuForController() == true;
+                var menu = BuildColumnVisibilityMenu(grid);
+                var header = FullscreenControllerNavigationService.GetFocusedDataGridColumnHeader(grid);
+                return FullscreenControllerNavigationService.OpenContextMenu(header, menu);
             }
 
             if (ReferenceEquals(grid, RecentAchievementsDataGrid?.InternalDataGrid))
@@ -766,7 +945,7 @@ namespace PlayniteAchievements.Views
         {
             if (ReferenceEquals(grid, GameSummariesGrid))
             {
-                return GameSummariesGridControl?.ActivateFocusedColumnHeaderForController() == true;
+                return FullscreenControllerNavigationService.ActivateFocusedDataGridColumnHeader(grid);
             }
 
             if (ReferenceEquals(grid, RecentAchievementsDataGrid?.InternalDataGrid))
@@ -831,13 +1010,13 @@ namespace PlayniteAchievements.Views
             return false;
         }
 
-        private DataGrid GetFocusedOverviewGrid()
+        private DataGrid GetFocusedSidebarGrid()
         {
             var focused = Keyboard.FocusedElement as DependencyObject;
             var focusedGrid = VisualTreeHelpers.FindVisualParent<DataGrid>(focused)
                               ?? focused as DataGrid;
 
-            if (IsOverviewGrid(focusedGrid))
+            if (IsSidebarGrid(focusedGrid))
             {
                 return focusedGrid;
             }
@@ -860,7 +1039,7 @@ namespace PlayniteAchievements.Views
             return null;
         }
 
-        private bool IsOverviewGrid(DataGrid grid)
+        private bool IsSidebarGrid(DataGrid grid)
         {
             return grid != null &&
                    (ReferenceEquals(grid, GameSummariesGrid) ||
@@ -961,6 +1140,12 @@ namespace PlayniteAchievements.Views
             var currentGameId = item.PlayniteGameId;
             var gameChanged = !_lastSelectedOverviewGameId.HasValue ||
                               currentGameId != _lastSelectedOverviewGameId.Value;
+            var wasGameSelected = _viewModel.IsGameSelected;
+
+            if (!wasGameSelected)
+            {
+                PrecomputeToggleWidths(toGameSelected: true);
+            }
 
             _committingOverviewSelection = true;
             try
@@ -987,6 +1172,11 @@ namespace PlayniteAchievements.Views
             if (_viewModel == null)
             {
                 return false;
+            }
+
+            if (_viewModel.IsGameSelected)
+            {
+                PrecomputeToggleWidths(toGameSelected: false);
             }
 
             _committingOverviewSelection = true;
@@ -1051,12 +1241,7 @@ namespace PlayniteAchievements.Views
 
         private void GameSummaries_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_viewModel == null) return;
-
-            var grid = sender as DataGrid
-                       ?? (sender as Controls.GameSummariesGridControl)?.InternalDataGrid
-                       ?? GameSummariesGrid;
-            if (grid == null) return;
+            if (_viewModel == null || !(sender is DataGrid grid)) return;
 
             var hitTestResult = VisualTreeHelper.HitTest(grid, e.GetPosition(grid));
             if (hitTestResult == null) return;
@@ -1079,6 +1264,10 @@ namespace PlayniteAchievements.Views
                 catch
                 {
                     // Best-effort: swallow any focus clearing errors to avoid breaking UI
+                }
+                if (_viewModel.IsGameSelected)
+                {
+                    PrecomputeToggleWidths(toGameSelected: false);
                 }
                 _viewModel.ClearGameSelection();
                 _lastSelectedOverviewGameId = null;
@@ -1135,7 +1324,7 @@ namespace PlayniteAchievements.Views
 
         private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (TryResolveContextMenuRow(sender, e, out var row))
+            if (sender is DataGridRow row)
             {
                 e.Handled = true;
                 _pendingRightClickRow = row;
@@ -1144,7 +1333,7 @@ namespace PlayniteAchievements.Views
 
         private void DataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (TryResolveContextMenuRow(sender, e, out var row))
+            if (sender is DataGridRow row)
             {
                 e.Handled = true;
                 var targetRow = _pendingRightClickRow ?? row;
@@ -1153,109 +1342,76 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private static bool TryResolveContextMenuRow(object sender, MouseButtonEventArgs e, out DataGridRow row)
+        private void DataGridColumnMenu_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
-            row = sender as DataGridRow
-                  ?? e?.Source as DataGridRow
-                  ?? VisualTreeHelpers.FindVisualParent<DataGridRow>(e?.OriginalSource as DependencyObject);
-            return row != null;
+            if (!(sender is DataGrid grid)) return;
+
+            var source = e.OriginalSource as DependencyObject;
+            var header = VisualTreeHelpers.FindVisualParent<DataGridColumnHeader>(source);
+            if (header?.Column == null) return;
+
+            e.Handled = true;
+            var menu = BuildColumnVisibilityMenu(grid);
+            if (menu == null || menu.Items.Count == 0) return;
+
+            menu.Placement = PlacementMode.Bottom;
+            menu.PlacementTarget = header;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 0;
+            menu.IsOpen = true;
         }
 
         private void DataGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
-            e.Handled = true;
-
-            var grid = sender as DataGrid;
-            if (grid == null) return;
-
-            var sortAction = GameSummariesSortHelper.ResolveGridSortAction(
-                e.Column?.SortMemberPath,
-                _viewModel.OverviewSortPath,
-                _viewModel.OverviewSortDirection,
-                _settings?.Persisted);
-            if (sortAction.Kind == GameSummariesGridSortActionKind.None)
-            {
-                return;
-            }
-
-            if (sortAction.Kind == GameSummariesGridSortActionKind.ResetToDefault)
-            {
-                _viewModel.ApplyDefaultOverviewSort();
-            }
-            else if (sortAction.Direction.HasValue)
-            {
-                _viewModel.SortDataGrid(grid, sortAction.SortMemberPath, sortAction.Direction.Value);
-            }
-
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
+            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, clearOtherColumns: !isAdditive);
+            if (sortDirection == null) return;
+            _viewModel.SortDataGrid((sender as DataGrid), e.Column.SortMemberPath, sortDirection.Value, isAdditive);
             ResetOverviewSortDirection();
         }
 
         private void GameAchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
-            e.Handled = true;
 
             var grid = GameAchievementsGrid?.InternalDataGrid;
             if (grid == null) return;
 
-            var sortAction = AchievementSortHelper.ResolveGridSortAction(
-                e.Column?.SortMemberPath,
-                _viewModel.SelectedGameSortPath,
-                _viewModel.SelectedGameSortDirection,
-                _settings?.Persisted,
-                AchievementSortSurface.OverviewSelectedGame,
-                e.Column?.SortDirection);
-            if (sortAction.Kind == AchievementGridSortActionKind.None)
-            {
-                return;
-            }
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
 
-            if (sortAction.Kind == AchievementGridSortActionKind.ResetToDefault)
-            {
-                _viewModel.ApplyDefaultSelectedGameSort();
-                ClearAchievementsSortIndicators();
-                return;
-            }
-            else if (sortAction.Direction.HasValue)
-            {
-                _viewModel.SortDataGrid(grid, sortAction.SortMemberPath, sortAction.Direction.Value);
-            }
+            // Use HandleSorting for uniform A-Z / Z-A first-click logic
+            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);
+            if (sortDirection == null) return;
 
+            _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, sortDirection.Value, isAdditive);
             ResetAchievementsSortDirection();
         }
 
         private void AchievementDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
-            e.Handled = true;
 
             var control = sender as Controls.AchievementDataGridControl;
             var grid = control?.InternalDataGrid;
             if (grid == null) return;
 
-            var sortAction = AchievementSortHelper.ResolveGridSortAction(
-                e.Column?.SortMemberPath,
-                _viewModel.RecentSortPath,
-                _viewModel.RecentSortDirection,
-                _settings?.Persisted,
-                AchievementSortSurface.OverviewRecentAchievements,
-                e.Column?.SortDirection);
-            if (sortAction.Kind == AchievementGridSortActionKind.None)
-            {
-                return;
-            }
+            var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
+                == System.Windows.Input.ModifierKeys.Control;
 
-            if (sortAction.Kind == AchievementGridSortActionKind.ResetToDefault)
-            {
-                _viewModel.ApplyDefaultRecentSort();
-            }
-            else if (sortAction.Direction.HasValue)
-            {
-                _viewModel.SortDataGrid(grid, sortAction.SortMemberPath, sortAction.Direction.Value);
-            }
+            // Use HandleSorting for uniform A-Z / Z-A first-click logic
+            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);
+            if (sortDirection == null) return;
 
-            ResetRecentAchievementsSortDirection();
+            _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, sortDirection.Value, isAdditive);
+
+            // Update sort level badges to reflect the new multi-column sort state
+            if (control == RecentAchievementsDataGrid)
+                ResetRecentAchievementsSortDirection();
+            else if (control == SidebarAllAchievementsDataGrid)
+                ResetSidebarAllAchievementsSortDirection();
         }
 
         private void OnProviderPieChartSliceClick(object sender, string providerName)
@@ -1327,7 +1483,7 @@ namespace PlayniteAchievements.Views
 
         #endregion
 
-        #region Overview Layout Persistence
+        #region Sidebar Layout Persistence
 
         private void ApplyOverviewColumnRatio()
         {
@@ -1413,6 +1569,591 @@ namespace PlayniteAchievements.Views
 
         #endregion
 
+        #region Column Persistence
+
+        private void AttachHandlers(DataGrid grid)
+        {
+            if (grid == null) return;
+
+            foreach (var column in grid.Columns)
+            {
+                AttachWidthHandler(grid, column);
+            }
+
+            grid.Loaded += Grid_Loaded;
+            grid.SizeChanged += Grid_SizeChanged;
+            grid.PreviewMouseLeftButtonDown += Grid_PreviewMouseLeftButtonDown;
+            grid.PreviewMouseLeftButtonUp += Grid_PreviewMouseLeftButtonUp;
+            grid.LostMouseCapture += Grid_LostMouseCapture;
+            grid.ColumnDisplayIndexChanged += GameSummariesGrid_ColumnDisplayIndexChanged;
+        }
+
+        private void DetachAllHandlers()
+        {
+            foreach (var pair in _columnWidthChangedHandlers.ToList())
+            {
+                var descriptor = System.ComponentModel.DependencyPropertyDescriptor
+                    .FromProperty(DataGridColumn.WidthProperty, typeof(DataGridColumn));
+                descriptor?.RemoveValueChanged(pair.Key, pair.Value);
+            }
+            _columnWidthChangedHandlers.Clear();
+
+            DetachGridHandlers(GameSummariesGrid);
+            DetachGridHandlers(RecentAchievementsDataGrid.InternalDataGrid);
+            // GameAchievementsGrid is managed by AchievementDataGridControl
+
+            if (_saveTimer != null)
+            {
+                _saveTimer.Stop();
+                _saveTimer.Tick -= SaveTimer_Tick;
+                _saveTimer = null;
+            }
+        }
+
+        private void DetachGridHandlers(DataGrid grid)
+        {
+            if (grid == null) return;
+            grid.Loaded -= Grid_Loaded;
+            grid.SizeChanged -= Grid_SizeChanged;
+            grid.PreviewMouseLeftButtonDown -= Grid_PreviewMouseLeftButtonDown;
+            grid.PreviewMouseLeftButtonUp -= Grid_PreviewMouseLeftButtonUp;
+            grid.LostMouseCapture -= Grid_LostMouseCapture;
+            grid.ColumnDisplayIndexChanged -= GameSummariesGrid_ColumnDisplayIndexChanged;
+        }
+
+        private void AttachWidthHandler(DataGrid grid, DataGridColumn column)
+        {
+            if (column == null || _columnWidthChangedHandlers.ContainsKey(column)) return;
+
+            var descriptor = System.ComponentModel.DependencyPropertyDescriptor
+                .FromProperty(DataGridColumn.WidthProperty, typeof(DataGridColumn));
+            if (descriptor == null) return;
+
+            EventHandler handler = (_, __) => OnColumnWidthChanged(grid, column);
+            descriptor.AddValueChanged(column, handler);
+            _columnWidthChangedHandlers[column] = handler;
+        }
+
+        private void OnColumnWidthChanged(DataGrid grid, DataGridColumn column)
+        {
+            if (_isApplyingWidths || !_isResizeInProgress || column == null || !column.CanUserResize) return;
+
+            var key = ColumnWidthNormalization.GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key)) return;
+
+            var width = column.ActualWidth;
+            if (!ColumnWidthNormalization.IsValidWidth(width)) return;
+
+            // RecentAchievementsDataGrid and GameAchievementsGrid handle their own column widths via ColumnWidthPersistenceService
+            if (grid == GameSummariesGrid)
+            {
+                _lastOverviewResizedKey = key;
+                QueueWidthUpdate(_pendingOverviewWidthUpdates, key, width);
+            }
+        }
+
+        private void QueueWidthUpdate(Dictionary<string, double> map, string key, double width)
+        {
+            map[key] = ColumnWidthNormalization.RoundPixelWidth(width);
+            _saveTimer?.Stop();
+            _saveTimer?.Start();
+        }
+
+        private void FlushPendingUpdates()
+        {
+            if (_settings?.Persisted == null) return;
+
+            var changed = false;
+            // AchievementDataGridControl handles its own width persistence
+            if (_pendingOverviewWidthUpdates.Count > 0)
+            {
+                changed |= FlushToMap(_settings.Persisted.OverviewGameSummariesColumnWidths, _pendingOverviewWidthUpdates);
+            }
+
+            if (changed) SaveSettings();
+        }
+
+        private bool FlushToMap(Dictionary<string, double> target, Dictionary<string, double> pending)
+        {
+            if (target == null || pending.Count == 0) return false;
+
+            var changed = false;
+            foreach (var update in pending)
+            {
+                if (!ColumnWidthNormalization.IsValidWidth(update.Value)) continue;
+                if (!target.TryGetValue(update.Key, out var existing) || Math.Abs(existing - update.Value) > 0.1)
+                {
+                    target[update.Key] = update.Value;
+                    changed = true;
+                }
+            }
+            pending.Clear();
+            return changed;
+        }
+
+        private void Grid_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is DataGrid grid)
+            {
+                NormalizeGridColumns(grid);
+            }
+        }
+
+        private void Grid_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (!e.WidthChanged || !(sender is DataGrid grid) || !grid.IsVisible || grid.ActualWidth <= 1) return;
+
+            var isRecentAchievementsGrid = grid == RecentAchievementsDataGrid.InternalDataGrid;
+            var isVisibilityActivation = e.PreviousSize.Width <= 1;
+            if (isRecentAchievementsGrid && isVisibilityActivation && HasPendingToggleWidths()) return;
+
+            grid.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (grid.IsLoaded && !_isResizeInProgress)
+                {
+                    if (isRecentAchievementsGrid)
+                    {
+                        NormalizeRecentAchievementColumns(grid);
+                    }
+                    else
+                    {
+                        NormalizeGridColumns(grid);
+                    }
+                }
+            }), DispatcherPriority.Render);
+        }
+
+        private void Grid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (VisualTreeHelpers.IsColumnResizeThumbHit(e.OriginalSource as DependencyObject))
+            {
+                _isResizeInProgress = true;
+            }
+        }
+
+        private void Grid_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            CompleteResizeNormalization(sender as DataGrid);
+        }
+
+        private void Grid_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            CompleteResizeNormalization(sender as DataGrid);
+        }
+
+        private void CompleteResizeNormalization(DataGrid grid)
+        {
+            if (!_isResizeInProgress) return;
+            _isResizeInProgress = false;
+            if (grid == null) return;
+            grid.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (grid == RecentAchievementsDataGrid.InternalDataGrid)
+                {
+                    NormalizeRecentAchievementColumns(grid);
+                }
+                else
+                {
+                    NormalizeGridColumns(grid);
+                }
+            }), DispatcherPriority.Background);
+        }
+
+        #endregion
+
+        #region Normalization
+
+        private void NormalizeGridColumns(DataGrid grid, bool rescaleAll = false)
+        {
+            if (grid == null || !grid.IsLoaded) return;
+
+            if (grid == RecentAchievementsDataGrid.InternalDataGrid)
+            {
+                NormalizeRecentAchievementColumns(grid, rescaleAll);
+                return;
+            }
+
+            string protectedKey = grid == GameSummariesGrid ? _lastOverviewResizedKey : null;
+            var preferredWidths = grid == GameSummariesGrid ? GetOverviewWidths() : null;
+
+            if (ColumnWidthNormalization.TryBuildNormalizedWidths(grid, protectedKey, rescaleAll,
+                preferredWidths, 0, out var normalized))
+            {
+                ColumnWidthNormalization.ApplyWidthsByKey(grid, normalized, ref _isApplyingWidths);
+            }
+        }
+
+        private void NormalizeRecentAchievementColumns(DataGrid referenceGrid, bool rescaleAll = false)
+        {
+            // AchievementDataGridControl handles its own column normalization internally
+            // This method is kept for compatibility but is now a no-op
+        }
+
+        private Dictionary<string, double> CaptureResizableWidths(DataGrid grid, double fallbackWidth)
+        {
+            var captured = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            if (grid == null || !grid.IsLoaded) return captured;
+
+            var available = ColumnWidthNormalization.GetGridAvailableWidth(grid);
+            if (!ColumnWidthNormalization.IsValidWidth(available))
+            {
+                available = fallbackWidth;
+            }
+            if (!ColumnWidthNormalization.IsValidWidth(available)) return captured;
+
+            var minColWidth = ColumnWidthNormalization.ResolveResizableMinimumColumnWidth(
+                grid.Columns.Where(c => c?.Visibility == Visibility.Visible).ToList(),
+                ColumnWidthNormalization.GetContainerRelativeMinimumColumnWidth(available),
+                available);
+
+            foreach (var column in grid.Columns.Where(c => c?.Visibility == Visibility.Visible && c.CanUserResize))
+            {
+                var key = ColumnWidthNormalization.GetColumnKey(column);
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                captured[key] = Math.Max(minColWidth, ColumnWidthNormalization.GetCurrentWidth(column));
+            }
+
+            return captured;
+        }
+
+        private void QueueActiveGridNormalization(bool rescaleAll)
+        {
+            // Only RecentAchievementsDataGrid needs manual normalization
+            // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_viewModel == null) return;
+                if (_viewModel.IsSelectedGameContentReady) return; // GameAchievementsGrid manages itself
+
+                if (RecentAchievementsDataGrid.InternalDataGrid == null || !RecentAchievementsDataGrid.InternalDataGrid.IsLoaded ||
+                    !RecentAchievementsDataGrid.InternalDataGrid.IsVisible || RecentAchievementsDataGrid.InternalDataGrid.ActualWidth <= 1) return;
+                NormalizeRecentAchievementColumns(RecentAchievementsDataGrid.InternalDataGrid, rescaleAll);
+            }), DispatcherPriority.Loaded);
+        }
+
+        #endregion
+
+        #region Toggle Precomputation
+
+        // RecentAchievementsDataGrid and GameAchievementsGrid now use AchievementDataGridControl
+        // which handles its own column persistence. Toggle width handling is no longer needed.
+
+        private bool HasPendingToggleWidths() => false;
+
+        private bool TryApplyPendingToggleWidths() => false;
+
+        private void PrecomputeToggleWidths(bool toGameSelected)
+        {
+            // No-op: AchievementDataGridControl handles its own column widths
+        }
+
+        #endregion
+
+        #region Apply/Get Widths
+
+        private void ApplyVisibilityToGrids()
+        {
+            // RecentAchievementsDataGrid and GameAchievementsGrid use AchievementDataGridControl which handles its own visibility
+            ApplyVisibility(GameSummariesGrid, _settings?.Persisted?.OverviewGameSummariesColumnVisibility);
+        }
+
+        private void ApplyVisibility(DataGrid grid, Dictionary<string, bool> map)
+        {
+            if (grid == null || map == null) return;
+            foreach (var column in grid.Columns)
+            {
+                var key = ColumnWidthNormalization.GetColumnKey(column);
+                if (!string.IsNullOrWhiteSpace(key) && map.TryGetValue(key, out var isVisible))
+                {
+                    column.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void ApplyWidthsToGrids()
+        {
+            // RecentAchievementsDataGrid and GameAchievementsGrid use AchievementDataGridControl which handles its own widths
+            EnsureDefaultSeeds();
+            ApplyWidths(GameSummariesGrid, GetOverviewWidths());
+            NormalizeGridColumns(GameSummariesGrid);
+            ApplyColumnOrderToGrid(GameSummariesGrid, _settings?.Persisted?.OverviewGameSummariesColumnOrder);
+        }
+
+        private void ApplyColumnOrderToGrid(DataGrid grid, Dictionary<string, int> orderMap)
+        {
+            if (grid == null || orderMap == null || orderMap.Count == 0) return;
+
+            // Build a list of (column, desired displayIndex) pairs
+            var assignments = new List<(DataGridColumn Column, int DesiredIndex)>();
+            foreach (var column in grid.Columns)
+            {
+                var key = ColumnWidthNormalization.GetColumnKey(column);
+                if (!string.IsNullOrWhiteSpace(key) && orderMap.TryGetValue(key, out var idx))
+                {
+                    assignments.Add((column, Math.Min(idx, grid.Columns.Count - 1)));
+                }
+            }
+
+            if (assignments.Count == 0) return;
+
+            // Apply display indices in ascending order to avoid conflicts
+            foreach (var (column, desiredIndex) in assignments.OrderBy(a => a.DesiredIndex))
+            {
+                try
+                {
+                    if (column.DisplayIndex != desiredIndex)
+                    {
+                        column.DisplayIndex = desiredIndex;
+                    }
+                }
+                catch { /* ignore invalid index transitions */ }
+            }
+        }
+
+        private void GameSummariesGrid_ColumnDisplayIndexChanged(object sender, DataGridColumnEventArgs e)
+        {
+            if (_isApplyingWidths) return;
+
+            var persisted = _settings?.Persisted;
+            if (persisted == null || GameSummariesGrid == null) return;
+
+            var orderMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var column in GameSummariesGrid.Columns)
+            {
+                var key = ColumnWidthNormalization.GetColumnKey(column);
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    orderMap[key] = column.DisplayIndex;
+                }
+            }
+
+            persisted.OverviewGameSummariesColumnOrder = orderMap;
+            _saveTimer?.Stop();
+            _saveTimer?.Start();
+        }
+
+        private void ApplyWidths(DataGrid grid, Dictionary<string, double> map)
+        {
+            if (grid == null || map == null) return;
+
+            _isApplyingWidths = true;
+            try
+            {
+                foreach (var column in grid.Columns)
+                {
+                    if (column == null || !column.CanUserResize) continue;
+                    var key = ColumnWidthNormalization.GetColumnKey(column);
+                    if (string.IsNullOrWhiteSpace(key)) continue;
+                    if (map.TryGetValue(key, out var width) && ColumnWidthNormalization.IsValidWidth(width))
+                    {
+                        column.Width = new DataGridLength(ColumnWidthNormalization.RoundPixelWidth(width), DataGridLengthUnitType.Pixel);
+                    }
+                }
+            }
+            finally
+            {
+                _isApplyingWidths = false;
+            }
+        }
+
+        private void ApplyWidthToGridByKey(DataGrid grid, string key, double width)
+        {
+            if (grid == null || string.IsNullOrWhiteSpace(key) || !ColumnWidthNormalization.IsValidWidth(width)) return;
+
+            _isApplyingWidths = true;
+            try
+            {
+                foreach (var column in grid.Columns)
+                {
+                    if (column == null || !column.CanUserResize) continue;
+                    var colKey = ColumnWidthNormalization.GetColumnKey(column);
+                    var roundedWidth = ColumnWidthNormalization.RoundPixelWidth(width);
+                    if (ColumnWidthNormalization.KeysEqual(colKey, key) && Math.Abs(column.ActualWidth - roundedWidth) > 0.1)
+                    {
+                        column.Width = new DataGridLength(roundedWidth, DataGridLengthUnitType.Pixel);
+                    }
+                }
+            }
+            finally
+            {
+                _isApplyingWidths = false;
+            }
+        }
+
+        private Dictionary<string, double> GetAchievementWidths()
+        {
+            var merged = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+            // Legacy fallback
+            var legacy = _settings?.Persisted?.DataGridColumnWidths;
+            if (legacy != null)
+            {
+                foreach (var pair in legacy)
+                {
+                    if (ColumnWidthNormalization.IsValidWidth(pair.Value))
+                        merged[pair.Key] = pair.Value;
+                }
+            }
+
+            var current = _settings?.Persisted?.OverviewRecentAchievementColumnWidths;
+            if (current != null)
+            {
+                foreach (var pair in current)
+                {
+                    if (ColumnWidthNormalization.IsValidWidth(pair.Value))
+                        merged[pair.Key] = pair.Value;
+                }
+            }
+
+            return merged;
+        }
+
+        private Dictionary<string, double> GetOverviewWidths()
+        {
+            return _settings?.Persisted?.OverviewGameSummariesColumnWidths
+                ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private void EnsureDefaultSeeds()
+        {
+            if (_settings?.Persisted == null) return;
+            var changed = false;
+
+            var achievementMap = _settings.Persisted.OverviewRecentAchievementColumnWidths;
+            if (achievementMap == null)
+            {
+                achievementMap = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                _settings.Persisted.OverviewRecentAchievementColumnWidths = achievementMap;
+                changed = true;
+            }
+            changed |= EnsureSeeds(achievementMap, DefaultAchievementWidthSeeds);
+
+            var overviewMap = _settings.Persisted.OverviewGameSummariesColumnWidths;
+            if (overviewMap == null)
+            {
+                overviewMap = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+                _settings.Persisted.OverviewGameSummariesColumnWidths = overviewMap;
+                changed = true;
+            }
+            changed |= EnsureSeeds(overviewMap, DefaultOverviewWidthSeeds);
+
+            if (changed) SaveSettings();
+        }
+
+        private bool EnsureSeeds(Dictionary<string, double> map, IReadOnlyDictionary<string, double> seeds)
+        {
+            if (map == null || seeds == null) return false;
+            var changed = false;
+            foreach (var pair in seeds)
+            {
+                if (!map.TryGetValue(pair.Key, out var width) || !ColumnWidthNormalization.IsValidWidth(width))
+                {
+                    map[pair.Key] = pair.Value;
+                    changed = true;
+                }
+            }
+            return changed;
+        }
+
+        #endregion
+
+        #region Column Visibility Menu
+
+        private ContextMenu BuildColumnVisibilityMenu(DataGrid grid)
+        {
+            var menu = new ContextMenu();
+            foreach (var column in grid.Columns)
+            {
+                var header = ResolveColumnDisplayName(column);
+                if (string.IsNullOrWhiteSpace(header)) continue;
+
+                var target = column;
+                var item = new MenuItem
+                {
+                    Header = header,
+                    IsCheckable = true,
+                    IsChecked = target.Visibility == Visibility.Visible,
+                    StaysOpenOnClick = true
+                };
+                item.Click += (_, __) =>
+                {
+                    var isVisible = item.IsChecked;
+                    target.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                    OnColumnVisibilityChanged(grid, target, isVisible);
+                };
+                menu.Items.Add(item);
+            }
+            return menu;
+        }
+
+        private static string ResolveHeaderText(object header)
+        {
+            switch (header)
+            {
+                case string text: return text;
+                case TextBlock tb: return tb.Text;
+                default: return header?.ToString() ?? string.Empty;
+            }
+        }
+
+        private static string ResolveColumnDisplayName(DataGridColumn column)
+        {
+            var headerText = ResolveHeaderText(column?.Header);
+            if (!string.IsNullOrWhiteSpace(headerText))
+            {
+                return headerText;
+            }
+
+            // Fall back to ColumnKey for columns with blank headers
+            return ColumnWidthNormalization.GetColumnKey(column) ?? string.Empty;
+        }
+
+        private void OnColumnVisibilityChanged(DataGrid grid, DataGridColumn column, bool isVisible)
+        {
+            var key = ColumnWidthNormalization.GetColumnKey(column);
+            if (string.IsNullOrWhiteSpace(key)) return;
+
+            if (grid == GameSummariesGrid)
+            {
+                PersistVisibility(_settings?.Persisted?.OverviewGameSummariesColumnVisibility, key, isVisible);
+                NormalizeGridColumns(GameSummariesGrid);
+            }
+            else if (grid == RecentAchievementsDataGrid.InternalDataGrid)
+            {
+                PersistVisibility(_settings?.Persisted?.DataGridColumnVisibility, key, isVisible);
+                // GameAchievementsGrid handles its own visibility via AchievementDataGridControl
+                NormalizeRecentAchievementColumns(grid);
+            }
+            else if (grid == SidebarAllAchievementsDataGrid?.InternalDataGrid)
+            {
+                PersistVisibility(_settings?.Persisted?.DataGridColumnVisibility, key, isVisible);
+                NormalizeRecentAchievementColumns(grid);
+            }
+        }
+
+        private void ApplyVisibilityToGridByKey(DataGrid grid, string key, bool isVisible)
+        {
+            if (grid == null || string.IsNullOrWhiteSpace(key)) return;
+            foreach (var column in grid.Columns)
+            {
+                var colKey = ColumnWidthNormalization.GetColumnKey(column);
+                if (ColumnWidthNormalization.KeysEqual(colKey, key))
+                {
+                    column.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void PersistVisibility(Dictionary<string, bool> map, string key, bool isVisible)
+        {
+            if (map == null || string.IsNullOrWhiteSpace(key) || _settings?.Persisted == null) return;
+            if (map.TryGetValue(key, out var existing) && existing == isVisible) return;
+            map[key] = isVisible;
+            SaveSettings();
+        }
+
+        #endregion
+
         #region Row Context Menu
 
         private bool OpenContextMenuForRow(DataGridRow row, bool useControllerPlacement = false)
@@ -1448,7 +2189,7 @@ namespace PlayniteAchievements.Views
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
                 () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
             menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ManageAchievements", () => OpenManageAchievements(data)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_GameOptions", () => OpenManageAchievements(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ClearData", () => ClearGameData(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Common_Action_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshes", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: false)));
@@ -1472,11 +2213,6 @@ namespace PlayniteAchievements.Views
             }
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
                 () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
-            AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
-                menu,
-                data,
-                this,
-                RefreshView);
             return menu;
         }
 
@@ -1643,7 +2379,7 @@ namespace PlayniteAchievements.Views
         {
             var grid = GameAchievementsGrid?.InternalDataGrid;
             if (grid == null) return;
-            foreach (var c in grid.Columns) c.SortDirection = null;
+            foreach (var c in grid.Columns) { c.SortDirection = null; SetColumnSortLevel(grid, c, null); }
 
             if (_viewModel?.IsGameSelected != true)
             {
@@ -1656,31 +2392,113 @@ namespace PlayniteAchievements.Views
                 _viewModel.SelectedGameSortDirection,
                 _settings?.Persisted,
                 AchievementSortSurface.OverviewSelectedGame,
-                (sortPath, sortDirection) => GameAchievementsGrid?.SetSortIndicator(sortPath, sortDirection));
+                (sortPath, sortDirection) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(sortPath))
+                    {
+                        var primary = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == sortPath);
+                        if (primary != null) { primary.SortDirection = sortDirection; SetColumnSortLevel(grid, primary, "1"); }
+                    }
+                    GameAchievementsGrid?.SetSortIndicator(sortPath, sortDirection);
+                });
+
+            var secondaries = _viewModel?.SelectedGameSecondarySorts;
+            if (secondaries != null)
+            {
+                for (var i = 0; i < secondaries.Count; i++)
+                {
+                    var (path, dir) = secondaries[i];
+                    var col = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == path);
+                    if (col != null) { col.SortDirection = dir; SetColumnSortLevel(grid, col, (i + 2).ToString()); }
+                }
+            }
+        }
+
+        private static DataGridColumnHeader GetColumnHeader(DataGrid grid, DataGridColumn column)
+        {
+            if (grid == null || column == null) return null;
+            return FindVisualChildren<DataGridColumnHeader>(grid)
+                .FirstOrDefault(h => h.Column == column);
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null) yield break;
+            var count = VisualTreeHelper.GetChildrenCount(parent);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T t) yield return t;
+                foreach (var grandchild in FindVisualChildren<T>(child))
+                    yield return grandchild;
+            }
+        }
+
+        private void SetColumnSortLevel(DataGrid grid, DataGridColumn column, string level)
+        {
+            var header = GetColumnHeader(grid, column);
+            if (header != null) header.Tag = level;
         }
 
         private void ResetOverviewSortDirection()
         {
-            if (GameSummariesGridControl == null)
+            var grid = GameSummariesGrid;
+            if (grid?.Columns == null)
             {
                 return;
             }
 
-            GameSummariesSortHelper.ApplySortIndicator(
-                _viewModel?.OverviewSortPath,
-                _viewModel?.OverviewSortDirection,
-                _settings?.Persisted,
-                (sortPath, sortDirection) => GameSummariesGridControl.SetSortIndicator(sortPath, sortDirection));
+            foreach (var column in grid.Columns)
+            {
+                column.SortDirection = null;
+                SetColumnSortLevel(grid, column, null);
+            }
         }
 
         private void ResetRecentAchievementsSortDirection()
         {
+            if (RecentAchievementsDataGrid == null) return;
+
             AchievementSortHelper.ApplySortIndicator(
                 _viewModel?.RecentSortPath,
                 _viewModel?.RecentSortDirection,
                 _settings?.Persisted,
                 AchievementSortSurface.OverviewRecentAchievements,
                 (sortPath, sortDirection) => RecentAchievementsDataGrid?.SetSortIndicator(sortPath, sortDirection));
+        }
+
+        private void ResetSidebarAllAchievementsSortDirection()
+        {
+            if (SidebarAllAchievementsDataGrid == null) return;
+            var grid = SidebarAllAchievementsDataGrid.InternalDataGrid;
+            if (grid == null) return;
+
+            foreach (var c in grid.Columns) { c.SortDirection = null; SetColumnSortLevel(grid, c, null); }
+
+            AchievementSortHelper.ApplySortIndicator(
+                _viewModel?.SidebarAllSortPath,
+                _viewModel?.SidebarAllSortDirection,
+                _settings?.Persisted,
+                AchievementSortSurface.AchievementDataGrid,
+                (sortPath, sortDirection) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(sortPath))
+                    {
+                        var primary = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == sortPath);
+                        if (primary != null) { primary.SortDirection = sortDirection; SetColumnSortLevel(grid, primary, "1"); }
+                    }
+                });
+
+            var secondaries = _viewModel?.SidebarAllSecondarySorts;
+            if (secondaries != null)
+            {
+                for (var i = 0; i < secondaries.Count; i++)
+                {
+                    var (path, dir) = secondaries[i];
+                    var col = grid.Columns.FirstOrDefault(c => c?.SortMemberPath == path);
+                    if (col != null) { col.SortDirection = dir; SetColumnSortLevel(grid, col, (i + 2).ToString()); }
+                }
+            }
         }
 
         private void ResetRecentAchievementsToDefaultSort()

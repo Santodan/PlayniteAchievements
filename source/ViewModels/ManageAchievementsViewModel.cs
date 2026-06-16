@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -23,7 +23,7 @@ using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
-    public sealed class ManageAchievementsViewModel : PlayniteAchievements.Common.ObservableObject
+    public sealed partial class ManageAchievementsViewModel : PlayniteAchievements.Common.ObservableObject
     {
         private const string ProviderOverrideNoneKey = "None";
 
@@ -672,6 +672,7 @@ namespace PlayniteAchievements.ViewModels
                     new AchievementPageLinkContext(game, gameData, rawGameData, manualLink));
 
                 RefreshCustomDataState();
+                RefreshForkOverrideState();
 
                 if (!ShowManualTrackingTab && SelectedTab == ManageAchievementsTab.ManualTracking)
                 {
@@ -1238,6 +1239,7 @@ namespace PlayniteAchievements.ViewModels
             ExportCustomPackageCommand?.RaiseCanExecuteChanged();
             ImportCustomJsonCommand?.RaiseCanExecuteChanged();
             ClearCustomDataCommand?.RaiseCanExecuteChanged();
+            RaiseForkOverrideCommandStates();
         }
 
         private void RefreshCustomDataState()

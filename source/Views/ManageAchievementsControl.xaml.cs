@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +26,7 @@ namespace PlayniteAchievements.Views
         {
             ManageAchievementsTab.Overview,
             ManageAchievementsTab.ManualTracking,
+            ManageAchievementsTab.CustomSchema,
             ManageAchievementsTab.Capstones,
             ManageAchievementsTab.Category,
             ManageAchievementsTab.Filters,
@@ -168,6 +169,10 @@ namespace PlayniteAchievements.Views
             {
                 QueueEnsureSelectedTabContent();
             }
+            else if (e.PropertyName == nameof(ManageAchievementsViewModel.SelectedCustomSchemaTab))
+            {
+                QueueEnsureSelectedTabContent();
+            }
             else if (e.PropertyName == nameof(ManageAchievementsViewModel.HasManualTrackingLink) &&
                      _viewModel.SelectedTab == ManageAchievementsTab.ManualTracking)
             {
@@ -186,7 +191,8 @@ namespace PlayniteAchievements.Views
                 HandleCustomDataRevisionChanged();
             }
             else if (e.PropertyName == nameof(ManageAchievementsViewModel.HasCapstoneData) &&
-                     _viewModel.SelectedTab == ManageAchievementsTab.Capstones)
+                     (_viewModel.SelectedTab == ManageAchievementsTab.Capstones ||
+                      (_viewModel.SelectedTab == ManageAchievementsTab.CustomSchema && _viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Capstones)))
             {
                 EnsureCapstoneControl(forceRecreate: true);
             }
@@ -228,7 +234,61 @@ namespace PlayniteAchievements.Views
                     _capstoneRefreshPending = false;
                 }
             }
-            else if (_viewModel.SelectedTab == ManageAchievementsTab.ManualTracking)
+            else if (_viewModel.SelectedTab == ManageAchievementsTab.CustomSchema)
+            {
+                if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Capstones)
+                {
+                    var hadCapstoneControl = _capstoneControl != null;
+                    EnsureCapstoneControl(forceRecreate: false);
+                    if (_capstoneRefreshPending && _capstoneControl != null)
+                    {
+                        if (hadCapstoneControl)
+                        {
+                            _capstoneControl.RefreshData();
+                        }
+                        _capstoneRefreshPending = false;
+                    }
+                }
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.AchievementOrder)
+                {
+                    var hadAchievementOrderControl = _achievementOrderControl != null;
+                    EnsureAchievementOrderControl(forceRecreate: false);
+                    if (_achievementOrderRefreshPending)
+                    {
+                        if (hadAchievementOrderControl)
+                        {
+                            _achievementOrderControl?.RefreshData();
+                        }
+                        _achievementOrderRefreshPending = false;
+                    }
+                }
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.Category)
+                {
+                    var hadCategoryControl = _categoryControl != null;
+                    EnsureCategoryControl(forceRecreate: false);
+                    if (_categoryRefreshPending)
+                    {
+                        if (hadCategoryControl)
+                        {
+                            _categoryViewModel?.ReloadData();
+                        }
+                        _categoryRefreshPending = false;
+                    }
+                }
+                else if (_viewModel.SelectedCustomSchemaTab == GameOptionsCustomSchemaTab.CustomIcons)
+                {
+                    var hadAchievementIconsControl = _achievementIconsControl != null;
+                    EnsureAchievementIconsControl(forceRecreate: false);
+                    if (_achievementIconsRefreshPending)
+                    {
+                        if (hadAchievementIconsControl)
+                        {
+                            _achievementIconsControl?.RefreshData();
+                        }
+                        _achievementIconsRefreshPending = false;
+                    }
+                }
+            }            else if (_viewModel.SelectedTab == ManageAchievementsTab.ManualTracking)
             {
                 EnsureManualControl(forceRecreate: false);
                 if (_manualRefreshPending && !IsManualViewModelRefreshing() && _manualControl != null)
@@ -461,6 +521,7 @@ namespace PlayniteAchievements.Views
                 {
                     OverviewTabButton,
                     ManualTrackingTabButton,
+                    CustomSchemaTabButton,
                     CapstonesTabButton,
                     CategoryTabButton,
                     FiltersTabButton,
@@ -519,6 +580,8 @@ namespace PlayniteAchievements.Views
                     return _achievementOrderControl?.GetControllerElements() ?? new List<UIElement>();
                 case ManageAchievementsTab.CustomIcons:
                     return _achievementIconsControl?.GetControllerElements() ?? new List<UIElement>();
+                case ManageAchievementsTab.CustomSchema:
+                    return GetCustomSchemaControllerElements();
                 default:
                     root = ManageAchievementsContentHost;
                     break;
@@ -577,6 +640,8 @@ namespace PlayniteAchievements.Views
                     return _achievementOrderControl?.HandleFullscreenControllerInput(input) == true;
                 case ManageAchievementsTab.CustomIcons:
                     return _achievementIconsControl?.HandleFullscreenControllerInput(input) == true;
+                case ManageAchievementsTab.CustomSchema:
+                    return HandleCustomSchemaControllerInput(input);
                 default:
                     return false;
             }
@@ -673,7 +738,7 @@ namespace PlayniteAchievements.Views
                 _logger,
                 _settings);
             _capstoneControl.CapstoneChanged += CapstoneControl_CapstoneChanged;
-            CapstoneHost.Content = _capstoneControl;
+            AttachCapstoneControlToCurrentHost();
             _capstoneRefreshPending = false;
         }
 
@@ -696,6 +761,10 @@ namespace PlayniteAchievements.Views
             if (CapstoneHost != null)
             {
                 CapstoneHost.Content = null;
+            }
+            if (CustomSchemaCapstoneHost != null)
+            {
+                CustomSchemaCapstoneHost.Content = null;
             }
         }
 
@@ -783,7 +852,7 @@ namespace PlayniteAchievements.Views
                 _settings,
                 _logger);
             _achievementOrderControl = new ManageAchievementsAchievementOrderTab(_achievementOrderViewModel);
-            AchievementOrderHost.Content = _achievementOrderControl;
+            AttachAchievementOrderControlToCurrentHost();
         }
 
         private void EnsureCategoryControl(bool forceRecreate)
@@ -802,7 +871,7 @@ namespace PlayniteAchievements.Views
                 _settings,
                 _logger);
             _categoryControl = new ManageAchievementsCategoryTab(_categoryViewModel);
-            CategoryHost.Content = _categoryControl;
+            AttachCategoryControlToCurrentHost();
         }
 
         private void EnsureFiltersControl(bool forceRecreate)
@@ -861,10 +930,104 @@ namespace PlayniteAchievements.Views
                 _logger);
             _achievementIconsControl = new ManageAchievementsAchievementIconsTab(_achievementIconsViewModel);
             _achievementIconsControl.IconOverridesSaved += AchievementIconsControl_IconOverridesSaved;
-            AchievementIconsHost.Content = _achievementIconsControl;
+            AttachAchievementIconsControlToCurrentHost();
         }
 
-        private void ManualViewModel_ManualLinkSaved(object sender, EventArgs e)
+
+        private bool IsCustomSchemaSubTab(GameOptionsCustomSchemaTab tab)
+        {
+            return _viewModel?.SelectedTab == ManageAchievementsTab.CustomSchema && _viewModel.SelectedCustomSchemaTab == tab;
+        }
+
+        private void AttachCapstoneControlToCurrentHost()
+        {
+            if (IsCustomSchemaSubTab(GameOptionsCustomSchemaTab.Capstones))
+            {
+                if (CapstoneHost != null) CapstoneHost.Content = null;
+                CustomSchemaCapstoneHost.Content = _capstoneControl;
+            }
+            else
+            {
+                if (CustomSchemaCapstoneHost != null) CustomSchemaCapstoneHost.Content = null;
+                CapstoneHost.Content = _capstoneControl;
+            }
+        }
+
+        private void AttachAchievementOrderControlToCurrentHost()
+        {
+            if (IsCustomSchemaSubTab(GameOptionsCustomSchemaTab.AchievementOrder))
+            {
+                if (AchievementOrderHost != null) AchievementOrderHost.Content = null;
+                CustomSchemaAchievementOrderHost.Content = _achievementOrderControl;
+            }
+            else
+            {
+                if (CustomSchemaAchievementOrderHost != null) CustomSchemaAchievementOrderHost.Content = null;
+                AchievementOrderHost.Content = _achievementOrderControl;
+            }
+        }
+
+        private void AttachCategoryControlToCurrentHost()
+        {
+            if (IsCustomSchemaSubTab(GameOptionsCustomSchemaTab.Category))
+            {
+                if (CategoryHost != null) CategoryHost.Content = null;
+                CustomSchemaCategoryHost.Content = _categoryControl;
+            }
+            else
+            {
+                if (CustomSchemaCategoryHost != null) CustomSchemaCategoryHost.Content = null;
+                CategoryHost.Content = _categoryControl;
+            }
+        }
+
+        private void AttachAchievementIconsControlToCurrentHost()
+        {
+            if (IsCustomSchemaSubTab(GameOptionsCustomSchemaTab.CustomIcons))
+            {
+                if (AchievementIconsHost != null) AchievementIconsHost.Content = null;
+                CustomSchemaAchievementIconsHost.Content = _achievementIconsControl;
+            }
+            else
+            {
+                if (CustomSchemaAchievementIconsHost != null) CustomSchemaAchievementIconsHost.Content = null;
+                AchievementIconsHost.Content = _achievementIconsControl;
+            }
+        }
+
+        private IList<UIElement> GetCustomSchemaControllerElements()
+        {
+            switch (_viewModel?.SelectedCustomSchemaTab)
+            {
+                case GameOptionsCustomSchemaTab.Capstones:
+                    return _capstoneControl?.GetControllerElements() ?? new List<UIElement>();
+                case GameOptionsCustomSchemaTab.Category:
+                    return _categoryControl?.GetControllerElements() ?? new List<UIElement>();
+                case GameOptionsCustomSchemaTab.AchievementOrder:
+                    return _achievementOrderControl?.GetControllerElements() ?? new List<UIElement>();
+                case GameOptionsCustomSchemaTab.CustomIcons:
+                    return _achievementIconsControl?.GetControllerElements() ?? new List<UIElement>();
+                default:
+                    return FullscreenControllerNavigationService.GetVisibleFocusableElements(ManageAchievementsContentHost);
+            }
+        }
+
+        private bool HandleCustomSchemaControllerInput(ControllerInput input)
+        {
+            switch (_viewModel?.SelectedCustomSchemaTab)
+            {
+                case GameOptionsCustomSchemaTab.Capstones:
+                    return _capstoneControl?.HandleFullscreenControllerInput(input) == true;
+                case GameOptionsCustomSchemaTab.Category:
+                    return _categoryControl?.HandleFullscreenControllerInput(input) == true;
+                case GameOptionsCustomSchemaTab.AchievementOrder:
+                    return _achievementOrderControl?.HandleFullscreenControllerInput(input) == true;
+                case GameOptionsCustomSchemaTab.CustomIcons:
+                    return _achievementIconsControl?.HandleFullscreenControllerInput(input) == true;
+                default:
+                    return false;
+            }
+        }        private void ManualViewModel_ManualLinkSaved(object sender, EventArgs e)
         {
             HandleStateChanged(refreshCapstone: true);
         }
@@ -985,6 +1148,10 @@ namespace PlayniteAchievements.Views
             {
                 AchievementOrderHost.Content = null;
             }
+            if (CustomSchemaAchievementOrderHost != null)
+            {
+                CustomSchemaAchievementOrderHost.Content = null;
+            }
         }
 
         private void CleanupCategory()
@@ -995,6 +1162,10 @@ namespace PlayniteAchievements.Views
             if (CategoryHost != null)
             {
                 CategoryHost.Content = null;
+            }
+            if (CustomSchemaCategoryHost != null)
+            {
+                CustomSchemaCategoryHost.Content = null;
             }
         }
 
@@ -1042,6 +1213,10 @@ namespace PlayniteAchievements.Views
             {
                 AchievementIconsHost.Content = null;
             }
+            if (CustomSchemaAchievementIconsHost != null)
+            {
+                CustomSchemaAchievementIconsHost.Content = null;
+            }
         }
 
         private void SaveSettings(PlayniteAchievementsSettings settings)
@@ -1058,6 +1233,8 @@ namespace PlayniteAchievements.Views
         }
     }
 }
+
+
 
 
 

@@ -1,11 +1,1 @@
-namespace PlayniteAchievements.ViewModels
-{
-    public enum GameOptionsCustomSchemaTab
-    {
-        SchemaJson,
-        Capstones,
-        Category,
-        AchievementOrder,
-        CustomIcons
-    }
-}
+namespace PlayniteAchievements.ViewModels{    public enum GameOptionsCustomSchemaTab    {        SchemaJson,        Capstones,        Category,        AchievementOrder,        CustomIcons    }}

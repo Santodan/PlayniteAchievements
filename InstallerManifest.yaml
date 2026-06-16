@@ -1,5 +1,18 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.5.0.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-06-03
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.0.1/PlayniteAchievementsSantodan_2_5_0_1.pext
+    Changelog:
+    - "v2.5.0 merge"
+    - "Possibility to change to `Manual` from inside the `Overrides`"
+    - "Correct string in the `Provider` inside the `Override` menu when set to something different than `Automatic`"
+    - "`Manual Tracking` will not appear when a `Provider` has been set besides `Automatic` and `Manual`"
+    - "Fix the `Achievement Notification` was not respecting the excluded setting"
+    - "The `Collection Score` and `Prestige Score` always appear the bronze and then it refreshes to the actual value"
+    - "Fixed the `Refresh this game when it closes` that was not possible to enable per game when the global setting was disabled"
+    - "Fixed the wrong notification template appearing when the refresh pool detected more than one achievement"
 
   - Version: 2.4.0.1
     RequiredApiVersion: 6.14.0

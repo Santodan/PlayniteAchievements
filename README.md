@@ -29,7 +29,7 @@
 # What This Fork Focuses On
 
 - Local save support and local achievement
-- No need for a steam account to gather the achivements schema
+- No need for a steam account to gather the achievements schema
   - There is the option to select between Steam ( API ), SteamHunters and Completionist.me
 - Compatibility work for non-standard Steam and local setups
   - If you are using Steam local saves ( GreenLuma or SteamTools, for example) the game will be detected as been from steam, you will need to override the provider to Local
@@ -54,14 +54,14 @@ If you Right-click the game it will show a quicker way to do these changes:
 
 <img src="Images/LocalAchivementsRightClickOptions.png" alt="Sidebar single-game view" width="900">
 
-From the PlayniteAchivements menu inside the game
+From the PlayniteAchievements menu inside the game
 
 <img src="Images/LocalAchivementsOverrides.png" alt="Sidebar single-game view" width="900">
 
 
-## Local Achivements' Games import and `SuccessStory Import`
+## Local Achievements' Games import and `SuccessStory Import`
 
-This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the foldrs and adding one by one.
+This is a way of adding all of those achievements that are in the folders ina  way that it isn't needed to go through the folders and adding one by one.
 
 There is also the option to import data from `SuccessStory`. This will go through all the JSON files in the selected SuccessStory folder and import the `Local` games and also the achievements for the games that were detected in them.
 
@@ -70,9 +70,9 @@ There is also the option to import data from `SuccessStory`. This will go throug
 
 ## Local Achievement Notification
 
-This was a request from a user to have a sound playing when an achivement is unlocked while playing a game.<br>
+This was a request from a user to have a sound playing when an achievement is unlocked while playing a game.<br>
 Extra sounds in the [Resources/AdditionalSounds](source/Resources/AdditionalSounds)<br>
-A notification for when the game that is been played has a new achievment unlocked.<br>
+A notification for when the game that is been played has a new achievement unlocked.<br>
 You can customize the overlay or use one of the provided themes.<br>
 You can enable / disable the `Achievement Notification` in the right click  menu for each game.
 
@@ -81,11 +81,11 @@ You can enable / disable the `Achievement Notification` in the right click  menu
 <img src="Images/AchievementNotificationTest.png" alt="Sidebar single-game view">
 
 
-## `StartPage` and Themes compatability
+## `StartPage` and Themes compatibility
 
 In the `Theme Migration` tab you will have the possibility to make theme compatible with this fork, and that's also for theme that already support the original PlayniteAchievements fork, they still need to go through the `Theme Migration` since they are point to the other repo and not this one
 
-There is also the `StartPage Compatability` so the `Local` achievements apepar in the `StartPage` extension when `PlayniteAchievements` is selected
+There is also the `StartPage Compatibility` so the `Local` achievements appear in the `StartPage` extension when `PlayniteAchievements` is selected
 
 <img src="Images/ThemeMigration.png" alt="Sidebar single-game view"  width="900">
 
@@ -95,6 +95,17 @@ There is also the `StartPage Compatability` so the `Local` achievements apepar i
 The entries below are fork-side changes, grouped by date. When a date includes an upstream sync, only the fork-specific additions are called out here.
 
 ## Next release - TBD
+
+
+##  - v2.5.0.1
+- v2.5.0 merge
+- Possibility to change to `Manual` from inside the `Overrides`
+- Correct string in the `Provider` inside the `Override` menu when set to something different than `Automatic`
+- `Manual Tracking` will not appear when a `Provider` has been set besides `Automatic` and `Manual`
+- Fix the `Achievement Notification` was not respecting the excluded setting
+- The `Collection Score` and `Prestige Score` always appear the bronze and then it refreshes to the actual value
+- Fixed the `Refresh this game when it closes` that was not possible to enable per game when the global setting was disabled
+- Fixed the wrong notification template appearing when the refresh pool detected more than one achievement
 
 ## 2026-06-03 - v2.4.0.1
 
@@ -135,7 +146,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed `OnlineFix` games wrong achievement detection
 - Fixed some missing `Theme Migration` compatibility
 - Fixes the duplicated achievements in the `SuccessStory` import
-- Added the option to overwritting existing achievements when using the `SuccessStory` import
+- Added the option to overwriting existing achievements when using the `SuccessStory` import
 - Added the possibility to exclude sources when using the `SuccessStory` import
 - Added the possibility to edit the achievements through the `View Achievements` view in the game options
 - Added the possibility to change the `Local` icon to one of the others platforms

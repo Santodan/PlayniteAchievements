@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -42,6 +42,7 @@ namespace PlayniteAchievements.Services
         {
             CompactListSortMode.UnlockTime => nameof(AchievementDisplayItem.UnlockTime),
             CompactListSortMode.Rarity => nameof(AchievementDisplayItem.RaritySortValue),
+            CompactListSortMode.DisplayOrder => nameof(AchievementDisplayItem.DisplayOrder),
             _ => null
         };
 
@@ -132,9 +133,18 @@ namespace PlayniteAchievements.Services
                 AchievementSortSurface.CompactLockedList => new AchievementSortSpec(
                     settings.CompactLockedListSortMode,
                     settings.CompactLockedListSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
+                AchievementSortSurface.OverviewSelectedGame when settings.DefaultAchievementSortMode == CompactListSortMode.DisplayOrder => new AchievementSortSpec(
+                    CompactListSortMode.DisplayOrder,
+                    settings.DefaultAchievementSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
+                AchievementSortSurface.OverviewSelectedGame when settings.DefaultAchievementSortMode == CompactListSortMode.Custom && !string.IsNullOrWhiteSpace(settings.SidebarSelectedGameCustomSortPath) => new AchievementSortSpec(
+                    CompactListSortMode.None,
+                    settings.SidebarSelectedGameCustomSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.OverviewSelectedGame => new AchievementSortSpec(
                     settings.OverviewSelectedGameGridSortMode,
                     settings.OverviewSelectedGameGridSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
+                AchievementSortSurface.OverviewRecentAchievements when settings.DefaultAchievementSortMode == CompactListSortMode.DisplayOrder => new AchievementSortSpec(
+                    CompactListSortMode.DisplayOrder,
+                    settings.DefaultAchievementSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending),
                 AchievementSortSurface.OverviewRecentAchievements => new AchievementSortSpec(
                     CompactListSortMode.UnlockTime,
                     ListSortDirection.Descending),
@@ -372,7 +382,11 @@ namespace PlayniteAchievements.Services
                     propertyName == nameof(PersistedSettings.CompactLockedListSortDescending),
                 AchievementSortSurface.OverviewSelectedGame =>
                     propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortMode) ||
-                    propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortDescending),
+                    propertyName == nameof(PersistedSettings.OverviewSelectedGameGridSortDescending) ||
+                    propertyName == nameof(PersistedSettings.DefaultAchievementSortMode) ||
+                    propertyName == nameof(PersistedSettings.DefaultAchievementSortDescending) ||
+                    propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortPath) ||
+                    propertyName == nameof(PersistedSettings.SidebarSelectedGameCustomSortDescending),
                 AchievementSortSurface.OverviewRecentAchievements => false,
                 AchievementSortSurface.SingleGame =>
                     propertyName == nameof(PersistedSettings.SingleGameGridSortMode) ||
@@ -550,6 +564,9 @@ namespace PlayniteAchievements.Services
                     (a, b) => a.Points.CompareTo(b.Points),
                     direction),
                 "TrophyType" => (a, b) => CompareByTrophyType(a, b, direction),
+                "DisplayOrder" => ApplyDirection(
+                    (a, b) => a.DisplayOrder.CompareTo(b.DisplayOrder),
+                    direction),
                 _ => null
             };
         }
@@ -962,4 +979,5 @@ namespace PlayniteAchievements.Services
         }
     }
 }
+
 

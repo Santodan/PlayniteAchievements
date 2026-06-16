@@ -1,8 +1,1 @@
-namespace PlayniteAchievements.ViewModels
-{
-    public enum GameOptionsOverrideTab
-    {
-        Main,
-        Local
-    }
-}
+namespace PlayniteAchievements.ViewModels{    public enum GameOptionsOverrideTab    {        Main,        Local    }}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -63,7 +63,7 @@ namespace PlayniteAchievements.Services.Overview
             var queryData = _achievementDataService.GetCachedSummaryDataForOverview(0);
             if (queryData != null)
             {
-                return BuildFromCachedSummaryData(settings, queryData, providerLookup, cancel);
+                return BuildFromCachedSummaryData(settings, revealedKeys, queryData, providerLookup, cancel);
             }
 
             return BuildFromHydratedData(settings, revealedKeys, providerLookup, cancel);
@@ -78,6 +78,7 @@ namespace PlayniteAchievements.Services.Overview
             var snapshot = new OverviewDataSnapshot();
             var gameSummaries = new List<GameSummaryItem>();
             var recentAchievements = new List<AchievementDisplayItem>();
+            var allAchievements = new List<AchievementDisplayItem>();
 
             var globalCounts = new Dictionary<DateTime, int>();
             var singleGameCounts = new Dictionary<Guid, Dictionary<DateTime, int>>();
@@ -110,7 +111,7 @@ namespace PlayniteAchievements.Services.Overview
                     revealedKeys,
                     allGameData[i],
                     providerLookup,
-                    includeAchievementItems: false);
+                    includeAchievementItems: true);
                 if (fragment == null)
                 {
                     continue;
@@ -124,6 +125,11 @@ namespace PlayniteAchievements.Services.Overview
                 if (fragment.RecentAchievements != null && fragment.RecentAchievements.Count > 0)
                 {
                     recentAchievements.AddRange(fragment.RecentAchievements);
+                }
+
+                if (fragment.Achievements != null && fragment.Achievements.Count > 0)
+                {
+                    allAchievements.AddRange(fragment.Achievements);
                 }
 
                 if (fragment.PlayniteGameId.HasValue)
@@ -179,7 +185,7 @@ namespace PlayniteAchievements.Services.Overview
                 recentAchievements,
                 AchievementSortScope.RecentAchievements);
 
-            snapshot.Achievements = new List<AchievementDisplayItem>();
+            snapshot.Achievements = allAchievements;
             snapshot.GameSummaries = gameSummaries;
             snapshot.RecentAchievements = recentAchievements;
             snapshot.GlobalUnlockCountsByDate = globalCounts;
@@ -210,6 +216,7 @@ namespace PlayniteAchievements.Services.Overview
 
         private OverviewDataSnapshot BuildFromCachedSummaryData(
             PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
             CachedSummaryData queryData,
             IReadOnlyDictionary<string, (string iconKey, string colorHex)> providerLookup,
             CancellationToken cancel)
@@ -338,6 +345,8 @@ namespace PlayniteAchievements.Services.Overview
                 presentationByGameId,
                 cancel);
 
+            snapshot.Achievements = MaterializeAllAchievements(settings, revealedKeys, providerLookup, cancel);
+
             snapshot.GameSummaries = snapshot.GameSummaries
                 .OrderByDescending(g => g.LastPlayed ?? DateTime.MinValue)
                 .ToList();
@@ -351,7 +360,27 @@ namespace PlayniteAchievements.Services.Overview
             return snapshot;
         }
 
-        private static void ApplyScoreSnapshotFromValues(
+
+        private List<AchievementDisplayItem> MaterializeAllAchievements(
+            PlayniteAchievementsSettings settings,
+            ISet<string> revealedKeys,
+            IReadOnlyDictionary<string, (string iconKey, string colorHex)> providerLookup,
+            CancellationToken cancel)
+        {
+            var results = new List<AchievementDisplayItem>();
+            var allGameData = _achievementDataService.GetAllVisibleGameAchievementDataForOverview() ?? new List<GameAchievementData>();
+            for (var i = 0; i < allGameData.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var fragment = BuildGameFragment(settings, revealedKeys, allGameData[i], providerLookup, includeAchievementItems: true);
+                if (fragment?.Achievements != null && fragment.Achievements.Count > 0)
+                {
+                    results.AddRange(fragment.Achievements);
+                }
+            }
+
+            return results;
+        }        private static void ApplyScoreSnapshotFromValues(
             OverviewDataSnapshot snapshot,
             int collectionScore,
             int prestigeScore)
@@ -895,4 +924,5 @@ namespace PlayniteAchievements.Services.Overview
         }
     }
 }
+
 

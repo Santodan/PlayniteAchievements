@@ -1,4 +1,4 @@
-<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementDataGridControl"
+﻿<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementDataGridControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -103,7 +103,7 @@
 
             <!-- Achievement Icon -->
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True"
-                                    Header="{DynamicResource LOCPlayAch_Column_Icon}"
+                                    Header="{DynamicResource LOCPlayAch_Column_Icon}" SortMemberPath="DisplayOrder"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
                                     CellStyle="{StaticResource AchievementGlowIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}">

@@ -6,6 +6,7 @@
              xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
              xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
              xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
              xmlns:vm="clr-namespace:PlayniteAchievements.ViewModels"
              xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
@@ -27,7 +28,6 @@
             <converters:ProviderIconConverter x:Key="ProviderIconConverter"/>
             <converters:DefaultGameImageConverter x:Key="DefaultGameImage"/>
             <converters:PercentToRarityGlowConverter x:Key="PercentToRarityGlow"/>
-            <converters:DataGridCompletedBorderThicknessConverter x:Key="OverviewCompletedBorderThickness"/>
 
             <!-- Shared LegendItem DataTemplate for all pie charts -->
             <DataTemplate x:Key="LegendItemTemplate">
@@ -179,6 +179,51 @@
                 <Setter Property="Margin" Value="0,0,6,0"/>
             </Style>
 
+            <Style x:Key="HeaderScoreLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="Opacity" Value="0.86"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreTierTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="FontWeight" Value="ExtraBold"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreMetricTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="HeaderScorePanelStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="8,2"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreMetricChipStyle" TargetType="Border">
+                <Setter Property="Background" Value="#28FFFFFF"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Padding" Value="6,1"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="ClipToBounds" Value="True"/>
+            </Style>
+
+            <Style x:Key="HeaderScoreProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
+                <Setter Property="Height" Value="6"/>
+                <Setter Property="BorderThickness" Value="1"/>
+            </Style>
+
             <!-- Game name button style with hover effect -->
             <Style x:Key="GameNameButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
@@ -263,6 +308,20 @@
                             </Setter.Value>
                         </Setter>
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Width" Value="48"/>
+                        <Setter Property="Height" Value="48"/>
+                        <Setter Property="Margin" Value="4,4"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding DataContext.UseCoverImages, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                            <Condition Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="Width" Value="48"/>
+                        <Setter Property="Height" Value="68"/>
+                        <Setter Property="Margin" Value="4,4"/>
+                    </MultiDataTrigger>
                 </Style.Triggers>
             </Style>
 
@@ -327,13 +386,38 @@
                 <Setter Property="MinHeight" Value="112"/>
                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="DataGridRow_PreviewMouseRightButtonDown"/>
                 <EventSetter Event="PreviewMouseRightButtonUp" Handler="DataGridRow_PreviewMouseRightButtonUp"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="MinHeight" Value="80"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="MinHeight" Value="132"/>
+                    </DataTrigger>
+                    <MultiDataTrigger>
+                        <MultiDataTrigger.Conditions>
+                            <Condition Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                            <Condition Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                        </MultiDataTrigger.Conditions>
+                        <Setter Property="MinHeight" Value="96"/>
+                    </MultiDataTrigger>
+                </Style.Triggers>
             </Style>
 
-            <Style x:Key="GameSummaryNameTextStyle" TargetType="TextBlock">
+            <Style x:Key="OverviewGameNameTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="TextWrapping" Value="Wrap"/>
+                        <Setter Property="TextTrimming" Value="None"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewGameMetadataTextStyle" TargetType="TextBlock">
@@ -341,10 +425,20 @@
                 <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
                 <Setter Property="Opacity" Value="0.6"/>
                 <Setter Property="Margin" Value="0,4,0,0"/>
-                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="0,2,0,0"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="TextWrapping" Value="Wrap"/>
+                        <Setter Property="TextTrimming" Value="None"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
-            <Style x:Key="GameSummaryProviderIconStyle" TargetType="Image">
+            <Style x:Key="OverviewProviderIconStyle" TargetType="Image">
                 <Setter Property="Width" Value="32"/>
                 <Setter Property="Height" Value="32"/>
                 <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -352,15 +446,31 @@
                 <Setter Property="UseLayoutRounding" Value="True"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
                 <Setter Property="RenderOptions.BitmapScalingMode" Value="NearestNeighbor"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Width" Value="24"/>
+                        <Setter Property="Height" Value="24"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewProgressContainerStyle" TargetType="Grid">
                 <Setter Property="Margin" Value="2,4,10,4"/>
                 <Setter Property="VerticalAlignment" Value="Stretch"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="2,1,6,1"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
                 <Setter Property="Height" Value="22"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Height" Value="16"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewProgressPercentTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -370,6 +480,11 @@
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="TextAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewProgressMetaRowStyle" TargetType="StackPanel">
@@ -379,19 +494,35 @@
             </Style>
 
             <Style x:Key="OverviewProgressFooterStyle" TargetType="Grid">
-                <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                <Setter Property="Margin" Value="0,10,4,0"/>
+                <Setter Property="VerticalAlignment" Value="Bottom"/>
+                <Setter Property="Margin" Value="0,0,4,16"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="0,0,2,10"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewMiniBadgeItemStyle" TargetType="StackPanel">
                 <Setter Property="Orientation" Value="Horizontal"/>
                 <Setter Property="Margin" Value="4,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="2,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewMiniBadgeImageStyle" TargetType="Image" BasedOn="{StaticResource RarityIcon}">
                 <Setter Property="Effect" Value="{StaticResource BadgeShadow}"/>
                 <Setter Property="Width" Value="18"/>
                 <Setter Property="Height" Value="18"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Width" Value="14"/>
+                        <Setter Property="Height" Value="14"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewMiniBadgeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -400,12 +531,23 @@
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="3,0,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="FontSize" Value="10"/>
+                        <Setter Property="Margin" Value="2,0,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="OverviewCompletedFooterIconStyle" TargetType="Image" BasedOn="{StaticResource OverviewMiniBadgeImageStyle}">
                 <Setter Property="HorizontalAlignment" Value="Left"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="4,0,0,0"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DataContext.EnableCompactGridMode, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                        <Setter Property="Margin" Value="2,0,0,0"/>
+                    </DataTrigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="CenterLineSplitterStyle" TargetType="GridSplitter">
@@ -452,7 +594,7 @@
 
         <!-- ROW 0: Header with Title, Scores, and Refresh Buttons -->
         <Border Grid.Row="0"
-                Background="{DynamicResource Transparent}"
+                Background="{DynamicResource ControlBackgroundBrush}"
                 BorderBrush="{DynamicResource NormalBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="16,0,16,4"
@@ -499,8 +641,8 @@
                                 Content="{Binding RefreshModeSelectionText}"
                                 Click="RefreshModeSelectionButton_Click"
                                 HorizontalContentAlignment="Center"
-                                MinWidth="94"
-                                MinHeight="24"
+                                Width="94"
+                                Height="24"
                                 Margin="0,0,6,0"
                                 VerticalAlignment="Center">
                             <Button.ContextMenu>
@@ -514,6 +656,68 @@
                                 Command="{Binding RefreshOrCancelCommand}"
                                 Style="{StaticResource RefreshButtonStyle}"
                                 Margin="0"/>
+
+                        <Button x:Name="DefaultSortModeButton"
+                                Style="{StaticResource AchievementSelectorButtonStyle}"
+                                Content="{Binding DefaultAchievementSortModeText}"
+                                ToolTip="{DynamicResource LOCPlayAch_Settings_DefaultAchievementSort}"
+                                Click="DefaultSortModeButton_Click"
+                                HorizontalContentAlignment="Center"
+                                MinWidth="120"
+                                MaxWidth="200"
+                                Height="24"
+                                Margin="8,0,6,0"
+                                VerticalAlignment="Center">
+                            <Button.ContextMenu>
+                                <ContextMenu x:Name="DefaultSortModeContextMenu"/>
+                            </Button.ContextMenu>
+                        </Button>
+
+                        <Button ToolTip="{DynamicResource LOCPlayAch_Settings_SortDirection_Tooltip}"
+                                Click="ToggleDefaultAchievementSortDescending_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                    <Setter Property="Padding" Value="8,6"/>
+                                    <Setter Property="MinWidth" Value="0"/>
+                                    <Setter Property="Margin" Value="0,0,6,0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.None}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DefaultAchievementSortMode}" Value="{x:Static settings:CompactListSortMode.Custom}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock FontFamily="{DynamicResource CommonFont}" FontSize="18">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="&#xea65;"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DefaultAchievementSortDescending}" Value="True">
+                                                <Setter Property="Text" Value="&#xea66;"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
+
+                        <Button Content="{DynamicResource LOCPlayAch_Button_Configure}"
+                                Click="ConfigureDefaultAchievementSort_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource RefreshButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsDefaultAchievementSortCustom}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                 </StackPanel>
 
@@ -524,13 +728,76 @@
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             MaxWidth="740"
-                            Margin="18,0,0,0"
-                            Visibility="{Binding ShowOverviewScoreCards, Converter={StaticResource BoolToVis}}">
+                            Margin="18,0,0,0">
 
-                    <controls:ScoreCardControl Width="300"
-                                               ScoreCard="{Binding CollectionScoreCard}"
-                                               InfoRequested="ScoreCard_InfoRequested"
-                                               Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
+                    <Border Width="300"
+                            Style="{StaticResource HeaderScorePanelStyle}"
+                            Background="{Binding CollectionScoreAccentBackgroundBrush}"
+                            BorderBrush="{Binding CollectionScoreAccentBrush}"
+                            ToolTip="{Binding CollectionScoreDetailText}"
+                            Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding CollectionScoreLabel}"
+                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
+                                       TextAlignment="Left"
+                                       HorizontalAlignment="Stretch"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding CollectionLevelText}"
+                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                       TextAlignment="Right"
+                                       HorizontalAlignment="Right"/>
+                            <Image Grid.Row="0"
+                                   Grid.RowSpan="3"
+                                   Grid.Column="0"
+                                   Width="30"
+                                   Height="30"
+                                   Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   Source="{Binding CollectionScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                                   Effect="{StaticResource BadgeShadow}"
+                                   Style="{StaticResource RarityIcon}"/>
+                            <ProgressBar Grid.Row="1"
+                                         Grid.Column="1"
+                                         Value="{Binding CollectorLevelProgress, Mode=OneWay}"
+                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
+                                         BorderBrush="{Binding CollectionScoreAccentBrush}"
+                                         Foreground="{Binding CollectionScoreAccentBrush}"
+                                         Margin="0,3,0,0"/>
+                            <Grid Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,1,0,0"
+                                  ClipToBounds="True">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding CollectionTierText}"
+                                           Style="{StaticResource HeaderScoreTierTextStyle}"
+                                           Foreground="{Binding CollectionScoreAccentBrush}"
+                                           TextAlignment="Left"
+                                           HorizontalAlignment="Stretch"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding CollectionScorePointsText}"
+                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                           TextAlignment="Left"
+                                           MaxWidth="150"
+                                           Margin="10,1,0,0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
 
                     <Border Background="{DynamicResource NormalBorderBrush}"
                             Opacity="0.55"
@@ -538,12 +805,76 @@
                             Width="1"
                             Height="42"
                             Margin="12,2"
-                            Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding ShowSidebarScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <controls:ScoreCardControl Width="300"
-                                               ScoreCard="{Binding PrestigeScoreCard}"
-                                               InfoRequested="ScoreCard_InfoRequested"
-                                               Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
+                    <Border Width="300"
+                            Style="{StaticResource HeaderScorePanelStyle}"
+                            Background="{Binding PrestigeScoreAccentBackgroundBrush}"
+                            BorderBrush="{Binding PrestigeScoreAccentBrush}"
+                            ToolTip="{Binding PrestigeScoreDetailText}"
+                            Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="44"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Image Grid.Row="0"
+                                   Grid.RowSpan="3"
+                                   Grid.Column="0"
+                                   Width="30"
+                                   Height="30"
+                                   Margin="0,0,10,0"
+                                   VerticalAlignment="Center"
+                                   Source="{Binding PrestigeScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
+                                   Effect="{StaticResource BadgeShadow}"
+                                   Style="{StaticResource RarityIcon}"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding PrestigeScoreLabel}"
+                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
+                                       TextAlignment="Left"
+                                       HorizontalAlignment="Stretch"/>
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding PrestigeLevelText}"
+                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                       TextAlignment="Right"
+                                       HorizontalAlignment="Right"/>
+                            <ProgressBar Grid.Row="1"
+                                         Grid.Column="1"
+                                         Value="{Binding PrestigeLevelProgress, Mode=OneWay}"
+                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
+                                         BorderBrush="{Binding PrestigeScoreAccentBrush}"
+                                         Foreground="{Binding PrestigeScoreAccentBrush}"
+                                         Margin="0,3,0,0"/>
+                            <Grid Grid.Row="2"
+                                  Grid.Column="1"
+                                  Margin="0,1,0,0"
+                                  ClipToBounds="True">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding PrestigeTierText}"
+                                           Style="{StaticResource HeaderScoreTierTextStyle}"
+                                           Foreground="{Binding PrestigeScoreAccentBrush}"
+                                           TextAlignment="Left"
+                                           HorizontalAlignment="Stretch"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding PrestigeScorePointsText}"
+                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
+                                           TextAlignment="Left"
+                                           MaxWidth="150"
+                                           Margin="10,1,0,0"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
                 </StackPanel>
 
             </Grid>
@@ -585,26 +916,9 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Divider below section headers -->
-                <Border Grid.Row="0"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="3"
-                        Height="2"
-                        VerticalAlignment="Bottom"
-                        Background="{DynamicResource PanelSeparatorBrush}"
-                        IsHitTestVisible="False"/>
-                <!-- Divider below search/filter row -->
-                <Border Grid.Row="1"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="3"
-                        Height="2"
-                        VerticalAlignment="Bottom"
-                        Background="{DynamicResource PanelSeparatorBrush}"
-                        IsHitTestVisible="False"/>
-
                 <!-- LEFT: Filters Row -->
-                <Border Grid.Row="1" Grid.Column="0"
-                        Background="{DynamicResource Transparent}"
+                <Border Grid.Row="0" Grid.Column="0"
+                        Background="{DynamicResource ControlBackgroundBrush}"
                         BorderBrush="{DynamicResource NormalBorderBrush}"
                         BorderThickness="0,0,1,0"
                         Padding="16,10"
@@ -697,8 +1011,8 @@
                 </Border>
 
                 <!-- RIGHT: Filters Row -->
-                <Border Grid.Row="1" Grid.Column="2"
-                        Background="{DynamicResource Transparent}"
+                <Border Grid.Row="0" Grid.Column="2"
+                        Background="{DynamicResource ControlBackgroundBrush}"
                         BorderBrush="{DynamicResource NormalBorderBrush}"
                         BorderThickness="0,0,0,0"
                         Padding="16,10"
@@ -743,7 +1057,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
                                 Margin="8,0,0,0"
-                                Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
+                            Visibility="{Binding ShowRightAchievementFilters, Converter={StaticResource BoolToVis}}">
                             <Button x:Name="SelectedGameTypeFilterSelectionButton"
                                     Style="{StaticResource AchievementSelectorButtonStyle}"
                                     Content="{Binding SelectedGameTypeFilterText}"
@@ -752,7 +1066,7 @@
                                     Height="30"
                                     Margin="0,0,8,0"
                                     VerticalAlignment="Center"
-                                    ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Filter_Type}">
+                                    ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Type}">
                                 <Button.ContextMenu>
                                     <ContextMenu x:Name="SelectedGameTypeFilterSelectionContextMenu"
                                                  ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
@@ -766,7 +1080,7 @@
                                     Height="30"
                                     Margin="0,0,8,0"
                                     VerticalAlignment="Center"
-                                    ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_Filter_Label}">
+                                    ToolTip="{DynamicResource LOCPlayAch_GameOptions_Category_Filter_Label}">
                                 <Button.ContextMenu>
                                     <ContextMenu x:Name="SelectedGameCategoryFilterSelectionContextMenu"
                                                  ItemContainerStyle="{StaticResource AchievementMultiSelectMenuItemStyle}"/>
@@ -791,9 +1105,9 @@
                     </Grid>
                 </Border>
 
-                <!-- LEFT: Header (Row 0) -->
-                    <Border Grid.Row="0" Grid.Column="0"
-                            Background="{DynamicResource Transparent}"
+                <!-- LEFT: Header (Row 1) -->
+                    <Border Grid.Row="1" Grid.Column="0"
+                            Background="{DynamicResource ControlBackgroundBrush}"
                             Padding="16,10,16,10"
                             BorderBrush="{DynamicResource NormalBorderBrush}"
                             BorderThickness="0,0,1,1">
@@ -811,95 +1125,498 @@
                     <Border Grid.Row="2" Grid.Column="0"
                             BorderBrush="{DynamicResource NormalBorderBrush}"
                             BorderThickness="0,0,1,0">
-                        <Grid x:Name="OverviewBottomChartsGrid">
+                        <Grid x:Name="SidebarBottomChartsGrid">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                        <controls:GameSummariesGridControl x:Name="GameSummariesGridControl"
-                                                                Grid.Row="0"
-                                                                Margin="16,0,0,0"
-                                                                KeyboardNavigation.DirectionalNavigation="Contained"
-                                                                ItemsSource="{Binding GameSummaries}"
-                                                                SelectedItem="{Binding SelectedGame, Mode=OneWay}"
-                                                                UseCoverImages="{Binding UseCoverImages}"
-                                                                ShowGameMetadata="{Binding ShowOverviewGameMetadata}"
-                                                                ShowCompletionBorder="{Binding ShowCompletionBorder}"
-                                                                ShowColumnHeaders="{Binding ShowOverviewGameSummariesGridColumnHeaders}"
-                                                                FixedRowHeight="{Binding OverviewGameSummariesGridRowHeight}"
-                                                                DelayInitialRenderUntilNormalized="True"
-                                                                ColumnSettingsKey="OverviewGameSummaries"
-                                                                SelectionChanged="GameSummaries_SelectionChanged"
-                                                                RowPreviewMouseLeftButtonDown="GameSummaries_PreviewMouseLeftButtonDown"
-                                                                Sorting="DataGrid_Sorting"
-                                                                RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
-                                                                RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp"/>
+
+                        <DataGrid x:Name="GameSummariesGrid"
+                            Grid.Row="0"
+                            KeyboardNavigation.DirectionalNavigation="Contained"
+                            ItemsSource="{Binding GameSummaries}"
+                            SelectedItem="{Binding SelectedGame, Mode=OneWay}"
+                            SelectionChanged="GameSummaries_SelectionChanged"
+                            PreviewMouseLeftButtonDown="GameSummaries_PreviewMouseLeftButtonDown"
+                            Sorting="DataGrid_Sorting"
+                            AutoGenerateColumns="False"
+                            IsReadOnly="True"
+                            SelectionMode="Single"
+                            GridLinesVisibility="None"
+                            HeadersVisibility="Column"
+                            BorderThickness="0"
+                            CanUserResizeColumns="True"
+                            CanUserResizeRows="False"
+                            CanUserReorderColumns="True"
+                            Background="Transparent"
+                            RowBackground="Transparent"
+                            CanUserSortColumns="True"
+                            EnableRowVirtualization="True"
+                            VirtualizingStackPanel.IsVirtualizing="True"
+                            VirtualizingStackPanel.VirtualizationMode="Recycling"
+                            ColumnHeaderStyle="{StaticResource AchievementColumnHeaderWithMenuStyle}"
+                            VirtualizingStackPanel.ScrollUnit="Pixel"
+                            ScrollViewer.CanContentScroll="True"
+                            ScrollViewer.VerticalScrollBarVisibility="Visible"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.IsDeferredScrollingEnabled="False"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True"
+                            Tag="ControllerCellFocus"
+                            PreviewMouseRightButtonUp="DataGridColumnMenu_PreviewMouseRightButtonUp">
+                            <DataGrid.CellStyle>
+                                <Style TargetType="DataGridCell"
+                                       BasedOn="{StaticResource GameSummariesGridCellStyle}"/>
+                            </DataGrid.CellStyle>
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow"
+                                       BasedOn="{StaticResource GameSummariesGridRowStyle}"/>
+                            </DataGrid.RowStyle>
+                           <DataGrid.Columns>
+                            <!-- Game Icon/Cover (BIGGER) -->
+                            <DataGridTemplateColumn Width="92" MinWidth="92" MaxWidth="92" CanUserResize="False" Header="" helpers:ColumnVisibilityHelper.ColumnKey="Cover"> <!-- was 56 -->
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="2,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <Border CornerRadius="6" VerticalAlignment="Center"
+                                                    Style="{StaticResource GameImageBorderStyle}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Game Name (a bit larger) -->
+                            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Game}" SortMemberPath="SortingName" MinWidth="160" helpers:ColumnVisibilityHelper.ColumnKey="OverviewGameName">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding GameName}"
+                                                           HorizontalAlignment="Left"
+                                                           Style="{StaticResource OverviewGameNameTextStyle}"/>
+                                                <TextBlock Text="{Binding SecondaryMetadataText}"
+                                                           HorizontalAlignment="Left"
+                                                           Style="{StaticResource OverviewGameMetadataTextStyle}"
+                                                           Visibility="{Binding DataContext.ShowOverviewGameMetadata, RelativeSource={RelativeSource AncestorType=DataGrid}, Converter={StaticResource BoolToVis}}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Platform -->
+                            <DataGridTemplateColumn Width="40" MinWidth="40" MaxWidth="40"
+                                                    Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                                                    CanUserResize="False"
+                                                    CanUserSort="False"
+                                                    helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlatform">
+                                <DataGridTemplateColumn.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text=""/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.HeaderTemplate>
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <Image ToolTip="{Binding Provider}"
+                                                   Style="{StaticResource OverviewProviderIconStyle}">
+                                                <Image.Source>
+                                                    <MultiBinding Converter="{StaticResource ProviderIconConverter}">
+                                                        <Binding Path="ProviderIconKey"/>
+                                                        <Binding Path="ProviderColorHex"/>
+                                                    </MultiBinding>
+                                                </Image.Source>
+                                            </Image>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Last Played (slightly larger) -->
+                            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_LastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="OverviewLastPlayed">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBlock Text="{Binding LastPlayedText}"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center"
+                                                    Foreground="{DynamicResource TextBrush}"
+                                                    Opacity="0.7">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                <Setter Property="TextTrimming" Value="None"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!-- Playtime -->
+                            <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Playtime}" SortMemberPath="PlaytimeSeconds" helpers:ColumnVisibilityHelper.ColumnKey="OverviewPlaytime">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <MultiDataTrigger>
+                                                                <MultiDataTrigger.Conditions>
+                                                                    <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                    <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                </MultiDataTrigger.Conditions>
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </MultiDataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                            </Border>
+                                            <TextBlock Text="{Binding PlaytimeText}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       Opacity="0.7">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource BaseTextBlockStyle}">
+                                                        <Setter Property="TextWrapping" Value="NoWrap"/>
+                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding DataContext.EnableGridTextWrapping, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True">
+                                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                                <Setter Property="TextTrimming" Value="None"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                                <!-- Progression with Rarity UNDER the bar -->
+                                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" helpers:ColumnVisibilityHelper.ColumnKey="OverviewProgression">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Border BorderBrush="#2196F3" BorderThickness="0,2,0,2">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                        <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                </Border>
+                                                <Grid Style="{StaticResource OverviewProgressContainerStyle}">
+                                                    <!-- Centered progress bar -->
+                                                    <Grid VerticalAlignment="Center">
+                                                        <ProgressBar Value="{Binding Progression, Mode=OneWay}"
+                                                                    Style="{StaticResource OverviewProgressBarStyle}"/>
+
+                                                        <TextBlock Text="{Binding ProgressionText}"
+                                                                   Style="{StaticResource OverviewProgressPercentTextStyle}"/>
+                                                    </Grid>
+
+                                                    <!-- Footer icons under the bar -->
+                                                    <Grid Style="{StaticResource OverviewProgressFooterStyle}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Image Grid.Column="0"
+                                                               Source="{StaticResource BadgeCompletedGame}"
+                                                               Style="{StaticResource OverviewCompletedFooterIconStyle}"
+                                                               ToolTip="{DynamicResource LOCPlayAch_Completed}"
+                                                               Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Style="{StaticResource OverviewProgressMetaRowStyle}"
+                                                                    Visibility="{Binding HasTrophyTypes, Converter={StaticResource InverseBoolToVis}}">
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding UltraRareCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Ultra Rare">
+                                                                <Image Source="{DynamicResource BadgeRarityUltraRare}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding UltraRareCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding RareCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Rare">
+                                                                <Image Source="{DynamicResource BadgeRarityRare}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding RareCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding UncommonCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Uncommon">
+                                                                <Image Source="{DynamicResource BadgeRarityUncommon}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding UncommonCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding CommonCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Common">
+                                                                <Image Source="{DynamicResource BadgeRarityCommon}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding CommonCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Style="{StaticResource OverviewProgressMetaRowStyle}"
+                                                                    Visibility="{Binding HasTrophyTypes, Converter={StaticResource BoolToVis}}">
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyPlatinumCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Platinum">
+                                                                <Image Source="{StaticResource TrophyPlatinum}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyPlatinumCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyGoldCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Gold">
+                                                                <Image Source="{StaticResource TrophyGold}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyGoldCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophySilverCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Silver">
+                                                                <Image Source="{StaticResource TrophySilver}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophySilverCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+
+                                                            <StackPanel Style="{StaticResource OverviewMiniBadgeItemStyle}"
+                                                                        Visibility="{Binding TrophyBronzeCount, Converter={StaticResource IntToVis}}"
+                                                                        ToolTip="Bronze">
+                                                                <Image Source="{StaticResource TrophyBronze}"
+                                                                       Style="{StaticResource OverviewMiniBadgeImageStyle}"/>
+                                                                <TextBlock Text="{Binding TrophyBronzeCount}"
+                                                                           Style="{StaticResource OverviewMiniBadgeTextStyle}"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Grid>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <!-- Achievement Count -->
+                                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Total}" SortMemberPath="TotalAchievements" helpers:ColumnVisibilityHelper.ColumnKey="TotalAchievements">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Border BorderBrush="#2196F3" BorderThickness="0,2,2,2" Margin="0,0,1,0">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <MultiDataTrigger>
+                                                                    <MultiDataTrigger.Conditions>
+                                                                        <Condition Binding="{Binding IsCompleted}" Value="True"/>
+                                                                        <Condition Binding="{Binding DataContext.ShowCompletionBorder, RelativeSource={RelativeSource AncestorType=DataGrid}}" Value="True"/>
+                                                                    </MultiDataTrigger.Conditions>
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </MultiDataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                </Border>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           HorizontalAlignment="Center"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center">
+                                                    <Run Text="{Binding UnlockedAchievements, Mode=OneWay}" FontWeight="Bold"/>
+                                                    <Run Text="/" Foreground="{DynamicResource TextBrush}"/>
+                                                    <Run Text="{Binding TotalAchievements, Mode=OneWay}" Foreground="{DynamicResource TextBrush}"/>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                            </DataGrid.Columns>
+                        </DataGrid>
                         </Grid>
                     </Border>
                     
                     <!-- RIGHT: Header -->
-                    <Grid Grid.Row="0" Grid.Column="2">
+                    <Grid Grid.Row="1" Grid.Column="2">
                         <!-- Header for when NO game is selected -->
-                        <Border Background="{DynamicResource Transparent}"
+                        <Border Background="{DynamicResource ControlBackgroundBrush}"
                                 Height="38"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,0,0,1"
                                 Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{DynamicResource LOCPlayAch_RecentAchievements}"
-                                       Style="{DynamicResource BaseTextBlockStyle}"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="16,0"/>
+                            <TabControl SelectedIndex="{Binding SelectedRightTabIndex, Mode=TwoWay}"
+                                        Margin="8,0,8,0"
+                                        VerticalAlignment="Stretch"
+                                        BorderThickness="0"
+                                        Background="Transparent">
+                                <TabItem Header="{DynamicResource LOCPlayAch_RecentAchievements}"/>
+                                <TabItem Header="All Achievements"/>
+                            </TabControl>
                         </Border>
 
                         <!-- Header for when a game IS selected -->
-                        <Border Background="{DynamicResource Transparent}"
+                        <Border Background="{DynamicResource ControlBackgroundBrush}"
                                 Height="38"
                                 BorderBrush="{DynamicResource NormalBorderBrush}"
                                 BorderThickness="0,0,0,1"
                                 Visibility="{Binding IsSelectedGameContentReady, Converter={StaticResource BoolToVis}}">
+                            <Grid Margin="16,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                            <StackPanel Margin="16,0"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-
-                                <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
-                                        FontSize="{DynamicResource FontSize}"
-                                        FontWeight="Bold"
-                                        Foreground="{DynamicResource TextBrush}"
-                                        TextTrimming="CharacterEllipsis"
-                                        VerticalAlignment="Center"/>
-
-                                <TextBlock Text="{Binding SelectedGameHeaderText}"
-                                        FontSize="{DynamicResource FontSizeSmall}"
-                                        Foreground="{DynamicResource TextBrush}"
-                                        Opacity="0.7"
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DisplayedSelectedGame.GameName}"
+                                               FontSize="{DynamicResource FontSize}"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock FontSize="{DynamicResource FontSizeSmall}"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               Opacity="0.7"
+                                               Margin="8,0,0,0"
+                                               VerticalAlignment="Center">
+                                        <Run Text="("/>
+                                        <Run Text="{Binding SelectedGameHeaderUnlockedCount, Mode=OneWay}"/>
+                                        <Run Text="/"/>
+                                        <Run Text="{Binding SelectedGameHeaderTotalCount, Mode=OneWay}"/>
+                                        <Run Text=" "/>
+                                        <Run Text="{Binding SelectedGameHeaderCountQualifier, Mode=OneWay}"/>
+                                        <Run Text=")"/>
+                                    </TextBlock>
+                                </StackPanel>
 
                                 <Button x:Name="ClearGameSelectionButton"
-                                        Content="✕"
+                                        Grid.Column="1"
+                                        Content="?"
                                         Click="ClearGameSelection_Click"
                                         Width="24"
                                         Height="24"
                                         Padding="0"
-                                        Margin="10,0,0,0"
-                                        VerticalAlignment="Bottom"/>
-
-                            </StackPanel>
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
                         </Border>
                     </Grid>
                     
                     <!-- RIGHT: Content (Recent List OR Game Details) -->
-                    <Grid Grid.Row="2" Grid.Column="2">
+                    <Grid Grid.Row="2" Grid.Column="2" ClipToBounds="False">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Content Area: Recent List OR Game Details -->
-                        <Grid Grid.Row="0">
+                        <Grid Grid.Row="0" ClipToBounds="False">
                             <!-- Default Panel: When no game selected -->
                             <Grid Visibility="{Binding ShowRecentAchievementsPanel, Converter={StaticResource BoolToVis}}">
                                 <Grid.RowDefinitions>
@@ -907,22 +1624,56 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                            <controls:AchievementDataGridControl x:Name="RecentAchievementsDataGrid"
-                                                                 Grid.Row="0"
-                                                                 Margin="16,0,0,0"
-                                                                 KeyboardNavigation.DirectionalNavigation="Contained"
-                                                                 ItemsSource="{Binding RecentAchievements}"
-                                                                 ColumnSettingsKey="OverviewRecentAchievements"
-                                                                 ShowGameColumn="True"
-                                                                 UseCoverImages="{Binding UseCoverImages}"
-                                                                 ShowColumnHeaders="{Binding ShowOverviewRecentAchievementsGridColumnHeaders}"
-                                                                 FixedRowHeight="{Binding OverviewRecentAchievementsGridRowHeight}"
-                                                                 DataGridMaxHeight="{x:Static sys:Double.NaN}"
-                                                                 DelayInitialRenderUntilNormalized="True"
-                                                                 UseExternalSorting="True"
-                                                                 Sorting="AchievementDataGrid_Sorting"
-                                                                 RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
-                                                                 RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp"/>
+                                <controls:AchievementDataGridControl x:Name="RecentAchievementsDataGrid"
+                                                                     Grid.Row="0"
+                                                                     KeyboardNavigation.DirectionalNavigation="Contained"
+                                                                     ItemsSource="{Binding RecentAchievements}"
+                                                                     ColumnSettingsKey="Sidebar"
+                                                                     IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
+                                                                     ShowGameColumn="True"
+                                                                     HideStatusColumn="True"
+                                                                     UseCoverImages="{Binding UseCoverImages}"
+                                                                     DataGridMaxHeight="{x:Static sys:Double.NaN}"
+                                                                     UseExternalSorting="True"
+                                                                     Sorting="AchievementDataGrid_Sorting"
+                                                                     RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
+                                                                     RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp">
+                                    <controls:AchievementDataGridControl.Style>
+                                        <Style TargetType="controls:AchievementDataGridControl">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRightTabIndex}" Value="1">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </controls:AchievementDataGridControl.Style>
+                                </controls:AchievementDataGridControl>
+
+                                <controls:AchievementDataGridControl x:Name="SidebarAllAchievementsDataGrid"
+                                                                     Grid.Row="0"
+                                                                     KeyboardNavigation.DirectionalNavigation="Contained"
+                                                                     ItemsSource="{Binding SidebarAllAchievements}"
+                                                                     ColumnSettingsKey="SidebarAll"
+                                                                     IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
+                                                                     ShowGameColumn="True"
+                                                                     UseCoverImages="{Binding UseCoverImages}"
+                                                                     DataGridMaxHeight="{x:Static sys:Double.NaN}"
+                                                                     UseExternalSorting="True"
+                                                                     Sorting="AchievementDataGrid_Sorting"
+                                                                     RowPreviewMouseRightButtonDown="DataGridRow_PreviewMouseRightButtonDown"
+                                                                     RowPreviewMouseRightButtonUp="DataGridRow_PreviewMouseRightButtonUp">
+                                    <controls:AchievementDataGridControl.Style>
+                                        <Style TargetType="controls:AchievementDataGridControl">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedRightTabIndex}" Value="1">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </controls:AchievementDataGridControl.Style>
+                                </controls:AchievementDataGridControl>
                         </Grid>
 
                         <!-- Game Detail Panel: When a game is selected -->
@@ -935,14 +1686,11 @@
                             <!-- Game Achievements List -->
                             <controls:AchievementDataGridControl x:Name="GameAchievementsGrid"
                                                                  Grid.Row="0"
-                                                                 Margin="16,0,0,0"
                                                                  KeyboardNavigation.DirectionalNavigation="Contained"
                                                                  ItemsSource="{Binding SelectedGameAchievements}"
-                                                                 ColumnSettingsKey="OverviewSelectedGameAchievements"
+                                                                 ColumnSettingsKey="SidebarGame"
+                                                                 IsTextWrapEnabled="{Binding EnableGridTextWrapping}"
                                                                  DataGridMaxHeight="{x:Static sys:Double.NaN}"
-                                                                 ShowColumnHeaders="{Binding ShowOverviewSelectedGameGridColumnHeaders}"
-                                                                 FixedRowHeight="{Binding OverviewSelectedGameGridRowHeight}"
-                                                                 DelayInitialRenderUntilNormalized="True"
                                                                  RevealCommand="{Binding DataContext.RevealAchievementCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                  UseExternalSorting="True"
                                                                  Sorting="GameAchievementsGrid_Sorting"
@@ -957,9 +1705,9 @@
                             MinHeight="225"
                             Margin="-20,0,-20,-20"
                             Padding="20,8,20,20"
-                            Background="{DynamicResource Transparent}"
-                            BorderBrush="{DynamicResource PanelSeparatorBrush}"
-                            BorderThickness="0,2,0,0">
+                            Background="{DynamicResource ControlBackgroundBrush}"
+                            BorderBrush="{DynamicResource NormalBorderBrush}"
+                            BorderThickness="0,3,0,0">
                         <Border.Resources>
                             <DataTemplate x:Key="OverviewTimelineContentTemplate">
                                 <Grid>
@@ -1243,22 +1991,21 @@
                         </Grid>
                     </Border>
 
-                <!-- Visible divider line, skipping top row -->
-                <Border Grid.Column="1"
-                        Grid.Row="1"
-                        Grid.RowSpan="2"
-                        Width="3"
+                    <!-- Visible divider line (always shows) -->
+                    <Border Grid.Column="1"
+                        Grid.RowSpan="3"
+                        Width="2"
                         HorizontalAlignment="Center"
                         Background="{DynamicResource PanelSeparatorBrush}"
+                        Opacity="0.35"
                         IsHitTestVisible="False"/>
-
-                <GridSplitter Grid.Column="1"
-                            Grid.Row="1"
-                            Grid.RowSpan="2"
-                            Style="{StaticResource CenterLineSplitterStyle}"
-                            DragCompleted="OverviewGridSplitter_DragCompleted"
-                            Focusable="False"
-                            IsTabStop="False"/>
+                    <GridSplitter Grid.Column="1"
+                        Grid.RowSpan="3"
+                        Style="{StaticResource CenterLineSplitterStyle}"
+                        DragCompleted="OverviewGridSplitter_DragCompleted"
+                        Focusable="False"
+                        IsTabStop="False"
+                        Panel.ZIndex="100"/>
             </Grid>
         </Grid>
     </Grid>

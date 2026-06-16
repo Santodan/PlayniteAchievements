@@ -213,11 +213,32 @@ namespace PlayniteAchievements.Providers
 
         public static string GetLocalizedName(string providerKey)
         {
-            if (string.IsNullOrWhiteSpace(providerKey)) return "Unknown";
-            var value = ResourceProvider.GetString($"LOCPlayAch_Provider_{providerKey}");
-            return string.IsNullOrWhiteSpace(value) ? providerKey : value;
+            var normalizedKey = NormalizeProviderKey(providerKey);
+            if (string.IsNullOrWhiteSpace(normalizedKey)) return "Unknown";
+
+            var value = ResourceProvider.GetString($"LOCPlayAch_Provider_{normalizedKey}");
+            return IsMissingLocalization(value) ? normalizedKey : value;
         }
 
+        private static string NormalizeProviderKey(string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(providerKey))
+                return null;
+
+            var trimmed = providerKey.Trim();
+            if (trimmed.Equals("local", StringComparison.OrdinalIgnoreCase)) return "Local";
+            if (trimmed.Equals("battlenet", StringComparison.OrdinalIgnoreCase)) return "BattleNet";
+            if (trimmed.Equals("googleplay", StringComparison.OrdinalIgnoreCase)) return "GooglePlay";
+            if (trimmed.Equals("retroachievements", StringComparison.OrdinalIgnoreCase)) return "RetroAchievements";
+            if (trimmed.Equals("shadps4", StringComparison.OrdinalIgnoreCase)) return "ShadPS4";
+
+            return trimmed;
+        }
+
+        private static bool IsMissingLocalization(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) || value.StartsWith("<!LOC", StringComparison.OrdinalIgnoreCase);
+        }
         public bool TryGetProviderVisuals(string providerKey, out string iconKey, out string colorHex)
         {
             iconKey = null;

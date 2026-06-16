@@ -1,9 +1,1 @@
-namespace PlayniteAchievements.ViewModels
-{
-    public enum GameOptionsLocalOverrideTab
-    {
-        LocalSavesSchema,
-        Steam,
-        LumaPlay
-    }
-}
+namespace PlayniteAchievements.ViewModels{    public enum GameOptionsLocalOverrideTab    {        LocalSavesSchema,        Steam,        LumaPlay    }}

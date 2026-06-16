@@ -69,6 +69,11 @@ namespace PlayniteAchievements.Models.Settings
         public string LastForkReleaseNotificationVersion { get; set; } = string.Empty;
         public bool EnableGridTextWrapping { get; set; }
 
+        public bool EnableCompactGridMode { get; set; }
+
+        public string SidebarDefaultRefreshModeKey { get; set; } = string.Empty;
+
+        public string SidebarDefaultPlayStatusFilter { get; set; } = "played";
         public GamesOverviewSortMode GamesOverviewGridSortMode { get; set; } = GamesOverviewSortMode.RecentUnlock;
 
         public bool GamesOverviewGridSortDescending { get; set; } = true;
