@@ -81,6 +81,7 @@ namespace PlayniteAchievements.Services
             }
 
             var hasCustomData = TryLoad(gameId, out var customData, store);
+            var isCustomSchemaEnabled = PlayniteAchievements.Providers.Local.LocalSavesProvider.TryGetCustomSchemaEnabledOverride(gameId, out var customSchemaEnabled) && customSchemaEnabled;
             var resolved = new ResolvedGameCustomData
             {
                 ExcludedFromRefreshes = hasCustomData
@@ -93,9 +94,8 @@ namespace PlayniteAchievements.Services
                     (hasCustomData
                         ? customData?.UseSeparateLockedIconsOverride == true
                         : fallbackSettings?.SeparateLockedIconEnabledGameIds?.Contains(gameId) == true),
-                ViewAchievementsIconFetchEnabled = hasCustomData
-                    ? customData?.ViewAchievementsIconFetchEnabled == true
-                    : false,
+                ViewAchievementsIconFetchEnabled = isCustomSchemaEnabled && hasCustomData &&
+                    customData?.ViewAchievementsIconFetchEnabled == true,
                 ManualCapstoneApiName = hasCustomData
                     ? customData?.ManualCapstoneApiName
                                         : fallbackSettings?.ManualCapstones != null &&
@@ -372,7 +372,14 @@ namespace PlayniteAchievements.Services
             Guid gameId,
             GameCustomDataStore store = null)
         {
-            if (gameId == Guid.Empty || !TryLoad(gameId, out var customData, store))
+            if (gameId == Guid.Empty ||
+                !PlayniteAchievements.Providers.Local.LocalSavesProvider.TryGetCustomSchemaEnabledOverride(gameId, out var customSchemaEnabled) ||
+                !customSchemaEnabled)
+            {
+                return false;
+            }
+
+            if (!TryLoad(gameId, out var customData, store))
             {
                 return true;
             }

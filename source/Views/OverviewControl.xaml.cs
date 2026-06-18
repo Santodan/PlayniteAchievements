@@ -205,6 +205,7 @@ namespace PlayniteAchievements.Views
         {
             EnsureDefaultSeeds();
             AttachHandlers(GameSummariesGrid);
+            AttachGameSummaryAlignmentProviders();
             // RecentAchievementsDataGrid is now AchievementDataGridControl, uses built-in persistence
             // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
             ApplyOverviewColumnRatio();
@@ -217,6 +218,24 @@ namespace PlayniteAchievements.Views
             UpdatePieChartLayout();
         }
 
+        private void AttachGameSummaryAlignmentProviders()
+        {
+            if (GameSummariesGrid == null || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(
+                GameSummariesGrid,
+                () => _settings.Persisted.OverviewGameSummariesColumnAlignments);
+            DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(
+                GameSummariesGrid,
+                () => _settings.Persisted.OverviewGameSummariesColumnVerticalAlignments);
+            DataGridAlignmentBehavior.SetColumnHeaderHorizontalAlignmentOverridesProvider(
+                GameSummariesGrid,
+                () => _settings.Persisted.OverviewGameSummariesColumnHeaderAlignments);
+            DataGridAlignmentBehavior.Refresh(GameSummariesGrid);
+        }
         private void Plugin_SettingsSaved(object sender, EventArgs e)
         {
             ResetOverviewSortDirection();
@@ -913,8 +932,13 @@ namespace PlayniteAchievements.Views
 
             if (ReferenceEquals(grid, GameSummariesGrid))
             {
-                var menu = BuildColumnVisibilityMenu(grid);
                 var header = FullscreenControllerNavigationService.GetFocusedDataGridColumnHeader(grid);
+                var menu = BuildColumnVisibilityMenu(grid, header?.Column);
+                if (menu == null || menu.Items.Count == 0)
+                {
+                    return false;
+                }
+
                 return FullscreenControllerNavigationService.OpenContextMenu(header, menu);
             }
 
@@ -1351,7 +1375,7 @@ namespace PlayniteAchievements.Views
             if (header?.Column == null) return;
 
             e.Handled = true;
-            var menu = BuildColumnVisibilityMenu(grid);
+            var menu = BuildColumnVisibilityMenu(grid, header.Column);
             if (menu == null || menu.Items.Count == 0) return;
 
             menu.Placement = PlacementMode.Bottom;
@@ -1599,6 +1623,9 @@ namespace PlayniteAchievements.Views
             _columnWidthChangedHandlers.Clear();
 
             DetachGridHandlers(GameSummariesGrid);
+            DataGridAlignmentBehavior.SetColumnCellAlignmentOverridesProvider(GameSummariesGrid, null);
+            DataGridAlignmentBehavior.SetColumnCellVerticalAlignmentOverridesProvider(GameSummariesGrid, null);
+            DataGridAlignmentBehavior.SetColumnHeaderHorizontalAlignmentOverridesProvider(GameSummariesGrid, null);
             DetachGridHandlers(RecentAchievementsDataGrid.InternalDataGrid);
             // GameAchievementsGrid is managed by AchievementDataGridControl
 
@@ -2059,8 +2086,39 @@ namespace PlayniteAchievements.Views
 
         #region Column Visibility Menu
 
-        private ContextMenu BuildColumnVisibilityMenu(DataGrid grid)
+        private ContextMenu BuildColumnVisibilityMenu(DataGrid grid, DataGridColumn contextColumn = null)
         {
+            if (grid == GameSummariesGrid && _settings?.Persisted != null)
+            {
+                var layoutMenu = new DataGridColumnLayoutService(
+                    grid,
+                    _logger,
+                    () => _settings.Persisted.OverviewGameSummariesColumnWidths,
+                    map => _settings.Persisted.OverviewGameSummariesColumnWidths = map,
+                    () => _settings.Persisted.OverviewGameSummariesColumnVisibility,
+                    map => _settings.Persisted.OverviewGameSummariesColumnVisibility = map,
+                    SaveSettings,
+                    DefaultOverviewWidthSeeds,
+                    getOrder: () => _settings.Persisted.OverviewGameSummariesColumnOrder,
+                    setOrder: map => _settings.Persisted.OverviewGameSummariesColumnOrder = map,
+                    getCellAlignments: () => _settings.Persisted.OverviewGameSummariesColumnAlignments,
+                    setCellAlignments: map => _settings.Persisted.OverviewGameSummariesColumnAlignments = map,
+                    getDefaultCellAlignment: () => _settings.Persisted.GridCellAlignment,
+                    getCellVerticalAlignments: () => _settings.Persisted.OverviewGameSummariesColumnVerticalAlignments,
+                    setCellVerticalAlignments: map => _settings.Persisted.OverviewGameSummariesColumnVerticalAlignments = map,
+                    getDefaultCellVerticalAlignment: () => _settings.Persisted.GridCellVerticalAlignment,
+                    getHeaderHorizontalAlignments: () => _settings.Persisted.OverviewGameSummariesColumnHeaderAlignments,
+                    setHeaderHorizontalAlignments: map => _settings.Persisted.OverviewGameSummariesColumnHeaderAlignments = map,
+                    getDefaultHeaderHorizontalAlignment: () => _settings.Persisted.GridColumnHeaderAlignment,
+                    applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(GameSummariesGrid))
+                    .BuildColumnVisibilityMenu(contextColumn);
+
+                if (layoutMenu != null)
+                {
+                    return layoutMenu;
+                }
+            }
+
             var menu = new ContextMenu();
             foreach (var column in grid.Columns)
             {

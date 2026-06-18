@@ -96,6 +96,13 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed `RetroAchievement` sort
+- Fixed missing the `DisplayOrder` to confirm the `RetroAchievement` order
+- Fixed `Prestige Score` showing wrong values on startup
+- Fixed missing tooltip from `Collection Score` and `Prestige Score`
+- Fixed the missing right click options in the `Game Summary`
+- Fixed the locked achievements have the same icon
+- Fixed the Achievements rarity not been filled when there is no achievement file
 
 ## 2026-06-16 - v2.5.0.1
 - v2.5.0 merge

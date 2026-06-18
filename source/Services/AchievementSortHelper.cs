@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -565,10 +565,16 @@ namespace PlayniteAchievements.Services
                     direction),
                 "TrophyType" => (a, b) => CompareByTrophyType(a, b, direction),
                 "DisplayOrder" => ApplyDirection(
-                    (a, b) => a.DisplayOrder.CompareTo(b.DisplayOrder),
+                    (a, b) => GetEffectiveDisplayOrder(a).CompareTo(GetEffectiveDisplayOrder(b)),
                     direction),
                 _ => null
             };
+        }
+
+        private static int GetEffectiveDisplayOrder(AchievementDisplayItem item)
+        {
+            var order = item?.DisplayOrder ?? 0;
+            return order > 0 ? order : int.MaxValue;
         }
 
         public static List<AchievementDetail> CreateSortedDetailList(

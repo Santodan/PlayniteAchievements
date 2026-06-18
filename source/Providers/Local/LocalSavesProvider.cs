@@ -94,7 +94,7 @@ namespace PlayniteAchievements.Providers.Local
         private readonly Dictionary<int, SchemaAndPercentages> _steamSchemaCache = new Dictionary<int, SchemaAndPercentages>();
         private readonly Dictionary<int, string> _steamSchemaSourceCache = new Dictionary<int, string>();
         private readonly Dictionary<int, string> _steamSchemaLanguageCache = new Dictionary<int, string>();
-        // Maps Playnite game name → resolved Steam App ID for LumaPlay games (0 = not found / not applicable)
+        // Maps Playnite game name to resolved Steam App ID for LumaPlay games (0 = not found / not applicable)
         private readonly Dictionary<string, int> _lumaPlaySteamAppIdCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private readonly object _discoveryCacheLock = new object();
         private readonly Dictionary<string, IReadOnlyList<string>> _localFolderCandidatesCache = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
@@ -253,7 +253,7 @@ namespace PlayniteAchievements.Providers.Local
             var hasEnabledCustomSchemaOverride = game != null &&
                 TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabled) &&
                 isCustomSchemaEnabled;
-            var shouldFetchIconsFromGame = game != null &&
+            var shouldFetchIconsFromGame = hasEnabledCustomSchemaOverride && game != null &&
                 GameCustomDataLookup.IsViewAchievementsIconFetchEnabled(game.Id);
             // Schema-defined icons from the active schema should always remain usable.
             // Fetch toggle controls whether game/steam icon metadata gets injected upstream.
@@ -323,13 +323,13 @@ namespace PlayniteAchievements.Providers.Local
 
             if (string.IsNullOrEmpty(appId))
             {
-                if (!hasEnabledCustomSchemaOverride && !hasFolderOverride)
+                if (!hasEnabledCustomSchemaOverride && !hasFolderOverride && !SupportsSchemaOnlyManualFallback(game))
                 {
                     Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
                     return null;
                 }
 
-                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only mode (customSchema={hasEnabledCustomSchemaOverride}, folderOverride={hasFolderOverride}).");
+                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only/schema-only mode (customSchema={hasEnabledCustomSchemaOverride}, folderOverride={hasFolderOverride}, schemaFallback={SupportsSchemaOnlyManualFallback(game)}).");
             }
 
             string localFolderPath = null;
@@ -380,7 +380,18 @@ namespace PlayniteAchievements.Providers.Local
             var schemaLookupByTitle = new Dictionary<string, SchemaAchievement>(StringComparer.OrdinalIgnoreCase);
             int appIdInt = 0;
             int steamSchemaAppIdInt = 0;
-            if (int.TryParse(appId, out appIdInt))
+            if (!int.TryParse(appId, out appIdInt) && SupportsSchemaOnlyManualFallback(game) && !string.IsNullOrWhiteSpace(game?.Name))
+            {
+                var resolvedManualSchemaAppId = await TryResolveSteamAppIdByGameNameAsync(game.Name).ConfigureAwait(false);
+                if (resolvedManualSchemaAppId > 0)
+                {
+                    appIdInt = resolvedManualSchemaAppId;
+                    appId = resolvedManualSchemaAppId.ToString(CultureInfo.InvariantCulture);
+                    Log($"MANUAL SCHEMA AUTO-RESOLVE: game='{game.Name}' steamAppId={resolvedManualSchemaAppId}");
+                }
+            }
+
+            if (appIdInt > 0)
             {
                 steamSchemaAppIdInt = appIdInt;
                 if (TryResolveSteamSchemaAppId(game, appIdInt, out var resolvedSteamSchemaAppId) && resolvedSteamSchemaAppId > 0)
@@ -647,34 +658,13 @@ namespace PlayniteAchievements.Providers.Local
                             continue;
                         }
 
-                        var detail = new AchievementDetail
-                        {
-                            ApiName = schemaAch.Name,
-                            DisplayName = schemaAch.DisplayName ?? schemaAch.Name,
-                            Description = schemaAch.Description ?? "Local achievement from " + ProviderName,
-                            UnlockedIconPath = includeSchemaIconFallback
-                                ? schemaAch.Icon ?? AchievementIconResolver.GetDefaultUnlockedIcon()
-                                : AchievementIconResolver.GetDefaultUnlockedIcon(),
-                            LockedIconPath = includeSchemaIconFallback
-                                ? schemaAch.IconGray ?? AchievementIconResolver.GetDefaultIcon()
-                                : AchievementIconResolver.GetDefaultIcon(),
-                            HasSourceUnlockedIcon = includeSchemaIconFallback && IsLocalSourceIconPath(schemaAch.Icon),
-                            HasSourceLockedIcon = includeSchemaIconFallback && IsLocalSourceIconPath(schemaAch.IconGray),
-                            Unlocked = false,
-                            Hidden = schemaAch.Hidden == 1
-                        };
-
-                        if (schemaAch.GlobalPercent.HasValue)
-                        {
-                            var normalized = NormalizePercent(schemaAch.GlobalPercent.Value);
-                            detail.GlobalPercentUnlocked = normalized;
-                            if (normalized.HasValue)
-                            {
-                                detail.Rarity = PercentRarityHelper.GetRarityTier(normalized.Value);
-                            }
-                        }
-
-                        data.Achievements.Add(detail);
+                        data.Achievements.Add(CreateAchievementDetail(
+                            schemaAch.Name,
+                            new LocalEntry(),
+                            schemaAch,
+                            steamSchema,
+                            preferLocalizedSchemaText,
+                            includeSchemaIconFallback));
                     }
 
                     FilterPlaceholderLocalAchievements(data);
@@ -1667,7 +1657,7 @@ namespace PlayniteAchievements.Providers.Local
                                 bestQuery = query;
                             }
 
-                            // First result with very high confidence — stop early
+                            // First result with very high confidence, stop early
                             if (i == 0 && score >= 0.90)
                             {
                                 break;
@@ -1712,11 +1702,11 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             // Strip trademark/copyright symbols
-            name = Regex.Replace(name, @"[™®©]", string.Empty);
+            name = Regex.Replace(name, @"[\u2122\u00ae\u00a9]", string.Empty);
             // Strip trailing parenthetical qualifiers: "(Steam Version)", "(RU)", etc.
             name = Regex.Replace(name, @"\s*\([^)]{1,30}\)\s*$", string.Empty);
             // Normalize apostrophes to plain quote for easier token matching
-            name = name.Replace('’', '\'');
+            name = name.Replace('\u2019', '\'');
             // Normalize whitespace
             name = Regex.Replace(name, @"\s+", " ").Trim();
             return name;
@@ -1904,7 +1894,9 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            return false;
+            // Manual/library-less Playnite games may not have a Steam app id yet.
+            // Allow a schema-only refresh to resolve Steam schema by game name.
+            return !string.IsNullOrWhiteSpace(game.Name);
         }
 
         private Dictionary<string, LocalEntry> TryGetSteamAppCacheEntries(int appId, Game game = null)
@@ -1964,7 +1956,7 @@ namespace PlayniteAchievements.Providers.Local
                 return entries.Count > 0 ? entries : null;
             }
 
-            // No local schema .bin — try reading earned status directly from user stats .bin.
+            // No local schema .bin, try reading earned status directly from user stats .bin.
             // The UserGameStats_*.bin file stores achievement entries as:
             //   <apiName>\0<1-byte-type>\0<4-byte-int-value>  (type 0x01 = int32)
             // We scan for null-delimited tokens and look for pairs where the value byte is 1 (earned).
@@ -5935,7 +5927,7 @@ namespace PlayniteAchievements.Providers.Local
             {
                 var rawName = kv.Key;
 
-                // 1. Already matches a schema name → keep as-is
+                // 1. Already matches a schema name, keep as-is
                 if (schemaNames.Contains(rawName))
                 {
                     remapped[rawName] = kv.Value;
@@ -6046,7 +6038,7 @@ namespace PlayniteAchievements.Providers.Local
                     }
                     catch
                     {
-                        // Config file format unexpected or unreadable — skip
+                        // Config file format unexpected or unreadable, skip
                     }
                 }
             }
@@ -6131,7 +6123,7 @@ namespace PlayniteAchievements.Providers.Local
                 }
                 else
                 {
-                    // Canonical starts with "ach_" — also register the stripped variant
+                    // Canonical starts with "ach_", also register the stripped variant
                     var stripped = canonical.Substring(4);
                     if (!string.IsNullOrWhiteSpace(stripped) && !index.ContainsKey(stripped))
                     {
@@ -7910,14 +7902,14 @@ namespace PlayniteAchievements.Providers.Local
                 return null;
             }
 
-            // "...\userdata" → go up one level to Steam root
+            // "...\userdata" goes up one level to Steam root
             if (string.Equals(Path.GetFileName(expanded), "userdata", StringComparison.OrdinalIgnoreCase))
             {
                 var parent = Directory.GetParent(expanded);
                 return parent?.FullName;
             }
 
-            // "...\appcache\stats" → go up two levels to Steam root
+            // "...\appcache\stats" goes up two levels to Steam root
             if (string.Equals(Path.GetFileName(expanded), "stats", StringComparison.OrdinalIgnoreCase))
             {
                 var appcachePath = Directory.GetParent(expanded);
@@ -7927,7 +7919,7 @@ namespace PlayniteAchievements.Providers.Local
                 }
             }
 
-            // "...\appcache" → go up one level to Steam root
+            // "...\appcache" goes up one level to Steam root
             if (string.Equals(Path.GetFileName(expanded), "appcache", StringComparison.OrdinalIgnoreCase))
             {
                 var parent = Directory.GetParent(expanded);
@@ -8030,7 +8022,7 @@ namespace PlayniteAchievements.Providers.Local
             async Task<SchemaAndPercentages> TryPreferredAnonymousSchemaAsync()
             {
                 // If a Steam API token is available (session or manual key), use the official
-                // Steam Web API — it returns fully localized text for ALL achievements including
+                // Steam Web API, it returns fully localized text for ALL achievements including
                 // hidden ones, in the requested language.
                 if (_steamApiTokenService != null)
                 {
@@ -8110,7 +8102,7 @@ namespace PlayniteAchievements.Providers.Local
                 {
                     MergeSchemaMetadata(appCacheSchema.Achievements, mergedAnonymousSchema.Achievements, ShouldPreferLocalizedSteamText());
 
-                    // The local binary can be stale — add achievements present in the online schema
+                    // The local binary can be stale, add achievements present in the online schema
                     // but missing from the binary so the final schema count matches Steam.
                     var existingNames = new HashSet<string>(
                         appCacheSchema.Achievements
@@ -8256,8 +8248,8 @@ namespace PlayniteAchievements.Providers.Local
             {
                 "english" or "en" or "en-us" or "en-gb" => "english",
                 "german" or "deutsch" or "de" => "german",
-                "french" or "francais" or "français" or "fr" => "french",
-                "spanish" or "espanol" or "español" or "es" => "spanish",
+                "french" or "francais" or "fran\u00e7ais" or "fr" => "french",
+                "spanish" or "espanol" or "espa\u00f1ol" or "es" => "spanish",
                 "italian" or "italiano" or "it" => "italian",
                 "portuguese" or "pt" => "portuguese",
                 "brazilian" or "pt-br" or "brazilian portuguese" => "brazilian",
@@ -8486,7 +8478,7 @@ namespace PlayniteAchievements.Providers.Local
 
                     var hiddenText = WebUtility.HtmlDecode(cells[2].InnerText ?? string.Empty).Trim();
                     var percentText = WebUtility.HtmlDecode(cells[3].InnerText ?? string.Empty).Trim();
-                    var hidden = hiddenText.Contains("") || hiddenText.IndexOf("hidden", StringComparison.OrdinalIgnoreCase) >= 0;
+                    var hidden = hiddenText.Contains("\uf070") || hiddenText.IndexOf("hidden", StringComparison.OrdinalIgnoreCase) >= 0;
 
                     var iconUrl = row.SelectSingleNode(".//div[contains(@class,'image')]//img")?.GetAttributeValue("src", null)?.Trim();
                     if (string.IsNullOrWhiteSpace(iconUrl))

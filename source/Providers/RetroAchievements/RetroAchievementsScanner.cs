@@ -717,11 +717,17 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             }
 
             return ordered
-                .OrderBy(x => x.detail?.DisplayOrder ?? 0)
+                .OrderBy(x => GetEffectiveDisplayOrder(x.detail))
                 .ThenBy(x => x.sequence)
                 .ThenBy(x => x.detail?.ApiName, StringComparer.OrdinalIgnoreCase)
                 .Select(x => x.detail)
                 .ToList();
+        }
+
+        private static int GetEffectiveDisplayOrder(AchievementDetail detail)
+        {
+            var order = detail?.DisplayOrder ?? 0;
+            return order > 0 ? order : int.MaxValue;
         }
 
         internal static string ExtractCategoryLabel(string subsetTitle)

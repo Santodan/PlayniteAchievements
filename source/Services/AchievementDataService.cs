@@ -370,7 +370,8 @@ namespace PlayniteAchievements.Services
                 customDataByGameId?.TryGetValue(gameId, out customData);
                 var resolved = ResolveSummaryCustomData(gameId, customData);
 
-                var includeIconOverrides = includeIconOverrideGameIds.Contains(gameId);
+                var isCustomSchemaDisabled = PlayniteAchievements.Providers.Local.LocalSavesProvider.TryGetCustomSchemaEnabledOverride(gameId, out var customSchemaEnabled) && !customSchemaEnabled;
+                var includeIconOverrides = !isCustomSchemaDisabled && includeIconOverrideGameIds.Contains(gameId);
 
                 result[gameId] = new SummaryCustomizationData
                 {

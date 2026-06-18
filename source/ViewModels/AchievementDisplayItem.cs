@@ -780,6 +780,23 @@ namespace PlayniteAchievements.ViewModels
 
         public int PrestigeScore => _source?.PrestigeScore ?? 0;
 
+        public string CollectionScoreToolTip => FormatScoreToolTip(
+            ResourceProvider.GetString("LOCPlayAch_Column_CollectionScore"),
+            CollectionScore);
+
+        public string PrestigeScoreToolTip => FormatScoreToolTip(
+            ResourceProvider.GetString("LOCPlayAch_Column_PrestigeScore"),
+            PrestigeScore);
+        private string FormatScoreToolTip(string label, int score)
+        {
+            label = string.IsNullOrWhiteSpace(label) ? string.Empty : label.Trim();
+            var scoreLine = string.IsNullOrWhiteSpace(label)
+                ? score.ToString("N0")
+                : $"{label}: {score:N0}";
+            return string.IsNullOrWhiteSpace(RarityDetailText)
+                ? scoreLine
+                : $"{scoreLine}{Environment.NewLine}{RarityDetailText}";
+        }
         private static string DefaultIcon => AchievementIconResolver.GetDefaultIcon();
 
         /// <summary>

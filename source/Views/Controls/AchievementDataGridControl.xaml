@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementDataGridControl"
+<UserControl x:Class="PlayniteAchievements.Views.Controls.AchievementDataGridControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -112,6 +112,17 @@
                         <TextBlock Text="{Binding}" Opacity="0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.HeaderTemplate>
+            </DataGridTemplateColumn>
+
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_DisplayOrder}" SortMemberPath="DisplayOrder" helpers:ColumnVisibilityHelper.ColumnKey="DisplayOrder" Visibility="Collapsed">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding DisplayOrder}"
+                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
+                                   Foreground="{DynamicResource TextBrush}"
+                                   Opacity="0.7"/>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
             <!-- Achievement Info -->
@@ -231,6 +242,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding CollectionScore, StringFormat={}{0:N0}}"
+                                   ToolTip="{Binding CollectionScoreToolTip}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource TextBrush}"
                                    Opacity="0.7"/>
@@ -242,6 +254,7 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding PrestigeScore, StringFormat={}{0:N0}}"
+                                   ToolTip="{Binding PrestigeScoreToolTip}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource TextBrush}"
                                    Opacity="0.7"/>
