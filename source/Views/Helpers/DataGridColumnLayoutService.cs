@@ -477,7 +477,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _lastObservedScrollViewerWidth = width;
-            ApplyCurrentLayoutMode(rescaleAll: false, priority: DispatcherPriority.Render);
+            ApplyCurrentLayoutMode(rescaleAll: true, priority: DispatcherPriority.Render);
         }
 
         private static double ResolveScrollViewerObservedWidth(ScrollViewer scrollViewer)
@@ -537,7 +537,7 @@ namespace PlayniteAchievements.Views.Helpers
         private void Grid_Loaded(object sender, RoutedEventArgs e)
         {
             AttachScrollViewerHandlers();
-            ApplyCurrentLayoutMode(rescaleAll: false);
+            ApplyCurrentLayoutMode(rescaleAll: true);
         }
 
         private void Grid_LayoutUpdated(object sender, EventArgs e)
@@ -559,7 +559,7 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 _lastObservedScrollViewerWidth = 0;
                 QueueScrollViewerAttach(DispatcherPriority.Loaded);
-                ApplyCurrentLayoutMode(rescaleAll: false, priority: DispatcherPriority.Loaded);
+                ApplyCurrentLayoutMode(rescaleAll: true, priority: DispatcherPriority.Loaded);
                 return;
             }
 
@@ -574,8 +574,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             QueueScrollViewerAttach(DispatcherPriority.Render);
-            var isVisibilityActivation = e.PreviousSize.Width <= 1;
-            ApplyCurrentLayoutMode(rescaleAll: !isVisibilityActivation);
+            ApplyCurrentLayoutMode(rescaleAll: true);
         }
 
         private void Grid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -757,6 +756,7 @@ namespace PlayniteAchievements.Views.Helpers
         {
             if (_pendingWidthUpdates.Count == 0)
             {
+                ClearResizeTracking();
                 return;
             }
 
@@ -768,13 +768,13 @@ namespace PlayniteAchievements.Views.Helpers
                 ApplyWidthsByKey(normalized);
                 PersistVisibleWidths(normalized);
                 _pendingWidthUpdates.Clear();
-                _resizeObservedWidths.Clear();
+                ClearResizeTracking();
                 return;
             }
 
             PersistVisibleWidths(_pendingWidthUpdates);
             _pendingWidthUpdates.Clear();
-            _resizeObservedWidths.Clear();
+            ClearResizeTracking();
         }
 
         private void ApplyPersistedVisibility()
@@ -913,7 +913,7 @@ namespace PlayniteAchievements.Views.Helpers
                 _isApplyingWidths = false;
             }
 
-            NormalizeOrQueue(false);
+            NormalizeOrQueue(true);
         }
 
         private bool NormalizeColumnsToContainer(bool rescaleAll = false)
@@ -1027,6 +1027,15 @@ namespace PlayniteAchievements.Views.Helpers
                     _resizeObservedWidths[key] = width;
                 }
             }
+        }
+
+        private void ClearResizeTracking()
+        {
+            _resizeObservedWidths.Clear();
+            _lastResizedColumnKey = null;
+            _lastResizeAbsorberColumnKey = null;
+            _resizeBoundaryLeftColumnKey = null;
+            _resizeBoundaryRightColumnKey = null;
         }
 
         private void ApplyLiveNeighborResize(string resizedColumnKey, double resizedDelta)

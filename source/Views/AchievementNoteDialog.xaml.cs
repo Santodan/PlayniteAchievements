@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views
         private readonly bool _isReadOnly;
 
         public AchievementNoteDialog()
-            : this(string.Empty, string.Empty, string.Empty, isReadOnly: false)
+            : this(string.Empty, string.Empty, string.Empty, isReadOnly: false, achievementIconSource: null)
         {
         }
 
@@ -28,7 +28,8 @@ namespace PlayniteAchievements.Views
             string achievementTitle,
             string achievementApiName,
             string noteText,
-            bool isReadOnly)
+            bool isReadOnly,
+            string achievementIconSource = null)
         {
             _isReadOnly = isReadOnly;
             InitializeComponent();
@@ -36,6 +37,7 @@ namespace PlayniteAchievements.Views
 
             AchievementTitleTextBlock.Text = achievementTitle ?? string.Empty;
             AchievementApiNameTextBlock.Text = achievementApiName ?? string.Empty;
+            ApplyAchievementIcon(achievementIconSource);
             NoteTextBox.MaxLength = AchievementNoteHelper.MaxNoteLength;
             NoteText = noteText ?? string.Empty;
 
@@ -55,6 +57,19 @@ namespace PlayniteAchievements.Views
         public string SavedNote => AchievementNoteHelper.NormalizeNote(NoteText);
 
         public bool? DialogResult { get; private set; }
+
+        private void ApplyAchievementIcon(string achievementIconSource)
+        {
+            if (AchievementIconBorder == null || AchievementIconImage == null)
+            {
+                return;
+            }
+
+            AchievementIconBorder.Visibility = string.IsNullOrWhiteSpace(achievementIconSource)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            AsyncImage.SetUri(AchievementIconImage, achievementIconSource);
+        }
 
         private void AchievementNoteDialog_Loaded(object sender, RoutedEventArgs e)
         {

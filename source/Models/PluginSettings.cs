@@ -70,6 +70,9 @@ namespace PlayniteAchievements.Models
             private set => _legacyTheme = value;
         }
 
+        [DontSerialize]
+        public event EventHandler DynamicThemeDefaultsChanged;
+
         #endregion
 
         #region Commands
@@ -95,6 +98,8 @@ namespace PlayniteAchievements.Models
         [DontSerialize]
         private ICommand _openManageAchievementsWindow;
         [DontSerialize]
+        private ICommand _setDynamicAchievementsGameCommand;
+        [DontSerialize]
         private ICommand _setDynamicAchievementsFilterCommand;
         [DontSerialize]
         private ICommand _sortDynamicAchievementsCommand;
@@ -103,15 +108,25 @@ namespace PlayniteAchievements.Models
         [DontSerialize]
         private ICommand _filterDynamicLibraryAchievementsByProviderCommand;
         [DontSerialize]
+        private ICommand _setDynamicLibraryAchievementsFilterCommand;
+        [DontSerialize]
         private ICommand _sortDynamicLibraryAchievementsCommand;
         [DontSerialize]
         private ICommand _setDynamicLibraryAchievementsSortDirectionCommand;
         [DontSerialize]
         private ICommand _filterDynamicGameSummariesByProviderCommand;
         [DontSerialize]
+        private ICommand _setDynamicGameSummariesFilterCommand;
+        [DontSerialize]
         private ICommand _sortDynamicGameSummariesCommand;
         [DontSerialize]
         private ICommand _setDynamicGameSummariesSortDirectionCommand;
+        [DontSerialize]
+        private ICommand _resetDynamicAchievementsCommand;
+        [DontSerialize]
+        private ICommand _resetDynamicLibraryAchievementsCommand;
+        [DontSerialize]
+        private ICommand _resetDynamicGameSummariesCommand;
 
         [DontSerialize]
         public ICommand OpenFullscreenAchievementWindow
@@ -184,6 +199,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ICommand SetDynamicAchievementsGameCommand
+        {
+            get => _setDynamicAchievementsGameCommand;
+            set => SetValue(ref _setDynamicAchievementsGameCommand, value);
+        }
+
+        [DontSerialize]
         public ICommand SetDynamicAchievementsFilterCommand
         {
             get => _setDynamicAchievementsFilterCommand;
@@ -212,6 +234,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ICommand SetDynamicLibraryAchievementsFilterCommand
+        {
+            get => _setDynamicLibraryAchievementsFilterCommand;
+            set => SetValue(ref _setDynamicLibraryAchievementsFilterCommand, value);
+        }
+
+        [DontSerialize]
         public ICommand SortDynamicLibraryAchievementsCommand
         {
             get => _sortDynamicLibraryAchievementsCommand;
@@ -233,6 +262,13 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
+        public ICommand SetDynamicGameSummariesFilterCommand
+        {
+            get => _setDynamicGameSummariesFilterCommand;
+            set => SetValue(ref _setDynamicGameSummariesFilterCommand, value);
+        }
+
+        [DontSerialize]
         public ICommand SortDynamicGameSummariesCommand
         {
             get => _sortDynamicGameSummariesCommand;
@@ -246,9 +282,132 @@ namespace PlayniteAchievements.Models
             set => SetValue(ref _setDynamicGameSummariesSortDirectionCommand, value);
         }
 
+        [DontSerialize]
+        public ICommand ResetDynamicAchievementsCommand
+        {
+            get => _resetDynamicAchievementsCommand;
+            set => SetValue(ref _resetDynamicAchievementsCommand, value);
+        }
+
+        [DontSerialize]
+        public ICommand ResetDynamicLibraryAchievementsCommand
+        {
+            get => _resetDynamicLibraryAchievementsCommand;
+            set => SetValue(ref _resetDynamicLibraryAchievementsCommand, value);
+        }
+
+        [DontSerialize]
+        public ICommand ResetDynamicGameSummariesCommand
+        {
+            get => _resetDynamicGameSummariesCommand;
+            set => SetValue(ref _resetDynamicGameSummariesCommand, value);
+        }
+
 
 
         #endregion
+
+        private void NotifyDynamicThemeDefaultsChanged(string propertyName)
+        {
+            OnPropertyChanged(propertyName);
+            DynamicThemeDefaultsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private static void ExecuteThemeCommand(ICommand command, object value)
+        {
+            if (command == null)
+            {
+                return;
+            }
+
+            var parameter = value is DynamicThemeOption option ? option.Key : value;
+            if (parameter is string text && string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            if (command.CanExecute(parameter))
+            {
+                command.Execute(parameter);
+            }
+        }
+
+        private static string GetAchievementGroupFilter(string filterKey, string groupKey)
+        {
+            return GetAchievementGroupFilter(filterKey, new[] { groupKey });
+        }
+
+        private static string GetAchievementGroupFilter(string filterKey, IEnumerable<string> groupKeys)
+        {
+            return DynamicThemeOptionGroups.GetGroupSelection(
+                filterKey,
+                groupKeys,
+                DynamicThemeOptionGroups.AchievementFilterGroupMap);
+        }
+
+        private static string GetGameSummaryGroupFilter(string filterKey, string groupKey)
+        {
+            return GetGameSummaryGroupFilter(filterKey, new[] { groupKey });
+        }
+
+        private static string GetGameSummaryGroupFilter(string filterKey, IEnumerable<string> groupKeys)
+        {
+            return DynamicThemeOptionGroups.GetGroupSelection(
+                filterKey,
+                groupKeys,
+                DynamicThemeOptionGroups.GameSummaryFilterGroupMap);
+        }
+
+        private void SetDynamicAchievementsGroupFilter(string groupKey, object value)
+        {
+            SetDynamicAchievementsGroupFilter(new[] { groupKey }, value);
+        }
+
+        private void SetDynamicAchievementsGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            ExecuteThemeCommand(
+                SetDynamicAchievementsFilterCommand,
+                DynamicThemeOptionGroups.SetGroupSelection(
+                    DynamicAchievementsFilterKey,
+                    groupKeys,
+                    value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                    DynamicThemeOptionGroups.AchievementFilterKeyMap,
+                    DynamicThemeOptionGroups.AchievementFilterGroupMap));
+        }
+
+        private void SetDynamicLibraryAchievementsGroupFilter(string groupKey, object value)
+        {
+            SetDynamicLibraryAchievementsGroupFilter(new[] { groupKey }, value);
+        }
+
+        private void SetDynamicLibraryAchievementsGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            ExecuteThemeCommand(
+                SetDynamicLibraryAchievementsFilterCommand,
+                DynamicThemeOptionGroups.SetGroupSelection(
+                    DynamicLibraryAchievementsFilterKey,
+                    groupKeys,
+                    value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                    DynamicThemeOptionGroups.AchievementFilterKeyMap,
+                    DynamicThemeOptionGroups.AchievementFilterGroupMap));
+        }
+
+        private void SetDynamicGameSummariesGroupFilter(string groupKey, object value)
+        {
+            SetDynamicGameSummariesGroupFilter(new[] { groupKey }, value);
+        }
+
+        private void SetDynamicGameSummariesGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            ExecuteThemeCommand(
+                SetDynamicGameSummariesFilterCommand,
+                DynamicThemeOptionGroups.SetGroupSelection(
+                    DynamicGameSummariesFilterKey,
+                    groupKeys,
+                    value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                    DynamicThemeOptionGroups.GameSummaryFilterKeyMap,
+                    DynamicThemeOptionGroups.GameSummaryFilterGroupMap));
+        }
 
         #region Modern Theme Integration
 
@@ -309,22 +468,139 @@ namespace PlayniteAchievements.Models
         public List<AchievementDetail> DynamicAchievements => ModernTheme.DynamicAchievements ?? EmptyAchievementList;
 
         [DontSerialize]
-        public string DynamicAchievementsFilterKey => ModernTheme.DynamicAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+        public string DynamicAchievementsGameKey
+        {
+            get => ModernTheme.DynamicAchievementsGameKey ?? string.Empty;
+            set => ExecuteThemeCommand(SetDynamicAchievementsGameCommand, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsGameLabel => ModernTheme.DynamicAchievementsGameLabel ?? string.Empty;
+
+        [DontSerialize]
+        public string DynamicAchievementsFilterKey
+        {
+            get => ModernTheme.DynamicAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+            set => ExecuteThemeCommand(SetDynamicAchievementsFilterCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicAchievementsFilterLabel => ModernTheme.DynamicAchievementsFilterLabel ?? DynamicThemeViewKeys.All;
 
         [DontSerialize]
-        public string DynamicAchievementsSortKey => ModernTheme.DynamicAchievementsSortKey ?? DynamicThemeViewKeys.Default;
+        public string DynamicAchievementsStatusFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementStatusGroup);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementStatusGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsProgressFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementProgressGroup);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementProgressGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsRarityFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementRarityGroup);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementRarityGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsTrophyFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementTrophyGroup);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementTrophyGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsCustomizationFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementCustomizationGroups);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementCustomizationGroups, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsSortKey
+        {
+            get => ModernTheme.DynamicAchievementsSortKey ?? DynamicThemeViewKeys.Default;
+            set => ExecuteThemeCommand(SortDynamicAchievementsCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicAchievementsSortLabel => ModernTheme.DynamicAchievementsSortLabel ?? DynamicThemeViewKeys.Default;
 
         [DontSerialize]
-        public string DynamicAchievementsSortDirectionKey => ModernTheme.DynamicAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicAchievementsSortDirectionKey
+        {
+            get => ModernTheme.DynamicAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set => ExecuteThemeCommand(SetDynamicAchievementsSortDirectionCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicAchievementsSortDirectionLabel => ModernTheme.DynamicAchievementsSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultFilterKey
+        {
+            get => ModernTheme.DynamicAchievementsDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                ModernTheme.DynamicAchievementsDefaultFilterKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicAchievementsDefaultFilterKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultSortKey
+        {
+            get => ModernTheme.DynamicAchievementsDefaultSortKey ?? DynamicThemeViewKeys.Default;
+            set
+            {
+                ModernTheme.DynamicAchievementsDefaultSortKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicAchievementsDefaultSortKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultSortDirectionKey
+        {
+            get => ModernTheme.DynamicAchievementsDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                ModernTheme.DynamicAchievementsDefaultSortDirectionKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicAchievementsDefaultSortDirectionKey));
+            }
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsFilterOptions => ModernTheme.DynamicAchievementsFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortOptions => ModernTheme.DynamicAchievementsSortOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortDirectionOptions => ModernTheme.DynamicAchievementsSortDirectionOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementGameOptions => ModernTheme.DynamicAchievementGameOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementStatusFilterOptions => ModernTheme.DynamicAchievementStatusFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementProgressFilterOptions => ModernTheme.DynamicAchievementProgressFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementRarityFilterOptions => ModernTheme.DynamicAchievementRarityFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementTrophyFilterOptions => ModernTheme.DynamicAchievementTrophyFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementCustomizationFilterOptions => ModernTheme.DynamicAchievementCustomizationFilterOptions;
 
         // === Library Overview Data ===
 
@@ -364,22 +640,120 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
-        public string DynamicGameSummariesProviderKey => ModernTheme.DynamicGameSummariesProviderKey ?? DynamicThemeViewKeys.All;
+        public string DynamicGameSummariesProviderKey
+        {
+            get => ModernTheme.DynamicGameSummariesProviderKey ?? DynamicThemeViewKeys.All;
+            set => ExecuteThemeCommand(FilterDynamicGameSummariesByProviderCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicGameSummariesProviderLabel => ModernTheme.DynamicGameSummariesProviderLabel ?? DynamicThemeViewKeys.All;
 
         [DontSerialize]
-        public string DynamicGameSummariesSortKey => ModernTheme.DynamicGameSummariesSortKey ?? DynamicThemeViewKeys.LastUnlock;
+        public string DynamicGameSummariesFilterKey
+        {
+            get => ModernTheme.DynamicGameSummariesFilterKey ?? DynamicThemeViewKeys.All;
+            set => ExecuteThemeCommand(SetDynamicGameSummariesFilterCommand, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesFilterLabel => ModernTheme.DynamicGameSummariesFilterLabel ?? DynamicThemeViewKeys.All;
+
+        [DontSerialize]
+        public string DynamicGameSummariesProgressFilterKey
+        {
+            get => GetGameSummaryGroupFilter(DynamicGameSummariesFilterKey, DynamicThemeOptionGroups.GameProgressGroups);
+            set => SetDynamicGameSummariesGroupFilter(DynamicThemeOptionGroups.GameProgressGroups, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesActivityFilterKey
+        {
+            get => GetGameSummaryGroupFilter(DynamicGameSummariesFilterKey, DynamicThemeOptionGroups.GameActivityGroups);
+            set => SetDynamicGameSummariesGroupFilter(DynamicThemeOptionGroups.GameActivityGroups, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesSortKey
+        {
+            get => ModernTheme.DynamicGameSummariesSortKey ?? DynamicThemeViewKeys.LastUnlock;
+            set => ExecuteThemeCommand(SortDynamicGameSummariesCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicGameSummariesSortLabel => ModernTheme.DynamicGameSummariesSortLabel ?? DynamicThemeViewKeys.LastUnlock;
 
         [DontSerialize]
-        public string DynamicGameSummariesSortDirectionKey => ModernTheme.DynamicGameSummariesSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicGameSummariesSortDirectionKey
+        {
+            get => ModernTheme.DynamicGameSummariesSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set => ExecuteThemeCommand(SetDynamicGameSummariesSortDirectionCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicGameSummariesSortDirectionLabel => ModernTheme.DynamicGameSummariesSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultProviderKey
+        {
+            get => ModernTheme.DynamicGameSummariesDefaultProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                ModernTheme.DynamicGameSummariesDefaultProviderKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicGameSummariesDefaultProviderKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultFilterKey
+        {
+            get => ModernTheme.DynamicGameSummariesDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                ModernTheme.DynamicGameSummariesDefaultFilterKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicGameSummariesDefaultFilterKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultSortKey
+        {
+            get => ModernTheme.DynamicGameSummariesDefaultSortKey ?? DynamicThemeViewKeys.LastUnlock;
+            set
+            {
+                ModernTheme.DynamicGameSummariesDefaultSortKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicGameSummariesDefaultSortKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultSortDirectionKey
+        {
+            get => ModernTheme.DynamicGameSummariesDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                ModernTheme.DynamicGameSummariesDefaultSortDirectionKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicGameSummariesDefaultSortDirectionKey));
+            }
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesProviderOptions => ModernTheme.DynamicGameSummariesProviderOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesFilterOptions => ModernTheme.DynamicGameSummariesFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortOptions => ModernTheme.DynamicGameSummariesSortOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortDirectionOptions => ModernTheme.DynamicGameSummariesSortDirectionOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameProgressFilterOptions => ModernTheme.DynamicGameProgressFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameActivityFilterOptions => ModernTheme.DynamicGameActivityFilterOptions;
 
         [DontSerialize]
         public List<AchievementDetail> AllAchievementsUnlockAsc
@@ -417,22 +791,135 @@ namespace PlayniteAchievements.Models
         }
 
         [DontSerialize]
-        public string DynamicLibraryAchievementsProviderKey => ModernTheme.DynamicLibraryAchievementsProviderKey ?? DynamicThemeViewKeys.All;
+        public string DynamicLibraryAchievementsProviderKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsProviderKey ?? DynamicThemeViewKeys.All;
+            set => ExecuteThemeCommand(FilterDynamicLibraryAchievementsByProviderCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicLibraryAchievementsProviderLabel => ModernTheme.DynamicLibraryAchievementsProviderLabel ?? DynamicThemeViewKeys.All;
 
         [DontSerialize]
-        public string DynamicLibraryAchievementsSortKey => ModernTheme.DynamicLibraryAchievementsSortKey ?? DynamicThemeViewKeys.UnlockTime;
+        public string DynamicLibraryAchievementsFilterKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+            set => ExecuteThemeCommand(SetDynamicLibraryAchievementsFilterCommand, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsFilterLabel => ModernTheme.DynamicLibraryAchievementsFilterLabel ?? DynamicThemeViewKeys.All;
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsStatusFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementStatusGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementStatusGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsProgressFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementProgressGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementProgressGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsRarityFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementRarityGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementRarityGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsTrophyFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementTrophyGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementTrophyGroup, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsCustomizationFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementCustomizationGroups);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementCustomizationGroups, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsSortKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsSortKey ?? DynamicThemeViewKeys.UnlockTime;
+            set => ExecuteThemeCommand(SortDynamicLibraryAchievementsCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicLibraryAchievementsSortLabel => ModernTheme.DynamicLibraryAchievementsSortLabel ?? DynamicThemeViewKeys.UnlockTime;
 
         [DontSerialize]
-        public string DynamicLibraryAchievementsSortDirectionKey => ModernTheme.DynamicLibraryAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicLibraryAchievementsSortDirectionKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set => ExecuteThemeCommand(SetDynamicLibraryAchievementsSortDirectionCommand, value);
+        }
 
         [DontSerialize]
         public string DynamicLibraryAchievementsSortDirectionLabel => ModernTheme.DynamicLibraryAchievementsSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultProviderKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsDefaultProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                ModernTheme.DynamicLibraryAchievementsDefaultProviderKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicLibraryAchievementsDefaultProviderKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultFilterKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                ModernTheme.DynamicLibraryAchievementsDefaultFilterKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicLibraryAchievementsDefaultFilterKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultSortKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsDefaultSortKey ?? DynamicThemeViewKeys.UnlockTime;
+            set
+            {
+                ModernTheme.DynamicLibraryAchievementsDefaultSortKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicLibraryAchievementsDefaultSortKey));
+            }
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultSortDirectionKey
+        {
+            get => ModernTheme.DynamicLibraryAchievementsDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                ModernTheme.DynamicLibraryAchievementsDefaultSortDirectionKey = value;
+                NotifyDynamicThemeDefaultsChanged(nameof(DynamicLibraryAchievementsDefaultSortDirectionKey));
+            }
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsProviderOptions => ModernTheme.DynamicLibraryAchievementsProviderOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsFilterOptions => ModernTheme.DynamicLibraryAchievementsFilterOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortOptions => ModernTheme.DynamicLibraryAchievementsSortOptions;
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortDirectionOptions => ModernTheme.DynamicLibraryAchievementsSortDirectionOptions;
 
         // All recent unlocks across all games (newest first).
         [DontSerialize]

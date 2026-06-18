@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.ViewModels;
 
@@ -43,9 +44,27 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ProgressFilter_InProgressAndNoProgress_ExcludesCompletedGames()
+        {
+            var result = ApplyProgress(InProgress, NoProgress);
+
+            CollectionAssert.AreEqual(new[] { "In Progress", "No Progress Played", "No Progress Unplayed" }, result);
+        }
+
+        [TestMethod]
         public void ProgressFilter_EmptySelection_DoesNotFilterProgress()
         {
             var result = ApplyProgress();
+
+            CollectionAssert.AreEqual(
+                new[] { "Complete", "In Progress", "No Progress Played", "No Progress Unplayed" },
+                result);
+        }
+
+        [TestMethod]
+        public void ProgressFilter_AllSelection_DoesNotFilterProgress()
+        {
+            var result = ApplyProgress(Complete, InProgress, NoProgress);
 
             CollectionAssert.AreEqual(
                 new[] { "Complete", "In Progress", "No Progress Played", "No Progress Unplayed" },
@@ -61,6 +80,16 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ActivityFilter_AllSelection_DoesNotFilterActivity()
+        {
+            var result = ApplyActivity(Played, Unplayed);
+
+            CollectionAssert.AreEqual(
+                new[] { "Complete", "In Progress", "No Progress Played", "No Progress Unplayed" },
+                result);
+        }
+
+        [TestMethod]
         public void ActivityAndProgressFilters_CombineAcrossDropdowns()
         {
             var result = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
@@ -71,6 +100,27 @@ namespace PlayniteAchievements.Tests.Services
                 .ToList();
 
             CollectionAssert.AreEqual(new[] { "No Progress Played" }, result);
+        }
+
+        [TestMethod]
+        public void StableScopeFilters_NoneAndAllDoNotFilter()
+        {
+            var noneResult = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
+                    CreateGames(),
+                    GameActivityScope.None,
+                    GameProgressScope.None)
+                .Select(game => game.GameName)
+                .ToList();
+            var allResult = OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
+                    CreateGames(),
+                    GameActivityScope.All,
+                    GameProgressScope.All)
+                .Select(game => game.GameName)
+                .ToList();
+
+            var expected = new[] { "Complete", "In Progress", "No Progress Played", "No Progress Unplayed" };
+            CollectionAssert.AreEqual(expected, noneResult);
+            CollectionAssert.AreEqual(expected, allResult);
         }
 
         private static List<string> ApplyProgress(params string[] selectedProgress)
@@ -134,5 +184,6 @@ namespace PlayniteAchievements.Tests.Services
         private const string InProgress = OverviewGameSummaryFilters.InProgressFallback;
         private const string NoProgress = OverviewGameSummaryFilters.NoProgressFallback;
         private const string Played = OverviewGameSummaryFilters.PlayedFallback;
+        private const string Unplayed = OverviewGameSummaryFilters.UnplayedFallback;
     }
 }

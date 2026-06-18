@@ -98,6 +98,8 @@ namespace PlayniteAchievements
         private readonly ThemeIntegrationService _themeIntegrationService;
         private readonly ThemeControlRegistry _themeControlRegistry;
         private readonly PluginWindowService _windowService;
+        private readonly AchievementHotkeyTargetResolver _achievementHotkeyTargetResolver;
+        private readonly AchievementHotkeyService _achievementHotkeyService;
         private readonly FullscreenControllerNavigationService _fullscreenControllerNavigationService;
         private readonly ThemeAutoMigrationService _themeAutoMigrationService;
         private readonly ForkReleaseMonitor _forkReleaseMonitor;
@@ -307,7 +309,7 @@ namespace PlayniteAchievements
                     /*// === ADD LOCAL PROVIDER MANUALLY ===
                     var localProvider = new Providers.Local.LocalSavesProvider(PlayniteApi, _logger, settings.Persisted);
                     providers.Add(localProvider);
-                    _providerRegistry.RegisterProvider(localProvider); */  // This line may or may not be needed — try without first
+                    _providerRegistry.RegisterProvider(localProvider); */  // This line may or may not be needed â€” try without first
                 }
 
                 // Phase 3: Wire core services, refresh pipeline, and tagging.
@@ -404,6 +406,16 @@ namespace PlayniteAchievements
                         _manualSourceRegistry,
                         EnsureAchievementResourcesLoaded,
                         _fullscreenControllerNavigationService);
+
+                    _achievementHotkeyTargetResolver = new AchievementHotkeyTargetResolver(PlayniteApi, _logger);
+                    _achievementHotkeyService = new AchievementHotkeyService(
+                        PlayniteApi,
+                        _settingsViewModel.Settings,
+                        _achievementHotkeyTargetResolver,
+                        _logger,
+                        gameId => _windowService.ToggleViewAchievementsWindow(gameId),
+                        gameId => _windowService.ToggleManageAchievementsView(gameId),
+                        ToggleOverviewWindow);
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
@@ -547,8 +559,37 @@ namespace PlayniteAchievements
             }
         }
 
+        public override void OnGameStarted(OnGameStartedEventArgs args)
+        {
+            try
+            {
+                _achievementHotkeyTargetResolver?.NotifyGameStarted(args?.Game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to track started game for achievement hotkeys.");
+            }
+
+            if (args?.Game == null)
+            {
+                return;
+            }
+
+            _activeGameAchievementMonitor?.Start(args.Game);
+            _exophaseGameAchievementMonitor?.Start(args.Game);
+        }
+
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            try
+            {
+                _achievementHotkeyTargetResolver?.NotifyGameStopped(args?.Game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to track stopped game for achievement hotkeys.");
+            }
+
             if (args?.Game == null)
             {
                 return;
@@ -570,17 +611,6 @@ namespace PlayniteAchievements
                 Mode = RefreshModeType.Single,
                 SingleGameId = args.Game.Id
             });
-        }
-
-        public override void OnGameStarted(OnGameStartedEventArgs args)
-        {
-            if (args?.Game == null)
-            {
-                return;
-            }
-
-            _activeGameAchievementMonitor?.Start(args.Game);
-            _exophaseGameAchievementMonitor?.Start(args.Game);
         }
 
         // === Lifecycle ===
@@ -640,6 +670,8 @@ namespace PlayniteAchievements
                     // ignore
                 }
 
+                _achievementHotkeyService?.Start();
+
                 // Auto-migrate themes that have been updated since the last migration.
                 _themeAutoMigrationService?.ScheduleAutoMigration();
 
@@ -666,6 +698,15 @@ namespace PlayniteAchievements
             {
                 PercentRarityHelper.ApplyBadgeApplicationResources(
                     _settingsViewModel?.Settings?.Persisted?.UseUniformRarityBadges ?? false);
+            }
+
+            if (e.PropertyName == nameof(PersistedSettings.EnableAchievementHotkeys) ||
+                e.PropertyName == nameof(PersistedSettings.EnableGlobalAchievementHotkeys) ||
+                e.PropertyName == nameof(PersistedSettings.ViewAchievementsHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.ManageAchievementsHotkey) ||
+                e.PropertyName == nameof(PersistedSettings.OverviewHotkey))
+            {
+                _achievementHotkeyService?.RefreshConfiguration();
             }
 
             InvalidateStartPageData();
@@ -792,6 +833,7 @@ namespace PlayniteAchievements
             _activeGameAchievementMonitor?.Dispose();
             _exophaseGameAchievementMonitor?.Dispose();
 
+            try { _achievementHotkeyService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose achievementHotkeyService"); }
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }
             try { _manualSourceRegistry?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose manualSourceRegistry"); }

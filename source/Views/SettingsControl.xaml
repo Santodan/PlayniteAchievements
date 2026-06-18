@@ -583,6 +583,121 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ================== HOTKEYS ================== -->
+                        <Border Style="{StaticResource SectionBorderStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Title}"
+                                           Style="{StaticResource SectionHeaderStyle}"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="0,0,0,14"
+                                           TextWrapping="Wrap"/>
+
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Hotkeys_Enable}"
+                                          IsChecked="{Binding Persisted.EnableAchievementHotkeys}"
+                                          Margin="0,0,0,8"/>
+
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Hotkeys_EnableGlobal}"
+                                          IsChecked="{Binding Persisted.EnableGlobalAchievementHotkeys}"
+                                          IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                          Margin="18,0,0,8"/>
+
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Hotkeys_GlobalHelp}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="18,0,0,14"
+                                           TextWrapping="Wrap"/>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Menu_ViewAchievements}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+
+                                    <Button x:Name="ViewAchievementsHotkeyCaptureButton"
+                                            Grid.Column="1"
+                                            Content="{Binding ViewAchievementsHotkeyButtonText, ElementName=SettingsControlRoot}"
+                                            Click="ViewAchievementsHotkeyCapture_Click"
+                                            PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            Margin="12,0,8,0"/>
+
+                                    <Button Grid.Column="2"
+                                            Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                            Click="ResetViewAchievementsHotkey_Click"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            MinWidth="74"/>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Menu_ManageAchievements}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+
+                                    <Button x:Name="ManageAchievementsHotkeyCaptureButton"
+                                            Grid.Column="1"
+                                            Content="{Binding ManageAchievementsHotkeyButtonText, ElementName=SettingsControlRoot}"
+                                            Click="ManageAchievementsHotkeyCapture_Click"
+                                            PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            Margin="12,0,8,0"/>
+
+                                    <Button Grid.Column="2"
+                                            Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                            Click="ResetManageAchievementsHotkey_Click"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            MinWidth="74"/>
+                                </Grid>
+
+                                <Grid Style="{StaticResource SettingRowStyle}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_Menu_OpenOverview}"
+                                                   Foreground="{DynamicResource TextBrush}"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+
+                                    <Button x:Name="OverviewHotkeyCaptureButton"
+                                            Grid.Column="1"
+                                            Content="{Binding OverviewHotkeyButtonText, ElementName=SettingsControlRoot}"
+                                            Click="OverviewHotkeyCapture_Click"
+                                            PreviewKeyDown="HotkeyCapture_PreviewKeyDown"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            Margin="12,0,8,0"/>
+
+                                    <Button Grid.Column="2"
+                                            Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                            Click="ResetOverviewHotkey_Click"
+                                            IsEnabled="{Binding Persisted.EnableAchievementHotkeys}"
+                                            MinWidth="74"/>
+                                </Grid>
+
+                                <TextBlock Text="{Binding HotkeyCaptureStatusText, ElementName=SettingsControlRoot}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- ================== NOTIFICATIONS ================== -->
                         <Border Style="{StaticResource SectionBorderStyle}">
                             <StackPanel>
@@ -2250,6 +2365,65 @@
                                     <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_StartPageSection}"
                                                Style="{StaticResource SectionHeaderStyle}"
                                                Margin="0"/>
+                                </Border>
+
+                                <Border Style="{StaticResource SectionBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="{DynamicResource LOCPlayAch_CustomRefresh_ScopeHeader}"
+                                                   Style="{StaticResource SectionHeaderStyle}"
+                                                   Margin="0,0,0,12"/>
+                                        <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                                        <Border Style="{StaticResource SettingGroupCardStyle}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="0"
+                                                           Text="{DynamicResource LOCPlayAch_Filter_ActivitySelectorPlaceholder}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,10,8"/>
+                                                <Button x:Name="StartPageActivityScopeSelectionButton"
+                                                        Grid.Row="0"
+                                                        Grid.Column="1"
+                                                        Content="{Binding StartPageActivityScopeText, ElementName=SettingsControlRoot}"
+                                                        Click="StartPageActivityScopeSelectionButton_Click"
+                                                        MinWidth="220"
+                                                        Height="30"
+                                                        Margin="0,0,0,8"
+                                                        HorizontalAlignment="Left">
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu x:Name="StartPageActivityScopeSelectionContextMenu"/>
+                                                    </Button.ContextMenu>
+                                                </Button>
+
+                                                <TextBlock Grid.Row="1"
+                                                           Grid.Column="0"
+                                                           Text="{DynamicResource LOCPlayAch_Progress}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,10,0"/>
+                                                <Button x:Name="StartPageProgressScopeSelectionButton"
+                                                        Grid.Row="1"
+                                                        Grid.Column="1"
+                                                        Content="{Binding StartPageProgressScopeText, ElementName=SettingsControlRoot}"
+                                                        Click="StartPageProgressScopeSelectionButton_Click"
+                                                        MinWidth="220"
+                                                        Height="30"
+                                                        HorizontalAlignment="Left">
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu x:Name="StartPageProgressScopeSelectionContextMenu"/>
+                                                    </Button.ContextMenu>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
                                 </Border>
 
                                 <Border Style="{StaticResource SectionBorderStyle}">

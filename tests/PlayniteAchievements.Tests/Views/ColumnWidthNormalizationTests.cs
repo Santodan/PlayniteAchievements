@@ -56,6 +56,29 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void TryBuildNormalizedWidths_UnprotectedContainerDeltaRescalesAllColumns()
+        {
+            var keys = new[] { "A", "B", "C" };
+            var seedWidths = new[] { 100d, 100d, 100d };
+            var floorWidths = new[] { 30d, 30d, 30d };
+
+            var result = ColumnWidthNormalization.TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey: null,
+                rescaleAll: false,
+                targetWidth: 600d,
+                out var normalized);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(200d, normalized["A"]);
+            Assert.AreEqual(200d, normalized["B"]);
+            Assert.AreEqual(200d, normalized["C"]);
+            Assert.AreEqual(600d, normalized.Values.Sum());
+        }
+
+        [TestMethod]
         public void TryBuildNormalizedWidths_ProtectedColumnUsesImmediateRightNeighborByDefault()
         {
             var keys = new[] { "A", "B", "C", "D" };

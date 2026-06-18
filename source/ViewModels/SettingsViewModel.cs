@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
@@ -335,7 +336,89 @@ namespace PlayniteAchievements.ViewModels
         public bool VerifySettings(out List<string> errors)
         {
             errors = new List<string>();
+
+            var persisted = Settings?.Persisted;
+            if (persisted != null)
+            {
+                ValidateAchievementHotkeys(persisted, errors);
+            }
+
             return errors.Count == 0;
+        }
+
+        private static void ValidateAchievementHotkeys(PersistedSettings persisted, List<string> errors)
+        {
+            var viewLabel = L("LOCPlayAch_Menu_ViewAchievements", "View Achievements");
+            var manageLabel = L("LOCPlayAch_Menu_ManageAchievements", "Manage Achievements");
+            var overviewLabel = L("LOCPlayAch_Menu_OpenOverview", "Achievements Overview");
+            var invalidMessage = L(
+                "LOCPlayAch_Hotkeys_InvalidShortcut",
+                "Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.");
+            var duplicateMessage = L("LOCPlayAch_Hotkeys_DuplicateShortcut", "That shortcut is already assigned.");
+
+            var viewValid = TryValidateHotkey(viewLabel, persisted.ViewAchievementsHotkey, invalidMessage, errors, out var viewGesture);
+            var manageValid = TryValidateHotkey(manageLabel, persisted.ManageAchievementsHotkey, invalidMessage, errors, out var manageGesture);
+            var overviewValid = TryValidateHotkey(overviewLabel, persisted.OverviewHotkey, invalidMessage, errors, out var overviewGesture);
+
+            var assignedGestures = new List<AchievementHotkeyGesture>();
+            AddDuplicateHotkeyError(viewValid, viewGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(manageValid, manageGesture, assignedGestures, duplicateMessage, errors);
+            AddDuplicateHotkeyError(overviewValid, overviewGesture, assignedGestures, duplicateMessage, errors);
+        }
+
+        private static void AddDuplicateHotkeyError(
+            bool isValid,
+            AchievementHotkeyGesture gesture,
+            List<AchievementHotkeyGesture> assignedGestures,
+            string duplicateMessage,
+            List<string> errors)
+        {
+            if (!isValid || gesture == null || gesture.IsEmpty)
+            {
+                return;
+            }
+
+            if (assignedGestures.Any(existing => existing.Equals(gesture)))
+            {
+                if (!errors.Contains(duplicateMessage))
+                {
+                    errors.Add(duplicateMessage);
+                }
+
+                return;
+            }
+
+            assignedGestures.Add(gesture);
+        }
+
+        private static bool TryValidateHotkey(
+            string label,
+            string text,
+            string invalidMessage,
+            List<string> errors,
+            out AchievementHotkeyGesture gesture)
+        {
+            gesture = AchievementHotkeyGesture.Empty;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return true;
+            }
+
+            if (AchievementHotkeyGesture.TryParse(text, out gesture) &&
+                gesture != null &&
+                !gesture.IsEmpty)
+            {
+                return true;
+            }
+
+            errors.Add($"{label}: {invalidMessage}");
+            gesture = AchievementHotkeyGesture.Empty;
+            return false;
+        }
+
+        private static string L(string key, string fallback)
+        {
+            return ResourceProvider.GetString(key) ?? fallback;
         }
 
         private PlayniteAchievementsSettings _editingClone;

@@ -492,7 +492,10 @@ namespace PlayniteAchievements.Services
                     : ResolveFallbackOverrides(_persistedSettings?.AchievementCategoryOverrides, gameId),
                 AchievementCategoryTypeOverrides = hasCustomData
                     ? CloneStringMap(customData.AchievementCategoryTypeOverrides)
-                    : ResolveFallbackOverrides(_persistedSettings?.AchievementCategoryTypeOverrides, gameId)
+                    : ResolveFallbackOverrides(_persistedSettings?.AchievementCategoryTypeOverrides, gameId),
+                AchievementNotes = hasCustomData
+                    ? CloneNoteMap(customData.AchievementNotes)
+                    : EmptyStringMap
             };
         }
 
@@ -538,6 +541,29 @@ namespace PlayniteAchievements.Services
             {
                 var key = NormalizeText(pair.Key);
                 var value = NormalizeText(pair.Value);
+                if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                map[key] = value;
+            }
+
+            return map.Count == 0 ? EmptyStringMap : map;
+        }
+
+        private static Dictionary<string, string> CloneNoteMap(IReadOnlyDictionary<string, string> source)
+        {
+            if (source == null || source.Count == 0)
+            {
+                return EmptyStringMap;
+            }
+
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var pair in source)
+            {
+                var key = NormalizeText(pair.Key);
+                var value = AchievementNoteHelper.NormalizeNote(pair.Value);
                 if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(value))
                 {
                     continue;

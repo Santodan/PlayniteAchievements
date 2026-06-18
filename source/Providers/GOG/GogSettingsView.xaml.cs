@@ -80,12 +80,14 @@ namespace PlayniteAchievements.Providers.GOG
         {
             _gogSettings = settings as GogSettings;
             base.Initialize(settings);
+            SetAuthStatusVisualState(pending: true, success: false);
             AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
         {
             var isAuthenticated = result?.IsSuccess ?? false;
+            SetAuthStatusVisualState(pending: false, success: isAuthenticated);
             IsAuthenticated = isAuthenticated;
 
             if (isAuthenticated)

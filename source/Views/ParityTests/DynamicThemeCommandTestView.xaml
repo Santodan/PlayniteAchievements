@@ -126,6 +126,7 @@
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                                   helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
@@ -188,6 +189,7 @@
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                                   helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">
@@ -250,6 +252,7 @@
                                   CanUserAddRows="False"
                                   CanUserDeleteRows="False"
                                   ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                                  helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                                   helpers:DataGridAlignmentBehavior.IsEnabled="True">
                             <DataGrid.Resources>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedDataGridTextStyle}">

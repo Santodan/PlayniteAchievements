@@ -33,6 +33,23 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void ExtractAlternateBaseTitleCandidates_PropagatesSharedSeriesPrefix()
+        {
+            var baseTitle = "The Legend of Zelda: Oracle of Ages | Oracle of Seasons";
+
+            var candidates = RetroAchievementsSubsetTitleResolver.ExtractAlternateBaseTitleCandidates(baseTitle);
+
+            CollectionAssert.AreEqual(
+                new[]
+                {
+                    "The Legend of Zelda: Oracle of Ages",
+                    "Oracle of Seasons",
+                    "The Legend of Zelda: Oracle of Seasons"
+                },
+                (System.Collections.ICollection)candidates);
+        }
+
+        [TestMethod]
         public void ExtractAlternateBaseTitleCandidates_ReturnsEmptyForSingleTitle()
         {
             var candidates = RetroAchievementsSubsetTitleResolver.ExtractAlternateBaseTitleCandidates("Pokemon LeafGreen Version");

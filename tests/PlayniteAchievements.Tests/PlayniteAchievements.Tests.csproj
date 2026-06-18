@@ -179,8 +179,11 @@
     <Compile Include="..\..\source\Models\PluginSettings.cs" Link="Source\Models\PluginSettings.cs" />
     <Compile Include="..\..\source\Models\RefreshStatusSnapshot.cs" Link="Source\Models\RefreshStatusSnapshot.cs" />
     <Compile Include="..\..\source\Models\SelectedGameBindingContext.cs" Link="Source\Models\SelectedGameBindingContext.cs" />
+    <Compile Include="..\..\source\Models\Settings\AchievementHotkeyGesture.cs" Link="Source\Models\Settings\AchievementHotkeyGesture.cs" />
     <Compile Include="..\..\source\Models\Settings\PersistedSettings.cs" Link="Source\Models\Settings\PersistedSettings.cs" />
     <Compile Include="..\..\source\Models\Settings\WindowPlacementState.cs" Link="Source\Models\Settings\WindowPlacementState.cs" />
+    <Compile Include="..\..\source\Models\Settings\GameActivityScope.cs" Link="Source\Models\Settings\GameActivityScope.cs" />
+    <Compile Include="..\..\source\Models\Settings\GameProgressScope.cs" Link="Source\Models\Settings\GameProgressScope.cs" />
     <Compile Include="..\..\source\Models\Settings\GridAlignment.cs" Link="Source\Models\Settings\GridAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\GridVerticalAlignment.cs" Link="Source\Models\Settings\GridVerticalAlignment.cs" />
     <Compile Include="..\..\source\Models\Settings\CompactListSortMode.cs" Link="Source\Models\Settings\CompactListSortMode.cs" />
@@ -215,6 +218,8 @@
     <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementScoreCalculator.cs" Link="Source\Models\Achievements\Scoring\AchievementScoreCalculator.cs" />
     <Compile Include="..\..\source\Models\Achievements\Scoring\AchievementScoreSnapshot.cs" Link="Source\Models\Achievements\Scoring\AchievementScoreSnapshot.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\GameAchievementSummary.cs" Link="Source\Models\ThemeIntegration\GameAchievementSummary.cs" />
+    <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeOption.cs" Link="Source\Models\ThemeIntegration\DynamicThemeOption.cs" />
+    <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeOptionGroups.cs" Link="Source\Models\ThemeIntegration\DynamicThemeOptionGroups.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\DynamicThemeViewState.cs" Link="Source\Models\ThemeIntegration\DynamicThemeViewState.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\LegacyThemeBindings.cs" Link="Source\Models\ThemeIntegration\LegacyThemeBindings.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\LibraryRuntimeState.cs" Link="Source\Models\ThemeIntegration\LibraryRuntimeState.cs" />
@@ -222,12 +227,17 @@
     <Compile Include="..\..\source\Models\ThemeIntegration\SelectedGameRuntimeState.cs" Link="Source\Models\ThemeIntegration\SelectedGameRuntimeState.cs" />
     <Compile Include="..\..\source\Models\ThemeIntegration\ThemeRuntimeState.cs" Link="Source\Models\ThemeIntegration\ThemeRuntimeState.cs" />
     <Compile Include="..\..\source\Views\Helpers\ColumnVisibilityHelper.cs" Link="Source\Views\Helpers\ColumnVisibilityHelper.cs" />
+    <Compile Include="..\..\source\Views\Helpers\DataGridHoverScrollBarBehavior.cs" Link="Source\Views\Helpers\DataGridHoverScrollBarBehavior.cs" />
     <Compile Include="..\..\source\Views\Helpers\DataGridColumnLayoutService.cs" Link="Source\Views\Helpers\DataGridColumnLayoutService.cs" />
     <Compile Include="..\..\source\Views\Helpers\ColumnWidthNormalization.cs" Link="Source\Views\Helpers\ColumnWidthNormalization.cs" />
     <Compile Include="..\..\source\Views\Helpers\GridAlignmentMapping.cs" Link="Source\Views\Helpers\GridAlignmentMapping.cs" />
     <Compile Include="..\..\source\Views\Helpers\VisualTreeHelpers.cs" Link="Source\Views\Helpers\VisualTreeHelpers.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\LibraryRuntimeStateBuilder.cs" Link="Source\Services\ThemeIntegration\LibraryRuntimeStateBuilder.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\SelectedGameRuntimeStateBuilder.cs" Link="Source\Services\ThemeIntegration\SelectedGameRuntimeStateBuilder.cs" />
+    <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeFilterEvaluator.cs" Link="Source\Services\ThemeIntegration\DynamicThemeFilterEvaluator.cs" />
+    <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeFilterExpression.cs" Link="Source\Services\ThemeIntegration\DynamicThemeFilterExpression.cs" />
+    <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeLabels.cs" Link="Source\Services\ThemeIntegration\DynamicThemeLabels.cs" />
+    <Compile Include="..\..\source\Services\ThemeIntegration\DynamicThemeOptionFactory.cs" Link="Source\Services\ThemeIntegration\DynamicThemeOptionFactory.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\ThemeDelegatedPropertyCatalog.cs" Link="Source\Services\ThemeIntegration\ThemeDelegatedPropertyCatalog.cs" />
     <Compile Include="..\..\source\Services\ThemeIntegration\ThemeIntegrationService.cs" Link="Source\Services\ThemeIntegration\ThemeIntegrationService.cs" />
     <Compile Include="..\..\source\Services\Cache\ICacheManager.cs" Link="Source\Services\Cache\ICacheManager.cs" />
@@ -241,6 +251,7 @@
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationResult.cs" Link="Source\Services\ThemeMigration\ThemeMigrationResult.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeMigrationService.cs" Link="Source\Services\ThemeMigration\ThemeMigrationService.cs" />
     <Compile Include="..\..\source\Services\ThemeMigration\ThemeYamlVersionReader.cs" Link="Source\Services\ThemeMigration\ThemeYamlVersionReader.cs" />
+    <Compile Include="..\..\source\Services\UI\AchievementHotkeyTargetResolver.cs" Link="Source\Services\UI\AchievementHotkeyTargetResolver.cs" />
 
     <Reference Include="Playnite.SDK">
       <HintPath>..\..\source\packages\PlayniteSDK.6.14.0\lib\net462\Playnite.SDK.dll</HintPath>

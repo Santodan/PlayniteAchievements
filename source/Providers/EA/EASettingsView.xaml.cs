@@ -65,12 +65,14 @@ namespace PlayniteAchievements.Providers.EA
         {
             _eaSettings = settings as EASettings;
             base.Initialize(settings);
+            SetAuthStatusVisualState(pending: true, success: false);
             AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
         {
             var isAuthenticated = result?.IsSuccess ?? false;
+            SetAuthStatusVisualState(pending: false, success: isAuthenticated);
             IsAuthenticated = isAuthenticated;
 
             if (isAuthenticated)

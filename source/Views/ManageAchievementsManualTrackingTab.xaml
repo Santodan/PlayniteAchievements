@@ -208,6 +208,7 @@
                               RowBackground="Transparent"
                               Foreground="{DynamicResource TextBrush}"
                               ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
+                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                               helpers:DataGridAlignmentBehavior.IsEnabled="True"
                               PreviewMouseLeftButtonDown="SearchDataGrid_PreviewMouseLeftButtonDown"
                               Tag="ControllerCellFocus"
@@ -438,6 +439,7 @@
                               ScrollViewer.CanContentScroll="True"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                               ColumnHeaderStyle="{StaticResource ManageAchievementsColumnHeaderStyle}"
+                              helpers:DataGridHoverScrollBarBehavior.IsEnabled="True"
                               helpers:DataGridAlignmentBehavior.IsEnabled="True"
                               Tag="ControllerCellFocus">
                         <DataGrid.CellStyle>

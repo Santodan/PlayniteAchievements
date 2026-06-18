@@ -165,6 +165,26 @@
            BasedOn="{StaticResource AchievementCellStyle}">
     </Style>
 
+    <!-- Note Column Cell Style - stretches the content presenter vertically so the note fills the
+         full row height (its content height is decoupled from the row via HeightDecoupledDecorator).
+         The note's own vertical alignment is honored on the inner TextBlock. -->
+    <Style x:Key="AchievementNoteCellStyle"
+           TargetType="DataGridCell"
+           BasedOn="{StaticResource AchievementCellStyle}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridCell">
+                    <Border Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ContentPresenter VerticalAlignment="Stretch"
+                                          HorizontalAlignment="Stretch"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="ManageAchievementsColumnHeaderStyle"
         TargetType="{x:Type DataGridColumnHeader}"
         BasedOn="{StaticResource AchievementColumnHeaderStyle}">
@@ -862,7 +882,8 @@
             <TextBlock FontWeight="SemiBold"
                        Foreground="{DynamicResource TextBrush}"
                        TextWrapping="Wrap"
-                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                       helpers:AchievementNoteInlineFormatter.NoteToolTip="{Binding AchievementNote}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="FontSize" Value="{DynamicResource FontSize}"/>
@@ -880,6 +901,10 @@
                 <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
                 <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
                      FontStyle="Italic"
+                     FontSize="{DynamicResource FontSizeSmall}"
+                     Foreground="{DynamicResource TextBrushDarker}"/>
+                <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
+                     FontFamily="{DynamicResource FontIcoFont}"
                      FontSize="{DynamicResource FontSizeSmall}"
                      Foreground="{DynamicResource TextBrushDarker}"/>
             </TextBlock>

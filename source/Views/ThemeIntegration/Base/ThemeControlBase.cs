@@ -165,6 +165,12 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// </summary>
         public PersistedSettings Persisted => EffectiveSettings?.Persisted;
 
+        public PlayniteAchievementsSettings ThemeBindings => EffectiveSettings;
+
+        public ModernThemeBindings ModernBindings => EffectiveTheme;
+
+        public LegacyThemeBindings LegacyBindings => EffectiveLegacyTheme;
+
         /// <summary>
         /// Gets the effective modern theme bindings to use for binding.
         /// Returns ThemeDataOverride if set, otherwise Plugin.Settings.ModernTheme.
@@ -288,6 +294,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         private void ThemeControlBase_Loaded(object sender, RoutedEventArgs e)
         {
+            if (UsesThemeBindings || UsesLegacyThemeBindings || EnableAutomaticThemeDataUpdates)
+            {
+                Plugin?.ThemeIntegrationService?.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+            }
+
             if (!EnableAutomaticThemeDataUpdates)
             {
                 return;
@@ -506,37 +517,91 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [nameof(PlayniteAchievementsSettings.DynamicAchievements)] = nameof(DynamicAchievements),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsGameKey)] = nameof(DynamicAchievementsGameKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsGameLabel)] = nameof(DynamicAchievementsGameLabel),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsFilterKey)] = nameof(DynamicAchievementsFilterKey),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsFilterLabel)] = nameof(DynamicAchievementsFilterLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsStatusFilterKey)] = nameof(DynamicAchievementsStatusFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsProgressFilterKey)] = nameof(DynamicAchievementsProgressFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsRarityFilterKey)] = nameof(DynamicAchievementsRarityFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsTrophyFilterKey)] = nameof(DynamicAchievementsTrophyFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsCustomizationFilterKey)] = nameof(DynamicAchievementsCustomizationFilterKey),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortKey)] = nameof(DynamicAchievementsSortKey),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortLabel)] = nameof(DynamicAchievementsSortLabel),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortDirectionKey)] = nameof(DynamicAchievementsSortDirectionKey),
                 [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortDirectionLabel)] = nameof(DynamicAchievementsSortDirectionLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsDefaultFilterKey)] = nameof(DynamicAchievementsDefaultFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsDefaultSortKey)] = nameof(DynamicAchievementsDefaultSortKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsDefaultSortDirectionKey)] = nameof(DynamicAchievementsDefaultSortDirectionKey),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsFilterOptions)] = nameof(DynamicAchievementsFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortOptions)] = nameof(DynamicAchievementsSortOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementsSortDirectionOptions)] = nameof(DynamicAchievementsSortDirectionOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementGameOptions)] = nameof(DynamicAchievementGameOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementStatusFilterOptions)] = nameof(DynamicAchievementStatusFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementProgressFilterOptions)] = nameof(DynamicAchievementProgressFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementRarityFilterOptions)] = nameof(DynamicAchievementRarityFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementTrophyFilterOptions)] = nameof(DynamicAchievementTrophyFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicAchievementCustomizationFilterOptions)] = nameof(DynamicAchievementCustomizationFilterOptions),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummaries)] = nameof(DynamicGameSummaries),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesProviderKey)] = nameof(DynamicGameSummariesProviderKey),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesProviderLabel)] = nameof(DynamicGameSummariesProviderLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesFilterKey)] = nameof(DynamicGameSummariesFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesFilterLabel)] = nameof(DynamicGameSummariesFilterLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesProgressFilterKey)] = nameof(DynamicGameSummariesProgressFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesActivityFilterKey)] = nameof(DynamicGameSummariesActivityFilterKey),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortKey)] = nameof(DynamicGameSummariesSortKey),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortLabel)] = nameof(DynamicGameSummariesSortLabel),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortDirectionKey)] = nameof(DynamicGameSummariesSortDirectionKey),
                 [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortDirectionLabel)] = nameof(DynamicGameSummariesSortDirectionLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesDefaultProviderKey)] = nameof(DynamicGameSummariesDefaultProviderKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesDefaultFilterKey)] = nameof(DynamicGameSummariesDefaultFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesDefaultSortKey)] = nameof(DynamicGameSummariesDefaultSortKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesDefaultSortDirectionKey)] = nameof(DynamicGameSummariesDefaultSortDirectionKey),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesProviderOptions)] = nameof(DynamicGameSummariesProviderOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesFilterOptions)] = nameof(DynamicGameSummariesFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortOptions)] = nameof(DynamicGameSummariesSortOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicGameSummariesSortDirectionOptions)] = nameof(DynamicGameSummariesSortDirectionOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicGameProgressFilterOptions)] = nameof(DynamicGameProgressFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicGameActivityFilterOptions)] = nameof(DynamicGameActivityFilterOptions),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievements)] = nameof(DynamicLibraryAchievements),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsProviderKey)] = nameof(DynamicLibraryAchievementsProviderKey),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsProviderLabel)] = nameof(DynamicLibraryAchievementsProviderLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsFilterKey)] = nameof(DynamicLibraryAchievementsFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsFilterLabel)] = nameof(DynamicLibraryAchievementsFilterLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsStatusFilterKey)] = nameof(DynamicLibraryAchievementsStatusFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsProgressFilterKey)] = nameof(DynamicLibraryAchievementsProgressFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsRarityFilterKey)] = nameof(DynamicLibraryAchievementsRarityFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsTrophyFilterKey)] = nameof(DynamicLibraryAchievementsTrophyFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsCustomizationFilterKey)] = nameof(DynamicLibraryAchievementsCustomizationFilterKey),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortKey)] = nameof(DynamicLibraryAchievementsSortKey),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortLabel)] = nameof(DynamicLibraryAchievementsSortLabel),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortDirectionKey)] = nameof(DynamicLibraryAchievementsSortDirectionKey),
                 [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortDirectionLabel)] = nameof(DynamicLibraryAchievementsSortDirectionLabel),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsDefaultProviderKey)] = nameof(DynamicLibraryAchievementsDefaultProviderKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsDefaultFilterKey)] = nameof(DynamicLibraryAchievementsDefaultFilterKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsDefaultSortKey)] = nameof(DynamicLibraryAchievementsDefaultSortKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsDefaultSortDirectionKey)] = nameof(DynamicLibraryAchievementsDefaultSortDirectionKey),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsProviderOptions)] = nameof(DynamicLibraryAchievementsProviderOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsFilterOptions)] = nameof(DynamicLibraryAchievementsFilterOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortOptions)] = nameof(DynamicLibraryAchievementsSortOptions),
+                [nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsSortDirectionOptions)] = nameof(DynamicLibraryAchievementsSortDirectionOptions),
+                [nameof(PlayniteAchievementsSettings.SetDynamicAchievementsGameCommand)] = nameof(SetDynamicAchievementsGameCommand),
                 [nameof(PlayniteAchievementsSettings.SetDynamicAchievementsFilterCommand)] = nameof(SetDynamicAchievementsFilterCommand),
                 [nameof(PlayniteAchievementsSettings.SortDynamicAchievementsCommand)] = nameof(SortDynamicAchievementsCommand),
                 [nameof(PlayniteAchievementsSettings.SetDynamicAchievementsSortDirectionCommand)] = nameof(SetDynamicAchievementsSortDirectionCommand),
                 [nameof(PlayniteAchievementsSettings.OpenViewAchievementsWindow)] = nameof(OpenViewAchievementsWindow),
                 [nameof(PlayniteAchievementsSettings.OpenManageAchievementsWindow)] = nameof(OpenManageAchievementsWindow),
                 [nameof(PlayniteAchievementsSettings.FilterDynamicLibraryAchievementsByProviderCommand)] = nameof(FilterDynamicLibraryAchievementsByProviderCommand),
+                [nameof(PlayniteAchievementsSettings.SetDynamicLibraryAchievementsFilterCommand)] = nameof(SetDynamicLibraryAchievementsFilterCommand),
                 [nameof(PlayniteAchievementsSettings.SortDynamicLibraryAchievementsCommand)] = nameof(SortDynamicLibraryAchievementsCommand),
                 [nameof(PlayniteAchievementsSettings.SetDynamicLibraryAchievementsSortDirectionCommand)] = nameof(SetDynamicLibraryAchievementsSortDirectionCommand),
                 [nameof(PlayniteAchievementsSettings.FilterDynamicGameSummariesByProviderCommand)] = nameof(FilterDynamicGameSummariesByProviderCommand),
+                [nameof(PlayniteAchievementsSettings.SetDynamicGameSummariesFilterCommand)] = nameof(SetDynamicGameSummariesFilterCommand),
                 [nameof(PlayniteAchievementsSettings.SortDynamicGameSummariesCommand)] = nameof(SortDynamicGameSummariesCommand),
-                [nameof(PlayniteAchievementsSettings.SetDynamicGameSummariesSortDirectionCommand)] = nameof(SetDynamicGameSummariesSortDirectionCommand)
+                [nameof(PlayniteAchievementsSettings.SetDynamicGameSummariesSortDirectionCommand)] = nameof(SetDynamicGameSummariesSortDirectionCommand),
+                [nameof(PlayniteAchievementsSettings.ResetDynamicAchievementsCommand)] = nameof(ResetDynamicAchievementsCommand),
+                [nameof(PlayniteAchievementsSettings.ResetDynamicLibraryAchievementsCommand)] = nameof(ResetDynamicLibraryAchievementsCommand),
+                [nameof(PlayniteAchievementsSettings.ResetDynamicGameSummariesCommand)] = nameof(ResetDynamicGameSummariesCommand)
             };
 
         private static readonly IReadOnlyDictionary<string, string> ModernThemeForwardMap =
@@ -555,26 +620,62 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
                 [nameof(ModernThemeBindings.AchievementsRarityAsc)] = nameof(AchievementsRarityAsc),
                 [nameof(ModernThemeBindings.AchievementsRarityDesc)] = nameof(AchievementsRarityDesc),
                 [nameof(ModernThemeBindings.DynamicAchievements)] = nameof(DynamicAchievements),
+                [nameof(ModernThemeBindings.DynamicAchievementsGameKey)] = nameof(DynamicAchievementsGameKey),
+                [nameof(ModernThemeBindings.DynamicAchievementsGameLabel)] = nameof(DynamicAchievementsGameLabel),
                 [nameof(ModernThemeBindings.DynamicAchievementsFilterKey)] = nameof(DynamicAchievementsFilterKey),
                 [nameof(ModernThemeBindings.DynamicAchievementsFilterLabel)] = nameof(DynamicAchievementsFilterLabel),
                 [nameof(ModernThemeBindings.DynamicAchievementsSortKey)] = nameof(DynamicAchievementsSortKey),
                 [nameof(ModernThemeBindings.DynamicAchievementsSortLabel)] = nameof(DynamicAchievementsSortLabel),
                 [nameof(ModernThemeBindings.DynamicAchievementsSortDirectionKey)] = nameof(DynamicAchievementsSortDirectionKey),
                 [nameof(ModernThemeBindings.DynamicAchievementsSortDirectionLabel)] = nameof(DynamicAchievementsSortDirectionLabel),
+                [nameof(ModernThemeBindings.DynamicAchievementsDefaultFilterKey)] = nameof(DynamicAchievementsDefaultFilterKey),
+                [nameof(ModernThemeBindings.DynamicAchievementsDefaultSortKey)] = nameof(DynamicAchievementsDefaultSortKey),
+                [nameof(ModernThemeBindings.DynamicAchievementsDefaultSortDirectionKey)] = nameof(DynamicAchievementsDefaultSortDirectionKey),
+                [nameof(ModernThemeBindings.DynamicAchievementsFilterOptions)] = nameof(DynamicAchievementsFilterOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementsSortOptions)] = nameof(DynamicAchievementsSortOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementsSortDirectionOptions)] = nameof(DynamicAchievementsSortDirectionOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementGameOptions)] = nameof(DynamicAchievementGameOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementStatusFilterOptions)] = nameof(DynamicAchievementStatusFilterOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementProgressFilterOptions)] = nameof(DynamicAchievementProgressFilterOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementRarityFilterOptions)] = nameof(DynamicAchievementRarityFilterOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementTrophyFilterOptions)] = nameof(DynamicAchievementTrophyFilterOptions),
+                [nameof(ModernThemeBindings.DynamicAchievementCustomizationFilterOptions)] = nameof(DynamicAchievementCustomizationFilterOptions),
                 [nameof(ModernThemeBindings.DynamicGameSummaries)] = nameof(DynamicGameSummaries),
                 [nameof(ModernThemeBindings.DynamicGameSummariesProviderKey)] = nameof(DynamicGameSummariesProviderKey),
                 [nameof(ModernThemeBindings.DynamicGameSummariesProviderLabel)] = nameof(DynamicGameSummariesProviderLabel),
+                [nameof(ModernThemeBindings.DynamicGameSummariesFilterKey)] = nameof(DynamicGameSummariesFilterKey),
+                [nameof(ModernThemeBindings.DynamicGameSummariesFilterLabel)] = nameof(DynamicGameSummariesFilterLabel),
                 [nameof(ModernThemeBindings.DynamicGameSummariesSortKey)] = nameof(DynamicGameSummariesSortKey),
                 [nameof(ModernThemeBindings.DynamicGameSummariesSortLabel)] = nameof(DynamicGameSummariesSortLabel),
                 [nameof(ModernThemeBindings.DynamicGameSummariesSortDirectionKey)] = nameof(DynamicGameSummariesSortDirectionKey),
                 [nameof(ModernThemeBindings.DynamicGameSummariesSortDirectionLabel)] = nameof(DynamicGameSummariesSortDirectionLabel),
+                [nameof(ModernThemeBindings.DynamicGameSummariesDefaultProviderKey)] = nameof(DynamicGameSummariesDefaultProviderKey),
+                [nameof(ModernThemeBindings.DynamicGameSummariesDefaultFilterKey)] = nameof(DynamicGameSummariesDefaultFilterKey),
+                [nameof(ModernThemeBindings.DynamicGameSummariesDefaultSortKey)] = nameof(DynamicGameSummariesDefaultSortKey),
+                [nameof(ModernThemeBindings.DynamicGameSummariesDefaultSortDirectionKey)] = nameof(DynamicGameSummariesDefaultSortDirectionKey),
+                [nameof(ModernThemeBindings.DynamicGameSummariesProviderOptions)] = nameof(DynamicGameSummariesProviderOptions),
+                [nameof(ModernThemeBindings.DynamicGameSummariesFilterOptions)] = nameof(DynamicGameSummariesFilterOptions),
+                [nameof(ModernThemeBindings.DynamicGameSummariesSortOptions)] = nameof(DynamicGameSummariesSortOptions),
+                [nameof(ModernThemeBindings.DynamicGameSummariesSortDirectionOptions)] = nameof(DynamicGameSummariesSortDirectionOptions),
+                [nameof(ModernThemeBindings.DynamicGameProgressFilterOptions)] = nameof(DynamicGameProgressFilterOptions),
+                [nameof(ModernThemeBindings.DynamicGameActivityFilterOptions)] = nameof(DynamicGameActivityFilterOptions),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievements)] = nameof(DynamicLibraryAchievements),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsProviderKey)] = nameof(DynamicLibraryAchievementsProviderKey),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsProviderLabel)] = nameof(DynamicLibraryAchievementsProviderLabel),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsFilterKey)] = nameof(DynamicLibraryAchievementsFilterKey),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsFilterLabel)] = nameof(DynamicLibraryAchievementsFilterLabel),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortKey)] = nameof(DynamicLibraryAchievementsSortKey),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortLabel)] = nameof(DynamicLibraryAchievementsSortLabel),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortDirectionKey)] = nameof(DynamicLibraryAchievementsSortDirectionKey),
                 [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortDirectionLabel)] = nameof(DynamicLibraryAchievementsSortDirectionLabel),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsDefaultProviderKey)] = nameof(DynamicLibraryAchievementsDefaultProviderKey),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsDefaultFilterKey)] = nameof(DynamicLibraryAchievementsDefaultFilterKey),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsDefaultSortKey)] = nameof(DynamicLibraryAchievementsDefaultSortKey),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsDefaultSortDirectionKey)] = nameof(DynamicLibraryAchievementsDefaultSortDirectionKey),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsProviderOptions)] = nameof(DynamicLibraryAchievementsProviderOptions),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsFilterOptions)] = nameof(DynamicLibraryAchievementsFilterOptions),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortOptions)] = nameof(DynamicLibraryAchievementsSortOptions),
+                [nameof(ModernThemeBindings.DynamicLibraryAchievementsSortDirectionOptions)] = nameof(DynamicLibraryAchievementsSortDirectionOptions),
                 [nameof(ModernThemeBindings.Common)] = nameof(Common),
                 [nameof(ModernThemeBindings.Uncommon)] = nameof(Uncommon),
                 [nameof(ModernThemeBindings.Rare)] = nameof(Rare),
@@ -597,26 +698,74 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             nameof(AchievementsRarityAsc),
             nameof(AchievementsRarityDesc),
             nameof(DynamicAchievements),
+            nameof(DynamicAchievementsGameKey),
+            nameof(DynamicAchievementsGameLabel),
             nameof(DynamicAchievementsFilterKey),
             nameof(DynamicAchievementsFilterLabel),
+            nameof(DynamicAchievementsStatusFilterKey),
+            nameof(DynamicAchievementsProgressFilterKey),
+            nameof(DynamicAchievementsRarityFilterKey),
+            nameof(DynamicAchievementsTrophyFilterKey),
+            nameof(DynamicAchievementsCustomizationFilterKey),
             nameof(DynamicAchievementsSortKey),
             nameof(DynamicAchievementsSortLabel),
             nameof(DynamicAchievementsSortDirectionKey),
             nameof(DynamicAchievementsSortDirectionLabel),
+            nameof(DynamicAchievementsDefaultFilterKey),
+            nameof(DynamicAchievementsDefaultSortKey),
+            nameof(DynamicAchievementsDefaultSortDirectionKey),
+            nameof(DynamicAchievementsFilterOptions),
+            nameof(DynamicAchievementsSortOptions),
+            nameof(DynamicAchievementsSortDirectionOptions),
+            nameof(DynamicAchievementGameOptions),
+            nameof(DynamicAchievementStatusFilterOptions),
+            nameof(DynamicAchievementProgressFilterOptions),
+            nameof(DynamicAchievementRarityFilterOptions),
+            nameof(DynamicAchievementTrophyFilterOptions),
+            nameof(DynamicAchievementCustomizationFilterOptions),
             nameof(DynamicGameSummaries),
             nameof(DynamicGameSummariesProviderKey),
             nameof(DynamicGameSummariesProviderLabel),
+            nameof(DynamicGameSummariesFilterKey),
+            nameof(DynamicGameSummariesFilterLabel),
+            nameof(DynamicGameSummariesProgressFilterKey),
+            nameof(DynamicGameSummariesActivityFilterKey),
             nameof(DynamicGameSummariesSortKey),
             nameof(DynamicGameSummariesSortLabel),
             nameof(DynamicGameSummariesSortDirectionKey),
             nameof(DynamicGameSummariesSortDirectionLabel),
+            nameof(DynamicGameSummariesDefaultProviderKey),
+            nameof(DynamicGameSummariesDefaultFilterKey),
+            nameof(DynamicGameSummariesDefaultSortKey),
+            nameof(DynamicGameSummariesDefaultSortDirectionKey),
+            nameof(DynamicGameSummariesProviderOptions),
+            nameof(DynamicGameSummariesFilterOptions),
+            nameof(DynamicGameSummariesSortOptions),
+            nameof(DynamicGameSummariesSortDirectionOptions),
+            nameof(DynamicGameProgressFilterOptions),
+            nameof(DynamicGameActivityFilterOptions),
             nameof(DynamicLibraryAchievements),
             nameof(DynamicLibraryAchievementsProviderKey),
             nameof(DynamicLibraryAchievementsProviderLabel),
+            nameof(DynamicLibraryAchievementsFilterKey),
+            nameof(DynamicLibraryAchievementsFilterLabel),
+            nameof(DynamicLibraryAchievementsStatusFilterKey),
+            nameof(DynamicLibraryAchievementsProgressFilterKey),
+            nameof(DynamicLibraryAchievementsRarityFilterKey),
+            nameof(DynamicLibraryAchievementsTrophyFilterKey),
+            nameof(DynamicLibraryAchievementsCustomizationFilterKey),
             nameof(DynamicLibraryAchievementsSortKey),
             nameof(DynamicLibraryAchievementsSortLabel),
             nameof(DynamicLibraryAchievementsSortDirectionKey),
             nameof(DynamicLibraryAchievementsSortDirectionLabel),
+            nameof(DynamicLibraryAchievementsDefaultProviderKey),
+            nameof(DynamicLibraryAchievementsDefaultFilterKey),
+            nameof(DynamicLibraryAchievementsDefaultSortKey),
+            nameof(DynamicLibraryAchievementsDefaultSortDirectionKey),
+            nameof(DynamicLibraryAchievementsProviderOptions),
+            nameof(DynamicLibraryAchievementsFilterOptions),
+            nameof(DynamicLibraryAchievementsSortOptions),
+            nameof(DynamicLibraryAchievementsSortDirectionOptions),
             nameof(Common),
             nameof(Uncommon),
             nameof(Rare),
@@ -663,6 +812,57 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         /// </summary>
         public PlayniteAchievementsSettings Settings => _settings;
 
+        private static string GetAchievementGroupFilter(string filterKey, string groupKey)
+        {
+            return GetAchievementGroupFilter(filterKey, new[] { groupKey });
+        }
+
+        private static string GetAchievementGroupFilter(string filterKey, IEnumerable<string> groupKeys)
+        {
+            return DynamicThemeOptionGroups.GetGroupSelection(
+                filterKey,
+                groupKeys,
+                DynamicThemeOptionGroups.AchievementFilterGroupMap);
+        }
+
+        private static string GetGameSummaryGroupFilter(string filterKey, IEnumerable<string> groupKeys)
+        {
+            return DynamicThemeOptionGroups.GetGroupSelection(
+                filterKey,
+                groupKeys,
+                DynamicThemeOptionGroups.GameSummaryFilterGroupMap);
+        }
+
+        private void SetDynamicAchievementsGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            DynamicAchievementsFilterKey = DynamicThemeOptionGroups.SetGroupSelection(
+                DynamicAchievementsFilterKey,
+                groupKeys,
+                value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                DynamicThemeOptionGroups.AchievementFilterKeyMap,
+                DynamicThemeOptionGroups.AchievementFilterGroupMap);
+        }
+
+        private void SetDynamicLibraryAchievementsGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            DynamicLibraryAchievementsFilterKey = DynamicThemeOptionGroups.SetGroupSelection(
+                DynamicLibraryAchievementsFilterKey,
+                groupKeys,
+                value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                DynamicThemeOptionGroups.AchievementFilterKeyMap,
+                DynamicThemeOptionGroups.AchievementFilterGroupMap);
+        }
+
+        private void SetDynamicGameSummariesGroupFilter(IEnumerable<string> groupKeys, object value)
+        {
+            DynamicGameSummariesFilterKey = DynamicThemeOptionGroups.SetGroupSelection(
+                DynamicGameSummariesFilterKey,
+                groupKeys,
+                value is DynamicThemeOption option ? option.Key : value?.ToString(),
+                DynamicThemeOptionGroups.GameSummaryFilterKeyMap,
+                DynamicThemeOptionGroups.GameSummaryFilterGroupMap);
+        }
+
         public bool HasAchievements => _modernThemeOverride?.HasAchievements ?? _settings?.HasAchievements ?? false;
 
         public bool HasCustomAchievementOrder => _modernThemeOverride?.HasCustomAchievementOrder ?? false;
@@ -689,45 +889,373 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         public List<AchievementDetail> DynamicAchievements => _modernThemeOverride?.DynamicAchievements ?? _settings?.DynamicAchievements ?? EmptyAchievementList;
 
-        public string DynamicAchievementsFilterKey => _modernThemeOverride?.DynamicAchievementsFilterKey ?? _settings?.DynamicAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+        public string DynamicAchievementsGameKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsGameKey ?? _settings?.DynamicAchievementsGameKey ?? string.Empty;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsGameKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsGameKey = value;
+            }
+        }
+
+        public string DynamicAchievementsGameLabel => _modernThemeOverride?.DynamicAchievementsGameLabel ?? _settings?.DynamicAchievementsGameLabel ?? string.Empty;
+
+        public string DynamicAchievementsFilterKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsFilterKey ?? _settings?.DynamicAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsFilterKey = value;
+            }
+        }
 
         public string DynamicAchievementsFilterLabel => _modernThemeOverride?.DynamicAchievementsFilterLabel ?? _settings?.DynamicAchievementsFilterLabel ?? DynamicThemeViewKeys.All;
 
-        public string DynamicAchievementsSortKey => _modernThemeOverride?.DynamicAchievementsSortKey ?? _settings?.DynamicAchievementsSortKey ?? DynamicThemeViewKeys.Default;
+        public string DynamicAchievementsStatusFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementStatusGroup);
+            set => SetDynamicAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementStatusGroup }, value);
+        }
+
+        public string DynamicAchievementsProgressFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementProgressGroup);
+            set => SetDynamicAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementProgressGroup }, value);
+        }
+
+        public string DynamicAchievementsRarityFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementRarityGroup);
+            set => SetDynamicAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementRarityGroup }, value);
+        }
+
+        public string DynamicAchievementsTrophyFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementTrophyGroup);
+            set => SetDynamicAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementTrophyGroup }, value);
+        }
+
+        public string DynamicAchievementsCustomizationFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicAchievementsFilterKey, DynamicThemeOptionGroups.AchievementCustomizationGroups);
+            set => SetDynamicAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementCustomizationGroups, value);
+        }
+
+        public string DynamicAchievementsSortKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsSortKey ?? _settings?.DynamicAchievementsSortKey ?? DynamicThemeViewKeys.Default;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsSortKey = value;
+            }
+        }
 
         public string DynamicAchievementsSortLabel => _modernThemeOverride?.DynamicAchievementsSortLabel ?? _settings?.DynamicAchievementsSortLabel ?? DynamicThemeViewKeys.Default;
 
-        public string DynamicAchievementsSortDirectionKey => _modernThemeOverride?.DynamicAchievementsSortDirectionKey ?? _settings?.DynamicAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicAchievementsSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsSortDirectionKey ?? _settings?.DynamicAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsSortDirectionKey = value;
+            }
+        }
 
         public string DynamicAchievementsSortDirectionLabel => _modernThemeOverride?.DynamicAchievementsSortDirectionLabel ?? _settings?.DynamicAchievementsSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
 
+        public string DynamicAchievementsDefaultFilterKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsDefaultFilterKey ?? _settings?.DynamicAchievementsDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsDefaultFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsDefaultFilterKey = value;
+            }
+        }
+
+        public string DynamicAchievementsDefaultSortKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsDefaultSortKey ?? _settings?.DynamicAchievementsDefaultSortKey ?? DynamicThemeViewKeys.Default;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsDefaultSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsDefaultSortKey = value;
+            }
+        }
+
+        public string DynamicAchievementsDefaultSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicAchievementsDefaultSortDirectionKey ?? _settings?.DynamicAchievementsDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicAchievementsDefaultSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicAchievementsDefaultSortDirectionKey = value;
+            }
+        }
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsFilterOptions => _modernThemeOverride?.DynamicAchievementsFilterOptions ?? _settings?.DynamicAchievementsFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortOptions => _modernThemeOverride?.DynamicAchievementsSortOptions ?? _settings?.DynamicAchievementsSortOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortDirectionOptions => _modernThemeOverride?.DynamicAchievementsSortDirectionOptions ?? _settings?.DynamicAchievementsSortDirectionOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementGameOptions => _modernThemeOverride?.DynamicAchievementGameOptions ?? _settings?.DynamicAchievementGameOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementStatusFilterOptions => _modernThemeOverride?.DynamicAchievementStatusFilterOptions ?? _settings?.DynamicAchievementStatusFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementProgressFilterOptions => _modernThemeOverride?.DynamicAchievementProgressFilterOptions ?? _settings?.DynamicAchievementProgressFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementRarityFilterOptions => _modernThemeOverride?.DynamicAchievementRarityFilterOptions ?? _settings?.DynamicAchievementRarityFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementTrophyFilterOptions => _modernThemeOverride?.DynamicAchievementTrophyFilterOptions ?? _settings?.DynamicAchievementTrophyFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementCustomizationFilterOptions => _modernThemeOverride?.DynamicAchievementCustomizationFilterOptions ?? _settings?.DynamicAchievementCustomizationFilterOptions;
+
         public ObservableCollection<GameAchievementSummary> DynamicGameSummaries => _modernThemeOverride?.DynamicGameSummaries ?? _settings?.DynamicGameSummaries;
 
-        public string DynamicGameSummariesProviderKey => _modernThemeOverride?.DynamicGameSummariesProviderKey ?? _settings?.DynamicGameSummariesProviderKey ?? DynamicThemeViewKeys.All;
+        public string DynamicGameSummariesProviderKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesProviderKey ?? _settings?.DynamicGameSummariesProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesProviderKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesProviderKey = value;
+            }
+        }
 
         public string DynamicGameSummariesProviderLabel => _modernThemeOverride?.DynamicGameSummariesProviderLabel ?? _settings?.DynamicGameSummariesProviderLabel ?? DynamicThemeViewKeys.All;
 
-        public string DynamicGameSummariesSortKey => _modernThemeOverride?.DynamicGameSummariesSortKey ?? _settings?.DynamicGameSummariesSortKey ?? DynamicThemeViewKeys.LastUnlock;
+        public string DynamicGameSummariesFilterKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesFilterKey ?? _settings?.DynamicGameSummariesFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesFilterKey = value;
+            }
+        }
+
+        public string DynamicGameSummariesFilterLabel => _modernThemeOverride?.DynamicGameSummariesFilterLabel ?? _settings?.DynamicGameSummariesFilterLabel ?? DynamicThemeViewKeys.All;
+
+        public string DynamicGameSummariesProgressFilterKey
+        {
+            get => GetGameSummaryGroupFilter(DynamicGameSummariesFilterKey, DynamicThemeOptionGroups.GameProgressGroups);
+            set => SetDynamicGameSummariesGroupFilter(DynamicThemeOptionGroups.GameProgressGroups, value);
+        }
+
+        public string DynamicGameSummariesActivityFilterKey
+        {
+            get => GetGameSummaryGroupFilter(DynamicGameSummariesFilterKey, DynamicThemeOptionGroups.GameActivityGroups);
+            set => SetDynamicGameSummariesGroupFilter(DynamicThemeOptionGroups.GameActivityGroups, value);
+        }
+
+        public string DynamicGameSummariesSortKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesSortKey ?? _settings?.DynamicGameSummariesSortKey ?? DynamicThemeViewKeys.LastUnlock;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesSortKey = value;
+            }
+        }
 
         public string DynamicGameSummariesSortLabel => _modernThemeOverride?.DynamicGameSummariesSortLabel ?? _settings?.DynamicGameSummariesSortLabel ?? DynamicThemeViewKeys.LastUnlock;
 
-        public string DynamicGameSummariesSortDirectionKey => _modernThemeOverride?.DynamicGameSummariesSortDirectionKey ?? _settings?.DynamicGameSummariesSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicGameSummariesSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesSortDirectionKey ?? _settings?.DynamicGameSummariesSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesSortDirectionKey = value;
+            }
+        }
 
         public string DynamicGameSummariesSortDirectionLabel => _modernThemeOverride?.DynamicGameSummariesSortDirectionLabel ?? _settings?.DynamicGameSummariesSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
 
+        public string DynamicGameSummariesDefaultProviderKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesDefaultProviderKey ?? _settings?.DynamicGameSummariesDefaultProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesDefaultProviderKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesDefaultProviderKey = value;
+            }
+        }
+
+        public string DynamicGameSummariesDefaultFilterKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesDefaultFilterKey ?? _settings?.DynamicGameSummariesDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesDefaultFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesDefaultFilterKey = value;
+            }
+        }
+
+        public string DynamicGameSummariesDefaultSortKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesDefaultSortKey ?? _settings?.DynamicGameSummariesDefaultSortKey ?? DynamicThemeViewKeys.LastUnlock;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesDefaultSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesDefaultSortKey = value;
+            }
+        }
+
+        public string DynamicGameSummariesDefaultSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicGameSummariesDefaultSortDirectionKey ?? _settings?.DynamicGameSummariesDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicGameSummariesDefaultSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicGameSummariesDefaultSortDirectionKey = value;
+            }
+        }
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesProviderOptions => _modernThemeOverride?.DynamicGameSummariesProviderOptions ?? _settings?.DynamicGameSummariesProviderOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesFilterOptions => _modernThemeOverride?.DynamicGameSummariesFilterOptions ?? _settings?.DynamicGameSummariesFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortOptions => _modernThemeOverride?.DynamicGameSummariesSortOptions ?? _settings?.DynamicGameSummariesSortOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortDirectionOptions => _modernThemeOverride?.DynamicGameSummariesSortDirectionOptions ?? _settings?.DynamicGameSummariesSortDirectionOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameProgressFilterOptions => _modernThemeOverride?.DynamicGameProgressFilterOptions ?? _settings?.DynamicGameProgressFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicGameActivityFilterOptions => _modernThemeOverride?.DynamicGameActivityFilterOptions ?? _settings?.DynamicGameActivityFilterOptions;
+
         public List<AchievementDetail> DynamicLibraryAchievements => _modernThemeOverride?.DynamicLibraryAchievements ?? _settings?.DynamicLibraryAchievements ?? EmptyAchievementList;
 
-        public string DynamicLibraryAchievementsProviderKey => _modernThemeOverride?.DynamicLibraryAchievementsProviderKey ?? _settings?.DynamicLibraryAchievementsProviderKey ?? DynamicThemeViewKeys.All;
+        public string DynamicLibraryAchievementsProviderKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsProviderKey ?? _settings?.DynamicLibraryAchievementsProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsProviderKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsProviderKey = value;
+            }
+        }
 
         public string DynamicLibraryAchievementsProviderLabel => _modernThemeOverride?.DynamicLibraryAchievementsProviderLabel ?? _settings?.DynamicLibraryAchievementsProviderLabel ?? DynamicThemeViewKeys.All;
 
-        public string DynamicLibraryAchievementsSortKey => _modernThemeOverride?.DynamicLibraryAchievementsSortKey ?? _settings?.DynamicLibraryAchievementsSortKey ?? DynamicThemeViewKeys.UnlockTime;
+        public string DynamicLibraryAchievementsFilterKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsFilterKey ?? _settings?.DynamicLibraryAchievementsFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsFilterKey = value;
+            }
+        }
+
+        public string DynamicLibraryAchievementsFilterLabel => _modernThemeOverride?.DynamicLibraryAchievementsFilterLabel ?? _settings?.DynamicLibraryAchievementsFilterLabel ?? DynamicThemeViewKeys.All;
+
+        public string DynamicLibraryAchievementsStatusFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementStatusGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementStatusGroup }, value);
+        }
+
+        public string DynamicLibraryAchievementsProgressFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementProgressGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementProgressGroup }, value);
+        }
+
+        public string DynamicLibraryAchievementsRarityFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementRarityGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementRarityGroup }, value);
+        }
+
+        public string DynamicLibraryAchievementsTrophyFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementTrophyGroup);
+            set => SetDynamicLibraryAchievementsGroupFilter(new[] { DynamicThemeOptionGroups.AchievementTrophyGroup }, value);
+        }
+
+        public string DynamicLibraryAchievementsCustomizationFilterKey
+        {
+            get => GetAchievementGroupFilter(DynamicLibraryAchievementsFilterKey, DynamicThemeOptionGroups.AchievementCustomizationGroups);
+            set => SetDynamicLibraryAchievementsGroupFilter(DynamicThemeOptionGroups.AchievementCustomizationGroups, value);
+        }
+
+        public string DynamicLibraryAchievementsSortKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsSortKey ?? _settings?.DynamicLibraryAchievementsSortKey ?? DynamicThemeViewKeys.UnlockTime;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsSortKey = value;
+            }
+        }
 
         public string DynamicLibraryAchievementsSortLabel => _modernThemeOverride?.DynamicLibraryAchievementsSortLabel ?? _settings?.DynamicLibraryAchievementsSortLabel ?? DynamicThemeViewKeys.UnlockTime;
 
-        public string DynamicLibraryAchievementsSortDirectionKey => _modernThemeOverride?.DynamicLibraryAchievementsSortDirectionKey ?? _settings?.DynamicLibraryAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+        public string DynamicLibraryAchievementsSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsSortDirectionKey ?? _settings?.DynamicLibraryAchievementsSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsSortDirectionKey = value;
+            }
+        }
 
         public string DynamicLibraryAchievementsSortDirectionLabel => _modernThemeOverride?.DynamicLibraryAchievementsSortDirectionLabel ?? _settings?.DynamicLibraryAchievementsSortDirectionLabel ?? DynamicThemeViewKeys.Descending;
+
+        public string DynamicLibraryAchievementsDefaultProviderKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsDefaultProviderKey ?? _settings?.DynamicLibraryAchievementsDefaultProviderKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsDefaultProviderKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsDefaultProviderKey = value;
+            }
+        }
+
+        public string DynamicLibraryAchievementsDefaultFilterKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsDefaultFilterKey ?? _settings?.DynamicLibraryAchievementsDefaultFilterKey ?? DynamicThemeViewKeys.All;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsDefaultFilterKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsDefaultFilterKey = value;
+            }
+        }
+
+        public string DynamicLibraryAchievementsDefaultSortKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsDefaultSortKey ?? _settings?.DynamicLibraryAchievementsDefaultSortKey ?? DynamicThemeViewKeys.UnlockTime;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsDefaultSortKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsDefaultSortKey = value;
+            }
+        }
+
+        public string DynamicLibraryAchievementsDefaultSortDirectionKey
+        {
+            get => _modernThemeOverride?.DynamicLibraryAchievementsDefaultSortDirectionKey ?? _settings?.DynamicLibraryAchievementsDefaultSortDirectionKey ?? DynamicThemeViewKeys.Descending;
+            set
+            {
+                if (_settings != null) _settings.DynamicLibraryAchievementsDefaultSortDirectionKey = value;
+                else if (_modernThemeOverride != null) _modernThemeOverride.DynamicLibraryAchievementsDefaultSortDirectionKey = value;
+            }
+        }
+
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsProviderOptions => _modernThemeOverride?.DynamicLibraryAchievementsProviderOptions ?? _settings?.DynamicLibraryAchievementsProviderOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsFilterOptions => _modernThemeOverride?.DynamicLibraryAchievementsFilterOptions ?? _settings?.DynamicLibraryAchievementsFilterOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortOptions => _modernThemeOverride?.DynamicLibraryAchievementsSortOptions ?? _settings?.DynamicLibraryAchievementsSortOptions;
+
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortDirectionOptions => _modernThemeOverride?.DynamicLibraryAchievementsSortDirectionOptions ?? _settings?.DynamicLibraryAchievementsSortDirectionOptions;
 
         public AchievementRarityStats Common => _modernThemeOverride?.Common ?? _settings?.Common ?? EmptyRarityStats;
 
@@ -738,6 +1266,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
         public AchievementRarityStats UltraRare => _modernThemeOverride?.UltraRare ?? _settings?.UltraRare ?? EmptyRarityStats;
 
         public AchievementRarityStats RareAndUltraRare => _modernThemeOverride?.RareAndUltraRare ?? _settings?.RareAndUltraRare ?? EmptyRarityStats;
+
+        public System.Windows.Input.ICommand SetDynamicAchievementsGameCommand => _settings?.SetDynamicAchievementsGameCommand;
 
         public System.Windows.Input.ICommand SetDynamicAchievementsFilterCommand => _settings?.SetDynamicAchievementsFilterCommand;
 
@@ -751,15 +1281,25 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
 
         public System.Windows.Input.ICommand FilterDynamicLibraryAchievementsByProviderCommand => _settings?.FilterDynamicLibraryAchievementsByProviderCommand;
 
+        public System.Windows.Input.ICommand SetDynamicLibraryAchievementsFilterCommand => _settings?.SetDynamicLibraryAchievementsFilterCommand;
+
         public System.Windows.Input.ICommand SortDynamicLibraryAchievementsCommand => _settings?.SortDynamicLibraryAchievementsCommand;
 
         public System.Windows.Input.ICommand SetDynamicLibraryAchievementsSortDirectionCommand => _settings?.SetDynamicLibraryAchievementsSortDirectionCommand;
 
         public System.Windows.Input.ICommand FilterDynamicGameSummariesByProviderCommand => _settings?.FilterDynamicGameSummariesByProviderCommand;
 
+        public System.Windows.Input.ICommand SetDynamicGameSummariesFilterCommand => _settings?.SetDynamicGameSummariesFilterCommand;
+
         public System.Windows.Input.ICommand SortDynamicGameSummariesCommand => _settings?.SortDynamicGameSummariesCommand;
 
         public System.Windows.Input.ICommand SetDynamicGameSummariesSortDirectionCommand => _settings?.SetDynamicGameSummariesSortDirectionCommand;
+
+        public System.Windows.Input.ICommand ResetDynamicAchievementsCommand => _settings?.ResetDynamicAchievementsCommand;
+
+        public System.Windows.Input.ICommand ResetDynamicLibraryAchievementsCommand => _settings?.ResetDynamicLibraryAchievementsCommand;
+
+        public System.Windows.Input.ICommand ResetDynamicGameSummariesCommand => _settings?.ResetDynamicGameSummariesCommand;
 
         // Forward other common settings properties.
         public PersistedSettings Persisted => _settings?.Persisted;
@@ -783,6 +1323,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 OnPropertyChanged(mappedProperty);
             }
+
+            NotifyComputedFilterProperties(propertyName);
         }
 
         private void ModernThemeOverride_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -798,6 +1340,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             {
                 OnPropertyChanged(mappedProperty);
             }
+
+            NotifyComputedFilterProperties(propertyName);
         }
 
         private void NotifyForwardedModernProperties()
@@ -805,6 +1349,36 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Base
             foreach (var propertyName in ForwardedModernProperties)
             {
                 OnPropertyChanged(propertyName);
+            }
+        }
+
+        private void NotifyComputedFilterProperties(string propertyName)
+        {
+            if (propertyName == nameof(PlayniteAchievementsSettings.DynamicAchievementsFilterKey) ||
+                propertyName == nameof(ModernThemeBindings.DynamicAchievementsFilterKey))
+            {
+                OnPropertyChanged(nameof(DynamicAchievementsStatusFilterKey));
+                OnPropertyChanged(nameof(DynamicAchievementsProgressFilterKey));
+                OnPropertyChanged(nameof(DynamicAchievementsRarityFilterKey));
+                OnPropertyChanged(nameof(DynamicAchievementsTrophyFilterKey));
+                OnPropertyChanged(nameof(DynamicAchievementsCustomizationFilterKey));
+            }
+
+            if (propertyName == nameof(PlayniteAchievementsSettings.DynamicLibraryAchievementsFilterKey) ||
+                propertyName == nameof(ModernThemeBindings.DynamicLibraryAchievementsFilterKey))
+            {
+                OnPropertyChanged(nameof(DynamicLibraryAchievementsStatusFilterKey));
+                OnPropertyChanged(nameof(DynamicLibraryAchievementsProgressFilterKey));
+                OnPropertyChanged(nameof(DynamicLibraryAchievementsRarityFilterKey));
+                OnPropertyChanged(nameof(DynamicLibraryAchievementsTrophyFilterKey));
+                OnPropertyChanged(nameof(DynamicLibraryAchievementsCustomizationFilterKey));
+            }
+
+            if (propertyName == nameof(PlayniteAchievementsSettings.DynamicGameSummariesFilterKey) ||
+                propertyName == nameof(ModernThemeBindings.DynamicGameSummariesFilterKey))
+            {
+                OnPropertyChanged(nameof(DynamicGameSummariesProgressFilterKey));
+                OnPropertyChanged(nameof(DynamicGameSummariesActivityFilterKey));
             }
         }
     }

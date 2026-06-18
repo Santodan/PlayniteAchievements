@@ -111,6 +111,71 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
+        public void ResolveSelectedGameAchievements_DynamicSortUsesDefaultSourceInsteadOfPrecomputedLists()
+        {
+            var common = CreateDetail("Common", unlocked: true, globalPercentUnlocked: 80);
+            var rare = CreateDetail("Rare", unlocked: true, globalPercentUnlocked: 5);
+            var poison = CreateDetail("Precomputed", unlocked: true, globalPercentUnlocked: 1);
+            var source = new List<AchievementDetail> { common, rare };
+            var state = new SelectedGameRuntimeState(
+                Guid.NewGuid(),
+                DateTime.UtcNow,
+                hasAchievements: true,
+                achievementCount: source.Count,
+                unlockedCount: source.Count,
+                lockedCount: 0,
+                progressPercentage: 100,
+                isCompleted: true,
+                hasCustomAchievementOrder: false,
+                achievementDefaultOrder: source,
+                allAchievements: source,
+                achievementsOldestFirst: new List<AchievementDetail>(),
+                achievementsNewestFirst: new List<AchievementDetail>(),
+                achievementsRarityAsc: new List<AchievementDetail> { poison },
+                achievementsRarityDesc: new List<AchievementDetail> { poison },
+                common: new AchievementRarityStats(),
+                uncommon: new AchievementRarityStats(),
+                rare: new AchievementRarityStats(),
+                ultraRare: new AchievementRarityStats(),
+                rareAndUltraRare: new AchievementRarityStats());
+
+            var resolved = AchievementSortHelper.ResolveSelectedGameAchievements(
+                state,
+                DynamicThemeViewKeys.Rarity,
+                DynamicThemeViewKeys.Ascending);
+
+            CollectionAssert.AreEqual(
+                new[] { "Rare", "Common" },
+                resolved.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void ResolveLibraryAchievements_DynamicSortUsesCanonicalSourceInsteadOfPrecomputedLists()
+        {
+            var common = CreateDetail("Common", unlocked: true, globalPercentUnlocked: 80);
+            var rare = CreateDetail("Rare", unlocked: true, globalPercentUnlocked: 5);
+            var poison = CreateDetail("Precomputed", unlocked: true, globalPercentUnlocked: 1);
+            var state = new LibraryRuntimeState
+            {
+                TotalTrophies = 2,
+                AllAchievements = new List<AchievementDetail> { common, rare },
+                AllAchievementsRarityAsc = new List<AchievementDetail> { poison },
+                AllAchievementsRarityDesc = new List<AchievementDetail> { poison },
+                AllAchievementsUnlockAsc = new List<AchievementDetail> { poison },
+                AllAchievementsUnlockDesc = new List<AchievementDetail> { poison }
+            };
+
+            var resolved = AchievementSortHelper.ResolveLibraryAchievements(
+                state,
+                DynamicThemeViewKeys.Rarity,
+                DynamicThemeViewKeys.Ascending);
+
+            CollectionAssert.AreEqual(
+                new[] { "Rare", "Common" },
+                resolved.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
         public void ResolveGridSortAction_DefaultNone_CyclesAscendingDescendingThenReset()
         {
             var settings = new PersistedSettings

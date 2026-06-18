@@ -349,12 +349,6 @@ namespace PlayniteAchievements
 
             yield return new GameMenuItem
             {
-                Description = "-",
-                MenuSection = PluginGameMenuSection
-            };
-
-            yield return new GameMenuItem
-            {
                 Description = ResourceProvider.GetString("LOCPlayAch_Menu_ManageAchievements"),
                 MenuSection = PluginGameMenuSection,
                 Action = (a) =>
@@ -489,7 +483,11 @@ namespace PlayniteAchievements
                     }
                 };
             }
-
+            yield return new GameMenuItem
+            {
+                Description = "-",
+                MenuSection = PluginGameMenuSection
+            };
             yield return new GameMenuItem
             {
                 Description = ResourceProvider.GetString("LOCPlayAch_Menu_ClearData"),

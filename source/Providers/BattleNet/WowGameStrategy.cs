@@ -13,6 +13,8 @@ namespace PlayniteAchievements.Providers.BattleNet
 {
     internal sealed class WowGameStrategy
     {
+        internal const string EnglishMetadataLocale = "en-US";
+
         private readonly BattleNetApiClient _client;
         private readonly ILogger _logger;
 
@@ -100,6 +102,91 @@ namespace PlayniteAchievements.Providers.BattleNet
             return achievements;
         }
 
+        internal static bool RequiresEnglishMetadataProjection(string locale)
+        {
+            var wowLocale = BattleNetLocaleMapper.ToWowWebLocale(
+                string.IsNullOrWhiteSpace(locale) ? EnglishMetadataLocale : locale);
+            return !string.Equals(wowLocale, "en-us", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static List<AchievementDetail> CreateEnglishMetadataProjection(
+            IList<AchievementDetail> nativeAchievements,
+            IList<AchievementDetail> englishAchievements)
+        {
+            var englishByApiName = BuildAchievementLookup(englishAchievements);
+            var projection = new List<AchievementDetail>();
+
+            foreach (var nativeAchievement in nativeAchievements ?? Enumerable.Empty<AchievementDetail>())
+            {
+                if (nativeAchievement == null)
+                {
+                    projection.Add(null);
+                    continue;
+                }
+
+                var projected = CloneForMetadataProjection(nativeAchievement);
+                var apiName = NormalizeApiName(nativeAchievement.ApiName);
+                if (!string.IsNullOrWhiteSpace(apiName) &&
+                    englishByApiName.TryGetValue(apiName, out var englishAchievement))
+                {
+                    if (!string.IsNullOrWhiteSpace(englishAchievement.DisplayName))
+                    {
+                        projected.DisplayName = englishAchievement.DisplayName;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(englishAchievement.Description))
+                    {
+                        projected.Description = englishAchievement.Description;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(englishAchievement.Category))
+                    {
+                        projected.Category = englishAchievement.Category;
+                    }
+
+                    if (englishAchievement.Points.HasValue)
+                    {
+                        projected.Points = englishAchievement.Points;
+                    }
+                }
+
+                projection.Add(projected);
+            }
+
+            return projection;
+        }
+
+        internal static int ApplyProjectedRarity(
+            IList<AchievementDetail> targetAchievements,
+            IList<AchievementDetail> projectedAchievements)
+        {
+            var projectedByApiName = BuildAchievementLookup(projectedAchievements);
+            var updated = 0;
+
+            foreach (var targetAchievement in targetAchievements ?? Enumerable.Empty<AchievementDetail>())
+            {
+                var apiName = NormalizeApiName(targetAchievement?.ApiName);
+                if (string.IsNullOrWhiteSpace(apiName) ||
+                    !projectedByApiName.TryGetValue(apiName, out var projectedAchievement) ||
+                    projectedAchievement?.GlobalPercentUnlocked == null)
+                {
+                    continue;
+                }
+
+                if (targetAchievement.GlobalPercentUnlocked == projectedAchievement.GlobalPercentUnlocked &&
+                    targetAchievement.Rarity == projectedAchievement.Rarity)
+                {
+                    continue;
+                }
+
+                targetAchievement.GlobalPercentUnlocked = projectedAchievement.GlobalPercentUnlocked;
+                targetAchievement.Rarity = projectedAchievement.Rarity;
+                updated++;
+            }
+
+            return updated;
+        }
+
         private static void AddAchievements(
             List<AchievementDetail> target,
             HashSet<string> seen,
@@ -137,6 +224,47 @@ namespace PlayniteAchievements.Providers.BattleNet
 
                 target.Add(detail);
             }
+        }
+
+        private static AchievementDetail CloneForMetadataProjection(AchievementDetail source)
+        {
+            return new AchievementDetail
+            {
+                ApiName = source.ApiName,
+                DisplayName = source.DisplayName,
+                Description = source.Description,
+                UnlockedIconPath = source.UnlockedIconPath,
+                LockedIconPath = source.LockedIconPath,
+                Points = source.Points,
+                ScaledPoints = source.ScaledPoints,
+                CategoryType = source.CategoryType,
+                Category = source.Category,
+                TrophyType = source.TrophyType,
+                IsCapstone = source.IsCapstone,
+                Hidden = source.Hidden,
+                UnlockTimeUtc = source.UnlockTimeUtc,
+                GlobalPercentUnlocked = source.GlobalPercentUnlocked,
+                Rarity = source.Rarity,
+                ProgressNum = source.ProgressNum,
+                ProgressDenom = source.ProgressDenom,
+                ProviderKey = source.ProviderKey,
+                Unlocked = source.Unlocked
+            };
+        }
+
+        private static Dictionary<string, AchievementDetail> BuildAchievementLookup(
+            IEnumerable<AchievementDetail> achievements)
+        {
+            return (achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => !string.IsNullOrWhiteSpace(achievement?.ApiName))
+                .GroupBy(achievement => NormalizeApiName(achievement.ApiName), StringComparer.OrdinalIgnoreCase)
+                .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeApiName(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         private static List<WowSubcategory> ReadSubcategories(object value)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.ViewModels;
 
 namespace PlayniteAchievements.Services.Overview
@@ -23,27 +24,38 @@ namespace PlayniteAchievements.Services.Overview
             string inProgressLabel = InProgressFallback,
             string noProgressLabel = NoProgressFallback)
         {
+            return ApplyActivityAndProgressFilters(
+                games,
+                ResolveActivityScope(selectedActivityFilters, playedLabel, unplayedLabel),
+                ResolveProgressScope(selectedProgressFilters, completeLabel, inProgressLabel, noProgressLabel));
+        }
+
+        public static IEnumerable<GameSummaryItem> ApplyActivityAndProgressFilters(
+            IEnumerable<GameSummaryItem> games,
+            GameActivityScope activityScope,
+            GameProgressScope progressScope)
+        {
             var filtered = games ?? Enumerable.Empty<GameSummaryItem>();
 
-            if (selectedActivityFilters != null && selectedActivityFilters.Count > 0)
+            var normalizedActivityScope = NormalizeActivityScope(activityScope);
+            if (normalizedActivityScope != GameActivityScope.None &&
+                normalizedActivityScope != GameActivityScope.All)
             {
-                var includePlayed = selectedActivityFilters.Contains(playedLabel);
-                var includeUnplayed = selectedActivityFilters.Contains(unplayedLabel);
-
-                filtered = filtered.Where(game => MatchesActivityBucket(game, includePlayed, includeUnplayed));
+                filtered = filtered.Where(game => MatchesActivityBucket(
+                    game,
+                    normalizedActivityScope.HasFlag(GameActivityScope.Played),
+                    normalizedActivityScope.HasFlag(GameActivityScope.Unplayed)));
             }
 
-            if (selectedProgressFilters != null && selectedProgressFilters.Count > 0)
+            var normalizedProgressScope = NormalizeProgressScope(progressScope);
+            if (normalizedProgressScope != GameProgressScope.None &&
+                normalizedProgressScope != GameProgressScope.All)
             {
-                var includeComplete = selectedProgressFilters.Contains(completeLabel);
-                var includeInProgress = selectedProgressFilters.Contains(inProgressLabel);
-                var includeNoProgress = selectedProgressFilters.Contains(noProgressLabel);
-
                 filtered = filtered.Where(game => MatchesProgressBucket(
                     game,
-                    includeComplete,
-                    includeInProgress,
-                    includeNoProgress));
+                    normalizedProgressScope.HasFlag(GameProgressScope.Completed),
+                    normalizedProgressScope.HasFlag(GameProgressScope.InProgress),
+                    normalizedProgressScope.HasFlag(GameProgressScope.NoProgress)));
             }
 
             return filtered;
@@ -87,6 +99,70 @@ namespace PlayniteAchievements.Services.Overview
             }
 
             return includeInProgress;
+        }
+
+        private static GameActivityScope ResolveActivityScope(
+            ISet<string> selectedActivityFilters,
+            string playedLabel,
+            string unplayedLabel)
+        {
+            if (selectedActivityFilters == null || selectedActivityFilters.Count == 0)
+            {
+                return GameActivityScope.None;
+            }
+
+            var scope = GameActivityScope.None;
+            if (selectedActivityFilters.Contains(playedLabel))
+            {
+                scope |= GameActivityScope.Played;
+            }
+
+            if (selectedActivityFilters.Contains(unplayedLabel))
+            {
+                scope |= GameActivityScope.Unplayed;
+            }
+
+            return scope;
+        }
+
+        private static GameProgressScope ResolveProgressScope(
+            ISet<string> selectedProgressFilters,
+            string completeLabel,
+            string inProgressLabel,
+            string noProgressLabel)
+        {
+            if (selectedProgressFilters == null || selectedProgressFilters.Count == 0)
+            {
+                return GameProgressScope.None;
+            }
+
+            var scope = GameProgressScope.None;
+            if (selectedProgressFilters.Contains(completeLabel))
+            {
+                scope |= GameProgressScope.Completed;
+            }
+
+            if (selectedProgressFilters.Contains(inProgressLabel))
+            {
+                scope |= GameProgressScope.InProgress;
+            }
+
+            if (selectedProgressFilters.Contains(noProgressLabel))
+            {
+                scope |= GameProgressScope.NoProgress;
+            }
+
+            return scope;
+        }
+
+        private static GameActivityScope NormalizeActivityScope(GameActivityScope scope)
+        {
+            return scope & GameActivityScope.All;
+        }
+
+        private static GameProgressScope NormalizeProgressScope(GameProgressScope scope)
+        {
+            return scope & GameProgressScope.All;
         }
     }
 }

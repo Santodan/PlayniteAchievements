@@ -130,6 +130,18 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        internal void SelectTab(ManageAchievementsTab tab)
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            _viewModel.SelectedTab = tab;
+            QueueEnsureSelectedTabContent();
+            QueueFocusSelectedTab();
+        }
+
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
             QueueEnsureSelectedTabContent();

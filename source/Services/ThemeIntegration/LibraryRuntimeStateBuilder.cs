@@ -343,6 +343,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     }
                 }
 
+                state.AllAchievements = allAchievements.ToList();
                 state.AllAchievementsUnlockAsc = AchievementSortHelper.CreateSortedDetailList(
                     allAchievements,
                     nameof(AchievementDisplayItem.UnlockTime),

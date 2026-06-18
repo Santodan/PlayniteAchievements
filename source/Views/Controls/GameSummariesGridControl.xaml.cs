@@ -23,19 +23,51 @@ namespace PlayniteAchievements.Views.Controls
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
 
-        private static readonly IReadOnlyDictionary<string, double> DefaultWidthSeeds =
-            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        // Defaults are applied only when a saved layout is missing a key.
+        private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
+            new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Cover"] = 92,
-                ["GameSummaryName"] = 500,
-                ["GameSummaryPlatform"] = 72,
-                ["GameSummaryLastPlayed"] = 240,
-                ["GameSummaryPlaytime"] = 170,
-                ["GameSummaryProgression"] = 360,
-                ["TotalAchievements"] = 180,
-                ["GameSummaryCollectionScore"] = 180,
-                ["GameSummaryPrestigeScore"] = 180
+                ["OverviewGameSummaries"] = CreateGameSummaryVisibility(),
+                ["StartPageGameSummaries"] = CreateGameSummaryVisibility(
+                    platform: false,
+                    lastPlayed: false,
+                    playtime: false,
+                    total: false,
+                    collectionScore: false,
+                    prestigeScore: false),
+                ["StartPageOverview"] = CreateGameSummaryVisibility(
+                    platform: false,
+                    lastPlayed: false,
+                    playtime: false,
+                    total: false,
+                    collectionScore: false,
+                    prestigeScore: false)
             };
+
+        private static IReadOnlyDictionary<string, bool> CreateGameSummaryVisibility(
+            bool cover = true,
+            bool game = true,
+            bool platform = false,
+            bool lastPlayed = false,
+            bool playtime = false,
+            bool progress = true,
+            bool total = true,
+            bool collectionScore = false,
+            bool prestigeScore = false)
+        {
+            return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cover"] = cover,
+                ["GameSummaryName"] = game,
+                ["GameSummaryPlatform"] = platform,
+                ["GameSummaryLastPlayed"] = lastPlayed,
+                ["GameSummaryPlaytime"] = playtime,
+                ["GameSummaryProgression"] = progress,
+                ["TotalAchievements"] = total,
+                ["GameSummaryCollectionScore"] = collectionScore,
+                ["GameSummaryPrestigeScore"] = prestigeScore
+            };
+        }
 
         public static readonly DependencyProperty ItemsSourceProperty =
             DependencyProperty.Register(
@@ -239,7 +271,6 @@ namespace PlayniteAchievements.Views.Controls
                 () => GetVisibilityByKey(settings),
                 map => SetVisibilityByKey(settings, map),
                 () => SavePluginSettings(settings),
-                DefaultWidthSeeds,
                 getOrder: () => GetOrderByKey(settings),
                 setOrder: map => SetOrderByKey(settings, map),
                 getCellAlignments: () => GetAlignmentsByKey(settings),
@@ -415,9 +446,56 @@ namespace PlayniteAchievements.Views.Controls
                 return null;
             }
 
-            return IsStartPageScope()
+            var map = IsStartPageScope()
                 ? settings.Persisted.StartPageGameSummariesColumnVisibility
                 : settings.Persisted.OverviewGameSummariesColumnVisibility;
+
+            return ApplyDefaultVisibility(settings, map);
+        }
+
+        private Dictionary<string, bool> ApplyDefaultVisibility(
+            PlayniteAchievementsSettings settings,
+            Dictionary<string, bool> map)
+        {
+            if (settings?.Persisted == null)
+            {
+                return map;
+            }
+
+            var defaults = GetDefaultVisibility(ColumnSettingsKey);
+            if (defaults == null || defaults.Count == 0)
+            {
+                return map;
+            }
+
+            if (map == null)
+            {
+                map = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+                SetVisibilityByKey(settings, map);
+            }
+
+            foreach (var pair in defaults)
+            {
+                if (!map.ContainsKey(pair.Key))
+                {
+                    map[pair.Key] = pair.Value;
+                }
+            }
+
+            return map;
+        }
+
+        private static IReadOnlyDictionary<string, bool> GetDefaultVisibility(string columnSettingsKey)
+        {
+            if (!string.IsNullOrWhiteSpace(columnSettingsKey) &&
+                DefaultVisibilityByColumnSettingsKey.TryGetValue(columnSettingsKey, out var defaults))
+            {
+                return defaults;
+            }
+
+            return DefaultVisibilityByColumnSettingsKey.TryGetValue("OverviewGameSummaries", out var fallback)
+                ? fallback
+                : null;
         }
 
         private void SetVisibilityByKey(PlayniteAchievementsSettings settings, Dictionary<string, bool> map)

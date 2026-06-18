@@ -119,7 +119,7 @@ namespace PlayniteAchievements.ViewModels
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
                     ? L("LOCPlayAch_Common_Label_Type", "Type")
-                    : string.Join(", ", selected);
+                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
             }
         }
 
@@ -144,7 +144,7 @@ namespace PlayniteAchievements.ViewModels
                         .ToList();
                 }
 
-                return string.Join(", ", ordered);
+                return string.Join(", ", ordered.Select(AchievementCategoryTypeHelper.ToCategoryLabelDisplayText));
             }
         }
 
@@ -670,7 +670,7 @@ namespace PlayniteAchievements.ViewModels
 
         public bool CanSetSummaryFilter => !IsFiltered;
 
-        public string CategoryDisplay => AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(CategoryLabel);
+        public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
 
         public void SetFilterState(bool isFiltered, bool isSummaryFiltered)
         {

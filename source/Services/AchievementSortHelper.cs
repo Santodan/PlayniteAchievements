@@ -250,9 +250,27 @@ namespace PlayniteAchievements.Services
             string sortKey,
             string sortDirectionKey)
         {
-            return ResolveSelectedGameAchievements(
-                state,
-                CreateSelectedGameSort(sortKey, sortDirectionKey));
+            if (state == null || !state.HasAchievements)
+            {
+                return new List<AchievementDetail>();
+            }
+
+            var direction = string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal)
+                ? ListSortDirection.Ascending
+                : ListSortDirection.Descending;
+
+            var source = GetDefaultSelectedGameAchievements(state);
+            switch (sortKey)
+            {
+                case DynamicThemeViewKeys.Default:
+                case null:
+                    return source;
+                default:
+                    return CreateSortedDetailList(
+                        source,
+                        GetDynamicAchievementSortMemberPath(sortKey),
+                        direction);
+            }
         }
 
         internal static List<AchievementDetail> ResolveLibraryAchievements(
@@ -265,16 +283,23 @@ namespace PlayniteAchievements.Services
                 return new List<AchievementDetail>();
             }
 
-            var isAscending = string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal);
-            return sortKey switch
+            var direction = string.Equals(sortDirectionKey, DynamicThemeViewKeys.Ascending, StringComparison.Ordinal)
+                ? ListSortDirection.Ascending
+                : ListSortDirection.Descending;
+            var source = GetDefaultLibraryAchievements(state);
+            if (source.Count == 0)
             {
-                DynamicThemeViewKeys.Rarity => isAscending
-                    ? state.AllAchievementsRarityAsc ?? GetDefaultLibraryAchievements(state)
-                    : state.AllAchievementsRarityDesc ?? GetDefaultLibraryAchievements(state),
-                _ => isAscending
-                    ? state.AllAchievementsUnlockAsc ?? GetDefaultLibraryAchievements(state)
-                    : state.AllAchievementsUnlockDesc ?? GetDefaultLibraryAchievements(state)
-            };
+                return source;
+            }
+
+            var effectiveSortKey = string.IsNullOrWhiteSpace(sortKey)
+                ? DynamicThemeViewKeys.UnlockTime
+                : sortKey;
+            return CreateSortedDetailList(
+                source,
+                GetDynamicAchievementSortMemberPath(effectiveSortKey),
+                direction,
+                includeGameNameTieBreak: true);
         }
 
         public static bool IsSelectedGameAchievementsPropertyName(string propertyName)
@@ -416,6 +441,48 @@ namespace PlayniteAchievements.Services
             return new AchievementSortSpec(mode, direction);
         }
 
+        private static string GetDynamicAchievementSortMemberPath(string sortKey)
+        {
+            switch (sortKey)
+            {
+                case DynamicThemeViewKeys.Name:
+                    return nameof(AchievementDisplayItem.DisplayName);
+                case DynamicThemeViewKeys.Game:
+                    return nameof(AchievementDisplayItem.GameName);
+                case DynamicThemeViewKeys.Provider:
+                    return nameof(AchievementDisplayItem.ProviderKey);
+                case DynamicThemeViewKeys.UnlockTime:
+                    return nameof(AchievementDisplayItem.UnlockTime);
+                case DynamicThemeViewKeys.Rarity:
+                case DynamicThemeViewKeys.RarityPercent:
+                    return nameof(AchievementDisplayItem.RaritySortValue);
+                case DynamicThemeViewKeys.Points:
+                    return nameof(AchievementDisplayItem.Points);
+                case DynamicThemeViewKeys.CollectionScore:
+                    return nameof(AchievementDisplayItem.CollectionScore);
+                case DynamicThemeViewKeys.PrestigeScore:
+                    return nameof(AchievementDisplayItem.PrestigeScore);
+                case DynamicThemeViewKeys.Progress:
+                    return nameof(AchievementDisplayItem.ProgressPercent);
+                case DynamicThemeViewKeys.TrophyType:
+                    return nameof(AchievementDisplayItem.TrophyType);
+                case DynamicThemeViewKeys.CategoryType:
+                    return nameof(AchievementDisplayItem.CategoryType);
+                case DynamicThemeViewKeys.CategoryLabel:
+                    return nameof(AchievementDisplayItem.CategoryLabel);
+                case DynamicThemeViewKeys.Notes:
+                    return nameof(AchievementDisplayItem.HasAchievementNote);
+                case DynamicThemeViewKeys.Status:
+                    return nameof(AchievementDisplayItem.Unlocked);
+                case DynamicThemeViewKeys.Hidden:
+                    return nameof(AchievementDisplayItem.Hidden);
+                case DynamicThemeViewKeys.Capstone:
+                    return nameof(AchievementDisplayItem.IsCapstone);
+                default:
+                    return null;
+            }
+        }
+
         private static List<AchievementDetail> ResolveSelectedGameAchievements(
             ModernThemeBindings theme,
             AchievementSortSpec configuredSort)
@@ -470,7 +537,7 @@ namespace PlayniteAchievements.Services
 
         private static List<AchievementDetail> GetDefaultLibraryAchievements(LibraryRuntimeState state)
         {
-            return GetAvailableAchievements(state?.AllAchievementsUnlockDesc, state?.AllAchievementsUnlockAsc);
+            return state?.AllAchievements ?? new List<AchievementDetail>();
         }
 
         private static List<AchievementDetail> GetAvailableAchievements(
@@ -539,8 +606,14 @@ namespace PlayniteAchievements.Services
             return sortMemberPath switch
             {
                 "DisplayName" => ApplyDirection(CompareByDisplayName, direction),
+                "GameName" => ApplyDirection(
+                    (a, b) => CompareText(a?.GameName, b?.GameName),
+                    direction),
                 "SortingName" when scope == AchievementSortScope.RecentAchievements
                     => ApplyDirection(CompareBySortingName, direction),
+                "ProviderKey" => ApplyDirection(
+                    (a, b) => CompareText(a?.ProviderKey, b?.ProviderKey),
+                    direction),
                 "CategoryType" => ApplyDirection(
                     (a, b) => CompareByCategoryTypeThenUnlock(a, b, scope),
                     direction),
@@ -562,6 +635,25 @@ namespace PlayniteAchievements.Services
                     direction),
                 "Points" => ApplyDirection(
                     (a, b) => a.Points.CompareTo(b.Points),
+                    direction),
+                "ProgressPercent" => ApplyDirection(
+                    (a, b) => a.ProgressPercent.CompareTo(b.ProgressPercent),
+                    direction),
+                "HasAchievementNote" => (a, b) => CompareByAchievementNote(a, b, direction),
+                "Unlocked" => (a, b) => CompareByBooleanThenName(
+                    a,
+                    b,
+                    item => item?.Unlocked == true,
+                    direction),
+                "Hidden" => (a, b) => CompareByBooleanThenName(
+                    a,
+                    b,
+                    item => item?.Hidden == true,
+                    direction),
+                "IsCapstone" => (a, b) => CompareByBooleanThenName(
+                    a,
+                    b,
+                    item => item?.IsCapstone == true,
                     direction),
                 "TrophyType" => (a, b) => CompareByTrophyType(a, b, direction),
                 "DisplayOrder" => ApplyDirection(
@@ -589,13 +681,51 @@ namespace PlayniteAchievements.Services
                 return list;
             }
 
-            return sortMemberPath switch
+            switch (sortMemberPath)
             {
-                "UnlockTime" => CreateDetailUnlockSortedList(list, direction, includeGameNameTieBreak),
-                "GlobalPercent" => CreateDetailRaritySortedList(list, direction, includeGameNameTieBreak),
-                "RaritySortValue" => CreateDetailRaritySortedList(list, direction, includeGameNameTieBreak),
-                _ => list
-            };
+                case "UnlockTime":
+                    return CreateDetailUnlockSortedList(list, direction, includeGameNameTieBreak);
+                case "GlobalPercent":
+                case "RaritySortValue":
+                    return CreateDetailRaritySortedList(list, direction, includeGameNameTieBreak);
+            }
+
+            var comparison = GetComparison(sortMemberPath, direction, AchievementSortScope.GameAchievements);
+            if (comparison == null)
+            {
+                return list;
+            }
+
+            var indexed = list
+                .Select((detail, index) => new
+                {
+                    Detail = detail,
+                    Proxy = CreateDetailSortProxy(detail),
+                    Index = index
+                })
+                .ToList();
+
+            indexed.Sort((a, b) =>
+            {
+                var result = comparison(a.Proxy, b.Proxy);
+                if (result != 0)
+                {
+                    return result;
+                }
+
+                if (includeGameNameTieBreak)
+                {
+                    result = CompareText(a.Proxy?.GameName, b.Proxy?.GameName);
+                    if (result != 0)
+                    {
+                        return result;
+                    }
+                }
+
+                return a.Index.CompareTo(b.Index);
+            });
+
+            return indexed.Select(item => item.Detail).ToList();
         }
 
         public static Comparison<AchievementDisplayItem> WithStableOrder(
@@ -761,6 +891,36 @@ namespace PlayniteAchievements.Services
             return CompareByUnlockTime(a, b, ListSortDirection.Ascending, scope);
         }
 
+        private static int CompareByAchievementNote(
+            AchievementDisplayItem a,
+            AchievementDisplayItem b,
+            ListSortDirection direction)
+        {
+            var comparison = (a?.HasAchievementNote ?? false).CompareTo(b?.HasAchievementNote ?? false);
+            if (direction == ListSortDirection.Descending)
+            {
+                comparison = -comparison;
+            }
+
+            return comparison != 0 ? comparison : CompareByDisplayName(a, b);
+        }
+
+        private static int CompareByBooleanThenName(
+            AchievementDisplayItem a,
+            AchievementDisplayItem b,
+            Func<AchievementDisplayItem, bool> selector,
+            ListSortDirection direction)
+        {
+            selector ??= _ => false;
+            var comparison = selector(a).CompareTo(selector(b));
+            if (direction == ListSortDirection.Descending)
+            {
+                comparison = -comparison;
+            }
+
+            return comparison != 0 ? comparison : CompareByDisplayName(a, b);
+        }
+
         private static int CompareByUnlockTime(
             AchievementDisplayItem a,
             AchievementDisplayItem b,
@@ -888,6 +1048,31 @@ namespace PlayniteAchievements.Services
                 ProgressNum = detail?.ProgressNum,
                 ProgressDenom = detail?.ProgressDenom
             };
+        }
+
+        private static AchievementDisplayItem CreateDetailSortProxy(AchievementDetail detail)
+        {
+            var item = new AchievementDisplayItem();
+            item.UpdateFrom(
+                detail,
+                detail?.Game?.Name ?? string.Empty,
+                detail?.Game?.Id,
+                showHiddenIcon: true,
+                showHiddenTitle: true,
+                showHiddenDescription: true,
+                showHiddenSuffix: true,
+                showLockedIcon: true,
+                useSeparateLockedIconsWhenAvailable: false,
+                showRarityGlow: false,
+                showRarityBar: false,
+                sortingName: detail?.Game?.Name,
+                gameIconPath: null,
+                gameCoverPath: null);
+            item.ProviderKey = detail?.ProviderKey ?? item.ProviderKey;
+            item.PointsValue = detail?.ScaledPoints ?? detail?.Points;
+            item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(detail?.CategoryType);
+            item.CategoryLabel = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(detail?.Category);
+            return item;
         }
 
         private static List<AchievementDetail> CreateDetailUnlockSortedList(

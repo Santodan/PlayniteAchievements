@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -190,6 +190,9 @@ namespace PlayniteAchievements.ViewModels
 
             _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
             ApplyConfiguredDefaultPlayStatusFilter();
+            // Default the progress dropdown to the full completed + incomplete scope.
+            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
+            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>();
@@ -779,7 +782,7 @@ namespace PlayniteAchievements.ViewModels
             UpdateOverviewPieChartSelectionStates();
             // Defer filter application to avoid interfering with menu click handling.
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(() => ApplyLeftFilters()),
+                new Action(() => { ApplyLeftFilters(); UpdateAggregatePieCharts(); }),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
@@ -821,31 +824,48 @@ namespace PlayniteAchievements.ViewModels
         /// <param name="completenessLabel">The completeness label from the clicked slice.</param>
         public void ToggleCompletenessFilterFromPieChart(string completenessLabel)
         {
-            if (string.IsNullOrWhiteSpace(completenessLabel) ||
-                CompletenessFilterOptions == null ||
-                !CompletenessFilterOptions.Contains(completenessLabel))
+            if (string.IsNullOrWhiteSpace(completenessLabel))
             {
                 return;
             }
 
-            var isOnlySelected =
-                _selectedCompletenessFilters.Count == 1 &&
-                _selectedCompletenessFilters.Contains(completenessLabel);
+            var completeOption = L("LOCPlayAch_Filter_Complete", "Complete");
+            var inProgressOption = L("LOCPlayAch_Filter_InProgress", "In Progress");
+            var noProgressOption = L("LOCPlayAch_Filter_NoProgress", "No Progress");
+            var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete", "Incomplete");
+            var targetFilters = new List<string>();
 
-            if (isOnlySelected)
+            if (string.Equals(completenessLabel, completeOption, StringComparison.OrdinalIgnoreCase))
             {
-                _selectedCompletenessFilters.Clear();
+                targetFilters.Add(completeOption);
+            }
+            else if (string.Equals(completenessLabel, incompleteSliceLabel, StringComparison.OrdinalIgnoreCase))
+            {
+                targetFilters.Add(inProgressOption);
+                targetFilters.Add(noProgressOption);
             }
             else
             {
-                _selectedCompletenessFilters.Clear();
-                _selectedCompletenessFilters.Add(completenessLabel);
+                return;
+            }
+
+            var shouldSelect = targetFilters.Any(filter => !_selectedCompletenessFilters.Contains(filter));
+            foreach (var filter in targetFilters)
+            {
+                if (shouldSelect)
+                {
+                    _selectedCompletenessFilters.Add(filter);
+                }
+                else
+                {
+                    _selectedCompletenessFilters.Remove(filter);
+                }
             }
 
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             UpdateOverviewPieChartSelectionStates();
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
-                new Action(() => ApplyLeftFilters()),
+                new Action(() => { ApplyLeftFilters(); UpdateAggregatePieCharts(); }),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
@@ -3267,7 +3287,42 @@ namespace PlayniteAchievements.ViewModels
                 _selectedProviderFilters
                     .Select(GetProviderFilterDisplayName)
                     .Where(label => !string.IsNullOrWhiteSpace(label)));
-            GamesPieChart?.SetSelectedLabels(_selectedCompletenessFilters);
+            GamesPieChart?.SetSelectedLabels(GetGamesPieChartSelectedLabels());
+        }
+
+        private IEnumerable<string> GetGamesPieChartSelectedLabels()
+        {
+            var visibleLabels = new HashSet<string>(
+                (GamesPieChart?.LegendItems ?? Enumerable.Empty<LegendItem>())
+                    .Select(item => item?.Label)
+                    .Where(label => !string.IsNullOrWhiteSpace(label)),
+                StringComparer.OrdinalIgnoreCase);
+            if (visibleLabels.Count <= 1 || _selectedCompletenessFilters.Count == 0)
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            var labels = new List<string>();
+            var completeLabel = L("LOCPlayAch_Filter_Complete", "Complete");
+            if (_selectedCompletenessFilters.Contains(completeLabel))
+            {
+                labels.Add(completeLabel);
+            }
+
+            if (_selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress", "In Progress")) ||
+                _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_NoProgress", "No Progress")))
+            {
+                labels.Add(L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
+            }
+
+            var selectedVisibleLabels = labels
+                .Where(label => visibleLabels.Contains(label))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return selectedVisibleLabels.Count == 1
+                ? selectedVisibleLabels
+                : Enumerable.Empty<string>();
         }
 
         private void ApplyOverviewPieSmallSliceMode()
@@ -3282,6 +3337,7 @@ namespace PlayniteAchievements.ViewModels
         private void UpdateAggregatePieCharts()
         {
             var snapshot = BuildPieChartSnapshotFromCurrentState();
+            var gamesPieSnapshot = BuildPieChartSnapshotFromCurrentState(useCompletedGamesPieProgressScope: true);
 
             var completedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Complete");
             var incompleteLabel = ResourceProvider.GetString("LOCPlayAch_Overview_Incomplete");
@@ -3295,7 +3351,7 @@ namespace PlayniteAchievements.ViewModels
             var trophySilverLabel = ResourceProvider.GetString("LOCPlayAch_Trophy_Silver");
             var trophyBronzeLabel = ResourceProvider.GetString("LOCPlayAch_Trophy_Bronze");
 
-            GamesPieChart?.SetGameData(snapshot.TotalGames, snapshot.CompletedGames, completedLabel, incompleteLabel);
+            GamesPieChart?.SetGameData(gamesPieSnapshot.TotalGames, gamesPieSnapshot.CompletedGames, completedLabel, incompleteLabel);
 
             var providerLookup = BuildProviderLookup();
             var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -3330,9 +3386,11 @@ namespace PlayniteAchievements.ViewModels
                 lockedLabel);
         }
 
-        private OverviewDataSnapshot BuildPieChartSnapshotFromCurrentState()
+        private OverviewDataSnapshot BuildPieChartSnapshotFromCurrentState(bool useCompletedGamesPieProgressScope = false)
         {
-            var gamesList = GetPieChartGames().ToList();
+            var gamesList = (useCompletedGamesPieProgressScope
+                ? GetCompletedGamesPieChartGames()
+                : GetPieChartGames()).ToList();
             var snapshot = new OverviewDataSnapshot
             {
                 Achievements = new List<AchievementDisplayItem>(),
@@ -3403,6 +3461,40 @@ namespace PlayniteAchievements.ViewModels
             }
 
             return filteredGames;
+        }
+
+        private IEnumerable<GameSummaryItem> GetCompletedGamesPieChartGames()
+        {
+            var filteredGames = (_allGameSummaries ?? new List<GameSummaryItem>()).Where(game => game != null);
+            return OverviewGameSummaryFilters.ApplyActivityAndProgressFilters(
+                filteredGames,
+                _selectedPlayStatusFilters,
+                GetCompletedGamesPieProgressFilters(),
+                L("LOCPlayAch_Filter_Played", "Played"),
+                L("LOCPlayAch_Filter_Unplayed", "Unplayed"),
+                L("LOCPlayAch_Filter_Complete", "Complete"),
+                L("LOCPlayAch_Filter_InProgress", "In Progress"),
+                L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+        }
+
+        private ISet<string> GetCompletedGamesPieProgressFilters()
+        {
+            if (_selectedCompletenessFilters == null || _selectedCompletenessFilters.Count == 0)
+            {
+                return null;
+            }
+
+            var noProgressLabel = L("LOCPlayAch_Filter_NoProgress", "No Progress");
+            if (_selectedCompletenessFilters.Contains(noProgressLabel))
+            {
+                return null;
+            }
+
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                L("LOCPlayAch_Filter_Complete", "Complete"),
+                L("LOCPlayAch_Filter_InProgress", "In Progress")
+            };
         }
 
         private Dictionary<string, (string iconKey, string colorHex)> BuildProviderLookup()
@@ -4231,7 +4323,7 @@ namespace PlayniteAchievements.ViewModels
             if (isAdditive && !string.IsNullOrEmpty(_overviewSortPath))
             {
                 // Ctrl+Click: add/update/toggle secondary sort column.
-                // Primary stays as _overviewSortPath — the new column is a tiebreaker.
+                // Primary stays as _overviewSortPath â€” the new column is a tiebreaker.
                 var existing = _overviewSecondarySorts.FindIndex(s =>
                     string.Equals(s.Path, sortMemberPath, StringComparison.Ordinal));
 

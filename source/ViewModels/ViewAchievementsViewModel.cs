@@ -27,6 +27,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsSettings _settings;
         private readonly Guid _gameId;
         private Guid? _activeRefreshOperationId;
+        private bool _isApplyingTimelineState;
 
         // Sort state tracking for quick reverse
         private string _currentSortPath;
@@ -60,6 +61,8 @@ namespace PlayniteAchievements.ViewModels
             _settings = settings;
 
             Timeline = new TimelineViewModel();
+            ApplySavedTimelineState();
+            Timeline.PropertyChanged += Timeline_PropertyChanged;
             OnPropertyChanged(nameof(Timeline));
 
             CategoryTypeFilterOptions = new ObservableCollection<string>();
@@ -345,7 +348,13 @@ namespace PlayniteAchievements.ViewModels
         public bool IsTimelineVisible
         {
             get => _isTimelineVisible;
-            set => SetValue(ref _isTimelineVisible, value);
+            set
+            {
+                if (SetValueAndReturn(ref _isTimelineVisible, value))
+                {
+                    PersistTimelineVisibility(value);
+                }
+            }
         }
 
         private bool _isStatsVisible = true;
@@ -432,7 +441,8 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryTypeFilterText => GetSelectedFilterText(
             _selectedCategoryTypeFilters,
             CategoryTypeFilterOptions,
-            L("LOCPlayAch_Common_Label_Type", "Type"));
+            L("LOCPlayAch_Common_Label_Type", "Type"),
+            AchievementCategoryTypeHelper.ToCategoryTypeDisplayText);
 
         public bool IsCategoryTypeFilterSelected(string value)
         {
@@ -455,7 +465,8 @@ namespace PlayniteAchievements.ViewModels
         public string SelectedCategoryLabelFilterText => GetSelectedFilterText(
             _selectedCategoryLabelFilters,
             CategoryLabelFilterOptions,
-            L("LOCPlayAch_Common_Label_Category", "Category"));
+            L("LOCPlayAch_Common_Label_Category", "Category"),
+            AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
 
         public bool IsCategoryLabelFilterSelected(string value)
         {
@@ -524,7 +535,8 @@ namespace PlayniteAchievements.ViewModels
         private static string GetSelectedFilterText(
             HashSet<string> selectedValues,
             IEnumerable<string> options,
-            string placeholder)
+            string placeholder,
+            Func<string, string> displayText = null)
         {
             if (selectedValues == null || selectedValues.Count == 0)
             {
@@ -545,13 +557,95 @@ namespace PlayniteAchievements.ViewModels
                 ordered.AddRange(selectedValues.OrderBy(value => value, StringComparer.OrdinalIgnoreCase));
             }
 
-            return string.Join(", ", ordered);
+            return string.Join(", ", ordered.Select(value => displayText?.Invoke(value) ?? value));
         }
 
         private static string L(string key, string fallback)
         {
             var value = ResourceProvider.GetString(key);
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+
+        private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (_isApplyingTimelineState ||
+                e?.PropertyName != nameof(TimelineViewModel.TimelineRange))
+            {
+                return;
+            }
+
+            PersistTimelineRange();
+        }
+
+        private void ApplySavedTimelineState()
+        {
+            var persisted = _settings?.Persisted;
+            var range = persisted?.ViewAchievementsTimelineRange ?? TimelineRange.OneYear;
+            var isVisible = persisted?.ViewAchievementsTimelineVisible ?? false;
+
+            try
+            {
+                _isApplyingTimelineState = true;
+
+                if (_isTimelineVisible != isVisible)
+                {
+                    _isTimelineVisible = isVisible;
+                    OnPropertyChanged(nameof(IsTimelineVisible));
+                }
+
+                if (Timeline != null && Timeline.TimelineRange != range)
+                {
+                    Timeline.TimelineRange = range;
+                }
+            }
+            finally
+            {
+                _isApplyingTimelineState = false;
+            }
+        }
+
+        private void PersistTimelineRange()
+        {
+            if (_isApplyingTimelineState || _settings?.Persisted == null || Timeline == null)
+            {
+                return;
+            }
+
+            if (_settings.Persisted.ViewAchievementsTimelineRange == Timeline.TimelineRange)
+            {
+                return;
+            }
+
+            _settings.Persisted.ViewAchievementsTimelineRange = Timeline.TimelineRange;
+            PersistSettingsForUi();
+        }
+
+        private void PersistTimelineVisibility(bool isVisible)
+        {
+            if (_isApplyingTimelineState || _settings?.Persisted == null)
+            {
+                return;
+            }
+
+            if (_settings.Persisted.ViewAchievementsTimelineVisible == isVisible)
+            {
+                return;
+            }
+
+            _settings.Persisted.ViewAchievementsTimelineVisible = isVisible;
+            PersistSettingsForUi();
+        }
+
+        private void PersistSettingsForUi()
+        {
+            try
+            {
+                PlayniteAchievementsPlugin.Instance?.PersistSettingsForUi();
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to persist view achievements timeline settings.");
+            }
         }
 
         private void UpdateAchievementFilterOptions(IEnumerable<AchievementDisplayItem> source)
@@ -835,6 +929,7 @@ namespace PlayniteAchievements.ViewModels
 
                 ApplyAppearanceSettingsToAchievements();
                 OnPropertyChanged(nameof(SingleGameGridRowHeight));
+                ApplySavedTimelineState();
                 ApplySearchFilter(skipDefaultSort: CurrentSortDirection.HasValue);
             }
         }
@@ -856,6 +951,13 @@ namespace PlayniteAchievements.ViewModels
             if (e?.PropertyName == nameof(PersistedSettings.SingleGameGridMaxRows))
             {
                 SyncAchievementsDisplay();
+                return;
+            }
+
+            if (e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineRange) ||
+                e?.PropertyName == nameof(PersistedSettings.ViewAchievementsTimelineVisible))
+            {
+                ApplySavedTimelineState();
                 return;
             }
 
@@ -1048,6 +1150,10 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.GameCacheUpdated -= OnGameCacheUpdated;
             _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
             _refreshService.RebuildProgress -= OnRebuildProgress;
+            if (Timeline != null)
+            {
+                Timeline.PropertyChanged -= Timeline_PropertyChanged;
+            }
         }
 
         #endregion

@@ -85,21 +85,7 @@
 
                         <!-- Auth Card -->
                         <Border Grid.Column="1"
-                                Background="{DynamicResource PanelBackgroundBrush}"
-                                CornerRadius="8"
-                                Padding="16"
-                                BorderThickness="1">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="BorderBrush" Value="#F72585"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                     Value="True">
-                                            <Setter Property="BorderBrush" Value="#06FFA5"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
+                                Style="{StaticResource AuthStatusBorderStyle}">
 
                             <StackPanel>
                                 <!-- Status Row -->
@@ -110,27 +96,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Column="0"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="{DynamicResource FontSize}"
-                                               Margin="0,0,12,0"
-                                               VerticalAlignment="Center">
-                                        <TextBlock.RenderTransform>
-                                            <ScaleTransform ScaleX="1.5" ScaleY="1.5"/>
-                                        </TextBlock.RenderTransform>
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Text" Value="&#xE783;"/>
-                                                <Setter Property="Foreground" Value="#F72585"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                 Value="True">
-                                                        <Setter Property="Text" Value="&#xE73E;"/>
-                                                        <Setter Property="Foreground" Value="#06FFA5"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                               Style="{StaticResource AuthStatusIconStyle}"/>
 
                                     <TextBlock Grid.Column="1"
                                                Text="{Binding AuthStatus, RelativeSource={RelativeSource AncestorType=UserControl}}"

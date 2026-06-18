@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 {
     internal sealed class RetroAchievementsHashIndexStore
     {
-        private const int CurrentFormatVersion = 2;
+        private const int CurrentFormatVersion = 3;
         private const int PageSize = 5000;
 
         private static readonly JsonSerializerSettings _jsonSettings = new JsonSerializerSettings

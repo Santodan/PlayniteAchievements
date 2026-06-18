@@ -56,6 +56,10 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private List<AchievementDetail> _dynamicAchievements = new List<AchievementDetail>();
         [DontSerialize]
+        private string _dynamicAchievementsGameKey = string.Empty;
+        [DontSerialize]
+        private string _dynamicAchievementsGameLabel = string.Empty;
+        [DontSerialize]
         private string _dynamicAchievementsFilterKey = DynamicThemeViewKeys.All;
         [DontSerialize]
         private string _dynamicAchievementsFilterLabel = DynamicThemeViewKeys.All;
@@ -68,7 +72,31 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private string _dynamicAchievementsSortDirectionLabel = DynamicThemeViewKeys.Descending;
         [DontSerialize]
+        private string _dynamicAchievementsDefaultFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicAchievementsDefaultSortKey = DynamicThemeViewKeys.Default;
+        [DontSerialize]
+        private string _dynamicAchievementsDefaultSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
         private List<AchievementDisplayItem> _allAchievementDisplayItems;
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementsFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementsSortOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementsSortDirectionOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementGameOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementStatusFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementProgressFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementRarityFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementTrophyFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicAchievementCustomizationFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
 
         [DontSerialize]
         private readonly BulkObservableCollection<GameAchievementSummary> _completedGamesAsc = new BulkObservableCollection<GameAchievementSummary>();
@@ -92,6 +120,30 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private string _dynamicGameSummariesSortDirectionKey = DynamicThemeViewKeys.Descending;
         [DontSerialize]
         private string _dynamicGameSummariesSortDirectionLabel = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private string _dynamicGameSummariesFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesFilterLabel = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesDefaultProviderKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesDefaultFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicGameSummariesDefaultSortKey = DynamicThemeViewKeys.LastUnlock;
+        [DontSerialize]
+        private string _dynamicGameSummariesDefaultSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameSummariesProviderOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameSummariesFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameSummariesSortOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameSummariesSortDirectionOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameProgressFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicGameActivityFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
 
         [DontSerialize]
         private List<AchievementDetail> _allAchievementsUnlockAsc = new List<AchievementDetail>();
@@ -115,6 +167,26 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         private string _dynamicLibraryAchievementsSortDirectionKey = DynamicThemeViewKeys.Descending;
         [DontSerialize]
         private string _dynamicLibraryAchievementsSortDirectionLabel = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsFilterLabel = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsDefaultProviderKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsDefaultFilterKey = DynamicThemeViewKeys.All;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsDefaultSortKey = DynamicThemeViewKeys.UnlockTime;
+        [DontSerialize]
+        private string _dynamicLibraryAchievementsDefaultSortDirectionKey = DynamicThemeViewKeys.Descending;
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicLibraryAchievementsProviderOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicLibraryAchievementsFilterOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicLibraryAchievementsSortOptions = new BulkObservableCollection<DynamicThemeOption>();
+        [DontSerialize]
+        private readonly BulkObservableCollection<DynamicThemeOption> _dynamicLibraryAchievementsSortDirectionOptions = new BulkObservableCollection<DynamicThemeOption>();
         [DontSerialize]
         private List<AchievementDetail> _mostRecentUnlocks = new List<AchievementDetail>();
         [DontSerialize]
@@ -441,6 +513,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
+        public string DynamicAchievementsGameKey
+        {
+            get => _dynamicAchievementsGameKey;
+            set => SetValue(ref _dynamicAchievementsGameKey, value ?? string.Empty);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsGameLabel
+        {
+            get => _dynamicAchievementsGameLabel;
+            set => SetValue(ref _dynamicAchievementsGameLabel, value ?? string.Empty);
+        }
+
+        [DontSerialize]
         public string DynamicAchievementsFilterKey
         {
             get => _dynamicAchievementsFilterKey;
@@ -480,6 +566,90 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _dynamicAchievementsSortDirectionLabel;
             set => SetValue(ref _dynamicAchievementsSortDirectionLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultFilterKey
+        {
+            get => _dynamicAchievementsDefaultFilterKey;
+            set => SetValue(ref _dynamicAchievementsDefaultFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultSortKey
+        {
+            get => _dynamicAchievementsDefaultSortKey;
+            set => SetValue(ref _dynamicAchievementsDefaultSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicAchievementsDefaultSortDirectionKey
+        {
+            get => _dynamicAchievementsDefaultSortDirectionKey;
+            set => SetValue(ref _dynamicAchievementsDefaultSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsFilterOptions
+        {
+            get => _dynamicAchievementsFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementsFilterOptions, value, nameof(DynamicAchievementsFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortOptions
+        {
+            get => _dynamicAchievementsSortOptions;
+            set => ReplaceCollection(_dynamicAchievementsSortOptions, value, nameof(DynamicAchievementsSortOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementsSortDirectionOptions
+        {
+            get => _dynamicAchievementsSortDirectionOptions;
+            set => ReplaceCollection(_dynamicAchievementsSortDirectionOptions, value, nameof(DynamicAchievementsSortDirectionOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementGameOptions
+        {
+            get => _dynamicAchievementGameOptions;
+            set => ReplaceCollection(_dynamicAchievementGameOptions, value, nameof(DynamicAchievementGameOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementStatusFilterOptions
+        {
+            get => _dynamicAchievementStatusFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementStatusFilterOptions, value, nameof(DynamicAchievementStatusFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementProgressFilterOptions
+        {
+            get => _dynamicAchievementProgressFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementProgressFilterOptions, value, nameof(DynamicAchievementProgressFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementRarityFilterOptions
+        {
+            get => _dynamicAchievementRarityFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementRarityFilterOptions, value, nameof(DynamicAchievementRarityFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementTrophyFilterOptions
+        {
+            get => _dynamicAchievementTrophyFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementTrophyFilterOptions, value, nameof(DynamicAchievementTrophyFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicAchievementCustomizationFilterOptions
+        {
+            get => _dynamicAchievementCustomizationFilterOptions;
+            set => ReplaceCollection(_dynamicAchievementCustomizationFilterOptions, value, nameof(DynamicAchievementCustomizationFilterOptions));
         }
 
         [DontSerialize]
@@ -532,6 +702,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
+        public string DynamicGameSummariesFilterKey
+        {
+            get => _dynamicGameSummariesFilterKey;
+            set => SetValue(ref _dynamicGameSummariesFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesFilterLabel
+        {
+            get => _dynamicGameSummariesFilterLabel;
+            set => SetValue(ref _dynamicGameSummariesFilterLabel, value);
+        }
+
+        [DontSerialize]
         public string DynamicGameSummariesSortKey
         {
             get => _dynamicGameSummariesSortKey;
@@ -557,6 +741,76 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _dynamicGameSummariesSortDirectionLabel;
             set => SetValue(ref _dynamicGameSummariesSortDirectionLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultProviderKey
+        {
+            get => _dynamicGameSummariesDefaultProviderKey;
+            set => SetValue(ref _dynamicGameSummariesDefaultProviderKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultFilterKey
+        {
+            get => _dynamicGameSummariesDefaultFilterKey;
+            set => SetValue(ref _dynamicGameSummariesDefaultFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultSortKey
+        {
+            get => _dynamicGameSummariesDefaultSortKey;
+            set => SetValue(ref _dynamicGameSummariesDefaultSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicGameSummariesDefaultSortDirectionKey
+        {
+            get => _dynamicGameSummariesDefaultSortDirectionKey;
+            set => SetValue(ref _dynamicGameSummariesDefaultSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesProviderOptions
+        {
+            get => _dynamicGameSummariesProviderOptions;
+            set => ReplaceCollection(_dynamicGameSummariesProviderOptions, value, nameof(DynamicGameSummariesProviderOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesFilterOptions
+        {
+            get => _dynamicGameSummariesFilterOptions;
+            set => ReplaceCollection(_dynamicGameSummariesFilterOptions, value, nameof(DynamicGameSummariesFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortOptions
+        {
+            get => _dynamicGameSummariesSortOptions;
+            set => ReplaceCollection(_dynamicGameSummariesSortOptions, value, nameof(DynamicGameSummariesSortOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameSummariesSortDirectionOptions
+        {
+            get => _dynamicGameSummariesSortDirectionOptions;
+            set => ReplaceCollection(_dynamicGameSummariesSortDirectionOptions, value, nameof(DynamicGameSummariesSortDirectionOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameProgressFilterOptions
+        {
+            get => _dynamicGameProgressFilterOptions;
+            set => ReplaceCollection(_dynamicGameProgressFilterOptions, value, nameof(DynamicGameProgressFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicGameActivityFilterOptions
+        {
+            get => _dynamicGameActivityFilterOptions;
+            set => ReplaceCollection(_dynamicGameActivityFilterOptions, value, nameof(DynamicGameActivityFilterOptions));
         }
 
         [DontSerialize]
@@ -707,6 +961,20 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         }
 
         [DontSerialize]
+        public string DynamicLibraryAchievementsFilterKey
+        {
+            get => _dynamicLibraryAchievementsFilterKey;
+            set => SetValue(ref _dynamicLibraryAchievementsFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsFilterLabel
+        {
+            get => _dynamicLibraryAchievementsFilterLabel;
+            set => SetValue(ref _dynamicLibraryAchievementsFilterLabel, value);
+        }
+
+        [DontSerialize]
         public string DynamicLibraryAchievementsSortKey
         {
             get => _dynamicLibraryAchievementsSortKey;
@@ -732,6 +1000,62 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _dynamicLibraryAchievementsSortDirectionLabel;
             set => SetValue(ref _dynamicLibraryAchievementsSortDirectionLabel, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultProviderKey
+        {
+            get => _dynamicLibraryAchievementsDefaultProviderKey;
+            set => SetValue(ref _dynamicLibraryAchievementsDefaultProviderKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultFilterKey
+        {
+            get => _dynamicLibraryAchievementsDefaultFilterKey;
+            set => SetValue(ref _dynamicLibraryAchievementsDefaultFilterKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultSortKey
+        {
+            get => _dynamicLibraryAchievementsDefaultSortKey;
+            set => SetValue(ref _dynamicLibraryAchievementsDefaultSortKey, value);
+        }
+
+        [DontSerialize]
+        public string DynamicLibraryAchievementsDefaultSortDirectionKey
+        {
+            get => _dynamicLibraryAchievementsDefaultSortDirectionKey;
+            set => SetValue(ref _dynamicLibraryAchievementsDefaultSortDirectionKey, value);
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsProviderOptions
+        {
+            get => _dynamicLibraryAchievementsProviderOptions;
+            set => ReplaceCollection(_dynamicLibraryAchievementsProviderOptions, value, nameof(DynamicLibraryAchievementsProviderOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsFilterOptions
+        {
+            get => _dynamicLibraryAchievementsFilterOptions;
+            set => ReplaceCollection(_dynamicLibraryAchievementsFilterOptions, value, nameof(DynamicLibraryAchievementsFilterOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortOptions
+        {
+            get => _dynamicLibraryAchievementsSortOptions;
+            set => ReplaceCollection(_dynamicLibraryAchievementsSortOptions, value, nameof(DynamicLibraryAchievementsSortOptions));
+        }
+
+        [DontSerialize]
+        public ObservableCollection<DynamicThemeOption> DynamicLibraryAchievementsSortDirectionOptions
+        {
+            get => _dynamicLibraryAchievementsSortDirectionOptions;
+            set => ReplaceCollection(_dynamicLibraryAchievementsSortDirectionOptions, value, nameof(DynamicLibraryAchievementsSortDirectionOptions));
         }
 
         [DontSerialize]

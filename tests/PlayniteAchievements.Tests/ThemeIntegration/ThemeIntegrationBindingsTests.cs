@@ -1134,6 +1134,346 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void DynamicBindings_ExposeOptionsAndWritableKeysForComboBoxes()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = new Game { Id = gameId, Name = "Writable Dynamic Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Bravo Hidden", 8.0, unlocked: false),
+                    Achievement("Alpha Unlocked", 75.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 2, 9, 0, 0)),
+                    Achievement("Charlie Locked", 25.0, unlocked: false)
+                }
+            };
+            context.AchievementDataService.GameDataById[gameId].Achievements[0].Hidden = true;
+            context.AchievementDataService.GameDataById[gameId].Achievements[2].ProgressNum = 3;
+            context.AchievementDataService.GameDataById[gameId].Achievements[2].ProgressDenom = 10;
+
+            context.Service.PopulateSingleGameDataSync(gameId);
+
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementsFilterOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.InProgress);
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Name);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Game);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Provider);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.RarityPercent);
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementsSortDirectionOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Ascending);
+            Assert.AreEqual(
+                "Name",
+                context.Settings.DynamicAchievementsSortOptions
+                    .Single(item => item.Key == DynamicThemeViewKeys.Name)
+                    .Label);
+
+            context.Settings.DynamicAchievementsFilterKey = DynamicThemeViewKeys.InProgress;
+            context.Settings.DynamicAchievementsSortKey = DynamicThemeViewKeys.Name;
+            context.Settings.DynamicAchievementsSortDirectionKey = DynamicThemeViewKeys.Ascending;
+
+            Assert.AreEqual(DynamicThemeViewKeys.InProgress, context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Name, context.Settings.DynamicAchievementsSortKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Ascending, context.Settings.DynamicAchievementsSortDirectionKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Charlie Locked");
+        }
+
+        [TestMethod]
+        public void DynamicBindings_ApplyDefaultsUntilUserSelectionAndResetToDefaults()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = new Game { Id = gameId, Name = "Default Dynamic Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Hidden Locked Rare", 8.0, unlocked: false),
+                    Achievement("Visible Locked Common", 80.0, unlocked: false),
+                    Achievement("Visible Unlocked Ultra", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 5, 1, 9, 0, 0))
+                }
+            };
+            context.AchievementDataService.GameDataById[gameId].Achievements[0].Hidden = true;
+
+            context.Settings.DynamicAchievementsDefaultFilterKey = DynamicThemeViewKeys.Unlocked;
+            context.Settings.DynamicAchievementsDefaultSortKey = DynamicThemeViewKeys.Rarity;
+            context.Settings.DynamicAchievementsDefaultSortDirectionKey = DynamicThemeViewKeys.Ascending;
+            context.Service.PopulateSingleGameDataSync(gameId);
+
+            Assert.AreEqual(DynamicThemeViewKeys.Unlocked, context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Rarity, context.Settings.DynamicAchievementsSortKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Ascending, context.Settings.DynamicAchievementsSortDirectionKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Visible Unlocked Ultra");
+
+            context.Settings.DynamicAchievementsFilterKey = DynamicThemeViewKeys.Locked;
+            context.Settings.DynamicAchievementsDefaultFilterKey = DynamicThemeViewKeys.Hidden;
+
+            Assert.AreEqual(DynamicThemeViewKeys.Locked, context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Hidden, context.Settings.DynamicAchievementsDefaultFilterKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Hidden Locked Rare", "Visible Locked Common");
+
+            context.Settings.ResetDynamicAchievementsCommand.Execute(null);
+
+            Assert.AreEqual(DynamicThemeViewKeys.Hidden, context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Rarity, context.Settings.DynamicAchievementsSortKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Ascending, context.Settings.DynamicAchievementsSortDirectionKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Hidden Locked Rare");
+        }
+
+        [TestMethod]
+        public void DynamicBindings_AcceptCompositeFilterKeys()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = new Game { Id = gameId, Name = "Composite Filter Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Common Locked", 80.0, unlocked: false),
+                    Achievement("Rare Locked", 8.0, unlocked: false),
+                    Achievement("Ultra Locked", 2.0, unlocked: false),
+                    Achievement("Rare Unlocked", 8.0, unlocked: true, unlockTimeUtc: Utc(2026, 5, 2, 9, 0, 0))
+                }
+            };
+
+            context.Service.PopulateSingleGameDataSync(gameId);
+            context.Settings.DynamicAchievementsFilterKey = "locked, rare, ultrarare";
+
+            Assert.AreEqual("Locked+Rare+UltraRare", context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual("Locked + Rare + Ultra Rare", context.Settings.DynamicAchievementsFilterLabel);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Rare Locked", "Ultra Locked");
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementsFilterOptions.Select(item => item.Key).ToList(),
+                "Locked+Rare+UltraRare");
+            Assert.AreEqual(
+                "Locked + Rare + Ultra Rare",
+                context.Settings.DynamicAchievementsFilterOptions
+                    .Single(item => item.Key == "Locked+Rare+UltraRare")
+                    .Label);
+        }
+
+        [TestMethod]
+        public void DynamicBindings_GroupedFilterKeysComposeCompositeFilters()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            var hiddenRare = Achievement("Hidden Rare Locked", 8.0, unlocked: false);
+            hiddenRare.Hidden = true;
+            var commonLocked = Achievement("Common Locked", 80.0, unlocked: false);
+            var rareUnlocked = Achievement("Rare Unlocked", 8.0, unlocked: true, unlockTimeUtc: Utc(2026, 5, 2, 9, 0, 0));
+
+            context.AchievementDataService.GameDataById[gameId] = new GameAchievementData
+            {
+                PlayniteGameId = gameId,
+                ProviderKey = "Steam",
+                Game = new Game { Id = gameId, Name = "Grouped Filter Game" },
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail> { hiddenRare, commonLocked, rareUnlocked }
+            };
+
+            context.Service.PopulateSingleGameDataSync(gameId);
+
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementRarityFilterOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Rare);
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementCustomizationFilterOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Hidden);
+
+            context.Settings.DynamicAchievementsStatusFilterKey = DynamicThemeViewKeys.Locked;
+            context.Settings.DynamicAchievementsRarityFilterKey = DynamicThemeViewKeys.Rare;
+
+            Assert.AreEqual("Locked+Rare", context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Locked, context.Settings.DynamicAchievementsStatusFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Rare, context.Settings.DynamicAchievementsRarityFilterKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Hidden Rare Locked");
+
+            context.Settings.DynamicAchievementsRarityFilterKey = DynamicThemeViewKeys.All;
+
+            Assert.AreEqual(DynamicThemeViewKeys.Locked, context.Settings.DynamicAchievementsFilterKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Hidden Rare Locked", "Common Locked");
+
+            context.Settings.DynamicAchievementsCustomizationFilterKey = DynamicThemeViewKeys.Hidden;
+
+            Assert.AreEqual("Locked+Hidden", context.Settings.DynamicAchievementsFilterKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Hidden, context.Settings.DynamicAchievementsCustomizationFilterKey);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Hidden Rare Locked");
+        }
+
+        [TestMethod]
+        public void DynamicBindings_WritableGameKeySelectsDynamicAchievementGame()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var firstGameId = Guid.NewGuid();
+            var secondGameId = Guid.NewGuid();
+            var firstGame = new Game { Id = firstGameId, Name = "First Dynamic Game" };
+            var secondGame = new Game { Id = secondGameId, Name = "Second Dynamic Game" };
+            var firstData = new GameAchievementData
+            {
+                PlayniteGameId = firstGameId,
+                ProviderKey = "Steam",
+                Game = firstGame,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("First Game Achievement", 75.0, unlocked: true, unlockTimeUtc: Utc(2026, 5, 1, 9, 0, 0))
+                }
+            };
+            var secondData = new GameAchievementData
+            {
+                PlayniteGameId = secondGameId,
+                ProviderKey = "GOG",
+                Game = secondGame,
+                HasAchievements = true,
+                Achievements = new List<AchievementDetail>
+                {
+                    Achievement("Second Game Achievement", 8.0, unlocked: true, unlockTimeUtc: Utc(2026, 5, 2, 9, 0, 0))
+                }
+            };
+
+            context.AchievementDataService.GameDataById[firstGameId] = firstData;
+            context.AchievementDataService.GameDataById[secondGameId] = secondData;
+            context.AchievementDataService.AllGameData = new List<GameAchievementData> { firstData, secondData };
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+            context.Settings.DynamicAchievementsGameKey = secondGameId.ToString("D");
+
+            Assert.AreEqual(secondGameId.ToString("D"), context.Settings.DynamicAchievementsGameKey);
+            Assert.AreEqual("Second Dynamic Game", context.Settings.DynamicAchievementsGameLabel);
+            AssertAchievementNames(context.Settings.DynamicAchievements, "Second Game Achievement");
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementGameOptions.Select(item => item.Key).ToList(),
+                firstGameId.ToString("D"));
+            CollectionAssert.Contains(
+                context.Settings.DynamicAchievementGameOptions.Select(item => item.Key).ToList(),
+                secondGameId.ToString("D"));
+        }
+
+        [TestMethod]
+        public void DynamicAllGamesBindings_ExposeProviderOptionsAndWritableFilters()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var battleNetGameId = Guid.NewGuid();
+            var steamGameId = Guid.NewGuid();
+            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = battleNetGameId,
+                    ProviderKey = "Exophase",
+                    ProviderPlatformKey = "BattleNet",
+                    Game = new Game
+                    {
+                        Id = battleNetGameId,
+                        Name = "BattleNet Dynamic",
+                        LastActivity = Utc(2026, 4, 7, 8, 0, 0)
+                    },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("BN Rare", 8.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 2, 9, 0, 0)),
+                        Achievement("BN Locked", 80.0, unlocked: false)
+                    }
+                },
+                new GameAchievementData
+                {
+                    PlayniteGameId = steamGameId,
+                    ProviderKey = "Steam",
+                    Game = new Game
+                    {
+                        Id = steamGameId,
+                        Name = "Steam Dynamic",
+                        LastActivity = Utc(2026, 4, 9, 8, 0, 0)
+                    },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("Steam Complete One", 25.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 1, 9, 0, 0)),
+                        Achievement("Steam Complete Two", 2.0, unlocked: true, unlockTimeUtc: Utc(2026, 4, 3, 9, 0, 0))
+                    }
+                }
+            };
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            CollectionAssert.Contains(
+                context.Settings.DynamicLibraryAchievementsProviderOptions.Select(item => item.Key).ToList(),
+                "BattleNet");
+            CollectionAssert.Contains(
+                context.Settings.DynamicLibraryAchievementsProviderOptions.Select(item => item.Key).ToList(),
+                "Steam");
+            CollectionAssert.Contains(
+                context.Settings.DynamicLibraryAchievementsFilterOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Locked);
+            CollectionAssert.Contains(
+                context.Settings.DynamicGameSummariesFilterOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Completed);
+            CollectionAssert.Contains(
+                context.Settings.DynamicGameSummariesSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Progress);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicLibraryAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.RarityPercent);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicLibraryAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Hidden);
+            CollectionAssert.DoesNotContain(
+                context.Settings.DynamicLibraryAchievementsSortOptions.Select(item => item.Key).ToList(),
+                DynamicThemeViewKeys.Capstone);
+
+            context.Settings.DynamicLibraryAchievementsProviderKey = "BattleNet";
+            context.Settings.DynamicLibraryAchievementsFilterKey = DynamicThemeViewKeys.Locked;
+            context.Settings.DynamicLibraryAchievementsSortKey = DynamicThemeViewKeys.Name;
+            context.Settings.DynamicLibraryAchievementsSortDirectionKey = DynamicThemeViewKeys.Ascending;
+
+            Assert.AreEqual("BattleNet", context.Settings.DynamicLibraryAchievementsProviderKey);
+            Assert.AreEqual(DynamicThemeViewKeys.Locked, context.Settings.DynamicLibraryAchievementsFilterKey);
+            AssertAchievementNames(context.Settings.DynamicLibraryAchievements, "BN Locked");
+            CollectionAssert.Contains(
+                context.Settings.DynamicLibraryAchievementsProviderOptions.Select(item => item.Key).ToList(),
+                "Steam");
+
+            context.Settings.DynamicGameSummariesFilterKey = DynamicThemeViewKeys.Completed;
+            context.Settings.DynamicGameSummariesSortKey = DynamicThemeViewKeys.Progress;
+            context.Settings.DynamicGameSummariesSortDirectionKey = DynamicThemeViewKeys.Descending;
+
+            Assert.AreEqual(DynamicThemeViewKeys.Completed, context.Settings.DynamicGameSummariesFilterKey);
+            AssertSummaryNames(context.Settings.DynamicGameSummaries, "Steam Dynamic");
+        }
+
+        [TestMethod]
         public void DynamicGameSummaries_SortProjectMetadataAndKeepProviderStateIndependent()
         {
             PercentRarityHelper.Configure(5, 10, 50);

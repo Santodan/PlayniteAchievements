@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json.Linq;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Tagging;
 
@@ -40,12 +41,21 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_DefaultsViewAchievementsTimelineState()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(TimelineRange.OneYear, settings.ViewAchievementsTimelineRange);
+            Assert.IsFalse(settings.ViewAchievementsTimelineVisible);
+        }
+
+        [TestMethod]
         public void Constructor_DefaultsColumnHeadersVisible()
         {
             var settings = new PersistedSettings();
 
             Assert.IsTrue(settings.ShowOverviewGameSummariesGridColumnHeaders);
-            Assert.IsTrue(settings.ShowAchievementGridColumnHeaders);
+            Assert.IsTrue(settings.ShowOverviewRecentAchievementsGridColumnHeaders);
             Assert.IsTrue(settings.ShowDesktopThemeAchievementGridColumnHeaders);
         }
 
@@ -79,6 +89,29 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(PersistedSettings.DefaultStartPageGridMaxRows, settings.StartPageGameSummariesGridMaxRows);
             Assert.AreEqual(PersistedSettings.DefaultStartPageGridMaxRows, settings.StartPageRecentAchievementsGridMaxRows);
             Assert.IsNull(settings.DesktopThemeAchievementGridMaxRows);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsStartPageScopes()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual(GameActivityScope.Played, settings.StartPageActivityScope);
+            Assert.AreEqual(
+                GameProgressScope.Completed | GameProgressScope.InProgress,
+                settings.StartPageProgressScope);
+        }
+
+        [TestMethod]
+        public void Constructor_DefaultsAchievementHotkeys()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.IsTrue(settings.EnableAchievementHotkeys);
+            Assert.IsFalse(settings.EnableGlobalAchievementHotkeys);
+            Assert.AreEqual(PersistedSettings.DefaultViewAchievementsHotkey, settings.ViewAchievementsHotkey);
+            Assert.AreEqual(PersistedSettings.DefaultManageAchievementsHotkey, settings.ManageAchievementsHotkey);
+            Assert.AreEqual(PersistedSettings.DefaultOverviewHotkey, settings.OverviewHotkey);
         }
 
         [TestMethod]
@@ -168,12 +201,60 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveViewAchievementsTimelineState()
+        {
+            var source = new PersistedSettings
+            {
+                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimelineVisible = true
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.AreEqual(TimelineRange.All, clone.ViewAchievementsTimelineRange);
+            Assert.IsTrue(clone.ViewAchievementsTimelineVisible);
+            Assert.AreEqual(TimelineRange.All, target.ViewAchievementsTimelineRange);
+            Assert.IsTrue(target.ViewAchievementsTimelineVisible);
+        }
+
+        [TestMethod]
+        public void CloneAndCopyFrom_PreserveAchievementHotkeySettings()
+        {
+            var source = new PersistedSettings
+            {
+                EnableAchievementHotkeys = false,
+                EnableGlobalAchievementHotkeys = true,
+                ViewAchievementsHotkey = "F8",
+                ManageAchievementsHotkey = "Shift+F9",
+                OverviewHotkey = "F10"
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsFalse(clone.EnableAchievementHotkeys);
+            Assert.IsTrue(clone.EnableGlobalAchievementHotkeys);
+            Assert.AreEqual("F8", clone.ViewAchievementsHotkey);
+            Assert.AreEqual("Shift+F9", clone.ManageAchievementsHotkey);
+            Assert.AreEqual("F10", clone.OverviewHotkey);
+
+            Assert.IsFalse(target.EnableAchievementHotkeys);
+            Assert.IsTrue(target.EnableGlobalAchievementHotkeys);
+            Assert.AreEqual("F8", target.ViewAchievementsHotkey);
+            Assert.AreEqual("Shift+F9", target.ManageAchievementsHotkey);
+            Assert.AreEqual("F10", target.OverviewHotkey);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveColumnHeaderVisibilityAndColumnOrder()
         {
             var source = new PersistedSettings
             {
                 ShowOverviewGameSummariesGridColumnHeaders = false,
-                ShowAchievementGridColumnHeaders = false,
+                ShowOverviewRecentAchievementsGridColumnHeaders = false,
                 ShowDesktopThemeAchievementGridColumnHeaders = false,
                 GridColumnHeaderAlignment = GridAlignment.Right,
                 GridCellAlignment = GridAlignment.Center,
@@ -249,10 +330,10 @@ namespace PlayniteAchievements.Models.Tests
             target.CopyFrom(source);
 
             Assert.IsFalse(clone.ShowOverviewGameSummariesGridColumnHeaders);
-            Assert.IsFalse(clone.ShowAchievementGridColumnHeaders);
+            Assert.IsFalse(clone.ShowOverviewRecentAchievementsGridColumnHeaders);
             Assert.IsFalse(clone.ShowDesktopThemeAchievementGridColumnHeaders);
             Assert.IsFalse(target.ShowOverviewGameSummariesGridColumnHeaders);
-            Assert.IsFalse(target.ShowAchievementGridColumnHeaders);
+            Assert.IsFalse(target.ShowOverviewRecentAchievementsGridColumnHeaders);
             Assert.IsFalse(target.ShowDesktopThemeAchievementGridColumnHeaders);
             Assert.AreEqual(GridAlignment.Right, clone.GridColumnHeaderAlignment);
             Assert.AreEqual(GridAlignment.Center, clone.GridCellAlignment);
@@ -448,7 +529,7 @@ namespace PlayniteAchievements.Models.Tests
                 ShowCompactListRarityBar = false,
                 ShowCompletionBorder = false,
                 ShowOverviewGameSummariesGridColumnHeaders = false,
-                ShowAchievementGridColumnHeaders = false,
+                ShowOverviewRecentAchievementsGridColumnHeaders = false,
                 ShowDesktopThemeAchievementGridColumnHeaders = false,
                 GridColumnHeaderAlignment = GridAlignment.Right,
                 GridCellAlignment = GridAlignment.Center,
@@ -461,7 +542,9 @@ namespace PlayniteAchievements.Models.Tests
                 AchievementDataGridMaxHeight = 333d,
                 OverviewGameSummariesGridRowHeight = 64d,
                 OverviewGameSummariesGridMaxRows = 4,
-                OverviewLeftColumnRatio = 0.72d
+                OverviewLeftColumnRatio = 0.72d,
+                ViewAchievementsTimelineRange = TimelineRange.All,
+                ViewAchievementsTimelineVisible = true
             };
 
             settings.TaggingSettings.CompletedConfig.DisplayName = "Done";
@@ -474,6 +557,8 @@ namespace PlayniteAchievements.Models.Tests
             settings.StartPageRecentUnlocksGrid.MaxRows = 4;
             settings.StartPagePieCharts.ShowCenterPercentage = false;
             settings.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
+            settings.StartPageActivityScope = GameActivityScope.All;
+            settings.StartPageProgressScope = GameProgressScope.NoProgress;
             settings.DataGridColumnVisibility["Title"] = false;
             settings.DataGridColumnWidths["Title"] = 100d;
             settings.DataGridColumnOrder["Title"] = 2;
@@ -524,7 +609,7 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.ShowCompactListRarityBar, settings.ShowCompactListRarityBar);
             Assert.AreEqual(defaults.ShowCompletionBorder, settings.ShowCompletionBorder);
             Assert.AreEqual(defaults.ShowOverviewGameSummariesGridColumnHeaders, settings.ShowOverviewGameSummariesGridColumnHeaders);
-            Assert.AreEqual(defaults.ShowAchievementGridColumnHeaders, settings.ShowAchievementGridColumnHeaders);
+            Assert.AreEqual(defaults.ShowOverviewRecentAchievementsGridColumnHeaders, settings.ShowOverviewRecentAchievementsGridColumnHeaders);
             Assert.AreEqual(defaults.ShowDesktopThemeAchievementGridColumnHeaders, settings.ShowDesktopThemeAchievementGridColumnHeaders);
             Assert.AreEqual(defaults.GridColumnHeaderAlignment, settings.GridColumnHeaderAlignment);
             Assert.AreEqual(defaults.GridCellAlignment, settings.GridCellAlignment);
@@ -545,7 +630,11 @@ namespace PlayniteAchievements.Models.Tests
             Assert.AreEqual(defaults.StartPageRecentAchievementsGridMaxRows, settings.StartPageRecentAchievementsGridMaxRows);
             Assert.AreEqual(defaults.StartPagePieCharts.ShowCenterPercentage, settings.StartPagePieCharts.ShowCenterPercentage);
             Assert.AreEqual(defaults.StartPagePieCharts.SmallSliceMode, settings.StartPagePieCharts.SmallSliceMode);
+            Assert.AreEqual(defaults.StartPageActivityScope, settings.StartPageActivityScope);
+            Assert.AreEqual(defaults.StartPageProgressScope, settings.StartPageProgressScope);
             Assert.AreEqual(defaults.OverviewLeftColumnRatio, settings.OverviewLeftColumnRatio);
+            Assert.AreEqual(defaults.ViewAchievementsTimelineRange, settings.ViewAchievementsTimelineRange);
+            Assert.AreEqual(defaults.ViewAchievementsTimelineVisible, settings.ViewAchievementsTimelineVisible);
 
             Assert.AreEqual(0, settings.DataGridColumnVisibility.Count);
             Assert.AreEqual(0, settings.DataGridColumnWidths.Count);

@@ -103,19 +103,20 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         private void ApplyCompletedGames(OverviewDataSnapshot snapshot)
         {
+            var games = GetScopedGames(snapshot, includeProgressScope: false);
             Chart.SetGameData(
-                snapshot?.TotalGames ?? 0,
-                snapshot?.CompletedGames ?? 0,
+                games.Count,
+                games.Count(game => game?.IsCompleted == true),
                 L("LOCPlayAch_Filter_Complete", "Complete"),
                 L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
         }
 
         private void ApplyProvider(OverviewDataSnapshot snapshot)
         {
-            var games = snapshot?.GameSummaries ?? new List<GameSummaryItem>();
-            var unlockedByProvider = snapshot?.UnlockedByProvider ?? BuildProviderUnlockedCounts(games);
-            var totalByProvider = snapshot?.TotalByProvider ?? BuildProviderTotalCounts(games);
-            var totalLocked = snapshot?.TotalLocked ?? Math.Max(0, totalByProvider.Values.Sum() - unlockedByProvider.Values.Sum());
+            var games = GetScopedGames(snapshot, includeProgressScope: true);
+            var unlockedByProvider = BuildProviderUnlockedCounts(games);
+            var totalByProvider = BuildProviderTotalCounts(games);
+            var totalLocked = Math.Max(0, totalByProvider.Values.Sum() - unlockedByProvider.Values.Sum());
             var providerLookup = BuildProviderLookup(games);
             var providerDisplayNames = BuildProviderDisplayNames(games);
 
@@ -130,16 +131,17 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         private void ApplyRarity(OverviewDataSnapshot snapshot)
         {
+            var games = GetScopedGames(snapshot, includeProgressScope: true);
             Chart.SetRarityData(
-                snapshot?.TotalCommon ?? 0,
-                snapshot?.TotalUncommon ?? 0,
-                snapshot?.TotalRare ?? 0,
-                snapshot?.TotalUltraRare ?? 0,
-                snapshot?.TotalLocked ?? Math.Max(0, (snapshot?.TotalAchievements ?? 0) - (snapshot?.TotalUnlocked ?? 0)),
-                snapshot?.TotalCommonPossible ?? 0,
-                snapshot?.TotalUncommonPossible ?? 0,
-                snapshot?.TotalRarePossible ?? 0,
-                snapshot?.TotalUltraRarePossible ?? 0,
+                games.Sum(game => game?.CommonCount ?? 0),
+                games.Sum(game => game?.UncommonCount ?? 0),
+                games.Sum(game => game?.RareCount ?? 0),
+                games.Sum(game => game?.UltraRareCount ?? 0),
+                Math.Max(0, games.Sum(game => game?.TotalAchievements ?? 0) - games.Sum(game => game?.UnlockedAchievements ?? 0)),
+                games.Sum(game => game?.TotalCommonPossible ?? 0),
+                games.Sum(game => game?.TotalUncommonPossible ?? 0),
+                games.Sum(game => game?.TotalRarePossible ?? 0),
+                games.Sum(game => game?.TotalUltraRarePossible ?? 0),
                 L("LOCPlayAch_Rarity_Common", "Common"),
                 L("LOCPlayAch_Rarity_Uncommon", "Uncommon"),
                 L("LOCPlayAch_Rarity_Rare", "Rare"),
@@ -150,7 +152,7 @@ namespace PlayniteAchievements.ViewModels.StartPage
 
         private void ApplyTrophy(OverviewDataSnapshot snapshot)
         {
-            var games = snapshot?.GameSummaries ?? new List<GameSummaryItem>();
+            var games = GetScopedGames(snapshot, includeProgressScope: true);
             Chart.SetTrophyData(
                 games.Sum(game => game?.TrophyPlatinumCount ?? 0),
                 games.Sum(game => game?.TrophyGoldCount ?? 0),
@@ -165,6 +167,14 @@ namespace PlayniteAchievements.ViewModels.StartPage
                 L("LOCPlayAch_Trophy_Silver", "Silver"),
                 L("LOCPlayAch_Trophy_Bronze", "Bronze"),
                 L("LOCPlayAch_Common_Locked", "Locked"));
+        }
+
+        private List<GameSummaryItem> GetScopedGames(OverviewDataSnapshot snapshot, bool includeProgressScope)
+        {
+            return StartPageWidgetProjection.FilterGameSummariesForStartPage(
+                snapshot?.GameSummaries,
+                PersistedSettings,
+                includeProgressScope);
         }
 
         private static Dictionary<string, int> BuildProviderUnlockedCounts(IEnumerable<GameSummaryItem> games)

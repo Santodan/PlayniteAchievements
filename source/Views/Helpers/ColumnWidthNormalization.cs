@@ -545,7 +545,7 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (Math.Abs(delta) > 0.2)
             {
-                if (rescaleAll)
+                if (rescaleAll || string.IsNullOrWhiteSpace(protectedKey))
                 {
                     RescaleWidthsProportionally(widths, floors, targetWidth);
                 }

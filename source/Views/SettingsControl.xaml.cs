@@ -6,12 +6,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Threading.Tasks;
 using System.ComponentModel;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.ViewModels;
@@ -452,6 +454,84 @@ namespace PlayniteAchievements.Views
             set => SetValue(LegacyManualImportBusyProperty, value);
         }
 
+        public static readonly DependencyProperty StartPageActivityScopeTextProperty =
+            DependencyProperty.Register(
+                nameof(StartPageActivityScopeText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string StartPageActivityScopeText
+        {
+            get => (string)GetValue(StartPageActivityScopeTextProperty);
+            set => SetValue(StartPageActivityScopeTextProperty, value);
+        }
+
+        public static readonly DependencyProperty StartPageProgressScopeTextProperty =
+            DependencyProperty.Register(
+                nameof(StartPageProgressScopeText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string StartPageProgressScopeText
+        {
+            get => (string)GetValue(StartPageProgressScopeTextProperty);
+            set => SetValue(StartPageProgressScopeTextProperty, value);
+        }
+
+        public static readonly DependencyProperty ViewAchievementsHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(ViewAchievementsHotkeyButtonText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string ViewAchievementsHotkeyButtonText
+        {
+            get => (string)GetValue(ViewAchievementsHotkeyButtonTextProperty);
+            set => SetValue(ViewAchievementsHotkeyButtonTextProperty, value);
+        }
+
+        public static readonly DependencyProperty ManageAchievementsHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(ManageAchievementsHotkeyButtonText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string ManageAchievementsHotkeyButtonText
+        {
+            get => (string)GetValue(ManageAchievementsHotkeyButtonTextProperty);
+            set => SetValue(ManageAchievementsHotkeyButtonTextProperty, value);
+        }
+
+        public static readonly DependencyProperty OverviewHotkeyButtonTextProperty =
+            DependencyProperty.Register(
+                nameof(OverviewHotkeyButtonText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string OverviewHotkeyButtonText
+        {
+            get => (string)GetValue(OverviewHotkeyButtonTextProperty);
+            set => SetValue(OverviewHotkeyButtonTextProperty, value);
+        }
+
+        public static readonly DependencyProperty HotkeyCaptureStatusTextProperty =
+            DependencyProperty.Register(
+                nameof(HotkeyCaptureStatusText),
+                typeof(string),
+                typeof(SettingsControl),
+                new PropertyMetadata(string.Empty));
+
+        public string HotkeyCaptureStatusText
+        {
+            get => (string)GetValue(HotkeyCaptureStatusTextProperty);
+            set => SetValue(HotkeyCaptureStatusTextProperty, value);
+        }
+
         private readonly PlayniteAchievementsPlugin _plugin;
         private readonly PlayniteAchievementsSettingsViewModel _settingsViewModel;
         private readonly ILogger _logger;
@@ -481,6 +561,8 @@ namespace PlayniteAchievements.Views
         private bool _isRefreshingCustomStyleSlotSelection;
         private ICollectionView _providerNavigationView;
         private bool _providerNavigationBuilt;
+        private bool _themeMigrationLoaded;
+        private HotkeyCaptureTarget? _capturingHotkey;
         private const string SuccessStoryExtensionId = "cebe6d32-8c46-4459-b993-5a5189d60788";
         private const string SuccessStoryFolderName = "SuccessStory";
         private const string DefaultSteamSoundPath = @"Resources\Sounds\Steam.wav";
@@ -520,6 +602,13 @@ namespace PlayniteAchievements.Views
             public string DisplayName { get; set; }
 
             public int SlotNumber { get; set; }
+        }
+
+        private enum HotkeyCaptureTarget
+        {
+            ViewAchievements,
+            ManageAchievements,
+            Overview
         }
 
         public static readonly DependencyProperty ProviderNavigationItemsProperty =
@@ -614,6 +703,8 @@ namespace PlayniteAchievements.Views
 
             // Subscribe to settings property changes to refresh mock previews
             _settingsViewModel.Settings.Persisted.PropertyChanged += OnSettingsPropertyChanged;
+            UpdateStartPageScopeTexts();
+            UpdateHotkeyButtonTexts();
 
             // Debug logging to verify DataContext and Settings values
             _logger?.Info($"SettingsControl created. DataContext type: {DataContext?.GetType().Name}");
@@ -3894,6 +3985,234 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void StartPageActivityScopeSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenStartPageActivityScopeContextMenu(sender as Button);
+        }
+
+        private void StartPageProgressScopeSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenStartPageProgressScopeContextMenu(sender as Button);
+        }
+
+        private void OpenStartPageActivityScopeContextMenu(Button button)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (button == null || persisted == null)
+            {
+                return;
+            }
+
+            var options = new[]
+            {
+                new { Scope = GameActivityScope.Played, Label = L("LOCPlayAch_Filter_Played", "Played") },
+                new { Scope = GameActivityScope.Unplayed, Label = L("LOCPlayAch_Filter_Unplayed", "Unplayed") }
+            };
+
+            var menu = PrepareStartPageScopeContextMenu(button);
+            if (menu == null)
+            {
+                return;
+            }
+
+            var current = persisted.StartPageActivityScope;
+            foreach (var option in options)
+            {
+                var scope = option.Scope;
+                var item = CreateStartPageScopeMenuItem(
+                    button,
+                    option.Label,
+                    current.HasFlag(scope),
+                    isChecked =>
+                    {
+                        var settings = _settingsViewModel?.Settings?.Persisted;
+                        if (settings == null)
+                        {
+                            return;
+                        }
+
+                        settings.StartPageActivityScope = isChecked
+                            ? settings.StartPageActivityScope | scope
+                            : settings.StartPageActivityScope & ~scope;
+                        UpdateStartPageScopeTexts();
+                    });
+                menu.Items.Add(item);
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
+
+        private void OpenStartPageProgressScopeContextMenu(Button button)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (button == null || persisted == null)
+            {
+                return;
+            }
+
+            var options = new[]
+            {
+                new { Scope = GameProgressScope.Completed, Label = L("LOCPlayAch_Filter_Complete", "Complete") },
+                new { Scope = GameProgressScope.InProgress, Label = L("LOCPlayAch_Filter_InProgress", "In Progress") },
+                new { Scope = GameProgressScope.NoProgress, Label = L("LOCPlayAch_Filter_NoProgress", "No Progress") }
+            };
+
+            var menu = PrepareStartPageScopeContextMenu(button);
+            if (menu == null)
+            {
+                return;
+            }
+
+            var current = persisted.StartPageProgressScope;
+            foreach (var option in options)
+            {
+                var scope = option.Scope;
+                var item = CreateStartPageScopeMenuItem(
+                    button,
+                    option.Label,
+                    current.HasFlag(scope),
+                    isChecked =>
+                    {
+                        var settings = _settingsViewModel?.Settings?.Persisted;
+                        if (settings == null)
+                        {
+                            return;
+                        }
+
+                        settings.StartPageProgressScope = isChecked
+                            ? settings.StartPageProgressScope | scope
+                            : settings.StartPageProgressScope & ~scope;
+                        UpdateStartPageScopeTexts();
+                    });
+                menu.Items.Add(item);
+            }
+
+            OpenSelectorContextMenu(button, menu);
+        }
+
+        private static ContextMenu PrepareStartPageScopeContextMenu(Button button)
+        {
+            var menu = button?.ContextMenu;
+            if (menu == null)
+            {
+                return null;
+            }
+
+            menu.Items.Clear();
+            return menu;
+        }
+
+        private static MenuItem CreateStartPageScopeMenuItem(
+            Button button,
+            string header,
+            bool isChecked,
+            Action<bool> setSelection)
+        {
+            var item = new MenuItem
+            {
+                Header = header,
+                IsCheckable = true,
+                StaysOpenOnClick = true,
+                IsChecked = isChecked
+            };
+
+            var itemStyle = button?.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
+            if (itemStyle != null)
+            {
+                item.Style = itemStyle;
+            }
+
+            item.Click += (_, __) => setSelection?.Invoke(item.IsChecked);
+            return item;
+        }
+
+        private static void OpenSelectorContextMenu(Button button, ContextMenu menu)
+        {
+            if (button == null || menu == null || menu.Items.Count == 0)
+            {
+                return;
+            }
+
+            RoutedEventHandler onClosed = null;
+            onClosed = (_, __) =>
+            {
+                menu.Closed -= onClosed;
+                button.ReleaseMouseCapture();
+            };
+
+            menu.Closed += onClosed;
+            menu.PlacementTarget = button;
+            menu.Placement = PlacementMode.Bottom;
+            menu.HorizontalOffset = 0;
+            menu.VerticalOffset = 0;
+            menu.IsOpen = true;
+        }
+
+        private void UpdateStartPageScopeTexts()
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            var activityScope = persisted?.StartPageActivityScope ??
+                PersistedSettings.DefaultStartPageActivityScope;
+            var progressScope = persisted?.StartPageProgressScope ??
+                PersistedSettings.DefaultStartPageProgressScope;
+
+            StartPageActivityScopeText = GetActivityScopeText(activityScope);
+            StartPageProgressScopeText = GetProgressScopeText(progressScope);
+        }
+
+        private static string GetActivityScopeText(GameActivityScope scope)
+        {
+            scope = PersistedSettings.NormalizeStartPageActivityScope(scope);
+            if (scope == GameActivityScope.None)
+            {
+                return L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity");
+            }
+
+            var labels = new List<string>();
+            if (scope.HasFlag(GameActivityScope.Played))
+            {
+                labels.Add(L("LOCPlayAch_Filter_Played", "Played"));
+            }
+
+            if (scope.HasFlag(GameActivityScope.Unplayed))
+            {
+                labels.Add(L("LOCPlayAch_Filter_Unplayed", "Unplayed"));
+            }
+
+            return labels.Count > 0
+                ? string.Join(", ", labels)
+                : L("LOCPlayAch_Filter_ActivitySelectorPlaceholder", "Activity");
+        }
+
+        private static string GetProgressScopeText(GameProgressScope scope)
+        {
+            scope = PersistedSettings.NormalizeStartPageProgressScope(scope);
+            if (scope == GameProgressScope.None)
+            {
+                return L("LOCPlayAch_Progress", "Progress");
+            }
+
+            var labels = new List<string>();
+            if (scope.HasFlag(GameProgressScope.Completed))
+            {
+                labels.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
+            }
+
+            if (scope.HasFlag(GameProgressScope.InProgress))
+            {
+                labels.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+            }
+
+            if (scope.HasFlag(GameProgressScope.NoProgress))
+            {
+                labels.Add(L("LOCPlayAch_Filter_NoProgress", "No Progress"));
+            }
+
+            return labels.Count > 0
+                ? string.Join(", ", labels)
+                : L("LOCPlayAch_Progress", "Progress");
+        }
+
         // -----------------------------
         // Tagging Methods
         // -----------------------------
@@ -4280,6 +4599,248 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void ViewAchievementsHotkeyCapture_Click(object sender, RoutedEventArgs e)
+        {
+            StartHotkeyCapture(HotkeyCaptureTarget.ViewAchievements, ViewAchievementsHotkeyCaptureButton);
+        }
+
+        private void ManageAchievementsHotkeyCapture_Click(object sender, RoutedEventArgs e)
+        {
+            StartHotkeyCapture(HotkeyCaptureTarget.ManageAchievements, ManageAchievementsHotkeyCaptureButton);
+        }
+
+        private void OverviewHotkeyCapture_Click(object sender, RoutedEventArgs e)
+        {
+            StartHotkeyCapture(HotkeyCaptureTarget.Overview, OverviewHotkeyCaptureButton);
+        }
+
+        private void ResetViewAchievementsHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ViewAchievementsHotkey = PersistedSettings.DefaultViewAchievementsHotkey;
+            EndHotkeyCapture();
+        }
+
+        private void ResetManageAchievementsHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.ManageAchievementsHotkey = PersistedSettings.DefaultManageAchievementsHotkey;
+            EndHotkeyCapture();
+        }
+
+        private void ResetOverviewHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.OverviewHotkey = PersistedSettings.DefaultOverviewHotkey;
+            EndHotkeyCapture();
+        }
+
+        private void HotkeyCapture_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_capturingHotkey.HasValue)
+            {
+                return;
+            }
+
+            var target = _capturingHotkey.Value;
+            if ((target == HotkeyCaptureTarget.ViewAchievements &&
+                 !ReferenceEquals(sender, ViewAchievementsHotkeyCaptureButton)) ||
+                (target == HotkeyCaptureTarget.ManageAchievements &&
+                 !ReferenceEquals(sender, ManageAchievementsHotkeyCaptureButton)) ||
+                (target == HotkeyCaptureTarget.Overview &&
+                 !ReferenceEquals(sender, OverviewHotkeyCaptureButton)))
+            {
+                return;
+            }
+
+            e.Handled = true;
+            var key = GetEffectiveHotkeyCaptureKey(e);
+            if (key == Key.Escape)
+            {
+                EndHotkeyCapture();
+                return;
+            }
+
+            if (key == Key.Back || key == Key.Delete)
+            {
+                SetCapturedHotkey(target, string.Empty);
+                EndHotkeyCapture();
+                return;
+            }
+
+            if (!AchievementHotkeyGesture.TryCreate(key, Keyboard.Modifiers, out var gesture))
+            {
+                HotkeyCaptureStatusText = L(
+                    "LOCPlayAch_Hotkeys_InvalidShortcut",
+                    "Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.");
+                return;
+            }
+
+            if (IsDuplicateHotkey(target, gesture))
+            {
+                HotkeyCaptureStatusText = L(
+                    "LOCPlayAch_Hotkeys_DuplicateShortcut",
+                    "That shortcut is already assigned.");
+                return;
+            }
+
+            SetCapturedHotkey(target, gesture.ToString());
+            EndHotkeyCapture();
+        }
+
+        private void StartHotkeyCapture(HotkeyCaptureTarget target, Button button)
+        {
+            _capturingHotkey = target;
+            HotkeyCaptureStatusText = L("LOCPlayAch_Hotkeys_CapturePrompt", "Press a shortcut...");
+
+            if (target == HotkeyCaptureTarget.ViewAchievements)
+            {
+                ViewAchievementsHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
+                ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.ManageAchievementsHotkey);
+                OverviewHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.OverviewHotkey);
+            }
+            else if (target == HotkeyCaptureTarget.ManageAchievements)
+            {
+                ManageAchievementsHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
+                ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.ViewAchievementsHotkey);
+                OverviewHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.OverviewHotkey);
+            }
+            else
+            {
+                OverviewHotkeyButtonText = L("LOCPlayAch_Hotkeys_CaptureButton", "Press keys...");
+                ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.ViewAchievementsHotkey);
+                ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(
+                    _settingsViewModel?.Settings?.Persisted?.ManageAchievementsHotkey);
+            }
+
+            button?.Focus();
+            Keyboard.Focus(button);
+        }
+
+        private void EndHotkeyCapture()
+        {
+            _capturingHotkey = null;
+            HotkeyCaptureStatusText = string.Empty;
+            UpdateHotkeyButtonTexts();
+        }
+
+        private void SetCapturedHotkey(HotkeyCaptureTarget target, string hotkey)
+        {
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            if (target == HotkeyCaptureTarget.ViewAchievements)
+            {
+                persisted.ViewAchievementsHotkey = hotkey;
+            }
+            else if (target == HotkeyCaptureTarget.ManageAchievements)
+            {
+                persisted.ManageAchievementsHotkey = hotkey;
+            }
+            else
+            {
+                persisted.OverviewHotkey = hotkey;
+            }
+        }
+
+        private bool IsDuplicateHotkey(HotkeyCaptureTarget target, AchievementHotkeyGesture gesture)
+        {
+            if (gesture == null || gesture.IsEmpty)
+            {
+                return false;
+            }
+
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            if (persisted == null)
+            {
+                return false;
+            }
+
+            return IsMatchingHotkey(target, HotkeyCaptureTarget.ViewAchievements, persisted.ViewAchievementsHotkey, gesture) ||
+                   IsMatchingHotkey(target, HotkeyCaptureTarget.ManageAchievements, persisted.ManageAchievementsHotkey, gesture) ||
+                   IsMatchingHotkey(target, HotkeyCaptureTarget.Overview, persisted.OverviewHotkey, gesture);
+        }
+
+        private static bool IsMatchingHotkey(
+            HotkeyCaptureTarget currentTarget,
+            HotkeyCaptureTarget comparedTarget,
+            string comparedText,
+            AchievementHotkeyGesture gesture)
+        {
+            if (currentTarget == comparedTarget)
+            {
+                return false;
+            }
+
+            return AchievementHotkeyGesture.TryParse(comparedText, out var otherGesture) &&
+                   otherGesture != null &&
+                   !otherGesture.IsEmpty &&
+                   gesture.Equals(otherGesture);
+        }
+
+        private void UpdateHotkeyButtonTexts()
+        {
+            if (_capturingHotkey.HasValue)
+            {
+                return;
+            }
+
+            var persisted = _settingsViewModel?.Settings?.Persisted;
+            ViewAchievementsHotkeyButtonText = FormatHotkeyButtonText(persisted?.ViewAchievementsHotkey);
+            ManageAchievementsHotkeyButtonText = FormatHotkeyButtonText(persisted?.ManageAchievementsHotkey);
+            OverviewHotkeyButtonText = FormatHotkeyButtonText(persisted?.OverviewHotkey);
+        }
+
+        private string FormatHotkeyButtonText(string hotkey)
+        {
+            return string.IsNullOrWhiteSpace(hotkey)
+                ? L("LOCPlayAch_Hotkeys_None", "None")
+                : hotkey;
+        }
+
+        private static Key GetEffectiveHotkeyCaptureKey(KeyEventArgs e)
+        {
+            if (e == null)
+            {
+                return Key.None;
+            }
+
+            if (e.Key == Key.System)
+            {
+                return e.SystemKey;
+            }
+
+            if (e.Key == Key.ImeProcessed)
+            {
+                return e.ImeProcessedKey;
+            }
+
+            return e.Key;
+        }
+
         // -----------------------------
         // Settings property change handling for mock preview refresh
         // -----------------------------
@@ -4316,6 +4877,19 @@ namespace PlayniteAchievements.Views
                     _settingsViewModel?.Settings?.Persisted?.UseUniformRarityBadges ?? false);
             }
 
+            if (e.PropertyName == nameof(Models.Settings.PersistedSettings.StartPageActivityScope) ||
+                e.PropertyName == nameof(Models.Settings.PersistedSettings.StartPageProgressScope))
+            {
+                UpdateStartPageScopeTexts();
+            }
+
+            if (e.PropertyName == nameof(Models.Settings.PersistedSettings.ViewAchievementsHotkey) ||
+                e.PropertyName == nameof(Models.Settings.PersistedSettings.ManageAchievementsHotkey) ||
+                e.PropertyName == nameof(Models.Settings.PersistedSettings.OverviewHotkey))
+            {
+                UpdateHotkeyButtonTexts();
+            }
+
             if (refreshProperties.Contains(e.PropertyName))
             {
                 RefreshMockPreviews();
@@ -4334,6 +4908,11 @@ namespace PlayniteAchievements.Views
             {
                 _notificationPreviewSettings.PropertyChanged -= LocalNotificationSettings_PropertyChanged;
                 _notificationPreviewSettings = null;
+            }
+
+            if (_settingsViewModel?.Settings?.Persisted != null)
+            {
+                _settingsViewModel.Settings.Persisted.PropertyChanged -= OnSettingsPropertyChanged;
             }
         }
 

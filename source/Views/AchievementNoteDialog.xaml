@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
              mc:Ignorable="d"
              d:DesignHeight="520"
              d:DesignWidth="620"
@@ -15,18 +16,44 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock x:Name="AchievementTitleTextBlock"
-                       Foreground="{DynamicResource TextBrush}"
-                       FontWeight="SemiBold"
-                       TextWrapping="Wrap" />
-            <TextBlock x:Name="AchievementApiNameTextBlock"
-                       Foreground="{DynamicResource TextBrush}"
-                       Opacity="0.6"
-                       FontSize="{DynamicResource FontSizeSmall}"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,0" />
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="AchievementIconBorder"
+                    Grid.Column="0"
+                    Width="48"
+                    Height="48"
+                    Margin="0,0,12,0"
+                    Background="{DynamicResource PanelBackgroundBrush}"
+                    BorderBrush="{DynamicResource NormalBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    ClipToBounds="True">
+                <Image x:Name="AchievementIconImage"
+                       Width="46"
+                       Height="46"
+                       Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       helpers:AsyncImage.DecodePixel="96" />
+            </Border>
+
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Center">
+                <TextBlock x:Name="AchievementTitleTextBlock"
+                           Foreground="{DynamicResource TextBrush}"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="AchievementApiNameTextBlock"
+                           Foreground="{DynamicResource TextBrush}"
+                           Opacity="0.6"
+                           FontSize="{DynamicResource FontSizeSmall}"
+                           TextWrapping="Wrap"
+                           Margin="0,4,0,0" />
+            </StackPanel>
+        </Grid>
 
         <ScrollViewer x:Name="ViewScrollViewer"
                       Grid.Row="1"

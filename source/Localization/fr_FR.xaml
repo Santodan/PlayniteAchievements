@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ================================================================= -->
@@ -355,7 +355,6 @@
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogHint">Saisissez un nom de préréglage (1 à 64 caractères).</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameDialogTitle">Enregistrer le préréglage d'actualisation</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NameInvalid">Le nom du préréglage doit contenir entre 1 et {0} caractères.</sys:String>
-    <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_NoneOption"></sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm">Écraser le préréglage &quot;{0}&quot; ?</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_Presets_SaveAs">Enregistrer sous</sys:String>
     <sys:String x:Key="LOCPlayAch_CustomRefresh_PresetsHeader">Préréglages</sys:String>
@@ -440,6 +439,18 @@
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh">Activer l'actualisation parallèle des plateformes</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableParallelProviderRefresh_Help">Si désactivé, les plateformes seront actualisées l'une après l'autre dans un ordre fixe.</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnablePeriodicUpdates">Activer les mises à jour périodiques en arrière-plan</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_CaptureButton">Press keys...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_CapturePrompt">Press a shortcut...</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_Description">Configure shortcuts for opening achievement windows and the overview. Game-specific hotkeys use the running game first, then the selected game.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_DuplicateShortcut">That shortcut is already assigned.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_Enable">Enable achievement hotkeys</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_EnableGlobal">Enable global hotkeys</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalHelp">Global hotkeys work outside Playnite for modifier shortcuts and function keys. Bare letters and digits stay focused-only.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_GlobalRegistrationFailed">Could not register global hotkey {0}. Another app may already be using it.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_InvalidShortcut">Unsupported shortcut. Press a letter, digit, function key, or a modified shortcut.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_NoTarget">Select one game or start a game before using achievement hotkeys.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_None">None</sys:String>
+    <sys:String x:Key="LOCPlayAch_Hotkeys_Title">Hotkeys</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableTagging">Activer la synchronisation des tags</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames">Inclure les jeux jamais lancés</sys:String>
     <sys:String x:Key="LOCPlayAch_IncludeUnplayedGames_Help">Si désactivé, les jeux avec 0 temps de jeu seront ignorés pendant les actualisations.</sys:String>
@@ -676,7 +687,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authentifié</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_Checking">Vérification de l'authentification...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Non vérifié</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">En attente de vérification</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">Échec de la vérification de l'authentification. Réessayez.</sys:String>
 
     <!-- ================================================================= -->

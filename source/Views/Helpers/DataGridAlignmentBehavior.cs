@@ -597,4 +597,59 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
     }
+
+    /// <summary>
+    /// Lays out its single child against the available width but reports zero desired height, so the
+    /// child's content height never propagates to the parent (e.g. a DataGrid auto-sized row). On
+    /// arrange the child fills the cell's final height and is clipped to it. This lets a wrapping
+    /// note fill whatever row height the other cells establish without driving the row taller.
+    /// </summary>
+    public sealed class HeightDecoupledDecorator : Decorator
+    {
+        // The available height established by the last arrange pass (driven by the other cells or a
+        // fixed row height). The child is always measured against this finite height so a wrapping
+        // TextBlock only formats the lines that fit (cheap) and trims the last with an ellipsis,
+        // instead of formatting the entire note against an unbounded height on every pass.
+        private double _availableHeight;
+
+        public HeightDecoupledDecorator()
+        {
+            ClipToBounds = true;
+        }
+
+        protected override Size MeasureOverride(Size constraint)
+        {
+            var child = Child;
+            if (child == null)
+            {
+                return new Size(0, 0);
+            }
+
+            // Measure against the real width and the last known available height. Report zero height
+            // so the note never contributes to the row's auto-height (decoupling the layout cycle).
+            child.Measure(new Size(constraint.Width, _availableHeight));
+            return new Size(0, 0);
+        }
+
+        protected override Size ArrangeOverride(Size arrangeSize)
+        {
+            var child = Child;
+            if (child != null)
+            {
+                // The DataGridCell stretches this decorator to fill the cell, so arrangeSize.Height is
+                // the row height the other cells established. When it changes, re-measure the child
+                // against it (using the SAME constraint the next MeasureOverride will use, so the two
+                // passes agree and the layout converges instead of oscillating).
+                if (Math.Abs(arrangeSize.Height - _availableHeight) > 0.5)
+                {
+                    _availableHeight = arrangeSize.Height;
+                    child.Measure(new Size(arrangeSize.Width, _availableHeight));
+                }
+
+                child.Arrange(new Rect(arrangeSize));
+            }
+
+            return arrangeSize;
+        }
+    }
 }

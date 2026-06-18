@@ -143,7 +143,8 @@ namespace PlayniteAchievements.Views
                 item.DisplayNameResolved,
                 item.ApiNameResolved,
                 item.AchievementNote,
-                isReadOnly: !isEditMode);
+                isReadOnly: !isEditMode,
+                achievementIconSource: item.DisplayIcon);
 
             var title = isEditMode
                 ? L("LOCPlayAch_NotesDialog_EditTitle", "Edit Note")

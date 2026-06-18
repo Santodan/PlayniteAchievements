@@ -47,6 +47,7 @@ namespace PlayniteAchievements.Providers.Exophase
         {
             _exophaseSettings = settings as ExophaseSettings;
             base.Initialize(settings);
+            SetAuthStatusVisualState(pending: true, success: false);
             SetAuthStatusByKey("LOCPlayAch_Auth_NotChecked");
         }
 
@@ -57,6 +58,7 @@ namespace PlayniteAchievements.Providers.Exophase
                 $"Outcome={result?.Outcome}, MessageKey='{result?.MessageKey ?? "null"}'");
 
             SetAuthenticated(isAuthenticated);
+            SetAuthStatusVisualState(pending: false, success: isAuthenticated);
 
             if (isAuthenticated)
             {

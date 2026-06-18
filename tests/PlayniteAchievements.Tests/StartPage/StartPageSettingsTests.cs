@@ -114,6 +114,8 @@ namespace PlayniteAchievements.Tests.StartPage
 
             source.StartPagePieCharts.ShowCenterPercentage = false;
             source.StartPagePieCharts.SmallSliceMode = OverviewPieSmallSliceMode.Hide;
+            source.StartPageActivityScope = GameActivityScope.All;
+            source.StartPageProgressScope = GameProgressScope.NoProgress;
 
             var clone = source.Clone();
             var copy = new PersistedSettings();
@@ -139,6 +141,10 @@ namespace PlayniteAchievements.Tests.StartPage
             Assert.AreEqual(OverviewPieSmallSliceMode.Hide, clone.StartPagePieCharts.SmallSliceMode);
             Assert.IsFalse(copy.StartPagePieCharts.ShowCenterPercentage);
             Assert.AreEqual(OverviewPieSmallSliceMode.Hide, copy.StartPagePieCharts.SmallSliceMode);
+            Assert.AreEqual(GameActivityScope.All, clone.StartPageActivityScope);
+            Assert.AreEqual(GameProgressScope.NoProgress, clone.StartPageProgressScope);
+            Assert.AreEqual(GameActivityScope.All, copy.StartPageActivityScope);
+            Assert.AreEqual(GameProgressScope.NoProgress, copy.StartPageProgressScope);
 
             Assert.AreNotSame(source.StartPageGameSummariesGrid, clone.StartPageGameSummariesGrid);
             Assert.AreNotSame(source.StartPageRecentUnlocksGrid, copy.StartPageRecentUnlocksGrid);

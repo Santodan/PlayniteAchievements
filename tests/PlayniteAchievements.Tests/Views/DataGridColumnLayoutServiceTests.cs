@@ -267,6 +267,37 @@ namespace PlayniteAchievements.Tests.Views
             });
         }
 
+        [TestMethod]
+        public void PersistPendingResizeWidths_ClearsInteractiveResizeContext()
+        {
+            RunOnStaThread(() =>
+            {
+                var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                var saveCount = 0;
+                var grid = CreateGrid();
+                var service = CreateService(grid, order, () => saveCount++);
+
+                InvokePrivate(service, "CaptureResizeObservedWidths");
+                SetPrivateField(service, "_isResizeInProgress", true);
+
+                grid.Columns[0].Width = new DataGridLength(130, DataGridLengthUnitType.Pixel);
+                InvokePrivate(service, "OnColumnWidthChanged", grid.Columns[0]);
+
+                Assert.AreEqual("A", GetPrivateField<string>(service, "_lastResizedColumnKey"));
+                Assert.AreEqual("B", GetPrivateField<string>(service, "_lastResizeAbsorberColumnKey"));
+
+                SetPrivateField(service, "_isResizeInProgress", false);
+                InvokePrivate(service, "PersistPendingResizeWidths");
+
+                Assert.IsNull(GetPrivateField<string>(service, "_lastResizedColumnKey"));
+                Assert.IsNull(GetPrivateField<string>(service, "_lastResizeAbsorberColumnKey"));
+                Assert.IsNull(GetPrivateField<string>(service, "_resizeBoundaryLeftColumnKey"));
+                Assert.IsNull(GetPrivateField<string>(service, "_resizeBoundaryRightColumnKey"));
+                Assert.AreEqual(0, GetPrivateField<Dictionary<string, double>>(service, "_resizeObservedWidths").Count);
+                Assert.AreEqual(1, saveCount);
+            });
+        }
+
         private static DataGridColumnLayoutService CreateService(
             DataGrid grid,
             Dictionary<string, int> order,

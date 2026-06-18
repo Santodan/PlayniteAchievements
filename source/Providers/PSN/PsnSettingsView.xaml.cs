@@ -59,6 +59,7 @@ namespace PlayniteAchievements.Providers.PSN
             _psnSettings = settings as PsnSettings;
             base.Initialize(settings);
             SetAuthenticated(false);
+            SetAuthStatusVisualState(pending: true, success: false);
             SetAuthStatusByKey("LOCPlayAch_Auth_NotChecked");
         }
 
@@ -66,6 +67,7 @@ namespace PlayniteAchievements.Providers.PSN
         {
             var isAuthenticated = result?.IsSuccess ?? false;
             SetAuthenticated(isAuthenticated);
+            SetAuthStatusVisualState(pending: false, success: isAuthenticated);
 
             if (isAuthenticated)
             {
@@ -145,6 +147,7 @@ namespace PlayniteAchievements.Providers.PSN
             catch (Exception ex)
             {
                 Logger.Error(ex, "PSN login failed");
+                SetAuthStatusVisualState(pending: false, success: false);
                 SetAuthStatusByKey("LOCPlayAch_Common_NotAuthenticated");
             }
             finally
@@ -163,6 +166,7 @@ namespace PlayniteAchievements.Providers.PSN
                 ClearCanonicalAuthInputs();
                 _sessionManager.ClearSession();
                 SetAuthenticated(false);
+                SetAuthStatusVisualState(pending: false, success: false);
                 SetAuthStatusByKey("LOCPlayAch_Common_NotAuthenticated");
                 PlayniteAchievementsPlugin.NotifySettingsSaved();
             }

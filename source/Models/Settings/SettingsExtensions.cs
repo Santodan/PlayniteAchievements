@@ -49,6 +49,13 @@ namespace PlayniteAchievements.Models.Settings
                 ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(source.CustomRefreshPresets, CustomRefreshPreset.MaxPresetCount))
                 : new List<CustomRefreshPreset>();
 
+            // Hotkey Settings
+            target.EnableAchievementHotkeys = source.EnableAchievementHotkeys;
+            target.EnableGlobalAchievementHotkeys = source.EnableGlobalAchievementHotkeys;
+            target.ViewAchievementsHotkey = source.ViewAchievementsHotkey;
+            target.ManageAchievementsHotkey = source.ManageAchievementsHotkey;
+            target.OverviewHotkey = source.OverviewHotkey;
+
             // Notification Settings
             target.EnableNotifications = source.EnableNotifications;
             target.NotifyPeriodicUpdates = source.NotifyPeriodicUpdates;
@@ -125,6 +132,8 @@ namespace PlayniteAchievements.Models.Settings
                 new StartPageRecentUnlocksGridSettings();
             target.StartPagePieCharts = source.StartPagePieCharts?.Clone() ??
                 new StartPagePieWidgetSettings();
+            target.StartPageActivityScope = source.StartPageActivityScope;
+            target.StartPageProgressScope = source.StartPageProgressScope;
             target.EnableParallelProviderRefresh = source.EnableParallelProviderRefresh;
             target.ScanDelayMs = source.ScanDelayMs;
             target.MaxRetryAttempts = source.MaxRetryAttempts;
@@ -270,6 +279,8 @@ namespace PlayniteAchievements.Models.Settings
                     StringComparer.OrdinalIgnoreCase)
                 : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
             target.OverviewTimelineRange = source.OverviewTimelineRange;
+            target.ViewAchievementsTimelineRange = source.ViewAchievementsTimelineRange;
+            target.ViewAchievementsTimelineVisible = source.ViewAchievementsTimelineVisible;
 
             // General Settings
             target.FirstTimeSetupCompleted = source.FirstTimeSetupCompleted;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PlayniteAchievements.Providers.RetroAchievements
 {
@@ -35,32 +36,68 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 return Array.Empty<string>();
             }
 
+            var segments = baseTitle
+                .Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(segment => segment?.Trim())
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .ToList();
+
             var candidates = new List<string>();
-            foreach (var segment in baseTitle.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries))
+            foreach (var segment in segments)
             {
-                var normalized = segment?.Trim();
-                if (string.IsNullOrWhiteSpace(normalized))
+                AddCandidate(candidates, segment);
+            }
+
+            foreach (var segment in segments)
+            {
+                if (segment.IndexOf(':') >= 0)
                 {
                     continue;
                 }
 
-                var alreadyPresent = false;
-                foreach (var existing in candidates)
+                foreach (var prefix in ExtractColonPrefixes(segments))
                 {
-                    if (string.Equals(existing, normalized, StringComparison.OrdinalIgnoreCase))
-                    {
-                        alreadyPresent = true;
-                        break;
-                    }
-                }
-
-                if (!alreadyPresent)
-                {
-                    candidates.Add(normalized);
+                    AddCandidate(candidates, $"{prefix} {segment}");
                 }
             }
 
             return candidates;
+        }
+
+        private static IReadOnlyList<string> ExtractColonPrefixes(IReadOnlyList<string> segments)
+        {
+            var prefixes = new List<string>();
+            foreach (var segment in segments)
+            {
+                var colonIndex = segment.IndexOf(':');
+                if (colonIndex <= 0 || colonIndex >= segment.Length - 1)
+                {
+                    continue;
+                }
+
+                AddCandidate(prefixes, segment.Substring(0, colonIndex + 1).Trim());
+            }
+
+            return prefixes;
+        }
+
+        private static void AddCandidate(List<string> candidates, string candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                return;
+            }
+
+            var normalized = candidate.Trim();
+            foreach (var existing in candidates)
+            {
+                if (string.Equals(existing, normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            candidates.Add(normalized);
         }
     }
 }

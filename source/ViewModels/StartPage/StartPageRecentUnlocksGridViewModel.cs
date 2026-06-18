@@ -33,7 +33,8 @@ namespace PlayniteAchievements.ViewModels.StartPage
         {
             Items.ReplaceAll(StartPageWidgetProjection.ProjectRecentUnlocks(
                 snapshot?.RecentAchievements,
-                PersistedSettings));
+                PersistedSettings,
+                appearanceSettings: Settings));
             OnPropertyChanged(nameof(UseCoverImages));
             OnPropertyChanged(nameof(ShowColumnHeaders));
             OnPropertyChanged(nameof(RowHeight));

@@ -124,7 +124,32 @@ namespace PlayniteAchievements.Services
         public static string ToDisplayText(string rawValue)
         {
             var values = ParseValues(NormalizeOrDefault(rawValue));
-            return values.Count == 0 ? DefaultCategoryType : string.Join(", ", values);
+            return ToDisplayText(values);
+        }
+
+        public static string ToDisplayText(IEnumerable<string> categoryTypes)
+        {
+            var values = (categoryTypes ?? Enumerable.Empty<string>())
+                .SelectMany(value => ParseValues(NormalizeOrDefault(value)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (values.Count == 0)
+            {
+                values.Add(DefaultCategoryType);
+            }
+
+            return string.Join(
+                ", ",
+                CanonicalOrder
+                    .Where(values.Contains)
+                    .Select(ToCategoryTypeDisplayText));
+        }
+
+        public static string ToCategoryTypeDisplayText(string categoryType)
+        {
+            var values = ParseValues(NormalizeOrDefault(categoryType));
+            var canonical = values.Count == 0 ? DefaultCategoryType : values[0];
+            return L($"LOCPlayAch_ManageAchievements_Category_Type_{canonical}", canonical);
         }
 
         public static string ToCategoryLabelDisplayText(string rawValue)

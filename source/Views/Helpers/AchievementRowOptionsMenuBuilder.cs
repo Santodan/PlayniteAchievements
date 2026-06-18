@@ -355,7 +355,8 @@ namespace PlayniteAchievements.Views.Helpers
                 context.DisplayName,
                 context.ApiName,
                 note,
-                isReadOnly: !isEditMode);
+                isReadOnly: !isEditMode,
+                achievementIconSource: context.DisplayIcon);
             var title = isEditMode
                 ? L(resourceOwner, "LOCPlayAch_NotesDialog_EditTitle", "Edit Note")
                 : L(resourceOwner, "LOCPlayAch_NotesDialog_ViewTitle", "View Note");
@@ -459,6 +460,8 @@ namespace PlayniteAchievements.Views.Helpers
 
             public string DisplayName { get; private set; }
 
+            public string DisplayIcon { get; private set; }
+
             public bool IsCapstone { get; private set; }
 
             public string CategoryLabel { get; private set; }
@@ -483,6 +486,7 @@ namespace PlayniteAchievements.Views.Helpers
                         GameId = displayItem.PlayniteGameId.Value,
                         ApiName = apiName,
                         DisplayName = displayItem.DisplayNameResolved,
+                        DisplayIcon = displayItem.DisplayIcon,
                         IsCapstone = displayItem.Source?.IsCapstone == true,
                         CategoryLabel = displayItem.CategoryLabel,
                         CategoryType = displayItem.CategoryType
@@ -505,6 +509,7 @@ namespace PlayniteAchievements.Views.Helpers
                         GameId = recentItem.PlayniteGameId.Value,
                         ApiName = apiName,
                         DisplayName = recentItem.Name,
+                        DisplayIcon = recentItem.DisplayIcon,
                         IsCapstone = false,
                         CategoryLabel = recentItem.CategoryLabel,
                         CategoryType = recentItem.CategoryType

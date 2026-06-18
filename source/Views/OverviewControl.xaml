@@ -557,7 +557,7 @@
                 <Setter Property="VerticalAlignment" Value="Stretch"/>
                 <Setter Property="ResizeDirection" Value="Columns"/>
                 <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
-                <Setter Property="ShowsPreview" Value="True"/>
+                <Setter Property="ShowsPreview" Value="False"/>
                 <Setter Property="Cursor" Value="SizeWE"/>
                 <Setter Property="SnapsToDevicePixels" Value="True"/>
                 <Setter Property="Template">

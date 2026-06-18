@@ -68,12 +68,14 @@ namespace PlayniteAchievements.Providers.Epic
         {
             _epicSettings = settings as EpicSettings;
             base.Initialize(settings);
+            SetAuthStatusVisualState(pending: true, success: false);
             AuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_NotChecked");
         }
 
         private void UpdateAuthStatus(AuthProbeResult result)
         {
             var isAuthenticated = result?.IsSuccess ?? false;
+            SetAuthStatusVisualState(pending: false, success: isAuthenticated);
             IsAuthenticated = isAuthenticated;
 
             if (isAuthenticated)

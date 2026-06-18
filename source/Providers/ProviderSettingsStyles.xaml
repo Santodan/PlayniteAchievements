@@ -35,4 +35,48 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
+    <Style x:Key="AuthStatusBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#F72585"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="BorderBrush" Value="#FBBF24"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusSuccess, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="BorderBrush" Value="#06FFA5"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AuthStatusIconStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="Width" Value="24"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="LineHeight" Value="24"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="Margin" Value="0,0,12,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextAlignment" Value="Center"/>
+        <Setter Property="Text" Value="&#xE783;"/>
+        <Setter Property="Foreground" Value="#F72585"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="Text" Value="&#xE9CE;"/>
+                <Setter Property="Foreground" Value="#FBBF24"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusSuccess, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="Text" Value="&#xE930;"/>
+                <Setter Property="Foreground" Value="#06FFA5"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
 </ResourceDictionary>

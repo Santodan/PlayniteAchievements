@@ -27,6 +27,12 @@ namespace PlayniteAchievements.Models.Settings
         public const double DefaultOverviewLeftColumnRatio = 0.5d;
         public const double MinOverviewLeftColumnRatio = 0.01d;
         public const double MaxOverviewLeftColumnRatio = 0.99d;
+        public const GameActivityScope DefaultStartPageActivityScope = GameActivityScope.Played;
+        public const GameProgressScope DefaultStartPageProgressScope =
+            GameProgressScope.Completed | GameProgressScope.InProgress;
+        public const string DefaultViewAchievementsHotkey = "Ctrl+Alt+V";
+        public const string DefaultManageAchievementsHotkey = "Ctrl+Alt+M";
+        public const string DefaultOverviewHotkey = "Ctrl+Alt+O";
 
         public PersistedSettings()
         {
@@ -43,6 +49,11 @@ namespace PlayniteAchievements.Models.Settings
         private bool _notifyPeriodicUpdates = true;
         private bool _notifyOnRebuild = true;
         private int _recentRefreshGamesCount = 10;
+        private bool _enableAchievementHotkeys = true;
+        private bool _enableGlobalAchievementHotkeys = false;
+        private string _viewAchievementsHotkey = DefaultViewAchievementsHotkey;
+        private string _manageAchievementsHotkey = DefaultManageAchievementsHotkey;
+        private string _overviewHotkey = DefaultOverviewHotkey;
         private bool _showHiddenIcon = false;
         private bool _showHiddenTitle = false;
         private bool _showHiddenDescription = false;
@@ -104,6 +115,8 @@ namespace PlayniteAchievements.Models.Settings
             new StartPageRecentUnlocksGridSettings();
         private StartPagePieWidgetSettings _startPagePieCharts =
             new StartPagePieWidgetSettings();
+        private GameActivityScope _startPageActivityScope = DefaultStartPageActivityScope;
+        private GameProgressScope _startPageProgressScope = DefaultStartPageProgressScope;
         private bool _enableParallelProviderRefresh = true;
         private int _scanDelayMs = 200;
         private int _maxRetryAttempts = 3;
@@ -156,6 +169,8 @@ namespace PlayniteAchievements.Models.Settings
         private Dictionary<string, WindowPlacementState> _windowPlacements =
             new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase);
         private TimelineRange _overviewTimelineRange = TimelineRange.OneYear;
+        private TimelineRange _viewAchievementsTimelineRange = TimelineRange.OneYear;
+        private bool _viewAchievementsTimelineVisible = false;
         private bool _firstTimeSetupCompleted = false;
         private bool _seenThemeMigration = false;
         private HashSet<Guid> _excludedGameIds = new HashSet<Guid>();
@@ -265,6 +280,55 @@ namespace PlayniteAchievements.Models.Settings
                     CustomRefreshPreset.NormalizePresets(value, CustomRefreshPreset.MaxPresetCount));
                 SetValue(ref _customRefreshPresets, normalized);
             }
+        }
+
+        #endregion
+
+        #region Hotkey Settings
+
+        /// <summary>
+        /// Enables keyboard shortcuts for achievement windows while Playnite is focused.
+        /// </summary>
+        public bool EnableAchievementHotkeys
+        {
+            get => _enableAchievementHotkeys;
+            set => SetValue(ref _enableAchievementHotkeys, value);
+        }
+
+        /// <summary>
+        /// Registers eligible achievement hotkeys with Windows so they work outside Playnite.
+        /// </summary>
+        public bool EnableGlobalAchievementHotkeys
+        {
+            get => _enableGlobalAchievementHotkeys;
+            set => SetValue(ref _enableGlobalAchievementHotkeys, value);
+        }
+
+        /// <summary>
+        /// Shortcut that opens, focuses, or toggles the View Achievements window.
+        /// </summary>
+        public string ViewAchievementsHotkey
+        {
+            get => _viewAchievementsHotkey;
+            set => SetValue(ref _viewAchievementsHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that opens, focuses, or toggles the Manage Achievements window.
+        /// </summary>
+        public string ManageAchievementsHotkey
+        {
+            get => _manageAchievementsHotkey;
+            set => SetValue(ref _manageAchievementsHotkey, NormalizeHotkeyText(value));
+        }
+
+        /// <summary>
+        /// Shortcut that opens, focuses, or toggles the Achievements Overview window.
+        /// </summary>
+        public string OverviewHotkey
+        {
+            get => _overviewHotkey;
+            set => SetValue(ref _overviewHotkey, NormalizeHotkeyText(value));
         }
 
         #endregion
@@ -1059,6 +1123,18 @@ namespace PlayniteAchievements.Models.Settings
             set => SetStartPagePieSettings(ref _startPagePieCharts, value, nameof(StartPagePieCharts));
         }
 
+        public GameActivityScope StartPageActivityScope
+        {
+            get => NormalizeStartPageActivityScope(_startPageActivityScope);
+            set => SetValue(ref _startPageActivityScope, NormalizeStartPageActivityScope(value));
+        }
+
+        public GameProgressScope StartPageProgressScope
+        {
+            get => NormalizeStartPageProgressScope(_startPageProgressScope);
+            set => SetValue(ref _startPageProgressScope, NormalizeStartPageProgressScope(value));
+        }
+
         /// <summary>
         /// When true, providers execute concurrently during refresh runs.
         /// Disable to force deterministic sequential provider execution.
@@ -1775,6 +1851,24 @@ namespace PlayniteAchievements.Models.Settings
             set => SetValue(ref _overviewTimelineRange, value);
         }
 
+        /// <summary>
+        /// Last selected range for the single-game achievements window timeline chart.
+        /// </summary>
+        public TimelineRange ViewAchievementsTimelineRange
+        {
+            get => _viewAchievementsTimelineRange;
+            set => SetValue(ref _viewAchievementsTimelineRange, value);
+        }
+
+        /// <summary>
+        /// Whether the single-game achievements window timeline chart is expanded.
+        /// </summary>
+        public bool ViewAchievementsTimelineVisible
+        {
+            get => _viewAchievementsTimelineVisible;
+            set => SetValue(ref _viewAchievementsTimelineVisible, value);
+        }
+
         #endregion
 
         #region General Settings
@@ -2053,6 +2147,13 @@ namespace PlayniteAchievements.Models.Settings
                     ? new List<CustomRefreshPreset>(CustomRefreshPreset.NormalizePresets(this.CustomRefreshPresets, CustomRefreshPreset.MaxPresetCount))
                     : new List<CustomRefreshPreset>(),
 
+                // Hotkey Settings
+                EnableAchievementHotkeys = this.EnableAchievementHotkeys,
+                EnableGlobalAchievementHotkeys = this.EnableGlobalAchievementHotkeys,
+                ViewAchievementsHotkey = this.ViewAchievementsHotkey,
+                ManageAchievementsHotkey = this.ManageAchievementsHotkey,
+                OverviewHotkey = this.OverviewHotkey,
+
                 // Notification Settings
                 EnableNotifications = this.EnableNotifications,
                 NotifyPeriodicUpdates = this.NotifyPeriodicUpdates,
@@ -2136,6 +2237,8 @@ namespace PlayniteAchievements.Models.Settings
                     new StartPageRecentUnlocksGridSettings(),
                 StartPagePieCharts = this.StartPagePieCharts?.Clone() ??
                     new StartPagePieWidgetSettings(),
+                StartPageActivityScope = this.StartPageActivityScope,
+                StartPageProgressScope = this.StartPageProgressScope,
                 EnableParallelProviderRefresh = this.EnableParallelProviderRefresh,
                 ScanDelayMs = this.ScanDelayMs,
                 MaxRetryAttempts = this.MaxRetryAttempts,
@@ -2281,6 +2384,8 @@ namespace PlayniteAchievements.Models.Settings
                         StringComparer.OrdinalIgnoreCase)
                     : new Dictionary<string, WindowPlacementState>(StringComparer.OrdinalIgnoreCase),
                 OverviewTimelineRange = this.OverviewTimelineRange,
+                ViewAchievementsTimelineRange = this.ViewAchievementsTimelineRange,
+                ViewAchievementsTimelineVisible = this.ViewAchievementsTimelineVisible,
 
                 // General Settings
                 FirstTimeSetupCompleted = this.FirstTimeSetupCompleted,
@@ -2424,6 +2529,8 @@ namespace PlayniteAchievements.Models.Settings
             StartPageGameSummariesGrid = new StartPageGameSummariesGridSettings();
             StartPageRecentUnlocksGrid = new StartPageRecentUnlocksGridSettings();
             StartPagePieCharts = new StartPagePieWidgetSettings();
+            StartPageActivityScope = defaults.StartPageActivityScope;
+            StartPageProgressScope = defaults.StartPageProgressScope;
 
             DataGridColumnVisibility = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             DataGridColumnWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -2471,6 +2578,8 @@ namespace PlayniteAchievements.Models.Settings
             StartPageGameSummariesColumnHeaderAlignments = new Dictionary<string, GridAlignment>(StringComparer.OrdinalIgnoreCase);
 
             OverviewLeftColumnRatio = defaults.OverviewLeftColumnRatio;
+            ViewAchievementsTimelineRange = defaults.ViewAchievementsTimelineRange;
+            ViewAchievementsTimelineVisible = defaults.ViewAchievementsTimelineVisible;
         }
 
         public static double? NormalizeGridRowHeight(double? value)
@@ -2496,9 +2605,26 @@ namespace PlayniteAchievements.Models.Settings
             return Math.Max(MinimumGridMaxRows, value.Value);
         }
 
+        public static GameActivityScope NormalizeStartPageActivityScope(GameActivityScope value)
+        {
+            return value & GameActivityScope.All;
+        }
+
+        public static GameProgressScope NormalizeStartPageProgressScope(GameProgressScope value)
+        {
+            return value & GameProgressScope.All;
+        }
+
         private static string NormalizePath(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        }
+
+        private static string NormalizeHotkeyText(string value)
+        {
+            return AchievementHotkeyGesture.TryParse(value, out var gesture) && gesture != null
+                ? gesture.ToString()
+                : string.Empty;
         }
 
         private static Dictionary<string, int> NormalizeColumnOrder(Dictionary<string, int> value)

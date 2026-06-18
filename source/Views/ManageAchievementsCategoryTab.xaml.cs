@@ -76,7 +76,8 @@ namespace PlayniteAchievements.Views
                 CategoryLabelFilterSelectionContextMenu,
                 ViewModel.CategoryLabelFilterOptions,
                 option => ViewModel.IsCategoryLabelFilterSelected(option),
-                (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected));
+                (option, isSelected) => ViewModel.SetCategoryLabelFilterSelected(option, isSelected),
+                AchievementCategoryTypeHelper.ToCategoryLabelDisplayText);
         }
 
         private void RenameCategoryButton_Click(object sender, RoutedEventArgs e)
@@ -674,7 +675,8 @@ namespace PlayniteAchievements.Views
             ContextMenu menu,
             IEnumerable<string> options,
             Func<string, bool> isSelected,
-            Action<string, bool> setSelection)
+            Action<string, bool> setSelection,
+            Func<string, string> displayText = null)
         {
             if (button == null || menu == null || isSelected == null || setSelection == null)
             {
@@ -692,7 +694,7 @@ namespace PlayniteAchievements.Views
             {
                 var item = new MenuItem
                 {
-                    Header = option,
+                    Header = displayText?.Invoke(option) ?? option,
                     IsCheckable = true,
                     StaysOpenOnClick = true,
                     IsChecked = isSelected(option)
