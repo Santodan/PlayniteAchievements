@@ -96,6 +96,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-06-18 - v2.5.1.1
+- v2.5.1 merge
 - Fixed `RetroAchievement` sort
 - Fixed missing the `DisplayOrder` to confirm the `RetroAchievement` order
 - Fixed `Prestige Score` showing wrong values on startup

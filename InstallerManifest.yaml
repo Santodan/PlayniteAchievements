@@ -1,8 +1,22 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.5.1.1
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-06-18
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.0.1/PlayniteAchievementsSantodan_2_5_0_1.pext
+    Changelog:
+    - "v2.5.1 merge"
+    - "Fixed `RetroAchievement` sort"
+    - "Fixed missing the `DisplayOrder` to confirm the `RetroAchievement` order"
+    - "Fixed `Prestige Score` showing wrong values on startup"
+    - "Fixed missing tooltip from `Collection Score` and `Prestige Score`"
+    - "Fixed the missing right click options in the `Game Summary`"
+    - "Fixed the locked achievements have the same icon"
+    - "Fixed the Achievements rarity not been filled when there is no achievement file"
+
   - Version: 2.5.0.1
     RequiredApiVersion: 6.14.0
-    ReleaseDate: 2026-06-03
+    ReleaseDate: 2026-06-16
     PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.0.1/PlayniteAchievementsSantodan_2_5_0_1.pext
     Changelog:
     - "v2.5.0 merge"
