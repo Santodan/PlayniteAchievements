@@ -158,6 +158,9 @@ namespace PlayniteAchievements.Models.Achievements
         public string LockedIconDisplay => AchievementIconResolver.GetLegacyCompatibleLockedIcon(UnlockedIconPath, LockedIconPath);
 
         [IgnoreDataMember]
+        public string LockedResolvedIconDisplay => AchievementIconResolver.GetLockedDisplayIcon(UnlockedIconPath, LockedIconPath);
+
+        [IgnoreDataMember]
         public double? Percent
         {
             get => GlobalPercentUnlocked;

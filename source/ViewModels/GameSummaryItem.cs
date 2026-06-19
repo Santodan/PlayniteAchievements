@@ -1,4 +1,5 @@
 using System;
+using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
@@ -113,6 +114,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _collectionScore, value))
                 {
                     OnPropertyChanged(nameof(CollectionScoreFractionText));
+                    OnPropertyChanged(nameof(CollectionScoreToolTip));
                 }
             }
         }
@@ -126,6 +128,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _collectionScoreTotal, value))
                 {
                     OnPropertyChanged(nameof(CollectionScoreFractionText));
+                    OnPropertyChanged(nameof(CollectionScoreToolTip));
                 }
             }
         }
@@ -139,10 +142,36 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _prestigeScore, value))
                 {
                     OnPropertyChanged(nameof(PrestigeScoreFractionText));
+                    OnPropertyChanged(nameof(PrestigeScoreToolTip));
                 }
             }
         }
 
+        private int _points;
+        public int Points
+        {
+            get => _points;
+            set
+            {
+                if (SetValueAndReturn(ref _points, value))
+                {
+                    OnPropertyChanged(nameof(PointsFractionText));
+                }
+            }
+        }
+
+        private int _pointsTotal;
+        public int PointsTotal
+        {
+            get => _pointsTotal;
+            set
+            {
+                if (SetValueAndReturn(ref _pointsTotal, value))
+                {
+                    OnPropertyChanged(nameof(PointsFractionText));
+                }
+            }
+        }
         private int _prestigeScoreTotal;
         public int PrestigeScoreTotal
         {
@@ -152,6 +181,7 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _prestigeScoreTotal, value))
                 {
                     OnPropertyChanged(nameof(PrestigeScoreFractionText));
+                    OnPropertyChanged(nameof(PrestigeScoreToolTip));
                 }
             }
         }
@@ -242,6 +272,18 @@ namespace PlayniteAchievements.ViewModels
 
         public string PrestigeScoreFractionText => FormatScoreFraction(PrestigeScore, PrestigeScoreTotal);
 
+        public string PointsFractionText => FormatScoreFraction(Points, PointsTotal);
+
+        public string CollectionScoreToolTip => FormatScoreToolTip(
+            ResourceProvider.GetString("LOCPlayAch_Column_CollectionScore"),
+            CollectionScore,
+            CollectionScoreTotal);
+
+        public string PrestigeScoreToolTip => FormatScoreToolTip(
+            ResourceProvider.GetString("LOCPlayAch_Column_PrestigeScore"),
+            PrestigeScore,
+            PrestigeScoreTotal);
+
         public string PlaytimeText => PlayniteGameMetadataFormatter.FormatPlaytime(PlaytimeSeconds);
 
         public string SecondaryMetadataText => PlayniteGameMetadataFormatter.BuildOverviewMetadataText(
@@ -256,6 +298,15 @@ namespace PlayniteAchievements.ViewModels
         private static string FormatScoreFraction(int earned, int total)
         {
             return $"{Math.Max(0, earned):N0}/{Math.Max(0, total):N0}";
+        }
+
+        private static string FormatScoreToolTip(string label, int earned, int total)
+        {
+            label = string.IsNullOrWhiteSpace(label) ? string.Empty : label.Trim();
+            var fraction = FormatScoreFraction(earned, total);
+            return string.IsNullOrWhiteSpace(label)
+                ? fraction
+                : $"{label}: {fraction}";
         }
     }
 }

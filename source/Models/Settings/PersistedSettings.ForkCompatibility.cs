@@ -74,6 +74,12 @@ namespace PlayniteAchievements.Models.Settings
         public string SidebarDefaultRefreshModeKey { get; set; } = string.Empty;
 
         public string SidebarDefaultPlayStatusFilter { get; set; } = "played";
+
+        public string OverviewProviderFilterKeys { get; set; } = string.Empty;
+
+        public string OverviewCompletenessFilterKeys { get; set; } = "complete;inprogress";
+
+        public string OverviewPlayStatusFilterKeys { get; set; } = string.Empty;
         public GamesOverviewSortMode GamesOverviewGridSortMode { get; set; } = GamesOverviewSortMode.RecentUnlock;
 
         public bool GamesOverviewGridSortDescending { get; set; } = true;

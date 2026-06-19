@@ -12,7 +12,8 @@ namespace PlayniteAchievements.Services.ThemeMigration
         {
             "PluginCompactList",
             "PluginCompactLocked",
-            "PluginCompactUnlocked"
+            "PluginCompactUnlocked",
+            "PluginList"
         };
 
         /// <summary>

@@ -170,6 +170,8 @@ namespace PlayniteAchievements.Services.Database
             public string CacheKey { get; set; }
             public double? GlobalPercentUnlocked { get; set; }
             public string Rarity { get; set; }
+            public int? Points { get; set; }
+            public int? ScaledPoints { get; set; }
         }
 
         private sealed class ResolvedUser
@@ -409,7 +411,9 @@ namespace PlayniteAchievements.Services.Database
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                        ad.Rarity AS Rarity,
+                    ad.Rarity AS Rarity,
+                    ad.Points AS Points,
+                    ad.ScaledPoints AS ScaledPoints,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -568,7 +572,9 @@ namespace PlayniteAchievements.Services.Database
                         ad.Hidden AS Hidden,
                         ad.IsCapstone AS IsCapstone,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                        ad.Rarity AS Rarity,
+                    ad.Rarity AS Rarity,
+                    ad.Points AS Points,
+                    ad.ScaledPoints AS ScaledPoints,
                         ua.Unlocked AS Unlocked,
                         ua.UnlockTimeUtc AS UnlockTimeUtc,
                         ua.ProgressNum AS ProgressNum,
@@ -676,6 +682,8 @@ namespace PlayniteAchievements.Services.Database
                         PrestigeScore = scoreTotals.PrestigeScore,
                         CollectionScoreTotal = possibleScoreTotals.CollectionScore,
                         PrestigeScoreTotal = possibleScoreTotals.PrestigeScore,
+                        Points = scoreTotals.Points,
+                        PointsTotal = possibleScoreTotals.Points,
                         CommonCount = (int)Math.Max(0, row.CommonCount),
                         UncommonCount = (int)Math.Max(0, row.UncommonCount),
                         RareCount = (int)Math.Max(0, row.RareCount),
@@ -816,7 +824,7 @@ namespace PlayniteAchievements.Services.Database
                 ORDER BY lp.LastUpdatedUtc DESC, lp.CacheKey;").ToList();
         }
 
-        private static Dictionary<string, (int CollectionScore, int PrestigeScore)> LoadCachedScoreTotals(
+        private static Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)> LoadCachedScoreTotals(
             SQLiteDatabase db,
             bool unlockedOnly)
         {
@@ -846,14 +854,16 @@ namespace PlayniteAchievements.Services.Database
                 SELECT
                     lp.CacheKey AS CacheKey,
                     ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                    ad.Rarity AS Rarity
+                    ad.Rarity AS Rarity,
+                    ad.Points AS Points,
+                    ad.ScaledPoints AS ScaledPoints
                 FROM LatestProgress lp
                 INNER JOIN AchievementDefinitions ad ON ad.GameId = lp.GameId
                 " + userAchievementJoin + @"
                 WHERE lp.RowNum = 1
                 ORDER BY lp.CacheKey;").ToList();
 
-            var totals = new Dictionary<string, (int CollectionScore, int PrestigeScore)>(StringComparer.OrdinalIgnoreCase);
+            var totals = new Dictionary<string, (int CollectionScore, int PrestigeScore, int Points)>(StringComparer.OrdinalIgnoreCase);
             for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
@@ -867,7 +877,8 @@ namespace PlayniteAchievements.Services.Database
                 var rarity = ParseStoredRarity(row.Rarity);
                 totals[cacheKey] = (
                     AddClamped(current.CollectionScore, AchievementScoreCalculator.GetCollectionValue(rarity)),
-                    AddClamped(current.PrestigeScore, AchievementScoreCalculator.GetPrestigeValue(row.GlobalPercentUnlocked, rarity)));
+                    AddClamped(current.PrestigeScore, AchievementScoreCalculator.GetPrestigeValue(row.GlobalPercentUnlocked, rarity)),
+                    AddClamped(current.Points, row.ScaledPoints ?? row.Points ?? 0));
             }
 
             return totals;
@@ -955,6 +966,8 @@ namespace PlayniteAchievements.Services.Database
                     ad.IsCapstone AS IsCapstone,
                     ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
                     ad.Rarity AS Rarity,
+                    ad.Points AS Points,
+                    ad.ScaledPoints AS ScaledPoints,
                     ua.UnlockTimeUtc AS UnlockTimeUtc,
                     ua.ProgressNum AS ProgressNum,
                     ua.ProgressDenom AS ProgressDenom
@@ -1465,7 +1478,9 @@ namespace PlayniteAchievements.Services.Database
                     @"SELECT
                         ad.Id AS Id,
                         ad.GlobalPercentUnlocked AS GlobalPercentUnlocked,
-                        ad.Rarity AS Rarity
+                    ad.Rarity AS Rarity,
+                    ad.Points AS Points,
+                    ad.ScaledPoints AS ScaledPoints
                       FROM AchievementDefinitions ad;").ToList();
 
                 for (var i = 0; i < rows.Count; i++)

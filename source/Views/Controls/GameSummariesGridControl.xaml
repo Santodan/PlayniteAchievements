@@ -563,7 +563,7 @@
                                            Foreground="{DynamicResource TextBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
-                                           ToolTip="{Binding CollectionScoreFractionText}">
+                                           ToolTip="{Binding CollectionScoreToolTip}">
                                     <TextBlock.Inlines><Run Text="{Binding CollectionScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource TextBrush}"/><Run Text="{Binding CollectionScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
@@ -583,8 +583,27 @@
                                            Foreground="{DynamicResource TextBrush}"
                                            TextWrapping="Wrap"
                                            TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
-                                           ToolTip="{Binding PrestigeScoreFractionText}">
+                                           ToolTip="{Binding PrestigeScoreToolTip}">
                                     <TextBlock.Inlines><Run Text="{Binding PrestigeScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource TextBrush}"/><Run Text="{Binding PrestigeScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/></TextBlock.Inlines>
+                                </TextBlock>
+                            </Grid>
+                        </ContentControl>
+                    </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPoints">
+                <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate>
+                        <ContentControl Style="{StaticResource OverviewCompletedCellFrameStyle}">
+                            <Grid>
+                                <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                                           ToolTip="{Binding PointsFractionText}">
+                                    <TextBlock.Inlines><Run Text="{Binding Points, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource TextBrush}"/><Run Text="{Binding PointsTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>

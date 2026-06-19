@@ -43,6 +43,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly IPlayniteAPI _playniteApi;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
+        private readonly ScoreCardViewModel _collectionScoreCard = new ScoreCardViewModel(ScoreCardType.Collection);
+        private readonly ScoreCardViewModel _prestigeScoreCard = new ScoreCardViewModel(ScoreCardType.Prestige);
 
         private readonly OverviewDataBuilder _dataBuilder;
 
@@ -189,10 +191,7 @@ namespace PlayniteAchievements.ViewModels
             CompletenessFilterOptions = new ObservableCollection<string>();
 
             _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
-            ApplyConfiguredDefaultPlayStatusFilter();
-            // Default the progress dropdown to the full completed + incomplete scope.
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
-            _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+            LoadPersistedOverviewFilters();
 
             // Initialize refresh mode options from service (exclude LibrarySelected - context menu only)
             RefreshModes = new ObservableCollection<RefreshMode>();
@@ -684,6 +683,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             UpdateOverviewPieChartSelectionStates();
             // Defer filter application to avoid interfering with menu click handling.
@@ -712,6 +712,7 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _selectedProviderFilters.Clear();
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             UpdateOverviewPieChartSelectionStates();
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
@@ -778,6 +779,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             UpdateOverviewPieChartSelectionStates();
             // Defer filter application to avoid interfering with menu click handling.
@@ -810,6 +812,7 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
             // Defer filter application to avoid interfering with menu click handling.
             System.Windows.Application.Current?.Dispatcher?.BeginInvoke(
@@ -1217,6 +1220,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(CollectorScoreText));
                     OnPropertyChanged(nameof(CollectionScorePointsText));
                     OnPropertyChanged(nameof(CollectionScoreDetailText));
+                    RefreshCollectionScoreCard();
                 }
             }
         }
@@ -1232,6 +1236,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(CollectorLevelText));
                     OnPropertyChanged(nameof(CollectionLevelText));
                     OnPropertyChanged(nameof(CollectionScoreDetailText));
+                    RefreshCollectionScoreCard();
                 }
             }
         }
@@ -1240,7 +1245,13 @@ namespace PlayniteAchievements.ViewModels
         public double CollectorLevelProgress
         {
             get => _collectorLevelProgress;
-            private set => SetValue(ref _collectorLevelProgress, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _collectorLevelProgress, value))
+                {
+                    RefreshCollectionScoreCard();
+                }
+            }
         }
 
         private string _collectorRank = "Bronze1";
@@ -1256,6 +1267,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(CollectionScoreBadgeIconKey));
                     OnPropertyChanged(nameof(CollectionScoreAccentBrush));
                     OnPropertyChanged(nameof(CollectionScoreAccentBackgroundBrush));
+                    RefreshCollectionScoreCard();
                 }
             }
         }
@@ -1271,6 +1283,7 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(PrestigeScoreText));
                     OnPropertyChanged(nameof(PrestigeScorePointsText));
                     OnPropertyChanged(nameof(PrestigeScoreDetailText));
+                    RefreshPrestigeScoreCard();
                 }
             }
         }
@@ -1285,6 +1298,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(PrestigeLevelText));
                     OnPropertyChanged(nameof(PrestigeScoreDetailText));
+                    RefreshPrestigeScoreCard();
                 }
             }
         }
@@ -1293,7 +1307,13 @@ namespace PlayniteAchievements.ViewModels
         public double PrestigeLevelProgress
         {
             get => _prestigeLevelProgress;
-            private set => SetValue(ref _prestigeLevelProgress, value);
+            private set
+            {
+                if (SetValueAndReturn(ref _prestigeLevelProgress, value))
+                {
+                    RefreshPrestigeScoreCard();
+                }
+            }
         }
 
         private string _prestigeRank = "Bronze1";
@@ -1309,9 +1329,14 @@ namespace PlayniteAchievements.ViewModels
                     OnPropertyChanged(nameof(PrestigeScoreBadgeIconKey));
                     OnPropertyChanged(nameof(PrestigeScoreAccentBrush));
                     OnPropertyChanged(nameof(PrestigeScoreAccentBackgroundBrush));
+                    RefreshPrestigeScoreCard();
                 }
             }
         }
+
+        public ScoreCardViewModel CollectionScoreCard => _collectionScoreCard;
+
+        public ScoreCardViewModel PrestigeScoreCard => _prestigeScoreCard;
 
         public string CollectionScoreLabel => L("LOCPlayAch_Score_Collection", "Collection Score");
 
@@ -1366,6 +1391,35 @@ namespace PlayniteAchievements.ViewModels
         public Brush PrestigeScoreAccentBrush => GetScoreAccentBrush(PrestigeRank);
 
         public Brush PrestigeScoreAccentBackgroundBrush => GetScoreAccentBackgroundBrush(PrestigeRank);
+
+
+        private void RefreshCollectionScoreCard()
+        {
+            _collectionScoreCard.Apply(
+                CollectorScore,
+                CollectorLevel,
+                CollectorLevelProgress,
+                CollectorRank,
+                UseUniformRarityBadges);
+            OnPropertyChanged(nameof(CollectionScoreCard));
+        }
+
+        private void RefreshPrestigeScoreCard()
+        {
+            _prestigeScoreCard.Apply(
+                PrestigeScore,
+                PrestigeLevel,
+                PrestigeLevelProgress,
+                PrestigeRank,
+                UseUniformRarityBadges);
+            OnPropertyChanged(nameof(PrestigeScoreCard));
+        }
+
+        private void RefreshScoreCards()
+        {
+            RefreshCollectionScoreCard();
+            RefreshPrestigeScoreCard();
+        }
 
         private GameSummaryItem _displayedSelectedGame;
         public GameSummaryItem DisplayedSelectedGame => _displayedSelectedGame;
@@ -2435,6 +2489,7 @@ namespace PlayniteAchievements.ViewModels
                 ApplyLeftFilters();
             }
 
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             UpdateOverviewPieChartSelectionStates();
         }
@@ -2461,6 +2516,7 @@ namespace PlayniteAchievements.ViewModels
                 ApplyLeftFilters();
             }
 
+            PersistOverviewFilterSelections();
             OnPropertyChanged(nameof(SelectedCompletenessFilterText));
             UpdateOverviewPieChartSelectionStates();
         }
@@ -2523,6 +2579,152 @@ namespace PlayniteAchievements.ViewModels
             OnPropertyChanged(nameof(SelectedPlayStatusFilterText));
         }
 
+        private void LoadPersistedOverviewFilters()
+        {
+            _selectedProviderFilters.Clear();
+            foreach (var providerKey in SplitPersistedFilterTokens(_settings?.Persisted?.OverviewProviderFilterKeys))
+            {
+                _selectedProviderFilters.Add(providerKey);
+            }
+
+            _selectedCompletenessFilters.Clear();
+            if (!TryLoadCanonicalFilters(
+                    _settings?.Persisted?.OverviewCompletenessFilterKeys,
+                    ResolveCompletenessFilterToken,
+                    _selectedCompletenessFilters))
+            {
+                _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
+                _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+            }
+
+            _selectedPlayStatusFilters.Clear();
+            if (!TryLoadCanonicalFilters(
+                    _settings?.Persisted?.OverviewPlayStatusFilterKeys,
+                    ResolvePlayStatusFilterToken,
+                    _selectedPlayStatusFilters))
+            {
+                ApplyConfiguredDefaultPlayStatusFilter();
+            }
+        }
+
+        private void PersistOverviewFilterSelections()
+        {
+            var persisted = _settings?.Persisted;
+            if (persisted == null)
+            {
+                return;
+            }
+
+            persisted.OverviewProviderFilterKeys = SerializePersistedFilterTokens(_selectedProviderFilters);
+            persisted.OverviewCompletenessFilterKeys = SerializeCanonicalFilters(_selectedCompletenessFilters, GetCompletenessFilterToken);
+            persisted.OverviewPlayStatusFilterKeys = SerializeCanonicalFilters(_selectedPlayStatusFilters, GetPlayStatusFilterToken);
+            _persistSettingsForUi?.Invoke();
+        }
+
+        private static IEnumerable<string> SplitPersistedFilterTokens(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || string.Equals(value.Trim(), "__none", StringComparison.OrdinalIgnoreCase))
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            return value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(token => token.Trim())
+                .Where(token => !string.IsNullOrWhiteSpace(token));
+        }
+
+        private static string SerializePersistedFilterTokens(IEnumerable<string> values)
+        {
+            var tokens = values?
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>();
+            return tokens.Count == 0 ? "__none" : string.Join(";", tokens);
+        }
+
+        private bool TryLoadCanonicalFilters(string persistedValue, Func<string, string> resolveToken, HashSet<string> target)
+        {
+            if (string.IsNullOrWhiteSpace(persistedValue))
+            {
+                return false;
+            }
+
+            if (string.Equals(persistedValue.Trim(), "__none", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            foreach (var token in SplitPersistedFilterTokens(persistedValue))
+            {
+                var resolved = resolveToken(token);
+                if (!string.IsNullOrWhiteSpace(resolved))
+                {
+                    target.Add(resolved);
+                }
+            }
+
+            return true;
+        }
+
+        private string SerializeCanonicalFilters(HashSet<string> values, Func<string, string> getToken)
+        {
+            var tokens = values?
+                .Select(getToken)
+                .Where(token => !string.IsNullOrWhiteSpace(token))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(token => token, StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new List<string>();
+            return tokens.Count == 0 ? "__none" : string.Join(";", tokens);
+        }
+
+        private string ResolveCompletenessFilterToken(string token)
+        {
+            switch ((token ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "complete":
+                    return L("LOCPlayAch_Filter_Complete", "Complete");
+                case "inprogress":
+                    return L("LOCPlayAch_Filter_InProgress", "In Progress");
+                case "noprogress":
+                    return L("LOCPlayAch_Filter_NoProgress", "No Progress");
+                default:
+                    return token;
+            }
+        }
+
+        private string ResolvePlayStatusFilterToken(string token)
+        {
+            switch ((token ?? string.Empty).Trim().ToLowerInvariant())
+            {
+                case "played":
+                    return L("LOCPlayAch_Filter_Played", "Played");
+                case "unplayed":
+                    return L("LOCPlayAch_Filter_Unplayed", "Unplayed");
+                case "noprogress":
+                    return L("LOCPlayAch_Filter_NoProgress", "No Progress");
+                default:
+                    return token;
+            }
+        }
+
+        private string GetCompletenessFilterToken(string value)
+        {
+            if (string.Equals(value, L("LOCPlayAch_Filter_Complete", "Complete"), StringComparison.OrdinalIgnoreCase)) return "complete";
+            if (string.Equals(value, L("LOCPlayAch_Filter_InProgress", "In Progress"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
+            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "noprogress";
+            return value;
+        }
+
+        private string GetPlayStatusFilterToken(string value)
+        {
+            if (string.Equals(value, L("LOCPlayAch_Filter_Played", "Played"), StringComparison.OrdinalIgnoreCase)) return "played";
+            if (string.Equals(value, L("LOCPlayAch_Filter_Unplayed", "Unplayed"), StringComparison.OrdinalIgnoreCase)) return "unplayed";
+            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "noprogress";
+            return value;
+        }
+
         private void OnSettingsChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(PlayniteAchievementsSettings.Persisted))
@@ -2553,7 +2755,7 @@ namespace PlayniteAchievements.ViewModels
             if (string.IsNullOrWhiteSpace(propertyName))
             {
                 _selectedRefreshMode = GetConfiguredDefaultRefreshModeKey();
-                ApplyConfiguredDefaultPlayStatusFilter();
+                LoadPersistedOverviewFilters();
                 RebuildRefreshModes();
                 OnPropertyChanged(nameof(DefaultAchievementSortMode));
                 OnPropertyChanged(nameof(DefaultAchievementSortModeText));
@@ -2573,6 +2775,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 OnPropertyChanged(nameof(CollectionScoreBadgeIconKey));
                 OnPropertyChanged(nameof(PrestigeScoreBadgeIconKey));
+                RefreshScoreCards();
                 _ = RefreshViewAsync();
                 ApplyLeftFilters();
                 UpdateAggregatePieCharts();
@@ -2712,6 +2915,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 OnPropertyChanged(nameof(CollectionScoreBadgeIconKey));
                 OnPropertyChanged(nameof(PrestigeScoreBadgeIconKey));
+                RefreshScoreCards();
                 UpdateAggregatePieCharts();
             }
             else if (propertyName == nameof(PersistedSettings.OverviewPieSmallSliceMode))
@@ -4323,7 +4527,7 @@ namespace PlayniteAchievements.ViewModels
             if (isAdditive && !string.IsNullOrEmpty(_overviewSortPath))
             {
                 // Ctrl+Click: add/update/toggle secondary sort column.
-                // Primary stays as _overviewSortPath â€” the new column is a tiebreaker.
+                // Primary stays as _overviewSortPath - the new column is a tiebreaker.
                 var existing = _overviewSecondarySorts.FindIndex(s =>
                     string.Equals(s.Path, sortMemberPath, StringComparison.Ordinal));
 

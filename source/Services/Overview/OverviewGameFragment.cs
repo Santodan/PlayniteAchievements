@@ -27,6 +27,10 @@ namespace PlayniteAchievements.Services.Overview
 
         public int PrestigeScoreTotal { get; set; }
 
+        public int Points { get; set; }
+
+        public int PointsTotal { get; set; }
+
         // Unlocked rarity counts
         public int CommonCount { get; set; }
         public int UncommonCount { get; set; }

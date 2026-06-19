@@ -947,6 +947,10 @@ namespace PlayniteAchievements.Services
 
         public int PrestigeScoreTotal { get; set; }
 
+        public int Points { get; set; }
+
+        public int PointsTotal { get; set; }
+
         public int CommonCount { get; set; }
 
         public int UncommonCount { get; set; }

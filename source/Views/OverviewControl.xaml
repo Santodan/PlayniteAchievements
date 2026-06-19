@@ -223,6 +223,32 @@
                 <Setter Property="Height" Value="6"/>
                 <Setter Property="BorderThickness" Value="1"/>
             </Style>
+            <Style x:Key="ScoreCardTooltipBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PopupBackgroundBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="Padding" Value="12"/>
+                <Setter Property="Width" Value="300"/>
+                <Setter Property="MaxWidth" Value="300"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipLineBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="#14FFFFFF"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Padding" Value="8,5"/>
+                <Setter Property="Margin" Value="0,4,0,0"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            </Style>
+
+            <Style x:Key="ScoreCardTooltipLineTextStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="FontSize" Value="{DynamicResource FontSizeLarge}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
 
             <!-- Game name button style with hover effect -->
             <Style x:Key="GameNameButtonStyle" TargetType="Button">
@@ -734,8 +760,39 @@
                             Style="{StaticResource HeaderScorePanelStyle}"
                             Background="{Binding CollectionScoreAccentBackgroundBrush}"
                             BorderBrush="{Binding CollectionScoreAccentBrush}"
-                            ToolTip="{Binding CollectionScoreDetailText}"
+                            Tag="{Binding CollectionScoreCard}"
                             Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Border.ToolTip>
+                            <ToolTip DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                     Placement="Bottom"
+                                     HorizontalOffset="0"
+                                     VerticalOffset="4"
+                                     Width="300"
+                                     Padding="0"
+                                     BorderThickness="0"
+                                     Background="{DynamicResource PopupBackgroundBrush}"
+                                     HorizontalContentAlignment="Stretch"
+                                     HasDropShadow="True">
+                                <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
+                                        BorderBrush="{Binding AccentBrush}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding CurrentLevelPointsText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                                        </Border>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding PointsUntilNextLevelText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                                        </Border>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding NextTierThresholdText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"
+                                                       Foreground="{Binding NextTierAccentBrush}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </ToolTip>
+                        </Border.ToolTip>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -811,8 +868,39 @@
                             Style="{StaticResource HeaderScorePanelStyle}"
                             Background="{Binding PrestigeScoreAccentBackgroundBrush}"
                             BorderBrush="{Binding PrestigeScoreAccentBrush}"
-                            ToolTip="{Binding PrestigeScoreDetailText}"
+                            Tag="{Binding PrestigeScoreCard}"
                             Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}">
+                        <Border.ToolTip>
+                            <ToolTip DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                     Placement="Bottom"
+                                     HorizontalOffset="0"
+                                     VerticalOffset="4"
+                                     Width="300"
+                                     Padding="0"
+                                     BorderThickness="0"
+                                     Background="{DynamicResource PopupBackgroundBrush}"
+                                     HorizontalContentAlignment="Stretch"
+                                     HasDropShadow="True">
+                                <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
+                                        BorderBrush="{Binding AccentBrush}">
+                                    <StackPanel>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding CurrentLevelPointsText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                                        </Border>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding PointsUntilNextLevelText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
+                                        </Border>
+                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
+                                            <TextBlock Text="{Binding NextTierThresholdText}"
+                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"
+                                                       Foreground="{Binding NextTierAccentBrush}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </ToolTip>
+                        </Border.ToolTip>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1505,6 +1593,66 @@
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
 
+
+                                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_CollectionScore}" SortMemberPath="CollectionScore" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryCollectionScore">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center"
+                                                           ToolTip="{Binding CollectionScoreToolTip}">
+                                                    <Run Text="{Binding CollectionScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/>
+                                                    <Run Text="/" Foreground="{DynamicResource TextBrush}"/>
+                                                    <Run Text="{Binding CollectionScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_PrestigeScore}" SortMemberPath="PrestigeScore" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPrestigeScore">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center"
+                                                           ToolTip="{Binding PrestigeScoreToolTip}">
+                                                    <Run Text="{Binding PrestigeScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/>
+                                                    <Run Text="/" Foreground="{DynamicResource TextBrush}"/>
+                                                    <Run Text="{Binding PrestigeScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+
+                                <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Points}" SortMemberPath="Points" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPoints">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBlock VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                                           HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                                           Style="{DynamicResource BaseTextBlockStyle}"
+                                                           Foreground="{DynamicResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           TextAlignment="Center"
+                                                           ToolTip="{Binding PointsFractionText}">
+                                                    <Run Text="{Binding Points, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/>
+                                                    <Run Text="/" Foreground="{DynamicResource TextBrush}"/>
+                                                    <Run Text="{Binding PointsTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource TextBrush}"/>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <!-- Achievement Count -->
                                 <DataGridTemplateColumn Width="*" Header="{DynamicResource LOCPlayAch_Column_Total}" SortMemberPath="TotalAchievements" helpers:ColumnVisibilityHelper.ColumnKey="TotalAchievements">
                                     <DataGridTemplateColumn.CellTemplate>

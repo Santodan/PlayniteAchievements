@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -62,7 +62,10 @@ namespace PlayniteAchievements.Views
                 ["OverviewLastPlayed"] = 240,
                 ["OverviewPlaytime"] = 170,
                 ["OverviewProgression"] = 360,
-                ["TotalAchievements"] = 180
+                ["TotalAchievements"] = 180,
+                ["GameSummaryCollectionScore"] = 180,
+                ["GameSummaryPrestigeScore"] = 180,
+                ["GameSummaryPoints"] = 140
             };
 
         public OverviewControl()

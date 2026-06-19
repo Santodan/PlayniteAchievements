@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -292,6 +292,8 @@ namespace PlayniteAchievements.Services.Overview
                     PrestigeScore = game.PrestigeScore,
                     CollectionScoreTotal = game.CollectionScoreTotal,
                     PrestigeScoreTotal = game.PrestigeScoreTotal,
+                    Points = game.Points,
+                    PointsTotal = game.PointsTotal,
                     TotalCommonPossible = game.TotalCommonPossible,
                     TotalUncommonPossible = game.TotalUncommonPossible,
                     TotalRarePossible = game.TotalRarePossible,
@@ -505,6 +507,8 @@ namespace PlayniteAchievements.Services.Overview
             int gamePrestigeScore = 0;
             int gameCollectionScoreTotal = 0;
             int gamePrestigeScoreTotal = 0;
+            int gamePoints = 0;
+            int gamePointsTotal = 0;
             DateTime? lastUnlockUtc = null;
 
             for (var i = 0; i < achievements.Count; i++)
@@ -533,6 +537,7 @@ namespace PlayniteAchievements.Services.Overview
                 AchievementDisplayItem.AccumulateRarity(ach, ref gameTotalCommon, ref gameTotalUncommon, ref gameTotalRare, ref gameTotalUltraRare);
                 gameCollectionScoreTotal = AddClamped(gameCollectionScoreTotal, ach.CollectionScore);
                 gamePrestigeScoreTotal = AddClamped(gamePrestigeScoreTotal, ach.PrestigeScore);
+                gamePointsTotal = AddClamped(gamePointsTotal, ach.ScaledPoints ?? ach.Points ?? 0);
                 AchievementDisplayItem.AccumulateTrophy(
                     ach,
                     ref gameTrophyPlatinumTotal,
@@ -550,6 +555,7 @@ namespace PlayniteAchievements.Services.Overview
 
                     gameCollectionScore = AddClamped(gameCollectionScore, ach.CollectionScore);
                     gamePrestigeScore = AddClamped(gamePrestigeScore, ach.PrestigeScore);
+                    gamePoints = AddClamped(gamePoints, ach.ScaledPoints ?? ach.Points ?? 0);
 
                     if (ach.UnlockTimeUtc.HasValue)
                     {
@@ -598,6 +604,8 @@ namespace PlayniteAchievements.Services.Overview
             fragment.PrestigeScore = gamePrestigeScore;
             fragment.CollectionScoreTotal = gameCollectionScoreTotal;
             fragment.PrestigeScoreTotal = gamePrestigeScoreTotal;
+            fragment.Points = gamePoints;
+            fragment.PointsTotal = gamePointsTotal;
 
             fragment.TotalCommonPossible = gameTotalCommon;
             fragment.TotalUncommonPossible = gameTotalUncommon;
@@ -627,6 +635,8 @@ namespace PlayniteAchievements.Services.Overview
                 PrestigeScore = gamePrestigeScore,
                 CollectionScoreTotal = gameCollectionScoreTotal,
                 PrestigeScoreTotal = gamePrestigeScoreTotal,
+                Points = gamePoints,
+                PointsTotal = gamePointsTotal,
                 TotalCommonPossible = gameTotalCommon,
                 TotalUncommonPossible = gameTotalUncommon,
                 TotalRarePossible = gameTotalRare,
