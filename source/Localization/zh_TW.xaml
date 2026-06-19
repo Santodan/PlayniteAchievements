@@ -687,7 +687,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Auth_Authenticated">已認證</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_Checking">正在檢查認證...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">等待檢查</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Waiting for check</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">認證檢查失敗。請重試。</sys:String>
 
     <!-- ================================================================= -->

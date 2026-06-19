@@ -687,7 +687,7 @@
     <!-- ================================================================= -->
     <sys:String x:Key="LOCPlayAch_Auth_Authenticated">Authentifié</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_Checking">Vérification de l'authentification...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">En attente de vérification</sys:String>
+    <sys:String x:Key="LOCPlayAch_Auth_NotChecked">Waiting for check</sys:String>
     <sys:String x:Key="LOCPlayAch_Auth_TemporaryFailure">Échec de la vérification de l'authentification. Réessayez.</sys:String>
 
     <!-- ================================================================= -->
