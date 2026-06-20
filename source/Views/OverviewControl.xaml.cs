@@ -35,6 +35,7 @@ namespace PlayniteAchievements.Views
         private Guid? _lastSelectedOverviewGameId;
         private DataGridRow _pendingRightClickRow;
         private bool _committingOverviewSelection;
+        private DataGrid GameSummariesGrid => GameSummariesGridControl?.InternalDataGrid;
 
         // Column persistence state (for GameSummariesGrid only - AchievementDataGridControl handles its own)
         private readonly Dictionary<DataGridColumn, EventHandler> _columnWidthChangedHandlers = new Dictionary<DataGridColumn, EventHandler>();
@@ -128,7 +129,7 @@ namespace PlayniteAchievements.Views
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                ApplyWidthsToGrids();
+                GameSummariesGridControl?.Refresh();
                 RecentAchievementsDataGrid?.Refresh();
                 SidebarAllAchievementsDataGrid?.Refresh();
                 GameAchievementsGrid?.Refresh();
@@ -194,6 +195,10 @@ namespace PlayniteAchievements.Views
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
                 FlushPendingUpdates();
                 DetachAllHandlers();
+                GameSummariesGridControl?.Dispose();
+                RecentAchievementsDataGrid?.Dispose();
+                SidebarAllAchievementsDataGrid?.Dispose();
+                GameAchievementsGrid?.Dispose();
                 _viewModel?.Dispose();
             }
             catch (Exception ex)
@@ -206,14 +211,11 @@ namespace PlayniteAchievements.Views
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            EnsureDefaultSeeds();
-            AttachHandlers(GameSummariesGrid);
-            AttachGameSummaryAlignmentProviders();
-            // RecentAchievementsDataGrid is now AchievementDataGridControl, uses built-in persistence
-            // GameAchievementsGrid uses AchievementDataGridControl with built-in persistence
             ApplyOverviewColumnRatio();
-            ApplyVisibilityToGrids();
-            ApplyWidthsToGrids();
+            GameSummariesGridControl?.Refresh();
+            RecentAchievementsDataGrid?.Refresh();
+            SidebarAllAchievementsDataGrid?.Refresh();
+            GameAchievementsGrid?.Refresh();
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
             ResetRecentAchievementsSortDirection();
@@ -1268,7 +1270,12 @@ namespace PlayniteAchievements.Views
 
         private void GameSummaries_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_viewModel == null || !(sender is DataGrid grid)) return;
+            if (_viewModel == null) return;
+
+            var grid = sender as DataGrid
+                       ?? (sender as Controls.GameSummariesGridControl)?.InternalDataGrid
+                       ?? GameSummariesGrid;
+            if (grid == null) return;
 
             var hitTestResult = VisualTreeHelper.HitTest(grid, e.GetPosition(grid));
             if (hitTestResult == null) return;
@@ -1291,10 +1298,6 @@ namespace PlayniteAchievements.Views
                 catch
                 {
                     // Best-effort: swallow any focus clearing errors to avoid breaking UI
-                }
-                if (_viewModel.IsGameSelected)
-                {
-                    PrecomputeToggleWidths(toGameSelected: false);
                 }
                 _viewModel.ClearGameSelection();
                 _lastSelectedOverviewGameId = null;
@@ -1351,7 +1354,7 @@ namespace PlayniteAchievements.Views
 
         private void DataGridRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is DataGridRow row)
+            if (TryResolveContextMenuRow(sender, e, out var row))
             {
                 e.Handled = true;
                 _pendingRightClickRow = row;
@@ -1360,13 +1363,23 @@ namespace PlayniteAchievements.Views
 
         private void DataGridRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (sender is DataGridRow row)
+            if (TryResolveContextMenuRow(sender, e, out var row))
             {
                 e.Handled = true;
                 var targetRow = _pendingRightClickRow ?? row;
                 _pendingRightClickRow = null;
-                OpenContextMenuForRow(targetRow);
+                Dispatcher.BeginInvoke(
+                    new Action(() => OpenContextMenuForRow(targetRow)),
+                    DispatcherPriority.ContextIdle);
             }
+        }
+
+        private static bool TryResolveContextMenuRow(object sender, MouseButtonEventArgs e, out DataGridRow row)
+        {
+            row = sender as DataGridRow
+                  ?? e?.Source as DataGridRow
+                  ?? VisualTreeHelpers.FindVisualParent<DataGridRow>(e?.OriginalSource as DependencyObject);
+            return row != null;
         }
 
         private void DataGridColumnMenu_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -1374,6 +1387,11 @@ namespace PlayniteAchievements.Views
             if (!(sender is DataGrid grid)) return;
 
             var source = e.OriginalSource as DependencyObject;
+            if (VisualTreeHelpers.FindVisualParent<DataGridRow>(source) != null)
+            {
+                return;
+            }
+
             var header = VisualTreeHelpers.FindVisualParent<DataGridColumnHeader>(source);
             if (header?.Column == null) return;
 
@@ -2274,6 +2292,12 @@ namespace PlayniteAchievements.Views
             }
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
                 () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
+            AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
+                menu,
+                data,
+                this,
+                RefreshView);
+
             return menu;
         }
 

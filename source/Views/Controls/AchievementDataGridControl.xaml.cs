@@ -1267,20 +1267,44 @@ namespace PlayniteAchievements.Views.Controls
 
         private void AchievementRow_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            RaiseEvent(new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
+            var row = sender as DataGridRow
+                      ?? VisualTreeHelpers.FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+            if (row == null)
+            {
+                return;
+            }
+
+            var forwardedEvent = new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
             {
                 RoutedEvent = RowPreviewMouseRightButtonDownEvent,
-                Source = sender
-            });
+                Source = row
+            };
+            RaiseEvent(forwardedEvent);
+            if (forwardedEvent.Handled)
+            {
+                e.Handled = true;
+            }
         }
 
         private void AchievementRow_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
-            RaiseEvent(new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
+            var row = sender as DataGridRow
+                      ?? VisualTreeHelpers.FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+            if (row == null)
+            {
+                return;
+            }
+
+            var forwardedEvent = new MouseButtonEventArgs(e.MouseDevice, e.Timestamp, e.ChangedButton)
             {
                 RoutedEvent = RowPreviewMouseRightButtonUpEvent,
-                Source = sender
-            });
+                Source = row
+            };
+            RaiseEvent(forwardedEvent);
+            if (forwardedEvent.Handled)
+            {
+                e.Handled = true;
+            }
         }
 
         private void DataGridColumnMenu_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
@@ -1293,6 +1317,14 @@ namespace PlayniteAchievements.Views.Controls
 
             if (!(sender is DataGrid grid))
             {
+                return;
+            }
+
+            var row = VisualTreeHelpers.FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
+            if (row != null)
+            {
+                e.Handled = true;
+                AchievementRow_PreviewMouseRightButtonUp(row, e);
                 return;
             }
 
