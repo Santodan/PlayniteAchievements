@@ -754,107 +754,13 @@
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             MaxWidth="740"
-                            Margin="18,0,0,0">
+                            Margin="18,0,0,0"
+                            Visibility="{Binding ShowOverviewScoreCards, Converter={StaticResource BoolToVis}}">
 
-                    <Border Width="300"
-                            Style="{StaticResource HeaderScorePanelStyle}"
-                            Background="{Binding CollectionScoreAccentBackgroundBrush}"
-                            BorderBrush="{Binding CollectionScoreAccentBrush}"
-                            Tag="{Binding CollectionScoreCard}"
-                            Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}">
-                        <Border.ToolTip>
-                            <ToolTip DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
-                                     Placement="Bottom"
-                                     HorizontalOffset="0"
-                                     VerticalOffset="4"
-                                     Width="300"
-                                     Padding="0"
-                                     BorderThickness="0"
-                                     Background="{DynamicResource PopupBackgroundBrush}"
-                                     HorizontalContentAlignment="Stretch"
-                                     HasDropShadow="True">
-                                <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
-                                        BorderBrush="{Binding AccentBrush}">
-                                    <StackPanel>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding CurrentLevelPointsText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                                        </Border>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding PointsUntilNextLevelText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                                        </Border>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding NextTierThresholdText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"
-                                                       Foreground="{Binding NextTierAccentBrush}"/>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                            </ToolTip>
-                        </Border.ToolTip>
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Row="0"
-                                       Grid.Column="1"
-                                       Text="{Binding CollectionScoreLabel}"
-                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
-                                       TextAlignment="Left"
-                                       HorizontalAlignment="Stretch"/>
-                            <TextBlock Grid.Row="0"
-                                       Grid.Column="1"
-                                       Text="{Binding CollectionLevelText}"
-                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
-                                       TextAlignment="Right"
-                                       HorizontalAlignment="Right"/>
-                            <Image Grid.Row="0"
-                                   Grid.RowSpan="3"
-                                   Grid.Column="0"
-                                   Width="30"
-                                   Height="30"
-                                   Margin="0,0,10,0"
-                                   VerticalAlignment="Center"
-                                   Source="{Binding CollectionScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                                   Effect="{StaticResource BadgeShadow}"
-                                   Style="{StaticResource RarityIcon}"/>
-                            <ProgressBar Grid.Row="1"
-                                         Grid.Column="1"
-                                         Value="{Binding CollectorLevelProgress, Mode=OneWay}"
-                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
-                                         BorderBrush="{Binding CollectionScoreAccentBrush}"
-                                         Foreground="{Binding CollectionScoreAccentBrush}"
-                                         Margin="0,3,0,0"/>
-                            <Grid Grid.Row="2"
-                                  Grid.Column="1"
-                                  Margin="0,1,0,0"
-                                  ClipToBounds="True">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding CollectionTierText}"
-                                           Style="{StaticResource HeaderScoreTierTextStyle}"
-                                           Foreground="{Binding CollectionScoreAccentBrush}"
-                                           TextAlignment="Left"
-                                           HorizontalAlignment="Stretch"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding CollectionScorePointsText}"
-                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
-                                           TextAlignment="Left"
-                                           MaxWidth="150"
-                                           Margin="10,1,0,0"/>
-                            </Grid>
-                        </Grid>
-                    </Border>
+                    <controls:ScoreCardControl Width="300"
+                                               ScoreCard="{Binding CollectionScoreCard}"
+                                               InfoRequested="ScoreCard_InfoRequested"
+                                               Visibility="{Binding ShowOverviewCollectionScoreCard, Converter={StaticResource BoolToVis}}"/>
 
                     <Border Background="{DynamicResource NormalBorderBrush}"
                             Opacity="0.55"
@@ -862,107 +768,12 @@
                             Width="1"
                             Height="42"
                             Margin="12,2"
-                            Visibility="{Binding ShowSidebarScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding ShowOverviewScoreCardDivider, Converter={StaticResource BoolToVis}}"/>
 
-                    <Border Width="300"
-                            Style="{StaticResource HeaderScorePanelStyle}"
-                            Background="{Binding PrestigeScoreAccentBackgroundBrush}"
-                            BorderBrush="{Binding PrestigeScoreAccentBrush}"
-                            Tag="{Binding PrestigeScoreCard}"
-                            Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}">
-                        <Border.ToolTip>
-                            <ToolTip DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
-                                     Placement="Bottom"
-                                     HorizontalOffset="0"
-                                     VerticalOffset="4"
-                                     Width="300"
-                                     Padding="0"
-                                     BorderThickness="0"
-                                     Background="{DynamicResource PopupBackgroundBrush}"
-                                     HorizontalContentAlignment="Stretch"
-                                     HasDropShadow="True">
-                                <Border Style="{StaticResource ScoreCardTooltipBorderStyle}"
-                                        BorderBrush="{Binding AccentBrush}">
-                                    <StackPanel>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding CurrentLevelPointsText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                                        </Border>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding PointsUntilNextLevelText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"/>
-                                        </Border>
-                                        <Border Style="{StaticResource ScoreCardTooltipLineBorderStyle}">
-                                            <TextBlock Text="{Binding NextTierThresholdText}"
-                                                       Style="{StaticResource ScoreCardTooltipLineTextStyle}"
-                                                       Foreground="{Binding NextTierAccentBrush}"/>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                            </ToolTip>
-                        </Border.ToolTip>
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="44"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Image Grid.Row="0"
-                                   Grid.RowSpan="3"
-                                   Grid.Column="0"
-                                   Width="30"
-                                   Height="30"
-                                   Margin="0,0,10,0"
-                                   VerticalAlignment="Center"
-                                   Source="{Binding PrestigeScoreBadgeIconKey, Converter={StaticResource ResourceKeyToImage}}"
-                                   Effect="{StaticResource BadgeShadow}"
-                                   Style="{StaticResource RarityIcon}"/>
-                            <TextBlock Grid.Row="0"
-                                       Grid.Column="1"
-                                       Text="{Binding PrestigeScoreLabel}"
-                                       Style="{StaticResource HeaderScoreLabelTextStyle}"
-                                       TextAlignment="Left"
-                                       HorizontalAlignment="Stretch"/>
-                            <TextBlock Grid.Row="0"
-                                       Grid.Column="1"
-                                       Text="{Binding PrestigeLevelText}"
-                                       Style="{StaticResource HeaderScoreMetricTextStyle}"
-                                       TextAlignment="Right"
-                                       HorizontalAlignment="Right"/>
-                            <ProgressBar Grid.Row="1"
-                                         Grid.Column="1"
-                                         Value="{Binding PrestigeLevelProgress, Mode=OneWay}"
-                                         Style="{StaticResource HeaderScoreProgressBarStyle}"
-                                         BorderBrush="{Binding PrestigeScoreAccentBrush}"
-                                         Foreground="{Binding PrestigeScoreAccentBrush}"
-                                         Margin="0,3,0,0"/>
-                            <Grid Grid.Row="2"
-                                  Grid.Column="1"
-                                  Margin="0,1,0,0"
-                                  ClipToBounds="True">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding PrestigeTierText}"
-                                           Style="{StaticResource HeaderScoreTierTextStyle}"
-                                           Foreground="{Binding PrestigeScoreAccentBrush}"
-                                           TextAlignment="Left"
-                                           HorizontalAlignment="Stretch"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding PrestigeScorePointsText}"
-                                           Style="{StaticResource HeaderScoreMetricTextStyle}"
-                                           TextAlignment="Left"
-                                           MaxWidth="150"
-                                           Margin="10,1,0,0"/>
-                            </Grid>
-                        </Grid>
-                    </Border>
+                    <controls:ScoreCardControl Width="300"
+                                               ScoreCard="{Binding PrestigeScoreCard}"
+                                               InfoRequested="ScoreCard_InfoRequested"
+                                               Visibility="{Binding ShowOverviewPrestigeScoreCard, Converter={StaticResource BoolToVis}}"/>
                 </StackPanel>
 
             </Grid>

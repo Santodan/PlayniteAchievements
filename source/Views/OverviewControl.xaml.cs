@@ -112,6 +112,12 @@ namespace PlayniteAchievements.Views
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
         }
 
+        private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
+        {
+            e.Handled = true;
+            ScoreInfoDialogPresenter.Show();
+        }
+
         private void InitSaveTimer()
         {
             _saveTimer = new DispatcherTimer(DispatcherPriority.Background)
