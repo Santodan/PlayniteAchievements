@@ -29,6 +29,7 @@ namespace PlayniteAchievements.Services.Local
         private AchievementSnapshot _lastKnownSnapshot;
         private Guid? _lastKnownGameId;
         private string _lastKnownGameName;
+        private string _lastKnownSourceFingerprint;
 
         public ActiveGameAchievementMonitor(
             ICacheManager cacheManager,
@@ -197,6 +198,9 @@ namespace PlayniteAchievements.Services.Local
                     _lastKnownSnapshot = previousSnapshot;
                     _lastKnownGameId = game.Id;
                     _lastKnownGameName = game.Name;
+                    _lastKnownSourceFingerprint = TryGetLocalSourceFingerprint(game, out var baselineFingerprint)
+                        ? baselineFingerprint
+                        : null;
                 }
                 _logger?.Info(previousSnapshot != null
                     ? $"Initialized active Local achievement monitor baseline for '{game.Name}' with {previousSnapshot.UnlockedCount} unlocked achievements."
@@ -230,7 +234,18 @@ namespace PlayniteAchievements.Services.Local
 
                 try
                 {
+                    if (TryGetLocalSourceFingerprint(game, out var sourceFingerprint) &&
+                        string.Equals(sourceFingerprint, _lastKnownSourceFingerprint, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     var currentSnapshot = await RefreshLocalGameAsync(game, cancellationToken).ConfigureAwait(false);
+                    if (TryGetLocalSourceFingerprint(game, out sourceFingerprint))
+                    {
+                        _lastKnownSourceFingerprint = sourceFingerprint;
+                    }
+
                     if (previousSnapshot != null && currentSnapshot != null)
                     {
                         _logger?.Debug($"[LocalMonitor] Snapshot delta for '{game.Name}': previous={previousSnapshot.UnlockedCount}, current={currentSnapshot.UnlockedCount}, previousKeys={previousSnapshot.UnlockedAchievements.Count}, currentKeys={currentSnapshot.UnlockedAchievements.Count}");
@@ -281,6 +296,7 @@ namespace PlayniteAchievements.Services.Local
                         _lastKnownSnapshot = previousSnapshot;
                         _lastKnownGameId = game.Id;
                         _lastKnownGameName = game.Name;
+                        _lastKnownSourceFingerprint = sourceFingerprint;
                     }
                 }
                 catch (OperationCanceledException)
@@ -325,6 +341,23 @@ namespace PlayniteAchievements.Services.Local
             var seconds = localSettings?.ActiveGameMonitoringIntervalSeconds ?? 5;
             seconds = Math.Max(LocalSettings.MinActiveGameMonitoringIntervalSeconds, Math.Min(LocalSettings.MaxActiveGameMonitoringIntervalSeconds, seconds));
             return TimeSpan.FromSeconds(seconds);
+        }
+
+        private bool TryGetLocalSourceFingerprint(Game game, out string fingerprint)
+        {
+            fingerprint = null;
+            try
+            {
+                var localProvider = _providerRegistry.GetProvider("Local") as LocalSavesProvider;
+                return localProvider?.TryGetActiveMonitorSourceFingerprint(game, out fingerprint) == true &&
+                       !string.IsNullOrWhiteSpace(fingerprint);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Failed to get active Local monitor source fingerprint for '{game?.Name}'.");
+                fingerprint = null;
+                return false;
+            }
         }
 
         private async Task<AchievementSnapshot> RefreshLocalGameAsync(Game game, CancellationToken cancellationToken)

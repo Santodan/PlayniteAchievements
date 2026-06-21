@@ -719,6 +719,130 @@ namespace PlayniteAchievements.Providers.Local
             return new RebuildPayload();
         }
 
+        internal bool TryGetActiveMonitorSourceFingerprint(Game game, out string fingerprint)
+        {
+            fingerprint = null;
+            if (game == null || game.Id == Guid.Empty)
+            {
+                return false;
+            }
+
+            var paths = new List<string>();
+            var appId = GetAppId(game, out _);
+            int lumaAppId;
+
+            if (string.IsNullOrWhiteSpace(appId))
+            {
+                if (TryGetLumaPlayIniPathOverride(game.Id, out var lumaOverridePath) &&
+                    TryExtractUplayGameIdFromLumaPlayIni(lumaOverridePath, out lumaAppId))
+                {
+                    appId = lumaAppId.ToString(CultureInfo.InvariantCulture);
+                    AddExistingPath(paths, lumaOverridePath);
+                }
+                else if (TryGetFolderOverride(game.Id, out var overriddenFolderPath))
+                {
+                    if (TryFindLumaPlayIniPathFromFolder(overriddenFolderPath, out var lumaPath) &&
+                        TryExtractUplayGameIdFromLumaPlayIni(lumaPath, out lumaAppId))
+                    {
+                        appId = lumaAppId.ToString(CultureInfo.InvariantCulture);
+                        AddExistingPath(paths, lumaPath);
+                    }
+                    else if (TryFindTenokeIniPathFromFolder(overriddenFolderPath, out var tenokePath) &&
+                             TryExtractAppIdFromTenokeIni(tenokePath, out var tenokeAppId))
+                    {
+                        appId = tenokeAppId.ToString(CultureInfo.InvariantCulture);
+                        AddExistingPath(paths, tenokePath);
+                    }
+                }
+            }
+
+            if (TryGetCustomSchemaEnabledOverride(game.Id, out var customSchemaEnabled) &&
+                customSchemaEnabled &&
+                TryGetCustomSchemaPathOverride(game.Id, out var customSchemaPath))
+            {
+                AddExistingPath(paths, customSchemaPath);
+            }
+
+            if (TryResolveLocalFolder(game, appId, out var localFolderPath, out _, out _, out _) &&
+                !string.IsNullOrWhiteSpace(localFolderPath))
+            {
+                AddExistingPath(paths, ResolveAchievementFilePath(localFolderPath, "achievements.json"));
+                foreach (var localIniFileName in LocalAchievementIniFileNames)
+                {
+                    AddExistingPath(paths, ResolveAchievementFilePath(localFolderPath, localIniFileName));
+                }
+            }
+
+            if (int.TryParse(appId, out var appIdInt) && appIdInt > 0)
+            {
+                foreach (var path in GetSteamAppCacheSchemaFilePaths(appIdInt))
+                {
+                    AddExistingPath(paths, path);
+                }
+
+                foreach (var path in GetSteamAppCacheUserStatsFilePaths(appIdInt, game))
+                {
+                    AddExistingPath(paths, path);
+                }
+
+                foreach (var path in GetSteamLibraryCacheFilePaths(appIdInt, game))
+                {
+                    AddExistingPath(paths, path);
+                }
+
+                var steamLocalProgress = TryGetSteamLocalProgressSummary(appIdInt, game);
+                AddExistingPath(paths, steamLocalProgress?.SourcePath);
+            }
+
+            if (paths.Count == 0)
+            {
+                return false;
+            }
+
+            fingerprint = string.Join("|", paths
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .Select(BuildFileFingerprint));
+            return !string.IsNullOrWhiteSpace(fingerprint);
+        }
+
+        private static void AddExistingPath(ICollection<string> paths, string path)
+        {
+            if (paths == null || string.IsNullOrWhiteSpace(path))
+            {
+                return;
+            }
+
+            try
+            {
+                if (File.Exists(path))
+                {
+                    paths.Add(Path.GetFullPath(path));
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private static string BuildFileFingerprint(string path)
+        {
+            try
+            {
+                var info = new FileInfo(path);
+                return string.Concat(
+                    info.FullName,
+                    ":",
+                    info.Length.ToString(CultureInfo.InvariantCulture),
+                    ":",
+                    info.LastWriteTimeUtc.Ticks.ToString(CultureInfo.InvariantCulture));
+            }
+            catch
+            {
+                return path ?? string.Empty;
+            }
+        }
+
         internal static bool TryGetAppIdOverride(Guid gameId, out int appId)
         {
             appId = 0;
