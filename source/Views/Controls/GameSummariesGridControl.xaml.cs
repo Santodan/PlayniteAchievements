@@ -34,16 +34,14 @@ namespace PlayniteAchievements.Views.Controls
                     playtime: false,
                     total: false,
                     collectionScore: false,
-                    prestigeScore: false,
-                    points: false),
+                    prestigeScore: false),
                 ["StartPageOverview"] = CreateGameSummaryVisibility(
                     platform: false,
                     lastPlayed: false,
                     playtime: false,
                     total: false,
                     collectionScore: false,
-                    prestigeScore: false,
-                    points: false)
+                    prestigeScore: false)
             };
 
         private static IReadOnlyDictionary<string, bool> CreateGameSummaryVisibility(
@@ -55,8 +53,7 @@ namespace PlayniteAchievements.Views.Controls
             bool progress = true,
             bool total = true,
             bool collectionScore = false,
-            bool prestigeScore = false,
-            bool points = false)
+            bool prestigeScore = false)
         {
             return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
@@ -68,8 +65,7 @@ namespace PlayniteAchievements.Views.Controls
                 ["GameSummaryProgression"] = progress,
                 ["TotalAchievements"] = total,
                 ["GameSummaryCollectionScore"] = collectionScore,
-                ["GameSummaryPrestigeScore"] = prestigeScore,
-                ["GameSummaryPoints"] = points
+                ["GameSummaryPrestigeScore"] = prestigeScore
             };
         }
 

@@ -153,6 +153,10 @@ namespace PlayniteAchievements.ViewModels
                 _settings.Persisted.SidebarSelectedGameCustomSortPath = _settings.Persisted.CustomSortPath;
                 _settings.Persisted.SidebarSelectedGameCustomSortDescending = _settings.Persisted.CustomSortDescending;
             }
+            _selectedGameSortPath = _settings?.Persisted?.SidebarSelectedGameCustomSortPath;
+            _selectedGameSortDirection = (_settings?.Persisted?.SidebarSelectedGameCustomSortDescending ?? true)
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
             _selectedGameSecondarySorts.AddRange(DeserializeSecondarySorts(_settings?.Persisted?.SidebarSelectedGameCustomSecondarySorts));
             _dataBuilder = new OverviewDataBuilder(
                 _achievementDataService,
@@ -833,8 +837,6 @@ namespace PlayniteAchievements.ViewModels
             }
 
             var completeOption = L("LOCPlayAch_Filter_Complete", "Complete");
-            var inProgressOption = L("LOCPlayAch_Filter_InProgress", "In Progress");
-            var noProgressOption = L("LOCPlayAch_Filter_NoProgress", "No Progress");
             var incompleteSliceLabel = L("LOCPlayAch_Overview_Incomplete", "Incomplete");
             var targetFilters = new List<string>();
 
@@ -844,8 +846,7 @@ namespace PlayniteAchievements.ViewModels
             }
             else if (string.Equals(completenessLabel, incompleteSliceLabel, StringComparison.OrdinalIgnoreCase))
             {
-                targetFilters.Add(inProgressOption);
-                targetFilters.Add(noProgressOption);
+                targetFilters.Add(incompleteSliceLabel);
             }
             else
             {
@@ -2594,7 +2595,7 @@ namespace PlayniteAchievements.ViewModels
                     _selectedCompletenessFilters))
             {
                 _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
-                _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+                _selectedCompletenessFilters.Add(L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
             }
 
             _selectedPlayStatusFilters.Clear();
@@ -2615,9 +2616,20 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
-            persisted.OverviewProviderFilterKeys = SerializePersistedFilterTokens(_selectedProviderFilters);
-            persisted.OverviewCompletenessFilterKeys = SerializeCanonicalFilters(_selectedCompletenessFilters, GetCompletenessFilterToken);
-            persisted.OverviewPlayStatusFilterKeys = SerializeCanonicalFilters(_selectedPlayStatusFilters, GetPlayStatusFilterToken);
+            var providerKeys = SerializePersistedFilterTokens(_selectedProviderFilters);
+            var completenessKeys = SerializeCanonicalFilters(_selectedCompletenessFilters, GetCompletenessFilterToken);
+            var playStatusKeys = SerializeCanonicalFilters(_selectedPlayStatusFilters, GetPlayStatusFilterToken);
+
+            if (string.Equals(persisted.OverviewProviderFilterKeys, providerKeys, StringComparison.Ordinal) &&
+                string.Equals(persisted.OverviewCompletenessFilterKeys, completenessKeys, StringComparison.Ordinal) &&
+                string.Equals(persisted.OverviewPlayStatusFilterKeys, playStatusKeys, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            persisted.OverviewProviderFilterKeys = providerKeys;
+            persisted.OverviewCompletenessFilterKeys = completenessKeys;
+            persisted.OverviewPlayStatusFilterKeys = playStatusKeys;
             _persistSettingsForUi?.Invoke();
         }
 
@@ -2685,10 +2697,10 @@ namespace PlayniteAchievements.ViewModels
             {
                 case "complete":
                     return L("LOCPlayAch_Filter_Complete", "Complete");
+                case "incomplete":
                 case "inprogress":
-                    return L("LOCPlayAch_Filter_InProgress", "In Progress");
                 case "noprogress":
-                    return L("LOCPlayAch_Filter_NoProgress", "No Progress");
+                    return L("LOCPlayAch_Overview_Incomplete", "Incomplete");
                 default:
                     return token;
             }
@@ -2712,8 +2724,9 @@ namespace PlayniteAchievements.ViewModels
         private string GetCompletenessFilterToken(string value)
         {
             if (string.Equals(value, L("LOCPlayAch_Filter_Complete", "Complete"), StringComparison.OrdinalIgnoreCase)) return "complete";
+            if (string.Equals(value, L("LOCPlayAch_Overview_Incomplete", "Incomplete"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
             if (string.Equals(value, L("LOCPlayAch_Filter_InProgress", "In Progress"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
-            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "noprogress";
+            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
             return value;
         }
 
@@ -3513,7 +3526,8 @@ namespace PlayniteAchievements.ViewModels
                 labels.Add(completeLabel);
             }
 
-            if (_selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress", "In Progress")) ||
+            if (_selectedCompletenessFilters.Contains(L("LOCPlayAch_Overview_Incomplete", "Incomplete")) ||
+                _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_InProgress", "In Progress")) ||
                 _selectedCompletenessFilters.Contains(L("LOCPlayAch_Filter_NoProgress", "No Progress")))
             {
                 labels.Add(L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
@@ -4216,13 +4230,28 @@ namespace PlayniteAchievements.ViewModels
 
         private void ResetSelectedGameSortToDefault()
         {
-            var defaultSort = AchievementSortHelper.GetConfiguredDefaultSort(
-                _settings?.Persisted,
-                AchievementSortSurface.OverviewSelectedGame);
-
             _allSelectedGameAchievements = _selectedGameDefaultOrderedAchievements != null
                 ? new List<AchievementDisplayItem>(_selectedGameDefaultOrderedAchievements)
                 : new List<AchievementDisplayItem>();
+
+            var persisted = _settings?.Persisted;
+            if (persisted != null &&
+                (persisted.DefaultAchievementSortMode == CompactListSortMode.Custom ||
+                 persisted.SidebarSelectedGameGridSortMode == CompactListSortMode.Custom) &&
+                !string.IsNullOrWhiteSpace(persisted.SidebarSelectedGameCustomSortPath))
+            {
+                _selectedGameSortPath = persisted.SidebarSelectedGameCustomSortPath;
+                _selectedGameSortDirection = persisted.SidebarSelectedGameCustomSortDescending
+                    ? ListSortDirection.Descending
+                    : ListSortDirection.Ascending;
+                _selectedGameSecondarySorts.Clear();
+                _selectedGameSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.SidebarSelectedGameCustomSecondarySorts));
+                return;
+            }
+
+            var defaultSort = AchievementSortHelper.GetConfiguredDefaultSort(
+                persisted,
+                AchievementSortSurface.OverviewSelectedGame);
 
             if (defaultSort.Mode == CompactListSortMode.Custom && !string.IsNullOrWhiteSpace(defaultSort.SortMemberPath))
             {
