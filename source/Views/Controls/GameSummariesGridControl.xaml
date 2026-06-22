@@ -80,7 +80,7 @@
                             <Grid UseLayoutRounding="{TemplateBinding UseLayoutRounding}"
                                   SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
                                 <Border BorderBrush="#2196F3"
-                                        BorderThickness="2"
+                                        BorderThickness="0,2,0,2"
                                         IsHitTestVisible="False"
                                         SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
                                     <Border.Style>
