@@ -80,9 +80,15 @@
                             <Grid UseLayoutRounding="{TemplateBinding UseLayoutRounding}"
                                   SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
                                 <Border BorderBrush="#2196F3"
-                                        BorderThickness="0,2,0,2"
                                         IsHitTestVisible="False"
                                         SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                                    <Border.BorderThickness>
+                                        <MultiBinding Converter="{StaticResource OverviewCompletedBorderThickness}">
+                                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}"/>
+                                            <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="Column.DisplayIndex"/>
+                                            <Binding RelativeSource="{RelativeSource AncestorType=DataGrid}"/>
+                                        </MultiBinding>
+                                    </Border.BorderThickness>
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Visibility" Value="Collapsed"/>

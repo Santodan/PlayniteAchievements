@@ -5,7 +5,9 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using Playnite.SDK;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
@@ -303,6 +305,7 @@ namespace PlayniteAchievements.Views.Controls
                 isRuntimeDefaultWidth: IsLegacyImageColumnRuntimeDefaultWidth);
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             _columnPersistence.Attach();
+            QueueRefreshCompletedCellBorders();
             _isAttached = true;
         }
 
@@ -783,6 +786,9 @@ namespace PlayniteAchievements.Views.Controls
                 return false;
             }
 
+            menu.AddHandler(MenuItem.ClickEvent, new RoutedEventHandler((_, __) => QueueRefreshCompletedCellBorders()));
+            menu.Closed += (_, __) => QueueRefreshCompletedCellBorders();
+
             if (useControllerPlacement)
             {
                 return FullscreenControllerNavigationService.OpenContextMenu(owner, menu);
@@ -824,6 +830,56 @@ namespace PlayniteAchievements.Views.Controls
         public void Refresh()
         {
             _columnPersistence?.Refresh();
+            QueueRefreshCompletedCellBorders();
+        }
+
+        private void QueueRefreshCompletedCellBorders()
+        {
+            var dispatcher = GameSummariesGrid?.Dispatcher;
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            dispatcher.BeginInvoke(new Action(RefreshCompletedCellBorders), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void RefreshCompletedCellBorders()
+        {
+            if (GameSummariesGrid == null)
+            {
+                return;
+            }
+
+            foreach (var border in FindVisualChildren<Border>(GameSummariesGrid))
+            {
+                var expression = BindingOperations.GetMultiBindingExpression(border, Border.BorderThicknessProperty);
+                expression?.UpdateTarget();
+            }
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root)
+            where T : DependencyObject
+        {
+            if (root == null)
+            {
+                yield break;
+            }
+
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed)
+                {
+                    yield return typed;
+                }
+
+                foreach (var descendant in FindVisualChildren<T>(child))
+                {
+                    yield return descendant;
+                }
+            }
         }
 
         public void Dispose()

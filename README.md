@@ -161,7 +161,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - v2.1.5 merge
 - Fixed local `Steam` achievements ( part 99 )
 - Added the possibility to have a more than one steam account for achievements
-  - It is only possible through API for the additionall accounts
+  - It is only possible through API for the additional accounts
 - Fixed some `LumaPlay` compatibility bugs
 - Fixed `OnlineFix` games wrong achievement detection
 - Fixed some missing `Theme Migration` compatibility
@@ -172,7 +172,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added the possibility to change the `Local` icon to one of the others platforms
 - Added the option to refresh the achievements when the game closes
 - Added the option to import custom achievements schemas
-- Changed the `Overrides` page to seperate this fork's options fromthe main fork
+- Changed the `Overrides` page to separate this fork's options fromthe main fork
 - `Change Provider` added to the `Overrides`
 - Added a dropdown in the `Local save folder override` when multiple folders are found
 - Fixed the issue of no icons when the achievement file has a broken icon path
