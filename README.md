@@ -96,6 +96,17 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-06-22 - v2.5.3.1
+- v2.5.2 + v2.5.3 merge
+- Fixed the missing `Collection Score`, `Prestige Score` and `Points` columns from the `Game Summary` tab
+- Fixed the tooltip when hovering the `Prestige Score` and the `Collection Score` is not been the same as it is in the main fork
+- Fixed the main extension page not saving the filters when exiting the page
+- Fixed the locked achievements not been greyed out when doing the theme migrations without the scrollable option enabled.
+- Fixed the sort for the `Selected Game` in the `Custom (Manual)` menu not saving correctly
+- Fixed the stuttering when using the `Game Overview` global hotkey
+- Fixed the missing tooltip menu for the `Prestige Score` and the `Collection Score`
+- Fixed the wrong placement for the level and points in `Prestige Score` and the `Collection Score`
+
 ## 2026-06-18 - v2.5.1.1
 - v2.5.1 merge
 - Fixed `RetroAchievement` sort
