@@ -2580,7 +2580,8 @@ namespace PlayniteAchievements.ViewModels
             var options = new List<string>
             {
                 L("LOCPlayAch_Filter_Complete", "Complete"),
-                L("LOCPlayAch_Overview_Incomplete", "Incomplete")
+                L("LOCPlayAch_Filter_InProgress", "In Progress"),
+                L("LOCPlayAch_Filter_NoProgress", "No Progress")
             };
 
             if (CompletenessFilterOptions == null)
@@ -2675,7 +2676,8 @@ namespace PlayniteAchievements.ViewModels
                     _selectedCompletenessFilters))
             {
                 _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_Complete", "Complete"));
-                _selectedCompletenessFilters.Add(L("LOCPlayAch_Overview_Incomplete", "Incomplete"));
+                _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_InProgress", "In Progress"));
+                _selectedCompletenessFilters.Add(L("LOCPlayAch_Filter_NoProgress", "No Progress"));
             }
 
             _selectedPlayStatusFilters.Clear();
@@ -2779,8 +2781,9 @@ namespace PlayniteAchievements.ViewModels
                     return L("LOCPlayAch_Filter_Complete", "Complete");
                 case "incomplete":
                 case "inprogress":
+                    return L("LOCPlayAch_Filter_InProgress", "In Progress");
                 case "noprogress":
-                    return L("LOCPlayAch_Overview_Incomplete", "Incomplete");
+                    return L("LOCPlayAch_Filter_NoProgress", "No Progress");
                 default:
                     return token;
             }
@@ -2806,7 +2809,7 @@ namespace PlayniteAchievements.ViewModels
             if (string.Equals(value, L("LOCPlayAch_Filter_Complete", "Complete"), StringComparison.OrdinalIgnoreCase)) return "complete";
             if (string.Equals(value, L("LOCPlayAch_Overview_Incomplete", "Incomplete"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
             if (string.Equals(value, L("LOCPlayAch_Filter_InProgress", "In Progress"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
-            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "inprogress";
+            if (string.Equals(value, L("LOCPlayAch_Filter_NoProgress", "No Progress"), StringComparison.OrdinalIgnoreCase)) return "noprogress";
             return value;
         }
 
@@ -3519,17 +3522,18 @@ namespace PlayniteAchievements.ViewModels
             if (_selectedCompletenessFilters.Count > 0)
             {
                 var completeOption = L("LOCPlayAch_Filter_Complete", "Complete");
-                var incompleteOption = L("LOCPlayAch_Overview_Incomplete", "Incomplete");
+                var inProgressOption = L("LOCPlayAch_Filter_InProgress", "In Progress");
+                var noProgressOption = L("LOCPlayAch_Filter_NoProgress", "No Progress");
                 var includeComplete = _selectedCompletenessFilters.Contains(completeOption);
-                var includeIncomplete = _selectedCompletenessFilters.Contains(incompleteOption);
+                var includeInProgress = _selectedCompletenessFilters.Contains(inProgressOption);
+                var includeNoProgress = _selectedCompletenessFilters.Contains(noProgressOption);
 
-                if (includeComplete && !includeIncomplete)
+                if (includeComplete || includeInProgress || includeNoProgress)
                 {
-                    filtered = filtered.Where(g => g.IsCompleted);
-                }
-                else if (!includeComplete && includeIncomplete)
-                {
-                    filtered = filtered.Where(g => !g.IsCompleted);
+                    filtered = filtered.Where(g =>
+                        (includeComplete && g.IsCompleted) ||
+                        (includeInProgress && !g.IsCompleted && g.UnlockedAchievements > 0) ||
+                        (includeNoProgress && !g.IsCompleted && g.UnlockedAchievements == 0));
                 }
             }
 
