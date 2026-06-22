@@ -20,7 +20,7 @@ namespace PlayniteAchievements.Views
     {
         private readonly CapstoneViewModel _viewModel;
 
-        public event EventHandler CapstoneChanged;
+        public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
         public ManageAchievementsCapstonesTab(
             Guid gameId,
@@ -49,22 +49,22 @@ namespace PlayniteAchievements.Views
             }
         }
 
-        private void ViewModel_CapstoneChanged(object sender, EventArgs e)
+        private void ViewModel_CapstoneChanged(object sender, CapstoneChangedEventArgs e)
         {
-            CapstoneChanged?.Invoke(this, EventArgs.Empty);
+            CapstoneChanged?.Invoke(this, e);
         }
 
-        private void MarkerCheckBox_Click(object sender, RoutedEventArgs e)
+        private async void MarkerCheckBox_Click(object sender, RoutedEventArgs e)
         {
             if (sender is CheckBox checkBox && checkBox.DataContext is CapstoneOptionItem item)
             {
                 if (item.IsCurrentMarker)
                 {
-                    _viewModel?.ClearMarker();
+                    await _viewModel.ClearMarkerAsync();
                 }
                 else
                 {
-                    _viewModel?.SetMarker(item);
+                    await _viewModel.SetMarkerAsync(item);
                 }
             }
 
@@ -180,11 +180,9 @@ namespace PlayniteAchievements.Views
                 _ => 0
             });
 
-            _viewModel.AchievementOptions.Clear();
-            foreach (var item in items)
-            {
-                _viewModel.AchievementOptions.Add(item);
-            }
+            PlayniteAchievements.Common.CollectionHelper.SynchronizeCollection(
+                _viewModel.AchievementOptions,
+                items);
         }
     }
 }

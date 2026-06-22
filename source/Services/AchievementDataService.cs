@@ -303,6 +303,11 @@ namespace PlayniteAchievements.Services
             }
         }
 
+        internal CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
+        {
+            return GetCachedSummaryDataForOverview(recentAchievementDetailLimit);
+        }
+
         private CachedSummaryData ApplyOverviewSummaryHydration(CachedSummaryData summaryData)
         {
             summaryData ??= new CachedSummaryData();

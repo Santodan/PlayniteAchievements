@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System;
+using System.Linq;
 using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
@@ -1228,7 +1229,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
 
         private void ReplaceCollection<T>(BulkObservableCollection<T> target, IEnumerable<T> value, string propertyName)
         {
-            target.ReplaceAll(value ?? new List<T>());
+            var items = (value ?? new List<T>()).ToList();
+            if (target.Count == items.Count && target.SequenceEqual(items))
+            {
+                return;
+            }
+
+            target.ReplaceAll(items);
             OnPropertyChanged(propertyName);
         }
 

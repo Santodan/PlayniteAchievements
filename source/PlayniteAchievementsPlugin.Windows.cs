@@ -70,9 +70,9 @@ namespace PlayniteAchievements
             _windowService.OpenOverviewWindow();
         }
 
-        private void ToggleOverviewWindow()
+        private void ToggleOverviewWindowFromHotkey()
         {
-            _windowService.ToggleOverviewWindow();
+            _windowService.ToggleOverviewWindowFromHotkey();
         }
 
         private enum ParityTestMode

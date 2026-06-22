@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Threading;
 
 namespace PlayniteAchievements.ThemeIntegration.Tests
@@ -917,7 +918,168 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
-        public void NotifyCustomDataChanged_RefreshesLoadedThemeBindings()
+        public void EnsureAllGamesThemeDataLoaded_LightRequestUsesCachedSummaryData()
+        {
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
+            {
+                Games = new List<CachedGameSummaryData>
+                {
+                    new CachedGameSummaryData
+                    {
+                        PlayniteGameId = gameId,
+                        ProviderKey = "Steam",
+                        GameName = "Light Cached",
+                        HasAchievements = true,
+                        TotalAchievements = 2,
+                        UnlockedAchievements = 1,
+                        CommonCount = 1,
+                        TotalCommonPossible = 2,
+                        CollectionScore = 15,
+                        PrestigeScore = 5
+                    }
+                },
+                UnlockCountsByDateByGame = new Dictionary<Guid, Dictionary<DateTime, int>>
+                {
+                    [gameId] = new Dictionary<DateTime, int>
+                    {
+                        [Utc(2026, 4, 1, 0, 0, 0)] = 1
+                    }
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = Guid.NewGuid(),
+                    ProviderKey = "GOG",
+                    Game = new Game { Name = "Hydrated Should Not Load" },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("Hydrated", 75.0, unlocked: true)
+                    }
+                }
+            };
+
+            var cachedCallsBefore = context.AchievementDataService.CachedSummaryDataForThemeCalls;
+            var visibleCallsBefore = context.AchievementDataService.VisibleAllGameDataForThemeCalls;
+            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+
+            Assert.AreEqual(cachedCallsBefore + 1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            Assert.AreEqual(visibleCallsBefore, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
+            AssertSummaryNames(context.Settings.DynamicGameSummaries, "Light Cached");
+            Assert.AreEqual(0, context.Settings.DynamicLibraryAchievements.Count);
+            Assert.AreEqual(1, context.Settings.GameSummariesDesc.Count);
+        }
+
+        [TestMethod]
+        public void EnsureAllGamesThemeDataLoaded_HeavyRequestUsesHydratedAchievementData()
+        {
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
+            {
+                Games = new List<CachedGameSummaryData>
+                {
+                    new CachedGameSummaryData
+                    {
+                        PlayniteGameId = Guid.NewGuid(),
+                        ProviderKey = "Steam",
+                        GameName = "Cached Should Not Load",
+                        HasAchievements = true,
+                        TotalAchievements = 1,
+                        UnlockedAchievements = 1,
+                        CommonCount = 1,
+                        TotalCommonPossible = 1
+                    }
+                }
+            };
+            context.AchievementDataService.VisibleAllGameData = new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    ProviderKey = "GOG",
+                    Game = new Game { Id = gameId, Name = "Heavy Hydrated" },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("Hydrated Achievement", 75.0, unlocked: true)
+                    }
+                }
+            };
+
+            var cachedCallsBefore = context.AchievementDataService.CachedSummaryDataForThemeCalls;
+            var visibleCallsBefore = context.AchievementDataService.VisibleAllGameDataForThemeCalls;
+            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: true);
+
+            Assert.AreEqual(cachedCallsBefore, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            Assert.AreEqual(visibleCallsBefore + 1, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
+            AssertAchievementNames(context.Settings.DynamicLibraryAchievements, "Hydrated Achievement");
+            AssertSummaryNames(context.Settings.DynamicGameSummaries, "Heavy Hydrated");
+        }
+
+        [TestMethod]
+        public async Task NotifyCustomDataChanged_CoalescesLightLibraryRefreshes()
+        {
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
+            {
+                Games = new List<CachedGameSummaryData>
+                {
+                    new CachedGameSummaryData
+                    {
+                        PlayniteGameId = gameId,
+                        ProviderKey = "Steam",
+                        GameName = "Before Coalesce",
+                        HasAchievements = true,
+                        TotalAchievements = 2,
+                        UnlockedAchievements = 1,
+                        CommonCount = 1,
+                        TotalCommonPossible = 2
+                    }
+                }
+            };
+
+            var cachedCallsBefore = context.AchievementDataService.CachedSummaryDataForThemeCalls;
+            var visibleCallsBefore = context.AchievementDataService.VisibleAllGameDataForThemeCalls;
+            context.Service.EnsureAllGamesThemeDataLoaded(includeHeavyAchievementLists: false);
+            Assert.AreEqual(cachedCallsBefore + 1, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+
+            context.AchievementDataService.CachedSummaryDataForTheme = new CachedSummaryData
+            {
+                Games = new List<CachedGameSummaryData>
+                {
+                    new CachedGameSummaryData
+                    {
+                        PlayniteGameId = gameId,
+                        ProviderKey = "Steam",
+                        GameName = "After Coalesce",
+                        HasAchievements = true,
+                        TotalAchievements = 3,
+                        UnlockedAchievements = 2,
+                        RareCount = 2,
+                        TotalRarePossible = 3
+                    }
+                }
+            };
+
+            context.Service.NotifyCustomDataChanged(gameId);
+            context.Service.NotifyCustomDataChanged(gameId);
+            context.Service.NotifyCustomDataChanged(gameId);
+
+            await Task.Delay(700);
+
+            Assert.AreEqual(cachedCallsBefore + 2, context.AchievementDataService.CachedSummaryDataForThemeCalls);
+            Assert.AreEqual(visibleCallsBefore, context.AchievementDataService.VisibleAllGameDataForThemeCalls);
+            AssertSummaryNames(context.Settings.DynamicGameSummaries, "After Coalesce");
+        }
+
+        [TestMethod]
+        public async Task NotifyCustomDataChanged_RefreshesLoadedThemeBindings()
         {
             using var context = CreateServiceContext();
 
@@ -964,9 +1126,10 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
 
             context.Service.NotifyCustomDataChanged(gameId);
 
-            Assert.AreEqual(1, context.Settings.DynamicLibraryAchievements.Count);
+            Assert.AreEqual(2, context.Settings.DynamicLibraryAchievements.Count);
+            await WaitForConditionAsync(() => context.Settings.DynamicLibraryAchievements.Count == 1);
             AssertAchievementNames(context.Settings.DynamicLibraryAchievements, "Visible One");
-            Assert.AreEqual(1, context.Settings.Achievements.Count);
+            await WaitForConditionAsync(() => context.Settings.Achievements.Count == 1);
             AssertAchievementNames(context.Settings.Achievements, "Visible One");
 
             var summary = FindSummary(context.Settings.DynamicGameSummaries, gameId);
@@ -1773,6 +1936,22 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             };
 
             return changedProperties;
+        }
+
+        private static async Task WaitForConditionAsync(Func<bool> condition, int timeoutMs = 1000)
+        {
+            var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (condition())
+                {
+                    return;
+                }
+
+                await Task.Delay(25);
+            }
+
+            Assert.IsTrue(condition(), "Condition was not met before the timeout.");
         }
 
         private static void AssertAchievementNames(IEnumerable<AchievementDetail> achievements, params string[] expectedDisplayNames)

@@ -1044,16 +1044,15 @@ namespace PlayniteAchievements.Views
             HandleStateChanged(refreshCapstone: true);
         }
 
-        private void CapstoneControl_CapstoneChanged(object sender, EventArgs e)
+        private void CapstoneControl_CapstoneChanged(object sender, CapstoneChangedEventArgs e)
         {
             _gameDataSnapshotProvider?.Invalidate();
-            _viewModel?.Reload();
+            _viewModel?.NotifyCapstoneChanged(e?.DisplayName);
         }
 
         private void AchievementIconsControl_IconOverridesSaved(object sender, EventArgs e)
         {
             _gameDataSnapshotProvider?.Invalidate();
-            _achievementIconsControl?.RefreshData();
             _viewModel?.NotifyIconOverridesChanged();
         }
 

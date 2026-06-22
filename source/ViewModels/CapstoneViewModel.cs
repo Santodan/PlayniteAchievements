@@ -6,11 +6,26 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using ObservableObject = PlayniteAchievements.Common.ObservableObject;
 using RelayCommand = PlayniteAchievements.Common.RelayCommand;
 
 namespace PlayniteAchievements.ViewModels
 {
+    public sealed class CapstoneChangedEventArgs : EventArgs
+    {
+        public CapstoneChangedEventArgs(string apiName, string displayName)
+        {
+            ApiName = apiName;
+            DisplayName = displayName;
+        }
+
+        public string ApiName { get; }
+
+        public string DisplayName { get; }
+    }
+
     public sealed class CapstoneViewModel : ObservableObject
     {
         private readonly Guid _gameId;
@@ -21,8 +36,10 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsSettings _settings;
         private List<CapstoneOptionItem> _allOptions = new List<CapstoneOptionItem>();
         private string _searchText = string.Empty;
+        private string _persistedMarkerApiName;
+        private int _capstoneWriteVersion;
 
-        public event EventHandler CapstoneChanged;
+        public event EventHandler<CapstoneChangedEventArgs> CapstoneChanged;
 
         public CapstoneViewModel(
             Guid gameId,
@@ -89,35 +106,54 @@ namespace PlayniteAchievements.ViewModels
 
         public RelayCommand ClearSearchCommand { get; }
 
-        public void SetMarker(CapstoneOptionItem item)
+        public async Task SetMarkerAsync(CapstoneOptionItem item)
         {
-            if (item == null || string.IsNullOrWhiteSpace(item.ApiName))
+            var markerApiName = NormalizeText(item?.ApiName);
+            if (string.IsNullOrWhiteSpace(markerApiName))
             {
                 return;
             }
 
-            var result = _achievementOverridesService.SetCapstone(_gameId, item.ApiName);
-            if (!result.Success)
+            var displayName = UpdateMarkerSelection(item);
+            var writeVersion = Interlocked.Increment(ref _capstoneWriteVersion);
+            var result = await PersistCapstoneAsync(markerApiName);
+            if (result.Success)
             {
+                _persistedMarkerApiName = markerApiName;
+                if (IsLatestCapstoneWrite(writeVersion))
+                {
+                    CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(markerApiName, displayName));
+                }
+                return;
+            }
+
+            if (IsLatestCapstoneWrite(writeVersion))
+            {
+                UpdateMarkerSelection(FindOptionByApiName(_persistedMarkerApiName));
                 ShowError(ResolveErrorMessage(result));
-                return;
             }
-
-            UpdateMarkerSelection(item);
-            CapstoneChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        public void ClearMarker()
+        public async Task ClearMarkerAsync()
         {
-            var result = _achievementOverridesService.SetCapstone(_gameId, null);
-            if (!result.Success)
+            UpdateMarkerSelection(null);
+            var writeVersion = Interlocked.Increment(ref _capstoneWriteVersion);
+            var result = await PersistCapstoneAsync(null);
+            if (result.Success)
             {
-                ShowError(ResolveErrorMessage(result));
+                _persistedMarkerApiName = null;
+                if (IsLatestCapstoneWrite(writeVersion))
+                {
+                    CapstoneChanged?.Invoke(this, new CapstoneChangedEventArgs(null, null));
+                }
                 return;
             }
 
-            UpdateMarkerSelection(null);
-            CapstoneChanged?.Invoke(this, EventArgs.Empty);
+            if (IsLatestCapstoneWrite(writeVersion))
+            {
+                UpdateMarkerSelection(FindOptionByApiName(_persistedMarkerApiName));
+                ShowError(ResolveErrorMessage(result));
+            }
         }
 
         public void ToggleReveal(CapstoneOptionItem item)
@@ -128,12 +164,12 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void UpdateMarkerSelection(CapstoneOptionItem newMarker)
+        private string UpdateMarkerSelection(CapstoneOptionItem newMarker)
         {
             var markerApiName = NormalizeText(newMarker?.ApiName);
             CapstoneOptionItem matchedMarker = null;
 
-            foreach (var option in AchievementOptions)
+            foreach (var option in _allOptions)
             {
                 var isMatch = !string.IsNullOrWhiteSpace(markerApiName) &&
                               string.Equals(
@@ -147,7 +183,48 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            SetCurrentMarkerText(matchedMarker?.DisplayName ?? newMarker?.DisplayName);
+            var displayName = matchedMarker?.DisplayName ?? newMarker?.DisplayName;
+            SetCurrentMarkerText(displayName);
+            return displayName;
+        }
+
+        private CapstoneOptionItem FindOptionByApiName(string apiName)
+        {
+            var normalized = NormalizeText(apiName);
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return null;
+            }
+
+            return _allOptions.FirstOrDefault(option =>
+                string.Equals(
+                    NormalizeText(option?.ApiName),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        private bool IsLatestCapstoneWrite(int writeVersion)
+        {
+            return writeVersion == Volatile.Read(ref _capstoneWriteVersion);
+        }
+
+        private async Task<CacheWriteResult> PersistCapstoneAsync(string markerApiName)
+        {
+            try
+            {
+                return await _achievementOverridesService
+                    .SetCapstoneAsync(_gameId, markerApiName)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Error(ex, $"Failed setting capstone for gameId={_gameId}.");
+                return CacheWriteResult.CreateFailure(
+                    _gameId.ToString("D"),
+                    "settings_save_failed",
+                    ex.Message,
+                    ex);
+            }
         }
 
         private void ApplyFilter()
@@ -161,11 +238,9 @@ namespace PlayniteAchievements.ViewModels
                     (item.Description?.IndexOf(SearchText, StringComparison.OrdinalIgnoreCase) >= 0));
             }
 
-            AchievementOptions.Clear();
-            foreach (var item in filtered)
-            {
-                AchievementOptions.Add(item);
-            }
+            PlayniteAchievements.Common.CollectionHelper.SynchronizeCollection(
+                AchievementOptions,
+                filtered.ToList());
         }
 
         public void ClearSearch()
@@ -250,6 +325,7 @@ namespace PlayniteAchievements.ViewModels
                 }
 
                 ApplyFilter();
+                _persistedMarkerApiName = currentCapstoneApiName;
                 SetCurrentMarkerText(currentMarkerOption?.DisplayName);
             }
             catch (Exception ex)

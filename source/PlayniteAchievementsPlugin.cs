@@ -107,6 +107,7 @@ namespace PlayniteAchievements
         private readonly Services.Exophase.ExophaseGameAchievementMonitor _exophaseGameAchievementMonitor;
 
         // Tagging
+        private readonly object _tagSyncGate = new object();
         private TagSyncService _tagSyncService;
 
         public override Guid Id { get; } =
@@ -402,6 +403,7 @@ namespace PlayniteAchievements
                         PersistSettingsForUi,
                         _achievementOverridesService,
                         _achievementDataService,
+                        _gameCustomDataStore,
                         _settingsViewModel.Settings,
                         _manualSourceRegistry,
                         EnsureAchievementResourcesLoaded,
@@ -413,9 +415,9 @@ namespace PlayniteAchievements
                         _settingsViewModel.Settings,
                         _achievementHotkeyTargetResolver,
                         _logger,
-                        gameId => _windowService.ToggleViewAchievementsWindow(gameId),
-                        gameId => _windowService.ToggleManageAchievementsView(gameId),
-                        ToggleOverviewWindow);
+                        gameId => _windowService.ToggleViewAchievementsWindowFromHotkey(gameId),
+                        gameId => _windowService.ToggleManageAchievementsViewFromHotkey(gameId),
+                        ToggleOverviewWindowFromHotkey);
 
                     _themeAutoMigrationService = new ThemeAutoMigrationService(
                         _logger,
@@ -455,7 +457,7 @@ namespace PlayniteAchievements
 
                 // Initialize top panel item for popout window
                 _topPanelItem = new PlayniteAchievementsTopPanelItem(
-                    PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _refreshCoordinator, _settingsViewModel.Settings);
+                    OpenOverviewWindow);
 
                 _logger.Info("PlayniteAchievementsPlugin initialized.");
             }
@@ -525,7 +527,7 @@ namespace PlayniteAchievements
                 Opened = () =>
                 {
                     return new OverviewHostControl(
-                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _refreshCoordinator, _settingsViewModel.Settings),
+                        () => new OverviewControl(PlayniteApi, _logger, _refreshService, _cacheManager, PersistSettingsForUi, _achievementOverridesService, _achievementDataService, _gameCustomDataStore, _refreshCoordinator, _settingsViewModel.Settings),
                         _logger,
                         PlayniteApi,
                         _refreshService,
@@ -834,6 +836,7 @@ namespace PlayniteAchievements
             _exophaseGameAchievementMonitor?.Dispose();
 
             try { _achievementHotkeyService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose achievementHotkeyService"); }
+            try { _windowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowService"); }
             try { _imageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose imageService"); }
             try { _diskImageService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose diskImageService"); }
             try { _manualSourceRegistry?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose manualSourceRegistry"); }
@@ -957,7 +960,7 @@ namespace PlayniteAchievements
             var persisted = _settingsViewModel?.Settings?.Persisted;
             if (_tagSyncService != null && persisted?.TaggingSettings?.EnableTagging == true)
             {
-                _tagSyncService.SyncTagsForGames(new List<Guid> { e.PlayniteGameId });
+                QueueTagSync(e.PlayniteGameId);
             }
 
             try
@@ -970,6 +973,35 @@ namespace PlayniteAchievements
             }
 
             InvalidateStartPageData();
+        }
+
+        private void QueueTagSync(Guid gameId)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            var tagSyncService = _tagSyncService;
+            if (tagSyncService == null)
+            {
+                return;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    lock (_tagSyncGate)
+                    {
+                        tagSyncService.SyncTagsForGames(new List<Guid> { gameId });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, $"Failed to sync tags after custom-data change for gameId={gameId}.");
+                }
+            });
         }
 
         private void OnAchievementGameRefreshed(Guid gameId)

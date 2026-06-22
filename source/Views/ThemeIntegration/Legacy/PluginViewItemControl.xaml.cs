@@ -1,15 +1,14 @@
 // --SUCCESSSTORY--
 using System;
-using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Controls;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
-using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 {
@@ -21,14 +20,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
     public partial class PluginViewItemControl : PluginUserControl
     {
         private static readonly ILogger _logger = PluginLogger.GetLogger(nameof(PluginViewItemControl));
-        private static readonly string[] DataContextGamePropertyCandidates =
-        {
-            "Game",
-            "Source",
-            "Item",
-            "SourceItem",
-            "Value"
-        };
         private PlayniteAchievementsPlugin Plugin => PlayniteAchievementsPlugin.Instance;
         private bool _isCacheEventSubscribed;
         private bool _cacheRefreshQueued;
@@ -111,6 +102,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             service.CacheInvalidated += RefreshService_CacheInvalidated;
             service.GameCacheUpdated -= RefreshService_GameCacheUpdated;
             service.GameCacheUpdated += RefreshService_GameCacheUpdated;
+
+            var customDataStore = Plugin?.GameCustomDataStore;
+            if (customDataStore != null)
+            {
+                customDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
+                customDataStore.CustomDataChanged += GameCustomDataStore_CustomDataChanged;
+            }
+
             _isCacheEventSubscribed = true;
         }
 
@@ -125,6 +124,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             {
                 Plugin?.RefreshRuntime.CacheInvalidated -= RefreshService_CacheInvalidated;
                 Plugin?.RefreshRuntime.GameCacheUpdated -= RefreshService_GameCacheUpdated;
+                if (Plugin?.GameCustomDataStore != null)
+                {
+                    Plugin.GameCustomDataStore.CustomDataChanged -= GameCustomDataStore_CustomDataChanged;
+                }
             }
             catch
             {
@@ -167,6 +170,16 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             }
         }
 
+        private void GameCustomDataStore_CustomDataChanged(object sender, GameCustomDataChangedEventArgs e)
+        {
+            if (e == null || e.PlayniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            DispatchRefreshIfLoaded(() => QueueRefreshIfMatches(e.PlayniteGameId));
+        }
+
         private void RefreshService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
         {
             var updatedGameId = ParseUpdatedGameId(e);
@@ -175,39 +188,40 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                 return;
             }
 
-            // Must dispatch to UI thread first before accessing IsLoaded
+            DispatchRefreshIfLoaded(() => QueueRefreshIfMatches(updatedGameId.Value));
+        }
+
+        private void DispatchRefreshIfLoaded(Action refresh)
+        {
             var dispatcher = Dispatcher;
-            if (dispatcher == null)
+            if (dispatcher == null || refresh == null)
             {
                 return;
             }
 
             if (dispatcher.CheckAccess())
             {
-                // Already on UI thread
                 if (IsLoaded)
                 {
-                    QueueRefreshIfMatches(updatedGameId.Value);
+                    refresh();
                 }
+                return;
             }
-            else
-            {
-                // On background thread - Dispatch to UI thread
-                dispatcher.BeginInvoke(
-                    new Action(() =>
+
+            dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (IsLoaded)
                     {
-                        if (IsLoaded)
-                        {
-                            QueueRefreshIfMatches(updatedGameId.Value);
-                        }
-                    }),
-                    DispatcherPriority.Render);
-            }
+                        refresh();
+                    }
+                }),
+                DispatcherPriority.Render);
         }
 
         private Guid? GetCurrentGameIdFromDataContext()
         {
-            var game = GetGameFromDataContext(DataContext);
+            var game = ThemeViewItemGameResolver.GetGame(DataContext);
             if (game == null || game.Id == Guid.Empty)
             {
                 return null;
@@ -290,7 +304,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void TryUpdateFromDataContext()
         {
-            var game = GetGameFromDataContext(DataContext);
+            var game = ThemeViewItemGameResolver.GetGame(DataContext);
             if (game != null && game.Id != Guid.Empty)
             {
                 UpdateForGame(game.Id);
@@ -299,88 +313,6 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             {
                 ClearData();
             }
-        }
-
-        /// <summary>
-        /// Extracts a Game from various DataContext types that Playnite uses.
-        /// GridView items use GamesCollectionViewEntry which wraps the Game.
-        /// </summary>
-        private Game GetGameFromDataContext(object dataContext)
-        {
-            if (dataContext == null)
-            {
-                return null;
-            }
-
-            // Direct Game reference
-            if (dataContext is Game game)
-            {
-                return game;
-            }
-
-            // Try common wrapper property names used by different Playnite view templates.
-            foreach (var propertyName in DataContextGamePropertyCandidates)
-            {
-                if (TryGetGamePropertyValue(dataContext, propertyName, out var wrappedGame))
-                {
-                    return wrappedGame;
-                }
-            }
-
-            return null;
-        }
-
-        private static bool TryGetGamePropertyValue(object source, string propertyName, out Game game)
-        {
-            game = null;
-            if (source == null || string.IsNullOrWhiteSpace(propertyName))
-            {
-                return false;
-            }
-
-            var property = source.GetType().GetProperty(propertyName);
-            if (property == null || property.GetIndexParameters().Length != 0)
-            {
-                return false;
-            }
-
-            object propertyValue;
-            try
-            {
-                propertyValue = property.GetValue(source);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (propertyValue is Game directGame)
-            {
-                game = directGame;
-                return true;
-            }
-
-            if (propertyValue == null || ReferenceEquals(propertyValue, source))
-            {
-                return false;
-            }
-
-            var nestedGameProperty = propertyValue.GetType().GetProperty("Game");
-            if (nestedGameProperty == null || nestedGameProperty.GetIndexParameters().Length != 0)
-            {
-                return false;
-            }
-
-            try
-            {
-                game = nestedGameProperty.GetValue(propertyValue) as Game;
-            }
-            catch
-            {
-                game = null;
-            }
-
-            return game != null;
         }
 
         private void UpdateForGame(Guid gameId)

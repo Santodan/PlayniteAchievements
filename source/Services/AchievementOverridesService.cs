@@ -6,6 +6,7 @@ using Playnite.SDK;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Services
 {
@@ -53,8 +54,6 @@ namespace PlayniteAchievements.Services
                 {
                     customData.ManualCapstoneApiName = capstoneApiName;
                 });
-
-                _notifyCacheInvalidated(true);
 
                 return CacheWriteResult.CreateSuccess(playniteGameId.ToString(), DateTime.UtcNow);
             }
@@ -140,6 +139,11 @@ namespace PlayniteAchievements.Services
             return SetPreferredProviderOverride(playniteGameId, null);
         }
 
+        public Task<CacheWriteResult> SetCapstoneAsync(Guid playniteGameId, string capstoneApiName)
+        {
+            return Task.Run(() => SetCapstone(playniteGameId, capstoneApiName));
+        }
+
         public void SetAchievementOrderOverride(Guid gameId, IReadOnlyList<string> orderedApiNames)
         {
             if (gameId == Guid.Empty)
@@ -153,7 +157,6 @@ namespace PlayniteAchievements.Services
                     ? new List<string>(orderedApiNames)
                     : null;
             });
-            _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementCategoryOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryOverrides)
@@ -167,7 +170,6 @@ namespace PlayniteAchievements.Services
             {
                 customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
             });
-            _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementCategoryTypeOverrides(Guid gameId, IReadOnlyDictionary<string, string> categoryTypeOverrides)
@@ -181,7 +183,23 @@ namespace PlayniteAchievements.Services
             {
                 customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
             });
-            _notifyCacheInvalidated(true);
+        }
+
+        public void SetAchievementCategoryOverrides(
+            Guid gameId,
+            IReadOnlyDictionary<string, string> categoryOverrides,
+            IReadOnlyDictionary<string, string> categoryTypeOverrides)
+        {
+            if (gameId == Guid.Empty)
+            {
+                return;
+            }
+
+            _gameCustomDataStore.Update(gameId, customData =>
+            {
+                customData.AchievementCategoryOverrides = CopyStringOverrides(categoryOverrides);
+                customData.AchievementCategoryTypeOverrides = CopyStringOverrides(categoryTypeOverrides);
+            });
         }
 
         public void SetAchievementFilters(
@@ -199,7 +217,6 @@ namespace PlayniteAchievements.Services
                 customData.FilteredAchievementApiNames = CopyApiNames(filteredAchievementApiNames);
                 customData.SummaryFilteredAchievementApiNames = CopyApiNames(summaryFilteredAchievementApiNames);
             });
-            _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementNote(Guid gameId, string achievementApiName, string note)
@@ -233,7 +250,6 @@ namespace PlayniteAchievements.Services
 
                 customData.AchievementNotes = notes.Count > 0 ? notes : null;
             });
-            _notifyCacheInvalidated(true);
         }
 
         public void SetAchievementIconOverrides(
@@ -251,8 +267,6 @@ namespace PlayniteAchievements.Services
                 customData.AchievementUnlockedIconOverrides = CopyStringOverrides(unlockedIconOverrides);
                 customData.AchievementLockedIconOverrides = CopyStringOverrides(lockedIconOverrides);
             });
-
-            _notifyCacheInvalidated(true);
         }
 
         public void SetViewAchievementsIconFetchEnabled(Guid gameId, bool enabled)
@@ -281,7 +295,6 @@ namespace PlayniteAchievements.Services
             {
                 customData.UseSeparateLockedIconsOverride = enabled ? true : (bool?)null;
             });
-            _notifyCacheInvalidated(true);
         }
 
         public void SetProviderOverride(Guid gameId, ProviderOverrideData providerOverride)
@@ -295,8 +308,6 @@ namespace PlayniteAchievements.Services
             {
                 customData.ProviderOverride = providerOverride?.Clone();
             });
-
-            _notifyCacheInvalidated(true);
         }
 
         public void SetExcludedByUser(Guid playniteGameId, bool excluded, bool clearCachedDataWhenExcluding)
@@ -311,8 +322,6 @@ namespace PlayniteAchievements.Services
             {
                 ClearGameData(playniteGameId, clearIconCache: false, persistAfter: false);
             }
-
-            _notifyCacheInvalidated(true);
         }
 
         public void SetExcludedFromSummaries(Guid playniteGameId, bool excluded)
@@ -326,8 +335,6 @@ namespace PlayniteAchievements.Services
             {
                 customData.ExcludedFromSummaries = excluded ? true : (bool?)null;
             });
-
-            _notifyCacheInvalidated(true);
         }
 
         public void ClearGameData(Guid playniteGameId, string gameName = null, bool clearIconCache = true, bool persistAfter = true)

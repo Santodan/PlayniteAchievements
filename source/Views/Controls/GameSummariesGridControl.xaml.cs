@@ -22,6 +22,22 @@ namespace PlayniteAchievements.Views.Controls
         private static readonly ILogger Logger = LogManager.GetLogger();
         private DataGridColumnLayoutService _columnPersistence;
         private bool _isAttached;
+        private const double DefaultCoverColumnWidth = 96;
+        private const double DefaultPlatformColumnWidth = 44;
+
+        private static readonly IReadOnlyDictionary<string, double> DefaultImageColumnWidthSeeds =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cover"] = DefaultCoverColumnWidth,
+                ["GameSummaryPlatform"] = DefaultPlatformColumnWidth
+            };
+
+        private static readonly IReadOnlyDictionary<string, double> LegacyImageColumnRuntimeDefaults =
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Cover"] = 64,
+                ["GameSummaryPlatform"] = 36
+            };
 
         // Defaults are applied only when a saved layout is missing a key.
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> DefaultVisibilityByColumnSettingsKey =
@@ -271,6 +287,7 @@ namespace PlayniteAchievements.Views.Controls
                 () => GetVisibilityByKey(settings),
                 map => SetVisibilityByKey(settings, map),
                 () => SavePluginSettings(settings),
+                defaultWidthSeeds: DefaultImageColumnWidthSeeds,
                 getOrder: () => GetOrderByKey(settings),
                 setOrder: map => SetOrderByKey(settings, map),
                 getCellAlignments: () => GetAlignmentsByKey(settings),
@@ -282,7 +299,8 @@ namespace PlayniteAchievements.Views.Controls
                 getHeaderHorizontalAlignments: () => GetHeaderAlignmentsByKey(settings),
                 setHeaderHorizontalAlignments: map => SetHeaderAlignmentsByKey(settings, map),
                 getDefaultHeaderHorizontalAlignment: () => settings.Persisted?.GridColumnHeaderAlignment ?? GridAlignment.Center,
-                applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(GameSummariesGrid));
+                applyCellAlignments: () => DataGridAlignmentBehavior.Refresh(GameSummariesGrid),
+                isRuntimeDefaultWidth: IsLegacyImageColumnRuntimeDefaultWidth);
             _columnPersistence.DelayInitialRenderUntilNormalized = DelayInitialRenderUntilNormalized;
             _columnPersistence.Attach();
             _isAttached = true;
@@ -608,6 +626,14 @@ namespace PlayniteAchievements.Views.Controls
         {
             return string.Equals(ColumnSettingsKey, "StartPageGameSummaries", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(ColumnSettingsKey, "StartPageOverview", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLegacyImageColumnRuntimeDefaultWidth(string key, double width)
+        {
+            return !string.IsNullOrWhiteSpace(key) &&
+                   LegacyImageColumnRuntimeDefaults.TryGetValue(key, out var legacyWidth) &&
+                   Math.Abs(ColumnWidthNormalization.RoundPixelWidth(width) -
+                            ColumnWidthNormalization.RoundPixelWidth(legacyWidth)) <= 0.2;
         }
 
         private static void SavePluginSettings(PlayniteAchievementsSettings settings)

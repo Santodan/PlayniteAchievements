@@ -311,6 +311,8 @@ namespace PlayniteAchievements.ViewModels
                         IsRevealed = revealedStateByApiName.TryGetValue(apiName, out var isRevealed)
                             ? isRevealed
                             : projected.IsRevealed,
+                        ProviderCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(providerCategory),
+                        ProviderCategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(providerCategoryType),
                         Category = effectiveCategory,
                         CategoryType = effectiveCategoryType,
                         IsSelected = selectedApiNames.Contains(apiName)
@@ -347,14 +349,10 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementOverridesService.SetAchievementCategoryOverrides(
-                _gameId,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-            _achievementOverridesService.SetAchievementCategoryTypeOverrides(
-                _gameId,
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-
-            ReloadData();
+            var emptyCategories = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var emptyCategoryTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            PersistCategoryOverrideMaps(emptyCategories, emptyCategoryTypes);
+            ApplyCategoryOverrideMapsToRows(emptyCategories, emptyCategoryTypes);
             return true;
         }
 
@@ -419,19 +417,10 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
-            if (categoryChanged)
-            {
-                _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
-            }
-
-            if (categoryTypeChanged)
-            {
-                _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
-            }
-
             if (categoryChanged || categoryTypeChanged)
             {
-                ReloadData();
+                PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+                ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             }
 
             return true;
@@ -485,8 +474,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
-            ReloadData();
+            var categoryOverrideMap = GetCurrentCategoryOverrideMap();
+            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             return true;
         }
 
@@ -529,8 +519,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
-            ReloadData();
+            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             return true;
         }
 
@@ -570,17 +561,8 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            if (categoryChanged)
-            {
-                _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
-            }
-
-            if (categoryTypeChanged)
-            {
-                _achievementOverridesService.SetAchievementCategoryTypeOverrides(_gameId, categoryTypeOverrideMap);
-            }
-
-            ReloadData();
+            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             return true;
         }
 
@@ -638,8 +620,9 @@ namespace PlayniteAchievements.ViewModels
                 return false;
             }
 
-            _achievementOverridesService.SetAchievementCategoryOverrides(_gameId, categoryOverrideMap);
-            ReloadData();
+            var categoryTypeOverrideMap = GetCurrentCategoryTypeOverrideMap();
+            PersistCategoryOverrideMaps(categoryOverrideMap, categoryTypeOverrideMap);
+            ApplyCategoryOverrideMapsToRows(categoryOverrideMap, categoryTypeOverrideMap);
             return true;
         }
 
@@ -754,6 +737,50 @@ namespace PlayniteAchievements.ViewModels
             }
 
             OnPropertyChanged(nameof(SelectedCategoryLabelFilterText));
+        }
+
+        private void PersistCategoryOverrideMaps(
+            IReadOnlyDictionary<string, string> categoryOverrideMap,
+            IReadOnlyDictionary<string, string> categoryTypeOverrideMap)
+        {
+            _achievementOverridesService.SetAchievementCategoryOverrides(
+                _gameId,
+                categoryOverrideMap,
+                categoryTypeOverrideMap);
+        }
+
+        private void ApplyCategoryOverrideMapsToRows(
+            IReadOnlyDictionary<string, string> categoryOverrideMap,
+            IReadOnlyDictionary<string, string> categoryTypeOverrideMap)
+        {
+            foreach (var item in _allRows.Where(row => row != null))
+            {
+                var apiName = (item.ApiName ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(apiName))
+                {
+                    continue;
+                }
+
+                var category = categoryOverrideMap != null &&
+                               categoryOverrideMap.TryGetValue(apiName, out var categoryOverride) &&
+                               !string.IsNullOrWhiteSpace(categoryOverride)
+                    ? categoryOverride
+                    : item.ProviderCategory;
+                var categoryType = categoryTypeOverrideMap != null &&
+                                   categoryTypeOverrideMap.TryGetValue(apiName, out var categoryTypeOverride) &&
+                                   !string.IsNullOrWhiteSpace(categoryTypeOverride)
+                    ? categoryTypeOverride
+                    : item.ProviderCategoryType;
+
+                item.Category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(category);
+                item.CategoryType = AchievementCategoryTypeHelper.NormalizeOrDefault(categoryType);
+            }
+
+            HasCustomOverrides =
+                (categoryOverrideMap?.Count ?? 0) > 0 ||
+                (categoryTypeOverrideMap?.Count ?? 0) > 0;
+            RefreshCategoryLabelOptions();
+            ApplyFilter();
         }
 
         private Dictionary<string, string> GetCurrentCategoryOverrideMap()
@@ -888,6 +915,10 @@ namespace PlayniteAchievements.ViewModels
     public sealed class ManageAchievementsCategoryItem : AchievementDisplayItem
     {
         private bool _isSelected;
+
+        public string ProviderCategory { get; set; }
+
+        public string ProviderCategoryType { get; set; }
 
         public string Category
         {

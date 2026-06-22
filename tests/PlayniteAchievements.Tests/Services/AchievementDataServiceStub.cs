@@ -11,7 +11,9 @@ namespace PlayniteAchievements.Services
         public List<GameAchievementData> AllGameData { get; set; } = new List<GameAchievementData>();
         public Dictionary<Guid, GameAchievementData> VisibleGameDataById { get; } = new Dictionary<Guid, GameAchievementData>();
         public List<GameAchievementData> VisibleAllGameData { get; set; }
-        internal CachedSummaryData CachedSummaryDataForSidebar { get; set; }
+        internal CachedSummaryData CachedSummaryDataForTheme { get; set; }
+        public int CachedSummaryDataForThemeCalls { get; private set; }
+        public int VisibleAllGameDataForThemeCalls { get; private set; }
 
         public virtual GameAchievementData GetGameAchievementData(Guid playniteGameId)
         {
@@ -37,12 +39,14 @@ namespace PlayniteAchievements.Services
 
         public virtual List<GameAchievementData> GetAllVisibleGameAchievementDataForTheme()
         {
+            VisibleAllGameDataForThemeCalls++;
             return VisibleAllGameData ?? GetAllGameAchievementDataForTheme();
         }
 
-        internal CachedSummaryData GetCachedSummaryDataForSidebar(int recentAchievementDetailLimit = 0)
+        internal virtual CachedSummaryData GetCachedSummaryDataForTheme(int recentAchievementDetailLimit = 0)
         {
-            return CachedSummaryDataForSidebar;
+            CachedSummaryDataForThemeCalls++;
+            return CachedSummaryDataForTheme;
         }
 
         public virtual List<string> GetCachedGameIds()
@@ -57,19 +61,4 @@ namespace PlayniteAchievements.Services
         }
     }
 
-    internal sealed class CachedSummaryData
-    {
-        public List<CachedGameSummaryData> Games { get; set; } = new List<CachedGameSummaryData>();
-    }
-
-    internal sealed class CachedGameSummaryData
-    {
-        public int TotalAchievements { get; set; }
-        public int UnlockedAchievements { get; set; }
-        public int CommonCount { get; set; }
-        public int UncommonCount { get; set; }
-        public int RareCount { get; set; }
-        public int UltraRareCount { get; set; }
-        public bool HasAchievements { get; set; }
-    }
 }

@@ -38,6 +38,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly RefreshRuntime _refreshService;
         private readonly Action _persistSettingsForUi;
         private readonly AchievementDataService _achievementDataService;
+        private readonly GameCustomDataStore _gameCustomDataStore;
         private readonly AchievementSelectionPipeline _selectedGamePipeline;
         private readonly RefreshEntryPoint _refreshCoordinator;
         private readonly IPlayniteAPI _playniteApi;
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.ViewModels
         private volatile bool _isActive;
         private int _refreshVersion;
         private bool _disposed;
+        private bool _isApplyingTimelineRange;
 
         private readonly HashSet<string> _revealedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private OverviewDataSnapshot _latestSnapshot;
@@ -120,6 +122,7 @@ namespace PlayniteAchievements.ViewModels
             RefreshRuntime refreshRuntime,
             Action persistSettingsForUi,
             AchievementDataService achievementDataService,
+            GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
             IPlayniteAPI playniteApi,
             ILogger logger,
@@ -128,6 +131,7 @@ namespace PlayniteAchievements.ViewModels
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _gameCustomDataStore = gameCustomDataStore;
             _refreshCoordinator = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
             _playniteApi = playniteApi;
             _logger = logger;
@@ -203,6 +207,7 @@ namespace PlayniteAchievements.ViewModels
 
             GlobalTimeline = new TimelineViewModel();
             SelectedGameTimeline = new TimelineViewModel();
+            InitializeTimelineRangePersistence();
 
             GamesPieChart = new PieChartViewModel
             {
@@ -258,6 +263,10 @@ namespace PlayniteAchievements.ViewModels
             _refreshService.RebuildProgress += OnRebuildProgress;
             _refreshService.CacheDeltaUpdated += OnCacheDeltaUpdated;
             _refreshService.CacheInvalidated += OnCacheInvalidated;
+            if (_gameCustomDataStore != null)
+            {
+                _gameCustomDataStore.CustomDataChanged += OnCustomDataChanged;
+            }
             if (_settings != null)
             {
                 _settings.PropertyChanged += OnSettingsChanged;
@@ -267,6 +276,77 @@ namespace PlayniteAchievements.ViewModels
                 }
             }
 
+        }
+
+        private void InitializeTimelineRangePersistence()
+        {
+            ApplySavedTimelineRange();
+            if (GlobalTimeline != null)
+            {
+                GlobalTimeline.PropertyChanged += Timeline_PropertyChanged;
+            }
+
+            if (SelectedGameTimeline != null)
+            {
+                SelectedGameTimeline.PropertyChanged += Timeline_PropertyChanged;
+            }
+        }
+
+        private void Timeline_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (_isApplyingTimelineRange ||
+                e?.PropertyName != nameof(TimelineViewModel.TimelineRange) ||
+                !(sender is TimelineViewModel timeline))
+            {
+                return;
+            }
+
+            try
+            {
+                _isApplyingTimelineRange = true;
+                if (!ReferenceEquals(timeline, GlobalTimeline) && GlobalTimeline != null)
+                {
+                    GlobalTimeline.TimelineRange = timeline.TimelineRange;
+                }
+
+                if (!ReferenceEquals(timeline, SelectedGameTimeline) && SelectedGameTimeline != null)
+                {
+                    SelectedGameTimeline.TimelineRange = timeline.TimelineRange;
+                }
+
+                if (_settings?.Persisted != null &&
+                    _settings.Persisted.OverviewTimelineRange != timeline.TimelineRange)
+                {
+                    _settings.Persisted.OverviewTimelineRange = timeline.TimelineRange;
+                    _persistSettingsForUi?.Invoke();
+                }
+            }
+            finally
+            {
+                _isApplyingTimelineRange = false;
+            }
+        }
+
+        private void ApplySavedTimelineRange()
+        {
+            var range = _settings?.Persisted?.OverviewTimelineRange ?? TimelineRange.OneYear;
+            try
+            {
+                _isApplyingTimelineRange = true;
+                if (GlobalTimeline != null && GlobalTimeline.TimelineRange != range)
+                {
+                    GlobalTimeline.TimelineRange = range;
+                }
+
+                if (SelectedGameTimeline != null && SelectedGameTimeline.TimelineRange != range)
+                {
+                    SelectedGameTimeline.TimelineRange = range;
+                }
+            }
+            finally
+            {
+                _isApplyingTimelineRange = false;
+            }
         }
 
         private void SeedScoreCardsFromThemeBindings()
@@ -2788,6 +2868,7 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(UseUniformRarityBadges));
                 OnPropertyChanged(nameof(CollectionScoreBadgeIconKey));
                 OnPropertyChanged(nameof(PrestigeScoreBadgeIconKey));
+                ApplySavedTimelineRange();
                 RefreshScoreCards();
                 _ = RefreshViewAsync();
                 ApplyLeftFilters();
@@ -2854,6 +2935,10 @@ namespace PlayniteAchievements.ViewModels
             else if (propertyName == nameof(PersistedSettings.ShowCompletionBorder))
             {
                 OnPropertyChanged(nameof(ShowCompletionBorder));
+            }
+            else if (propertyName == nameof(PersistedSettings.OverviewTimelineRange))
+            {
+                ApplySavedTimelineRange();
             }
             else if (propertyName == nameof(PersistedSettings.DefaultAchievementSortMode))
             {
@@ -3044,18 +3129,33 @@ namespace PlayniteAchievements.ViewModels
                 return;
             }
 
+            QueueOverviewDelta(e.IsFullReset, e.Key);
+        }
+
+        private void OnCustomDataChanged(object sender, GameCustomDataChangedEventArgs e)
+        {
+            if (!_isActive || e == null || e.PlayniteGameId == Guid.Empty)
+            {
+                return;
+            }
+
+            QueueOverviewDelta(isFullReset: false, key: e.PlayniteGameId.ToString("D"));
+        }
+
+        private void QueueOverviewDelta(bool isFullReset, string key)
+        {
             System.Windows.Application.Current?.Dispatcher?.InvokeIfNeeded(() =>
             {
                 lock (_deltaSync)
                 {
-                    if (e.IsFullReset)
+                    if (isFullReset)
                     {
                         _pendingFullResetFromDelta = true;
                         _pendingDeltaKeys.Clear();
                     }
-                    else if (!string.IsNullOrWhiteSpace(e.Key))
+                    else if (!string.IsNullOrWhiteSpace(key))
                     {
-                        _pendingDeltaKeys.Add(e.Key.Trim());
+                        _pendingDeltaKeys.Add(key.Trim());
                     }
                 }
 
@@ -5081,6 +5181,18 @@ namespace PlayniteAchievements.ViewModels
                 _refreshService.RebuildProgress -= OnRebuildProgress;
                 _refreshService.CacheDeltaUpdated -= OnCacheDeltaUpdated;
                 _refreshService.CacheInvalidated -= OnCacheInvalidated;
+            }
+            if (_gameCustomDataStore != null)
+            {
+                _gameCustomDataStore.CustomDataChanged -= OnCustomDataChanged;
+            }
+            if (GlobalTimeline != null)
+            {
+                GlobalTimeline.PropertyChanged -= Timeline_PropertyChanged;
+            }
+            if (SelectedGameTimeline != null)
+            {
+                SelectedGameTimeline.PropertyChanged -= Timeline_PropertyChanged;
             }
             if (_settings != null)
             {

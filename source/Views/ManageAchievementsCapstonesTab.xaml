@@ -165,10 +165,51 @@
 
                 <!-- Status: Checkmark (unlocked) or Padlock (locked) -->
                 <DataGridTemplateColumn Width="36" MinWidth="36" MaxWidth="36" CanUserSort="False" CanUserResize="False"
-                                        CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
-                                        CellTemplate="{StaticResource AchievementStatusTemplate}"/>
+                                        CellStyle="{StaticResource ManageAchievementsIconCellStyle}">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Viewbox Stretch="Uniform"
+                                     VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                     HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                                     ClipToBounds="False"
+                                     UseLayoutRounding="True"
+                                     SnapsToDevicePixels="True">
+                                <Viewbox.Width>
+                                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,12,18">
+                                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                                    </MultiBinding>
+                                </Viewbox.Width>
+                                <Viewbox.Height>
+                                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,8,12,18">
+                                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                                    </MultiBinding>
+                                </Viewbox.Height>
 
-                <DataGridTemplateColumn Width="64" MinWidth="64" MaxWidth="64" CanUserSort="False" CanUserResize="False"
+                                <Grid Width="18" Height="18">
+                                    <Path Data="M 3,9 L 7,13 L 15,5"
+                                          Stroke="{DynamicResource GlyphBrush}"
+                                          StrokeThickness="2.3"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Visibility="{Binding Unlocked, Converter={StaticResource BoolToVis}}"/>
+
+                                    <Image Source="{StaticResource BadgeLocked}"
+                                           Opacity="0.65"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding Unlocked, Converter={StaticResource InverseBoolToVis}}"/>
+                                </Grid>
+                            </Viewbox>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Width="72" MinWidth="44" MaxWidth="160" CanUserSort="False" CanUserResize="True"
                                         CellStyle="{StaticResource ManageAchievementsIconCellStyle}"
                                         CellTemplate="{StaticResource AchievementIconTemplate}"/>
 

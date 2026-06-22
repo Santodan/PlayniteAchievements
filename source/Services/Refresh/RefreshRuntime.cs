@@ -739,7 +739,6 @@ namespace PlayniteAchievements.Services
                 }
 
                 Interlocked.Increment(ref _savedGamesInCurrentRun);
-                _cacheService.NotifyCacheInvalidated();
 
                 // Fire per-game refresh event for amortized tag syncing
                 try { GameRefreshed?.Invoke(game.Id); } catch { }

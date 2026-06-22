@@ -83,6 +83,7 @@ namespace PlayniteAchievements.Views
             Action persistSettingsForUi,
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
+            GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
             PlayniteAchievementsSettings settings)
         {
@@ -102,6 +103,7 @@ namespace PlayniteAchievements.Views
                 refreshRuntime,
                 _persistSettingsForUi,
                 _achievementDataService,
+                gameCustomDataStore,
                 refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint)),
                 api,
                 logger,
@@ -2273,8 +2275,8 @@ namespace PlayniteAchievements.Views
                 () => ExecuteCommand(_viewModel?.RefreshSingleGameCommand, data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
                 () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
+            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ManageAchievements", () => OpenManageAchievements(data)));
             menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_GameOptions", () => OpenManageAchievements(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ClearData", () => ClearGameData(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Common_Action_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
             menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshes", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: false)));

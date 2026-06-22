@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -59,12 +58,55 @@ namespace PlayniteAchievements.Services.Images
         private readonly string _cacheRoot;
         private readonly SemaphoreSlim _downloadGate;
         private readonly SemaphoreSlim _rateLimitedDownloadGate;
-        private readonly ConcurrentDictionary<string, SemaphoreSlim> _pathWriteLocks =
-            new ConcurrentDictionary<string, SemaphoreSlim>(StringComparer.OrdinalIgnoreCase);
+        private readonly object _pathWriteLocksSync = new object();
+        private readonly Dictionary<string, PathWriteLockEntry> _pathWriteLocks =
+            new Dictionary<string, PathWriteLockEntry>(StringComparer.OrdinalIgnoreCase);
 
-        // Cache for computed icon cache paths to avoid repeated SHA256 computation
-        private readonly ConcurrentDictionary<string, string> _iconPathCache =
-            new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private sealed class PathWriteLockEntry
+        {
+            public readonly SemaphoreSlim Semaphore = new SemaphoreSlim(1, 1);
+            public int ReferenceCount;
+        }
+
+        private sealed class PathWriteLockLease : IDisposable
+        {
+            private DiskImageService _owner;
+            private readonly string _key;
+            private readonly PathWriteLockEntry _entry;
+            private bool _disposed;
+
+            public PathWriteLockLease(DiskImageService owner, string key, PathWriteLockEntry entry)
+            {
+                _owner = owner;
+                _key = key;
+                _entry = entry;
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                _owner?.ReleasePathWriteLock(_key, _entry);
+                _owner = null;
+            }
+        }
+
+#if TEST
+        internal int PathWriteLockCountForTests
+        {
+            get
+            {
+                lock (_pathWriteLocksSync)
+                {
+                    return _pathWriteLocks.Count;
+                }
+            }
+        }
+#endif
 
         public DiskImageService(ILogger logger, string cacheRoot, int downloadConcurrency = 8)
         {
@@ -99,13 +141,101 @@ namespace PlayniteAchievements.Services.Images
             try { _rateLimitedDownloadGate?.Dispose(); } catch { }
             try
             {
-                foreach (var kvp in _pathWriteLocks)
+                List<PathWriteLockEntry> entries;
+                lock (_pathWriteLocksSync)
                 {
-                    try { kvp.Value?.Dispose(); } catch { }
+                    entries = _pathWriteLocks.Values.ToList();
+                    _pathWriteLocks.Clear();
                 }
-                _pathWriteLocks.Clear();
+
+                foreach (var entry in entries)
+                {
+                    try { entry?.Semaphore?.Dispose(); } catch { }
+                }
             } catch { }
-            try { _iconPathCache.Clear(); } catch { }
+        }
+
+        private async Task<PathWriteLockLease> AcquirePathWriteLockAsync(string targetPath, CancellationToken cancel)
+        {
+            var key = NormalizePathLockKey(targetPath);
+            PathWriteLockEntry entry;
+            lock (_pathWriteLocksSync)
+            {
+                if (!_pathWriteLocks.TryGetValue(key, out entry))
+                {
+                    entry = new PathWriteLockEntry();
+                    _pathWriteLocks[key] = entry;
+                }
+
+                entry.ReferenceCount++;
+            }
+
+            try
+            {
+                await entry.Semaphore.WaitAsync(cancel).ConfigureAwait(false);
+                return new PathWriteLockLease(this, key, entry);
+            }
+            catch
+            {
+                ReleasePathWriteLock(key, entry, releaseSemaphore: false);
+                throw;
+            }
+        }
+
+        private void ReleasePathWriteLock(
+            string key,
+            PathWriteLockEntry entry,
+            bool releaseSemaphore = true)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            if (releaseSemaphore)
+            {
+                entry.Semaphore.Release();
+            }
+
+            var disposeEntry = false;
+            lock (_pathWriteLocksSync)
+            {
+                if (entry.ReferenceCount > 0)
+                {
+                    entry.ReferenceCount--;
+                }
+
+                if (entry.ReferenceCount == 0 &&
+                    _pathWriteLocks.TryGetValue(key, out var currentEntry) &&
+                    ReferenceEquals(currentEntry, entry))
+                {
+                    _pathWriteLocks.Remove(key);
+                    disposeEntry = true;
+                }
+            }
+
+            if (disposeEntry)
+            {
+                try { entry.Semaphore.Dispose(); } catch { }
+            }
+        }
+
+        private static string NormalizePathLockKey(string targetPath)
+        {
+            var normalized = (targetPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return Path.GetFullPath(normalized);
+            }
+            catch
+            {
+                return normalized;
+            }
         }
 
         private string IconCacheDirectory => Path.Combine(_cacheRoot, "icon_cache");
@@ -134,15 +264,6 @@ namespace PlayniteAchievements.Services.Images
         public string GetIconCachePathFromUri(string uri, int decodeSize, string gameId = null)
         {
             var useDecodeSizeSuffix = decodeSize > 0;
-            var cacheKey = useDecodeSizeSuffix
-                ? (string.IsNullOrEmpty(gameId) ? $"{uri}|{decodeSize}" : $"{uri}|{decodeSize}|{gameId}")
-                : (string.IsNullOrEmpty(gameId) ? uri : $"{uri}|{gameId}");
-
-            // Check cache first
-            if (_iconPathCache.TryGetValue(cacheKey, out var cachedPath))
-            {
-                return cachedPath;
-            }
 
             // Create hash-based filename from the URI
             using (var sha = SHA256.Create())
@@ -157,9 +278,7 @@ namespace PlayniteAchievements.Services.Images
 
                 var sizeSuffix = useDecodeSizeSuffix ? $"_{decodeSize}" : string.Empty;
                 var extension = ResolvePreferredExtensionForSource(uri, decodeSize);
-                var path = Path.Combine(cacheDir, $"{hashHex}{sizeSuffix}{extension}");
-                _iconPathCache[cacheKey] = path;
-                return path;
+                return Path.Combine(cacheDir, $"{hashHex}{sizeSuffix}{extension}");
             }
         }
 
@@ -293,26 +412,9 @@ namespace PlayniteAchievements.Services.Images
             var resolvedTargetPath = ResolveTargetPathForSource(targetPath, uri, preserveOriginalFormat);
             EnsureTargetDirectory(resolvedTargetPath);
 
-            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
-            await pathLock.WaitAsync(cancel).ConfigureAwait(false);
-            try
+            var pathLock = await AcquirePathWriteLockAsync(targetPath, cancel).ConfigureAwait(false);
+            using (pathLock)
             {
-                if (!overwriteExistingTarget && File.Exists(targetPath))
-                {
-                    return targetPath;
-                }
-
-                if (!overwriteExistingTarget &&
-                    !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
-                    File.Exists(resolvedTargetPath))
-                {
-                    return resolvedTargetPath;
-                }
-
-                var downloadGate = IsRateLimitedDomain(uri) ? _rateLimitedDownloadGate : _downloadGate;
-
-                byte[] bytes;
-                await downloadGate.WaitAsync(cancel).ConfigureAwait(false);
                 try
                 {
                     if (!overwriteExistingTarget && File.Exists(targetPath))
@@ -320,41 +422,56 @@ namespace PlayniteAchievements.Services.Images
                         return targetPath;
                     }
 
-                    bytes = await DownloadBytesAsync(uri, cancel).ConfigureAwait(false);
-                }
-                finally
-                {
-                    downloadGate.Release();
-                }
+                    if (!overwriteExistingTarget &&
+                        !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(resolvedTargetPath))
+                    {
+                        return resolvedTargetPath;
+                    }
 
-                if (bytes == null || bytes.Length == 0)
+                    var downloadGate = IsRateLimitedDomain(uri) ? _rateLimitedDownloadGate : _downloadGate;
+
+                    byte[] bytes;
+                    await downloadGate.WaitAsync(cancel).ConfigureAwait(false);
+                    try
+                    {
+                        if (!overwriteExistingTarget && File.Exists(targetPath))
+                        {
+                            return targetPath;
+                        }
+
+                        bytes = await DownloadBytesAsync(uri, cancel).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        downloadGate.Release();
+                    }
+
+                    if (bytes == null || bytes.Length == 0)
+                    {
+                        return null;
+                    }
+
+                    if (preserveOriginalFormat)
+                    {
+                        await SaveBytesWithRetryAsync(resolvedTargetPath, bytes, cancel).ConfigureAwait(false);
+                        return resolvedTargetPath;
+                    }
+
+                    using (var ms = new MemoryStream(bytes, writable: false))
+                    {
+                        return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException)
                 {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to download/cache icon from {uri}");
                     return null;
                 }
-
-                if (preserveOriginalFormat)
-                {
-                    await SaveBytesWithRetryAsync(resolvedTargetPath, bytes, cancel).ConfigureAwait(false);
-                    return resolvedTargetPath;
-                }
-
-                using (var ms = new MemoryStream(bytes, writable: false))
-                {
-                    return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed to download/cache icon from {uri}");
-                return null;
-            }
-            finally
-            {
-                pathLock.Release();
             }
         }
 
@@ -652,7 +769,6 @@ namespace PlayniteAchievements.Services.Images
 
             DeleteEmptyDirectories(IconCacheDirectory);
             EnsureIconCacheDirectory();
-            try { _iconPathCache.Clear(); } catch { }
             _logger?.Info($"Cleared all icon cache files. deletedCount={deletedCount}");
             return deletedCount;
         }
@@ -949,47 +1065,45 @@ namespace PlayniteAchievements.Services.Images
             var resolvedTargetPath = ResolveTargetPathForSource(targetPath, localPath, preserveOriginalFormat);
             EnsureTargetDirectory(resolvedTargetPath);
 
-            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
-            await pathLock.WaitAsync(cancel).ConfigureAwait(false);
-            try
+            var pathLock = await AcquirePathWriteLockAsync(targetPath, cancel).ConfigureAwait(false);
+            using (pathLock)
             {
-                if (!overwriteExistingTarget && File.Exists(targetPath))
+                try
                 {
-                    return targetPath;
-                }
+                    if (!overwriteExistingTarget && File.Exists(targetPath))
+                    {
+                        return targetPath;
+                    }
 
-                if (!overwriteExistingTarget &&
-                    !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
-                    File.Exists(resolvedTargetPath))
+                    if (!overwriteExistingTarget &&
+                        !string.Equals(resolvedTargetPath, targetPath, StringComparison.OrdinalIgnoreCase) &&
+                        File.Exists(resolvedTargetPath))
+                    {
+                        return resolvedTargetPath;
+                    }
+
+                    cancel.ThrowIfCancellationRequested();
+
+                    if (preserveOriginalFormat)
+                    {
+                        File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
+                        return resolvedTargetPath;
+                    }
+
+                    using (var ms = new MemoryStream(File.ReadAllBytes(localPath), writable: false))
+                    {
+                        return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException)
                 {
-                    return resolvedTargetPath;
+                    throw;
                 }
-
-                cancel.ThrowIfCancellationRequested();
-
-                if (preserveOriginalFormat)
+                catch (Exception ex)
                 {
-                    File.Copy(localPath, resolvedTargetPath, overwrite: overwriteExistingTarget);
-                    return resolvedTargetPath;
+                    _logger?.Warn(ex, $"Failed to copy/cache local icon from {localPath}");
+                    return null;
                 }
-
-                using (var ms = new MemoryStream(File.ReadAllBytes(localPath), writable: false))
-                {
-                    return await SaveBitmapStreamToPathAsync(ms, resolvedTargetPath, decodeSize, cancel).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed to copy/cache local icon from {localPath}");
-                return null;
-            }
-            finally
-            {
-                pathLock.Release();
             }
         }
 
@@ -1012,35 +1126,33 @@ namespace PlayniteAchievements.Services.Images
             }
 
             EnsureTargetDirectory(targetPath);
-            var pathLock = _pathWriteLocks.GetOrAdd(targetPath, _ => new SemaphoreSlim(1, 1));
-            await pathLock.WaitAsync(cancel).ConfigureAwait(false);
-            try
+            var pathLock = await AcquirePathWriteLockAsync(targetPath, cancel).ConfigureAwait(false);
+            using (pathLock)
             {
-                if (!overwriteExistingTarget && File.Exists(targetPath))
+                try
                 {
+                    if (!overwriteExistingTarget && File.Exists(targetPath))
+                    {
+                        return targetPath;
+                    }
+
+                    cancel.ThrowIfCancellationRequested();
+                    File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
                     return targetPath;
                 }
-
-                cancel.ThrowIfCancellationRequested();
-                File.Copy(existingPath, targetPath, overwrite: overwriteExistingTarget);
-                return targetPath;
-            }
-            catch (IOException)
-            {
-                return File.Exists(targetPath) ? targetPath : null;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"Failed to copy cached icon from {existingPath} to {targetPath}");
-                return null;
-            }
-            finally
-            {
-                pathLock.Release();
+                catch (IOException)
+                {
+                    return File.Exists(targetPath) ? targetPath : null;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"Failed to copy cached icon from {existingPath} to {targetPath}");
+                    return null;
+                }
             }
         }
 

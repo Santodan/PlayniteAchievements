@@ -28,7 +28,8 @@ namespace PlayniteAchievements.Services.UI
         private const uint ModShift = 0x0004;
         private const uint ModWin = 0x0008;
         private const uint ModNoRepeat = 0x4000;
-        private const int WsPopup = unchecked((int)0x80000000);
+        private const int WsExToolWindow = 0x00000080;
+        private static readonly IntPtr HwndMessage = new IntPtr(-3);
 
         private readonly IPlayniteAPI _api;
         private readonly PlayniteAchievementsSettings _settings;
@@ -49,6 +50,7 @@ namespace PlayniteAchievements.Services.UI
         private AchievementHotkeyGesture _overviewGesture = AchievementHotkeyGesture.Empty;
         private AchievementHotkeyAction? _lastHandledAction;
         private DateTime _lastHandledAtUtc;
+        private string _lastGlobalRegistrationFailureSignature;
 
         public AchievementHotkeyService(
             IPlayniteAPI api,
@@ -119,7 +121,7 @@ namespace PlayniteAchievements.Services.UI
                         InputManager.Current.PreProcessInput -= OnPreProcessInput;
                     }
 
-                    UnregisterGlobalHotkeys();
+                    UnregisterGlobalHotkeys(disposeSink: true);
                     _started = false;
                 }), DispatcherPriority.Normal);
             }
@@ -139,13 +141,23 @@ namespace PlayniteAchievements.Services.UI
             _viewGesture = ParseGesture(_settings?.Persisted?.ViewAchievementsHotkey);
             _manageGesture = ParseGesture(_settings?.Persisted?.ManageAchievementsHotkey);
             _overviewGesture = ParseGesture(_settings?.Persisted?.OverviewHotkey);
-            UnregisterGlobalHotkeys();
 
             var persisted = _settings?.Persisted;
-            if (persisted?.EnableAchievementHotkeys == true &&
-                persisted.EnableGlobalAchievementHotkeys)
+            var enableGlobalHotkeys = persisted?.EnableAchievementHotkeys == true &&
+                                      persisted.EnableGlobalAchievementHotkeys;
+
+            _logger?.Debug(
+                $"Refreshing achievement hotkeys. enabled={persisted?.EnableAchievementHotkeys == true}, global={enableGlobalHotkeys}, view='{_viewGesture}', manage='{_manageGesture}', overview='{_overviewGesture}', sinkHandle={_globalHotkeyWindowHandle}");
+
+            UnregisterGlobalHotkeys(disposeSink: !enableGlobalHotkeys);
+
+            if (enableGlobalHotkeys)
             {
                 RegisterGlobalHotkeys();
+            }
+            else
+            {
+                _lastGlobalRegistrationFailureSignature = null;
             }
         }
 
@@ -289,9 +301,11 @@ namespace PlayniteAchievements.Services.UI
                 return;
             }
 
-            RegisterGlobalHotkey(ViewAchievementsHotkeyId, AchievementHotkeyAction.ViewAchievements, _viewGesture);
-            RegisterGlobalHotkey(ManageAchievementsHotkeyId, AchievementHotkeyAction.ManageAchievements, _manageGesture);
-            RegisterGlobalHotkey(OverviewHotkeyId, AchievementHotkeyAction.Overview, _overviewGesture);
+            var failedGestures = new List<string>();
+            RegisterGlobalHotkey(ViewAchievementsHotkeyId, AchievementHotkeyAction.ViewAchievements, _viewGesture, failedGestures);
+            RegisterGlobalHotkey(ManageAchievementsHotkeyId, AchievementHotkeyAction.ManageAchievements, _manageGesture, failedGestures);
+            RegisterGlobalHotkey(OverviewHotkeyId, AchievementHotkeyAction.Overview, _overviewGesture, failedGestures);
+            ShowGlobalRegistrationFailureNotification(failedGestures);
         }
 
         private bool EnsureGlobalHotkeySink()
@@ -308,7 +322,9 @@ namespace PlayniteAchievements.Services.UI
                 {
                     Width = 0,
                     Height = 0,
-                    WindowStyle = WsPopup
+                    ParentWindow = HwndMessage,
+                    WindowStyle = 0,
+                    ExtendedWindowStyle = WsExToolWindow
                 };
 
                 _globalHotkeySource = new HwndSource(parameters);
@@ -322,6 +338,7 @@ namespace PlayniteAchievements.Services.UI
                 }
 
                 _globalHotkeySource.AddHook(WndProc);
+                _logger?.Debug($"Created achievement global hotkey message sink. handle={_globalHotkeyWindowHandle}");
                 return true;
             }
             catch (Exception ex)
@@ -333,7 +350,11 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private void RegisterGlobalHotkey(int id, AchievementHotkeyAction action, AchievementHotkeyGesture gesture)
+        private void RegisterGlobalHotkey(
+            int id,
+            AchievementHotkeyAction action,
+            AchievementHotkeyGesture gesture,
+            ICollection<string> failedGestures)
         {
             if (gesture == null || gesture.IsEmpty || !gesture.CanRegisterGlobally)
             {
@@ -350,21 +371,55 @@ namespace PlayniteAchievements.Services.UI
             if (RegisterHotKey(_globalHotkeyWindowHandle, id, modifiers, virtualKey))
             {
                 _registeredGlobalHotkeys[id] = action;
+                _logger?.Debug($"Registered global achievement hotkey '{gesture}' for action={action}, id={id}, sinkHandle={_globalHotkeyWindowHandle}.");
                 return;
             }
 
             var errorCode = Marshal.GetLastWin32Error();
             _logger?.Warn($"Failed to register global achievement hotkey '{gesture}' (Win32 error {errorCode}).");
+            failedGestures?.Add(gesture.ToString());
+        }
+
+        private void ShowGlobalRegistrationFailureNotification(IReadOnlyCollection<string> failedGestures)
+        {
+            if (failedGestures == null || failedGestures.Count == 0)
+            {
+                _lastGlobalRegistrationFailureSignature = null;
+                return;
+            }
+
+            var gestures = failedGestures
+                .Where(gesture => !string.IsNullOrWhiteSpace(gesture))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(gesture => gesture, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (gestures.Count == 0)
+            {
+                _lastGlobalRegistrationFailureSignature = null;
+                return;
+            }
+
+            var signature = string.Join("|", gestures);
+            if (string.Equals(signature, _lastGlobalRegistrationFailureSignature, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _lastGlobalRegistrationFailureSignature = signature;
+            var displayText = string.Join(", ", gestures);
+            var messageFormat = ResourceProvider.GetString("LOCPlayAch_Hotkeys_GlobalRegistrationFailed");
+            if (string.IsNullOrWhiteSpace(messageFormat))
+            {
+                messageFormat = "Global shortcut unavailable: {0}. Another app may already be using the same key.";
+            }
+
             ShowNotification(
-                $"PlayniteAchievements-Hotkey-GlobalFailed-{id}",
-                string.Format(
-                    ResourceProvider.GetString("LOCPlayAch_Hotkeys_GlobalRegistrationFailed") ??
-                    "Could not register global hotkey {0}. Another app may already be using it.",
-                    gesture),
+                "PlayniteAchievements-Hotkey-GlobalFailed",
+                string.Format(messageFormat, displayText),
                 NotificationType.Error);
         }
 
-        private void UnregisterGlobalHotkeys()
+        private void UnregisterGlobalHotkeys(bool disposeSink)
         {
             foreach (var id in _registeredGlobalHotkeys.Keys.ToList())
             {
@@ -383,6 +438,12 @@ namespace PlayniteAchievements.Services.UI
 
             _registeredGlobalHotkeys.Clear();
 
+            if (!disposeSink)
+            {
+                _logger?.Debug($"Unregistered achievement global hotkeys; kept sinkHandle={_globalHotkeyWindowHandle}.");
+                return;
+            }
+
             try
             {
                 _globalHotkeySource?.RemoveHook(WndProc);
@@ -394,6 +455,7 @@ namespace PlayniteAchievements.Services.UI
 
             _globalHotkeySource = null;
             _globalHotkeyWindowHandle = IntPtr.Zero;
+            _logger?.Debug("Disposed achievement global hotkey message sink.");
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -407,6 +469,7 @@ namespace PlayniteAchievements.Services.UI
             if (_registeredGlobalHotkeys.TryGetValue(id, out var action))
             {
                 handled = true;
+                _logger?.Debug($"Received global achievement hotkey id={id}, action={action}.");
                 DispatchAction(action);
             }
 
@@ -417,6 +480,7 @@ namespace PlayniteAchievements.Services.UI
         {
             try
             {
+                _logger?.Debug($"Showing achievement hotkey notification id='{id}', type={type}, message='{message}'");
                 var title = ResourceProvider.GetString("LOCPlayAch_Title_PluginName") ?? "Playnite Achievements";
                 _api?.Notifications?.Add(new NotificationMessage(
                     id,

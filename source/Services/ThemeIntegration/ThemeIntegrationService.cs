@@ -46,14 +46,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private readonly object _refreshLock = new object();
         private CancellationTokenSource _refreshCts;
-        private DateTime _lastRefreshRequestUtc = DateTime.MinValue;
-        private static readonly TimeSpan StartupRefreshCoalesceWindow = TimeSpan.FromMilliseconds(350);
+        private static readonly TimeSpan LibraryRefreshDelay = TimeSpan.FromMilliseconds(500);
+        private const int ThemeRecentUnlockSummaryLimit = 10;
 
         private readonly object _updateGate = new object();
         private Task _updateRunner;
         private int _requestVersion;
         private int _processedVersion;
         private Guid? _requestedGameId;
+        private bool _requestedForceSelectedGameRefresh;
         private CancellationTokenSource _activeUpdateCts;
         private Guid? _appliedGameId;
         private DateTime _appliedLastUpdatedUtc;
@@ -61,6 +62,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private bool _fullscreenInitialized;
         private bool _hasLoadedLibraryState;
         private bool _lastLibraryRefreshIncludedHeavyAchievementLists = true;
+        private readonly Dictionary<Guid, RelayCommand> _openViewAchievementsCommands =
+            new Dictionary<Guid, RelayCommand>();
+        private readonly Dictionary<Guid, RelayCommand> _openManageAchievementsCommands =
+            new Dictionary<Guid, RelayCommand>();
 
         public ThemeIntegrationService(
             IPlayniteAPI api,
@@ -240,9 +245,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 SeedAllGamesScoresFromCachedData();
             }
-            ApplyDynamicSelectedGameBindings();
-            ApplyDynamicLibraryAchievementBindings();
-            ApplyDynamicGameSummaryBindings();
+            ApplyDynamicSelectedGameBindings(updateOptions: false);
+            ApplyDynamicLibraryAchievementBindings(updateOptions: false);
+            ApplyDynamicGameSummaryBindings(updateOptions: false);
+            ApplyDynamicOptionBindings();
 
             _refreshService.CacheInvalidated += RefreshService_CacheInvalidated;
             _refreshCoordinator.RefreshCompleted += RefreshCoordinator_RefreshCompleted;
@@ -359,12 +365,13 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             EnsureFullscreenInitialized();
         }
 
-        public void RequestUpdate(Guid? gameId)
+        public void RequestUpdate(Guid? gameId, bool forceRefresh = false)
         {
             lock (_updateGate)
             {
                 _requestVersion++;
                 _requestedGameId = gameId;
+                _requestedForceSelectedGameRefresh |= forceRefresh;
                 if (_updateRunner == null || _updateRunner.IsCompleted)
                 {
                     _updateRunner = RunUpdateLoopAsync();
@@ -417,14 +424,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                 if (shouldRefreshSelectedGame)
                 {
-                    var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                    dispatcher.InvokeIfNeeded(
-                        () => PopulateSingleGameDataSync(resolvedGameId.Value),
-                        DispatcherPriority.Background);
+                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
                 }
                 else if (resolvedGameId.HasValue)
                 {
-                    RequestUpdate(resolvedGameId.Value);
+                    RequestUpdate(resolvedGameId.Value, forceRefresh: true);
                 }
             }
             catch (Exception ex)
@@ -436,9 +440,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 if (_hasLoadedLibraryState)
                 {
-                    EnsureAllGamesThemeDataLoaded(
-                        _lastLibraryRefreshIncludedHeavyAchievementLists,
-                        forceRefresh: true);
+                    RequestLibraryRefresh(_lastLibraryRefreshIncludedHeavyAchievementLists);
                 }
                 else if (IsFullscreen() && _fullscreenInitialized)
                 {
@@ -565,6 +567,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 int version;
                 Guid? gameId;
+                bool forceRefresh;
                 CancellationToken token;
 
                 lock (_updateGate)
@@ -576,6 +579,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
                     version = _requestVersion;
                     gameId = _requestedGameId;
+                    forceRefresh = _requestedForceSelectedGameRefresh;
+                    _requestedForceSelectedGameRefresh = false;
                     _processedVersion = version;
 
                     try { _activeUpdateCts?.Cancel(); } catch { }
@@ -615,7 +620,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                if (_appliedGameId.HasValue &&
+                if (!forceRefresh &&
+                    _appliedGameId.HasValue &&
                     _appliedGameId.Value == gameId.Value &&
                     _appliedLastUpdatedUtc == gameData.LastUpdatedUtc)
                 {
@@ -643,13 +649,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     continue;
                 }
 
-                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                if (dispatcher == null)
-                {
-                    continue;
-                }
-
-                await dispatcher.InvokeAsync(() =>
+                Action applyState = () =>
                 {
                     if (!IsLatest(version))
                     {
@@ -665,7 +665,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     ApplySelectedGameState(state);
                     _appliedGameId = gameId;
                     _appliedLastUpdatedUtc = gameData.LastUpdatedUtc;
-                }, DispatcherPriority.Background).Task.ConfigureAwait(false);
+                };
+
+                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    applyState();
+                }
+                else
+                {
+                    await dispatcher.InvokeAsync(applyState, DispatcherPriority.Background).Task.ConfigureAwait(false);
+                }
             }
         }
 
@@ -1043,14 +1053,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 _logger?.Info("PopulateAllGamesDataSync: Starting to populate all-games achievement data.");
 
-                var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
-                _logger?.Info($"PopulateAllGamesDataSync: Found {allData.Count} total game data entries.");
-
-                var state = LibraryRuntimeStateBuilder.Build(
-                    allData,
-                    _api,
+                var state = BuildLibraryState(
+                    includeHeavyAchievementLists,
                     CancellationToken.None,
-                    includeHeavyAchievementLists);
+                    out var usedCachedSummary,
+                    out var hydratedCount);
+                if (usedCachedSummary)
+                {
+                    _logger?.Info($"PopulateAllGamesDataSync: Built from cached summary data. AllGamesWithAchievements count={state.AllGamesWithAchievements?.Count ?? 0}.");
+                }
+                else
+                {
+                    _logger?.Info($"PopulateAllGamesDataSync: Found {hydratedCount.GetValueOrDefault()} total game data entries.");
+                }
 
                 _logger?.Info($"PopulateAllGamesDataSync: State created - TotalTrophies={state.TotalTrophies}, PlatinumTrophies={state.PlatinumTrophies}, GoldTrophies={state.GoldTrophies}, Rank={state.Rank}");
 
@@ -1101,19 +1116,17 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void RequestRefresh()
         {
-            if (!IsFullscreen())
+            RequestLibraryRefresh(includeHeavyAchievementLists: false, requireFullscreen: true);
+        }
+
+        private void RequestLibraryRefresh(
+            bool includeHeavyAchievementLists,
+            bool requireFullscreen = false)
+        {
+            if (requireFullscreen && !IsFullscreen())
             {
                 return;
             }
-
-            var nowUtc = DateTime.UtcNow;
-            if ((nowUtc - _lastRefreshRequestUtc) < StartupRefreshCoalesceWindow)
-            {
-                return;
-            }
-            _lastRefreshRequestUtc = nowUtc;
-
-            const bool shouldBuildHeavyAchievementLists = false;
 
             CancellationToken token;
             lock (_refreshLock)
@@ -1128,25 +1141,30 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 try
                 {
-                    await Task.Delay(500, token).ConfigureAwait(false);
+                    await Task.Delay(LibraryRefreshDelay, token).ConfigureAwait(false);
 
-                    var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
-
-                    token.ThrowIfCancellationRequested();
-
-                    var state = LibraryRuntimeStateBuilder.Build(
-                        allData,
-                        _api,
+                    var state = BuildLibraryState(
+                        includeHeavyAchievementLists,
                         token,
-                        shouldBuildHeavyAchievementLists);
+                        out _,
+                        out _);
 
-                    var uiDispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
-                    uiDispatcher?.InvokeIfNeeded(() =>
+                    Action applyState = () =>
                     {
                         _hasLoadedLibraryState = true;
-                        _lastLibraryRefreshIncludedHeavyAchievementLists = shouldBuildHeavyAchievementLists;
+                        _lastLibraryRefreshIncludedHeavyAchievementLists = includeHeavyAchievementLists;
                         ApplyLibraryState(state);
-                    }, DispatcherPriority.Background);
+                    };
+
+                    var uiDispatcher = _api.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+                    if (uiDispatcher == null)
+                    {
+                        applyState();
+                    }
+                    else
+                    {
+                        uiDispatcher.InvokeIfNeeded(applyState, DispatcherPriority.Background);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -1158,11 +1176,44 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             }, token);
         }
 
+        private LibraryRuntimeState BuildLibraryState(
+            bool includeHeavyAchievementLists,
+            CancellationToken token,
+            out bool usedCachedSummary,
+            out int? hydratedCount)
+        {
+            token.ThrowIfCancellationRequested();
+
+            usedCachedSummary = false;
+            hydratedCount = null;
+
+            if (!includeHeavyAchievementLists)
+            {
+                var summaryData = _achievementDataService.GetCachedSummaryDataForTheme(ThemeRecentUnlockSummaryLimit);
+                if (summaryData != null)
+                {
+                    usedCachedSummary = true;
+                    return LibraryRuntimeStateBuilder.BuildFromCachedSummary(summaryData, _api, token);
+                }
+            }
+
+            var allData = _achievementDataService.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
+            hydratedCount = allData.Count;
+            token.ThrowIfCancellationRequested();
+
+            return LibraryRuntimeStateBuilder.Build(
+                allData,
+                _api,
+                token,
+                includeHeavyAchievementLists);
+        }
+
         private void ApplyLibraryState(LibraryRuntimeState state)
         {
             _runtimeState.Library = state ?? new LibraryRuntimeState();
             var library = _runtimeState.Library;
             PreserveExistingScoresDuringTransientRebuild(library);
+            PruneGameCommandCaches(library.AllGamesWithAchievements);
 
             _settings.ModernTheme.CompletedGamesAsc = ProjectGameSummaries(library.CompletedGamesAsc);
             _settings.ModernTheme.CompletedGamesDesc = ProjectGameSummaries(library.CompletedGamesDesc);
@@ -1241,8 +1292,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _settings.ModernTheme.RarestRecentUnlocks = library.RarestRecentUnlocks;
             }
 
-            ApplyDynamicLibraryAchievementBindings();
-            ApplyDynamicGameSummaryBindings();
+            ApplyDynamicLibraryAchievementBindings(updateOptions: false);
+            ApplyDynamicGameSummaryBindings(updateOptions: false);
+            ApplyDynamicOptionBindings();
 
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.CompatibilityAllGames);
             NotifySettingProperties(ThemeDelegatedPropertyCatalog.ModernAllGamesCore);
@@ -1468,7 +1520,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.BronzeCount,
                     item.IsCompleted,
                     item.LastUnlockDate,
-                    new RelayCommand(_ => OpenViewAchievementsWindow(item.GameId)),
+                    GetOpenViewAchievementsCommand(item.GameId),
                     item.Common,
                     item.Uncommon,
                     item.Rare,
@@ -1480,10 +1532,60 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     item.LastPlayed,
                     item.UnlockedCount,
                     item.AchievementCount,
-                    openManageAchievementsWindow: new RelayCommand(_ => OpenManageAchievementsWindow(item.GameId))))
+                    openManageAchievementsWindow: GetOpenManageAchievementsCommand(item.GameId)))
                 .ToList();
 
             return new ObservableCollection<GameAchievementSummary>(projected);
+        }
+
+        private RelayCommand GetOpenViewAchievementsCommand(Guid gameId)
+        {
+            if (!_openViewAchievementsCommands.TryGetValue(gameId, out var command))
+            {
+                command = new RelayCommand(_ => OpenViewAchievementsWindow(gameId));
+                _openViewAchievementsCommands[gameId] = command;
+            }
+
+            return command;
+        }
+
+        private RelayCommand GetOpenManageAchievementsCommand(Guid gameId)
+        {
+            if (!_openManageAchievementsCommands.TryGetValue(gameId, out var command))
+            {
+                command = new RelayCommand(_ => OpenManageAchievementsWindow(gameId));
+                _openManageAchievementsCommands[gameId] = command;
+            }
+
+            return command;
+        }
+
+        private void PruneGameCommandCaches(IEnumerable<GameAchievementSummary> currentGames)
+        {
+            var currentGameIds = new HashSet<Guid>(
+                (currentGames ?? Enumerable.Empty<GameAchievementSummary>())
+                    .Where(item => item != null && item.GameId != Guid.Empty)
+                    .Select(item => item.GameId));
+            PruneCommandCache(_openViewAchievementsCommands, currentGameIds);
+            PruneCommandCache(_openManageAchievementsCommands, currentGameIds);
+        }
+
+        private static void PruneCommandCache(
+            Dictionary<Guid, RelayCommand> commands,
+            HashSet<Guid> currentGameIds)
+        {
+            if (commands == null || commands.Count == 0)
+            {
+                return;
+            }
+
+            var staleKeys = commands.Keys
+                .Where(key => !currentGameIds.Contains(key))
+                .ToList();
+            for (var i = 0; i < staleKeys.Count; i++)
+            {
+                commands.Remove(staleKeys[i]);
+            }
         }
 
         private void Settings_DynamicThemeDefaultsChanged(object sender, EventArgs e)
@@ -1510,13 +1612,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             {
                 if (libraryChanged)
                 {
-                    ApplyDynamicLibraryAchievementBindings();
+                    ApplyDynamicLibraryAchievementBindings(updateOptions: false);
                 }
 
                 if (summariesChanged)
                 {
-                    ApplyDynamicGameSummaryBindings();
+                    ApplyDynamicGameSummaryBindings(updateOptions: false);
                 }
+
+                ApplyDynamicOptionBindings();
 
                 if (notify)
                 {
@@ -1791,6 +1895,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
 
         private void ApplyDynamicSelectedGameBindings()
         {
+            ApplyDynamicSelectedGameBindings(updateOptions: true);
+        }
+
+        private void ApplyDynamicSelectedGameBindings(bool updateOptions)
+        {
             var state = _runtimeState.SelectedGame ?? SelectedGameRuntimeState.Empty;
             var viewState = _runtimeState.SelectedGameAchievements;
             var items = BuildDynamicSelectedGameAchievements(state, viewState);
@@ -1814,10 +1923,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.DynamicAchievementsSortDirectionOptions = DynamicThemeOptionFactory.CreateOptions(
                 DynamicThemeOptionGroups.SortDirectionKeys,
                 viewState.SortDirectionKey);
-            ApplyDynamicOptionBindings();
+            if (updateOptions)
+            {
+                ApplyDynamicOptionBindings();
+            }
         }
 
         private void ApplyDynamicLibraryAchievementBindings()
+        {
+            ApplyDynamicLibraryAchievementBindings(updateOptions: true);
+        }
+
+        private void ApplyDynamicLibraryAchievementBindings(bool updateOptions)
         {
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.LibraryAchievements;
@@ -1848,10 +1965,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.DynamicLibraryAchievementsSortDirectionOptions = DynamicThemeOptionFactory.CreateOptions(
                 DynamicThemeOptionGroups.SortDirectionKeys,
                 viewState.SortDirectionKey);
-            ApplyDynamicOptionBindings();
+            if (updateOptions)
+            {
+                ApplyDynamicOptionBindings();
+            }
         }
 
         private void ApplyDynamicGameSummaryBindings()
+        {
+            ApplyDynamicGameSummaryBindings(updateOptions: true);
+        }
+
+        private void ApplyDynamicGameSummaryBindings(bool updateOptions)
         {
             var state = _runtimeState.Library ?? new LibraryRuntimeState();
             var viewState = _runtimeState.GameSummaries;
@@ -1882,7 +2007,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.DynamicGameSummariesSortDirectionOptions = DynamicThemeOptionFactory.CreateOptions(
                 DynamicThemeOptionGroups.SortDirectionKeys,
                 viewState.SortDirectionKey);
-            ApplyDynamicOptionBindings();
+            if (updateOptions)
+            {
+                ApplyDynamicOptionBindings();
+            }
         }
 
         private void ApplyDynamicOptionBindings()

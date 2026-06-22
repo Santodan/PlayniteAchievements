@@ -2440,6 +2440,56 @@ namespace PlayniteAchievements.Models.Settings
                             : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                     : new Dictionary<Guid, Dictionary<string, string>>(),
 
+                DisabledRealtimeNotificationGameIds = this.DisabledRealtimeNotificationGameIds != null
+                    ? new HashSet<Guid>(this.DisabledRealtimeNotificationGameIds)
+                    : new HashSet<Guid>(),
+                PreferredProviderOverrides = this.PreferredProviderOverrides != null
+                    ? new Dictionary<Guid, string>(this.PreferredProviderOverrides)
+                    : new Dictionary<Guid, string>(),
+                ExtraLocalPaths = this.ExtraLocalPaths,
+                ExcludedLocalPaths = this.ExcludedLocalPaths,
+                LastAllGamesCollectorScore = this.LastAllGamesCollectorScore,
+                LastAllGamesCollectorLevel = this.LastAllGamesCollectorLevel,
+                LastAllGamesCollectorLevelProgress = this.LastAllGamesCollectorLevelProgress,
+                LastAllGamesCollectorRank = this.LastAllGamesCollectorRank,
+                LastAllGamesPrestigeScore = this.LastAllGamesPrestigeScore,
+                LastAllGamesPrestigeLevel = this.LastAllGamesPrestigeLevel,
+                LastAllGamesPrestigeLevelProgress = this.LastAllGamesPrestigeLevelProgress,
+                LastAllGamesPrestigeRank = this.LastAllGamesPrestigeRank,
+                DefaultAchievementSortMode = this.DefaultAchievementSortMode,
+                DefaultAchievementSortDescending = this.DefaultAchievementSortDescending,
+                CustomSortPath = this.CustomSortPath,
+                CustomSortDescending = this.CustomSortDescending,
+                GamesOverviewCustomSortPath = this.GamesOverviewCustomSortPath,
+                GamesOverviewCustomSortDescending = this.GamesOverviewCustomSortDescending,
+                GamesOverviewCustomSecondarySorts = this.GamesOverviewCustomSecondarySorts,
+                RecentAchievementsCustomSortPath = this.RecentAchievementsCustomSortPath,
+                RecentAchievementsCustomSortDescending = this.RecentAchievementsCustomSortDescending,
+                RecentAchievementsCustomSecondarySorts = this.RecentAchievementsCustomSecondarySorts,
+                SidebarAllAchievementsCustomSortPath = this.SidebarAllAchievementsCustomSortPath,
+                SidebarAllAchievementsCustomSortDescending = this.SidebarAllAchievementsCustomSortDescending,
+                SidebarAllAchievementsCustomSecondarySorts = this.SidebarAllAchievementsCustomSecondarySorts,
+                SidebarSelectedGameCustomSortPath = this.SidebarSelectedGameCustomSortPath,
+                SidebarSelectedGameCustomSortDescending = this.SidebarSelectedGameCustomSortDescending,
+                SidebarSelectedGameCustomSecondarySorts = this.SidebarSelectedGameCustomSecondarySorts,
+                DefaultUnlockNotificationStyle = this.DefaultUnlockNotificationStyle,
+                ProviderUnlockNotificationStyles = this.ProviderUnlockNotificationStyles != null
+                    ? new Dictionary<string, string>(this.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
+                LastUpstreamReleaseNotificationVersion = this.LastUpstreamReleaseNotificationVersion,
+                LastForkReleaseNotificationVersion = this.LastForkReleaseNotificationVersion,
+                EnableGridTextWrapping = this.EnableGridTextWrapping,
+                EnableCompactGridMode = this.EnableCompactGridMode,
+                SidebarDefaultRefreshModeKey = this.SidebarDefaultRefreshModeKey,
+                SidebarDefaultPlayStatusFilter = this.SidebarDefaultPlayStatusFilter,
+                OverviewProviderFilterKeys = this.OverviewProviderFilterKeys,
+                OverviewCompletenessFilterKeys = this.OverviewCompletenessFilterKeys,
+                OverviewPlayStatusFilterKeys = this.OverviewPlayStatusFilterKeys,
+                GamesOverviewGridSortMode = this.GamesOverviewGridSortMode,
+                GamesOverviewGridSortDescending = this.GamesOverviewGridSortDescending,
+                SidebarSelectedGameGridSortMode = this.SidebarSelectedGameGridSortMode,
+                SidebarSelectedGameGridSortDescending = this.SidebarSelectedGameGridSortDescending,
+
                 // Tagging Settings
                 TaggingSettings = this.TaggingSettings?.Clone() ?? new TaggingSettings()
             };

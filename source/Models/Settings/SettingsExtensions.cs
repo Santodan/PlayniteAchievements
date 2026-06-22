@@ -332,6 +332,56 @@ namespace PlayniteAchievements.Models.Settings
                         : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
                 : new Dictionary<Guid, Dictionary<string, string>>();
 
+            target.DisabledRealtimeNotificationGameIds = source.DisabledRealtimeNotificationGameIds != null
+                ? new HashSet<Guid>(source.DisabledRealtimeNotificationGameIds)
+                : new HashSet<Guid>();
+            target.PreferredProviderOverrides = source.PreferredProviderOverrides != null
+                ? new Dictionary<Guid, string>(source.PreferredProviderOverrides)
+                : new Dictionary<Guid, string>();
+            target.ExtraLocalPaths = source.ExtraLocalPaths;
+            target.ExcludedLocalPaths = source.ExcludedLocalPaths;
+            target.LastAllGamesCollectorScore = source.LastAllGamesCollectorScore;
+            target.LastAllGamesCollectorLevel = source.LastAllGamesCollectorLevel;
+            target.LastAllGamesCollectorLevelProgress = source.LastAllGamesCollectorLevelProgress;
+            target.LastAllGamesCollectorRank = source.LastAllGamesCollectorRank;
+            target.LastAllGamesPrestigeScore = source.LastAllGamesPrestigeScore;
+            target.LastAllGamesPrestigeLevel = source.LastAllGamesPrestigeLevel;
+            target.LastAllGamesPrestigeLevelProgress = source.LastAllGamesPrestigeLevelProgress;
+            target.LastAllGamesPrestigeRank = source.LastAllGamesPrestigeRank;
+            target.DefaultAchievementSortMode = source.DefaultAchievementSortMode;
+            target.DefaultAchievementSortDescending = source.DefaultAchievementSortDescending;
+            target.CustomSortPath = source.CustomSortPath;
+            target.CustomSortDescending = source.CustomSortDescending;
+            target.GamesOverviewCustomSortPath = source.GamesOverviewCustomSortPath;
+            target.GamesOverviewCustomSortDescending = source.GamesOverviewCustomSortDescending;
+            target.GamesOverviewCustomSecondarySorts = source.GamesOverviewCustomSecondarySorts;
+            target.RecentAchievementsCustomSortPath = source.RecentAchievementsCustomSortPath;
+            target.RecentAchievementsCustomSortDescending = source.RecentAchievementsCustomSortDescending;
+            target.RecentAchievementsCustomSecondarySorts = source.RecentAchievementsCustomSecondarySorts;
+            target.SidebarAllAchievementsCustomSortPath = source.SidebarAllAchievementsCustomSortPath;
+            target.SidebarAllAchievementsCustomSortDescending = source.SidebarAllAchievementsCustomSortDescending;
+            target.SidebarAllAchievementsCustomSecondarySorts = source.SidebarAllAchievementsCustomSecondarySorts;
+            target.SidebarSelectedGameCustomSortPath = source.SidebarSelectedGameCustomSortPath;
+            target.SidebarSelectedGameCustomSortDescending = source.SidebarSelectedGameCustomSortDescending;
+            target.SidebarSelectedGameCustomSecondarySorts = source.SidebarSelectedGameCustomSecondarySorts;
+            target.DefaultUnlockNotificationStyle = source.DefaultUnlockNotificationStyle;
+            target.ProviderUnlockNotificationStyles = source.ProviderUnlockNotificationStyles != null
+                ? new Dictionary<string, string>(source.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            target.LastUpstreamReleaseNotificationVersion = source.LastUpstreamReleaseNotificationVersion;
+            target.LastForkReleaseNotificationVersion = source.LastForkReleaseNotificationVersion;
+            target.EnableGridTextWrapping = source.EnableGridTextWrapping;
+            target.EnableCompactGridMode = source.EnableCompactGridMode;
+            target.SidebarDefaultRefreshModeKey = source.SidebarDefaultRefreshModeKey;
+            target.SidebarDefaultPlayStatusFilter = source.SidebarDefaultPlayStatusFilter;
+            target.OverviewProviderFilterKeys = source.OverviewProviderFilterKeys;
+            target.OverviewCompletenessFilterKeys = source.OverviewCompletenessFilterKeys;
+            target.OverviewPlayStatusFilterKeys = source.OverviewPlayStatusFilterKeys;
+            target.GamesOverviewGridSortMode = source.GamesOverviewGridSortMode;
+            target.GamesOverviewGridSortDescending = source.GamesOverviewGridSortDescending;
+            target.SidebarSelectedGameGridSortMode = source.SidebarSelectedGameGridSortMode;
+            target.SidebarSelectedGameGridSortDescending = source.SidebarSelectedGameGridSortDescending;
+
             // Tagging Settings
             target.TaggingSettings = source.TaggingSettings?.Clone() ?? new TaggingSettings();
         }

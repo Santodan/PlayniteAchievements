@@ -20,6 +20,8 @@ namespace PlayniteAchievements.ViewModels
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
 
+        private Dictionary<string, int> _defaultOrderIndexByApiName =
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private bool _hasAchievements;
         private bool _hasCustomOrder;
 
@@ -67,6 +69,7 @@ namespace PlayniteAchievements.ViewModels
                 var achievements = gameData?.Achievements?
                     .Where(a => a != null && !string.IsNullOrWhiteSpace(a.ApiName))
                     .ToList() ?? new List<AchievementDetail>();
+                _defaultOrderIndexByApiName = BuildOrderIndexMap(achievements);
                 HasCustomOrder = gameData?.AchievementOrder != null && gameData.AchievementOrder.Count > 0;
 
                 List<AchievementDetail> orderedAchievements;
@@ -111,6 +114,7 @@ namespace PlayniteAchievements.ViewModels
             catch (Exception ex)
             {
                 _logger?.Error(ex, $"Failed loading achievement order rows for gameId={_gameId}");
+                _defaultOrderIndexByApiName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                 CollectionHelper.SynchronizeCollection(AchievementRows, new List<AchievementDisplayItem>());
                 HasAchievements = false;
                 HasCustomOrder = false;
@@ -125,7 +129,13 @@ namespace PlayniteAchievements.ViewModels
             }
 
             _achievementOverridesService.SetAchievementOrderOverride(_gameId, Array.Empty<string>());
-            ReloadData();
+            CollectionHelper.SynchronizeCollection(
+                AchievementRows,
+                AchievementRows
+                    .OrderBy(row => ResolveDefaultOrderIndex(row))
+                    .ThenBy(row => row?.DisplayName ?? row?.ApiName, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+            HasCustomOrder = false;
             return true;
         }
 
@@ -225,6 +235,33 @@ namespace PlayniteAchievements.ViewModels
 
             _achievementOverridesService.SetAchievementOrderOverride(_gameId, orderedApiNames);
             HasCustomOrder = orderedApiNames.Count > 0;
+        }
+
+        private static Dictionary<string, int> BuildOrderIndexMap(IEnumerable<AchievementDetail> achievements)
+        {
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var index = 0;
+            foreach (var achievement in achievements ?? Enumerable.Empty<AchievementDetail>())
+            {
+                var apiName = (achievement?.ApiName ?? string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(apiName) && !map.ContainsKey(apiName))
+                {
+                    map[apiName] = index;
+                }
+
+                index++;
+            }
+
+            return map;
+        }
+
+        private int ResolveDefaultOrderIndex(AchievementDisplayItem row)
+        {
+            var apiName = (row?.ApiName ?? string.Empty).Trim();
+            return !string.IsNullOrWhiteSpace(apiName) &&
+                   _defaultOrderIndexByApiName.TryGetValue(apiName, out var index)
+                ? index
+                : int.MaxValue;
         }
     }
 }

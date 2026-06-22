@@ -154,16 +154,26 @@ namespace PlayniteAchievements.Services
             }
 
             var data = _repository.LoadOrDefault(playniteGameId);
+            var previous = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
             mutate(data);
-            Save(playniteGameId, data);
+            Save(playniteGameId, data, previous);
         }
 
         public void Save(Guid playniteGameId, GameCustomDataFile data)
         {
+            Save(playniteGameId, data, previousData: null);
+        }
+
+        private void Save(Guid playniteGameId, GameCustomDataFile data, GameCustomDataFile previousData)
+        {
             var normalized = GameCustomDataNormalizer.NormalizeInternal(data, playniteGameId);
             _repository.Save(playniteGameId, normalized);
             RefreshCachedEntry(playniteGameId);
-            SyncManagedCustomIconCache(playniteGameId, normalized);
+            if (ShouldSyncManagedCustomIconCache(previousData, normalized))
+            {
+                SyncManagedCustomIconCache(playniteGameId, normalized);
+            }
+
             RaiseCustomDataChanged(playniteGameId);
         }
 
@@ -878,6 +888,54 @@ namespace PlayniteAchievements.Services
             _managedCustomIconService.PruneGameCustomCache(
                 gameIdText,
                 EnumerateManagedCustomIconPaths(playniteGameId, normalizedData));
+        }
+
+        private static bool ShouldSyncManagedCustomIconCache(
+            GameCustomDataFile previousData,
+            GameCustomDataFile currentData)
+        {
+            if (previousData == null)
+            {
+                return true;
+            }
+
+            return !StringMapEquals(
+                       previousData.AchievementUnlockedIconOverrides,
+                       currentData?.AchievementUnlockedIconOverrides) ||
+                   !StringMapEquals(
+                       previousData.AchievementLockedIconOverrides,
+                       currentData?.AchievementLockedIconOverrides);
+        }
+
+        private static bool StringMapEquals(
+            IReadOnlyDictionary<string, string> left,
+            IReadOnlyDictionary<string, string> right)
+        {
+            var leftCount = left?.Count ?? 0;
+            var rightCount = right?.Count ?? 0;
+            if (leftCount != rightCount)
+            {
+                return false;
+            }
+
+            if (leftCount == 0)
+            {
+                return true;
+            }
+
+            foreach (var pair in left)
+            {
+                var key = NormalizeText(pair.Key);
+                if (string.IsNullOrWhiteSpace(key) ||
+                    right == null ||
+                    !right.TryGetValue(key, out var rightValue) ||
+                    !string.Equals(NormalizeText(pair.Value), NormalizeText(rightValue), StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private IEnumerable<string> EnumerateManagedCustomIconPaths(Guid playniteGameId, GameCustomDataFile data)

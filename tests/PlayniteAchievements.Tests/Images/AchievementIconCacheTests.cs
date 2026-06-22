@@ -564,6 +564,72 @@ namespace PlayniteAchievements.Services.Images.Tests
         }
 
         [TestMethod]
+        public async Task DiskImageService_ReleasesPathLocksAfterUniqueLocalCopies()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var sourcePath = Path.Combine(tempDir, "source.png");
+                WriteSolidColorPng(sourcePath, Colors.Red);
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    for (var i = 0; i < 50; i++)
+                    {
+                        var targetPath = Path.Combine(tempDir, "targets", $"icon-{i}.png");
+                        var result = await diskImageService.GetOrCopyLocalIconToPathAsync(
+                            sourcePath,
+                            targetPath,
+                            128,
+                            CancellationToken.None);
+
+                        Assert.AreEqual(targetPath, result);
+                        Assert.IsTrue(File.Exists(targetPath));
+                    }
+
+                    Assert.AreEqual(0, diskImageService.PathWriteLockCountForTests);
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task DiskImageService_ReleasesPathLockAfterConcurrentSameTargetCopies()
+        {
+            var tempDir = CreateTempDirectory();
+
+            try
+            {
+                var sourcePath = Path.Combine(tempDir, "source.png");
+                var targetPath = Path.Combine(tempDir, "target.png");
+                WriteSolidColorPng(sourcePath, Colors.Blue);
+                using (var diskImageService = new DiskImageService(logger: null, cacheRoot: tempDir))
+                {
+                    var tasks = Enumerable.Range(0, 32)
+                        .Select(_ => diskImageService.GetOrCopyLocalIconToPathAsync(
+                            sourcePath,
+                            targetPath,
+                            128,
+                            CancellationToken.None))
+                        .ToArray();
+
+                    var results = await Task.WhenAll(tasks);
+
+                    Assert.IsTrue(results.All(result => string.Equals(result, targetPath, StringComparison.OrdinalIgnoreCase)));
+                    Assert.IsTrue(File.Exists(targetPath));
+                    Assert.AreEqual(0, diskImageService.PathWriteLockCountForTests);
+                }
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void ShouldUseSeparateLockedIcons_UsesGlobalSettingOrPerGameOverride()
         {
             var gameId = Guid.NewGuid();
