@@ -96,6 +96,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed the multiple folders detection showing the list index instead of the folder path
+
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge
 - Fixed the missing `Collection Score`, `Prestige Score` and `Points` columns from the `Game Summary` tab
