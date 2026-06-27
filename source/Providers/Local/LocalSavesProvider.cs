@@ -1988,9 +1988,9 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            // Manual/library-less Playnite games may not have a Steam app id yet.
-            // Allow a schema-only refresh to resolve Steam schema by game name.
-            return !string.IsNullOrWhiteSpace(game.Name);
+            // A name alone is not Local-provider configuration. In particular, Playnite creates
+            // a temporary library-less "New Game" record when the manual-game editor opens.
+            return false;
         }
 
         private Dictionary<string, LocalEntry> TryGetSteamAppCacheEntries(int appId, Game game = null)

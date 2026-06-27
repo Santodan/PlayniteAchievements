@@ -1062,6 +1062,15 @@ namespace PlayniteAchievements
                         continue;
                     }
 
+                    // Playnite inserts a library-less manual game into the collection as soon as
+                    // the Add Game -> Manually editor opens. At this point it is only a draft
+                    // (usually named "New Game"), not a completed library addition.
+                    if (game.PluginId == Guid.Empty)
+                    {
+                        _logger.Debug($"Skipping new-game auto-refresh for manual draft '{game.Name}' ({game.Id}).");
+                        continue;
+                    }
+
                     addedGameIds.Add(game.Id);
                 }
 
