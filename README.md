@@ -96,7 +96,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Added RetroAchievement to `Achievement Notification`
+
+## 
 - Fixed the multiple folders detection showing the list index instead of the folder path
+- Fixed missing `Prestige Score` and `Collection Score` when using `SteamHunters` to fetch the schema
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge

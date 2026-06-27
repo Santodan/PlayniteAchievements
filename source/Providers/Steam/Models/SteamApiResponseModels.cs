@@ -79,6 +79,9 @@ namespace PlayniteAchievements.Providers.Steam.Models
         [DataMember(Name = "globalPercent")]
         public double? GlobalPercent { get; set; }
 
+        [DataMember(Name = "points")]
+        public int? Points { get; set; }
+
         // Internal-only bridge fields used when matching English and localized
         // community rows before copying localized text onto SteamHunters entries.
         public string LocalizedDisplayName { get; set; }

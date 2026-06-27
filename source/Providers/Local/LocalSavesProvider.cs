@@ -4674,21 +4674,25 @@ namespace PlayniteAchievements.Providers.Local
                 HasSourceLockedIcon = hasSourceLockedIcon,
                 Unlocked = entry.earned,
                 Hidden = entry.hidden || (schemaAch?.Hidden == 1),
+                Points = schemaAch?.Points,
                 UnlockTimeUtc = entry.earned && entry.earned_time > 0
                     ? DateTimeOffset.FromUnixTimeSeconds(entry.earned_time).UtcDateTime
                     : (DateTime?)null
             };
 
-            double? globalPercent = entry.percent;
+            // Online schema percentages are the authoritative global Steam rarity.
+            // Local formats frequently persist zero, stale, or player-specific values,
+            // which previously prevented anonymous SteamHunters rarity from applying.
+            double? globalPercent = schemaAch?.GlobalPercent;
             if (!globalPercent.HasValue)
             {
-                if (schemaAch?.GlobalPercent.HasValue == true)
-                {
-                    globalPercent = schemaAch.GlobalPercent.Value;
-                }
-                else if (steamSchema?.GlobalPercentages?.TryGetValue(apiName, out var resolvedPercent) == true)
+                if (steamSchema?.GlobalPercentages?.TryGetValue(apiName, out var resolvedPercent) == true)
                 {
                     globalPercent = resolvedPercent;
+                }
+                else
+                {
+                    globalPercent = entry.percent;
                 }
             }
 
@@ -5406,6 +5410,11 @@ namespace PlayniteAchievements.Providers.Local
                 if (!target.GlobalPercent.HasValue && source.GlobalPercent.HasValue)
                 {
                     target.GlobalPercent = source.GlobalPercent;
+                }
+
+                if (!target.Points.HasValue && source.Points.HasValue)
+                {
+                    target.Points = source.Points;
                 }
             }
         }
@@ -9111,6 +9120,7 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             var steamPercentage = item["steamPercentage"]?.Value<double?>() ?? item["estimatedSteamPercentage"]?.Value<double?>();
+            var points = item["points"]?.Value<int?>();
             if (steamPercentage.HasValue && !double.IsNaN(steamPercentage.Value) && !double.IsInfinity(steamPercentage.Value))
             {
                 percentages[apiName] = steamPercentage.Value;
@@ -9124,7 +9134,8 @@ namespace PlayniteAchievements.Providers.Local
                 Icon = ResolveSteamHuntersIcon(appId, item["icon"]?.Value<string>()),
                 IconGray = ResolveSteamHuntersIcon(appId, item["iconGray"]?.Value<string>()),
                 Hidden = item["hidden"]?.Value<bool?>() == true ? 1 : 0,
-                GlobalPercent = steamPercentage
+                GlobalPercent = steamPercentage,
+                Points = points
             };
         }
 
