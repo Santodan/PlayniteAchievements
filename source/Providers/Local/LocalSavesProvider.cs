@@ -176,12 +176,7 @@ namespace PlayniteAchievements.Providers.Local
         {
             if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
             {
-                if (TryAutoDetectLumaPlayAppId(game, out var autoDetectedAppId, out var autoDetectedIniPath) && autoDetectedAppId > 0)
-                {
-                    appId = autoDetectedAppId;
-                    Log($"LUMAPLAY AUTO-DETECT: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
-                }
-                else if (TryAutoDetectTenokeAppId(game, out var autoDetectedTenokeAppId, out var autoDetectedTenokeIniPath) && autoDetectedTenokeAppId > 0)
+                if (TryAutoDetectTenokeAppId(game, out var autoDetectedTenokeAppId, out var autoDetectedTenokeIniPath) && autoDetectedTenokeAppId > 0)
                 {
                     appId = autoDetectedTenokeAppId;
                     Log($"TENOKE AUTO-DETECT: game='{game?.Name}' appId={appId} source={autoDetectedTenokeIniPath}");
@@ -203,11 +198,11 @@ namespace PlayniteAchievements.Providers.Local
                     // so refresh can proceed and produce richer diagnostics.
                     if (SupportsSchemaOnlyManualFallback(game))
                     {
-                        Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' using schema-only/manual fallback without resolved app id.");
+                        Log($"LOCAL CAPABILITY: game='{game?.Name}' using schema-only/manual fallback without resolved app id.");
                         return true;
                     }
 
-                    Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' not capable (no app id, no auto-detect, no valid ini override).");
+                    Log($"LOCAL CAPABILITY: game='{game?.Name}' not capable (no app id, no auto-detect, no valid LumaPlay.ini override).");
                     return false;
                 }
             }
@@ -238,7 +233,9 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            if (IsWindowsPlatform() && TryGetLumaPlayRegistryEntries(appIdText)?.Count > 0)
+            if (IsWindowsPlatform() &&
+                TryGetConfiguredLumaPlayAppId(game, out var configuredLumaAppId, out _) &&
+                TryGetLumaPlayRegistryEntries(configuredLumaAppId.ToString(CultureInfo.InvariantCulture))?.Count > 0)
             {
                 return true;
             }
@@ -274,26 +271,6 @@ namespace PlayniteAchievements.Providers.Local
 
                 if (string.IsNullOrEmpty(appId) &&
                     game != null &&
-                    TryGetFolderOverride(game.Id, out var overriddenFolderPath) &&
-                    TryFindLumaPlayIniPathFromFolder(overriddenFolderPath, out var discoveredLumaPlayIniPath) &&
-                    TryExtractUplayGameIdFromLumaPlayIni(discoveredLumaPlayIniPath, out appIdFromLumaPlayIni))
-                {
-                    appId = appIdFromLumaPlayIni.ToString(CultureInfo.InvariantCulture);
-                    isAppIdOverridden = true;
-                    Log($"LUMAPLAY APPID INFERRED: game='{game?.Name}' appId={appId} source={discoveredLumaPlayIniPath}");
-                }
-
-                if (string.IsNullOrEmpty(appId) &&
-                    TryAutoDetectLumaPlayAppId(game, out var autoDetectedAppId, out var autoDetectedIniPath) &&
-                    autoDetectedAppId > 0)
-                {
-                    appId = autoDetectedAppId.ToString(CultureInfo.InvariantCulture);
-                    isAppIdOverridden = true;
-                    Log($"LUMAPLAY APPID AUTO-DETECTED: game='{game?.Name}' appId={appId} source={autoDetectedIniPath}");
-                }
-
-                if (string.IsNullOrEmpty(appId) &&
-                    game != null &&
                     TryGetFolderOverride(game.Id, out var tenokeOverrideFolderPath) &&
                     TryFindTenokeIniPathFromFolder(tenokeOverrideFolderPath, out var discoveredTenokeIniPath) &&
                     TryExtractAppIdFromTenokeIni(discoveredTenokeIniPath, out var appIdFromTenokeIni))
@@ -325,11 +302,11 @@ namespace PlayniteAchievements.Providers.Local
             {
                 if (!hasEnabledCustomSchemaOverride && !hasFolderOverride && !SupportsSchemaOnlyManualFallback(game))
                 {
-                    Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata/override/ini/auto-detect).");
+                    Log($"LOCAL APPID RESOLUTION: game='{game?.Name}' failed (no app id from metadata or configured overrides).");
                     return null;
                 }
 
-                Log($"LUMAPLAY APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only/schema-only mode (customSchema={hasEnabledCustomSchemaOverride}, folderOverride={hasFolderOverride}, schemaFallback={SupportsSchemaOnlyManualFallback(game)}).");
+                Log($"LOCAL APPID RESOLUTION: game='{game?.Name}' failed, continuing with override-only/schema-only mode (customSchema={hasEnabledCustomSchemaOverride}, folderOverride={hasFolderOverride}, schemaFallback={SupportsSchemaOnlyManualFallback(game)}).");
             }
 
             string localFolderPath = null;
@@ -356,21 +333,19 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             Dictionary<string, LocalEntry> lumaRegistryEntries = null;
-            if (IsWindowsPlatform() && string.IsNullOrWhiteSpace(jsonPath) && iniPaths.Count == 0)
+            var hasValidLumaPlayIniOverride = TryGetConfiguredLumaPlayAppId(game, out var configuredLumaPlayAppId, out _);
+            if (IsWindowsPlatform() &&
+                hasValidLumaPlayIniOverride &&
+                string.IsNullOrWhiteSpace(jsonPath) &&
+                iniPaths.Count == 0)
             {
-                lumaRegistryEntries = TryGetLumaPlayRegistryEntries(appId);
+                lumaRegistryEntries = TryGetLumaPlayRegistryEntries(
+                    configuredLumaPlayAppId.ToString(CultureInfo.InvariantCulture));
             }
 
             var hasAchievementsFile = !string.IsNullOrWhiteSpace(jsonPath) || iniPaths.Count > 0;
             var hasLumaRegistryEntries = lumaRegistryEntries != null && lumaRegistryEntries.Count > 0;
-            var hasLumaPlayAppIdOverride = game != null && TryGetLumaPlayAppIdOverride(game.Id, out _);
-            var hasLumaPlayIniOverride = game != null && TryGetLumaPlayIniPathOverride(game.Id, out _);
-            var hasAutoDetectedLumaPlayIni = game != null &&
-                TryAutoDetectLumaPlayAppId(game, out _, out _);
-            var isLumaPlayContext = hasLumaRegistryEntries ||
-                hasLumaPlayAppIdOverride ||
-                hasLumaPlayIniOverride ||
-                hasAutoDetectedLumaPlayIni;
+            var isLumaPlayContext = hasValidLumaPlayIniOverride;
             var preferLocalizedSchemaText = ShouldPreferLocalizedSteamText();
 
             SchemaAndPercentages steamSchema = null;
@@ -741,13 +716,7 @@ namespace PlayniteAchievements.Providers.Local
                 }
                 else if (TryGetFolderOverride(game.Id, out var overriddenFolderPath))
                 {
-                    if (TryFindLumaPlayIniPathFromFolder(overriddenFolderPath, out var lumaPath) &&
-                        TryExtractUplayGameIdFromLumaPlayIni(lumaPath, out lumaAppId))
-                    {
-                        appId = lumaAppId.ToString(CultureInfo.InvariantCulture);
-                        AddExistingPath(paths, lumaPath);
-                    }
-                    else if (TryFindTenokeIniPathFromFolder(overriddenFolderPath, out var tenokePath) &&
+                    if (TryFindTenokeIniPathFromFolder(overriddenFolderPath, out var tenokePath) &&
                              TryExtractAppIdFromTenokeIni(tenokePath, out var tenokeAppId))
                     {
                         appId = tenokeAppId.ToString(CultureInfo.InvariantCulture);
@@ -1291,13 +1260,6 @@ namespace PlayniteAchievements.Providers.Local
                 return true;
             }
 
-            if (TryGetLumaPlayAppIdOverride(game.Id, out var overriddenLumaPlayAppId))
-            {
-                appId = overriddenLumaPlayAppId;
-                isOverridden = true;
-                return true;
-            }
-
             if (TryGetLumaPlayIniPathOverride(game.Id, out var overriddenLumaPlayIniPath) &&
                 TryExtractUplayGameIdFromLumaPlayIni(overriddenLumaPlayIniPath, out var lumaPlayIniAppId))
             {
@@ -1396,6 +1358,15 @@ namespace PlayniteAchievements.Providers.Local
             }
 
             return false;
+        }
+
+        private static bool TryGetConfiguredLumaPlayAppId(Game game, out int appId, out string iniPath)
+        {
+            appId = 0;
+            iniPath = null;
+            return game != null &&
+                TryGetLumaPlayIniPathOverride(game.Id, out iniPath) &&
+                TryExtractUplayGameIdFromLumaPlayIni(iniPath, out appId);
         }
 
         private bool TryAutoDetectLumaPlayAppId(Game game, out int appId, out string detectedIniPath)
@@ -1800,11 +1771,11 @@ namespace PlayniteAchievements.Providers.Local
 
                     if (resolvedId > 0)
                     {
-                        Log($"LUMA STEAM SEARCH: game='{gameName}' normalized='{normalizedQuery}' query='{bestQuery}' steamAppId={resolvedId} score={bestScore:F2}");
+                        Log($"STEAM SCHEMA SEARCH: game='{gameName}' normalized='{normalizedQuery}' query='{bestQuery}' steamAppId={resolvedId} score={bestScore:F2}");
                     }
                     else
                     {
-                        Log($"LUMA STEAM SEARCH: game='{gameName}' no confident Steam match (bestScore={bestScore:F2})");
+                        Log($"STEAM SCHEMA SEARCH: game='{gameName}' no confident Steam match (bestScore={bestScore:F2})");
                     }
 
                     return resolvedId;
@@ -1985,8 +1956,7 @@ namespace PlayniteAchievements.Providers.Local
             if (TryGetAppIdOverride(game.Id, out _) ||
                 TryGetFolderOverride(game.Id, out _) ||
                 (TryGetCustomSchemaPathOverride(game.Id, out _) && TryGetCustomSchemaEnabledOverride(game.Id, out var isCustomSchemaEnabledForFallback) && isCustomSchemaEnabledForFallback) ||
-                TryGetLumaPlayAppIdOverride(game.Id, out _) ||
-                TryGetLumaPlayIniPathOverride(game.Id, out _))
+                TryGetConfiguredLumaPlayAppId(game, out _, out _))
             {
                 return true;
             }
