@@ -176,6 +176,21 @@ namespace PlayniteAchievements.Providers.Local
         {
             if (!TryResolveAppId(game, out var appId, out _ ) || appId <= 0)
             {
+                // Explicit Local configuration is sufficient capability and should not trigger
+                // install-directory discovery while Custom Refresh is building its game list.
+                if (SupportsSchemaOnlyManualFallback(game))
+                {
+                    return true;
+                }
+
+                // Games owned by another library plugin (Epic, GOG, etc.) commonly have
+                // non-numeric IDs. They are not Local candidates unless explicitly configured.
+                // Avoid recursively probing every such game's install directory on the UI path.
+                if (game == null || game.PluginId != Guid.Empty)
+                {
+                    return false;
+                }
+
                 if (TryAutoDetectTenokeAppId(game, out var autoDetectedTenokeAppId, out var autoDetectedTenokeIniPath) && autoDetectedTenokeAppId > 0)
                 {
                     appId = autoDetectedTenokeAppId;
@@ -194,15 +209,6 @@ namespace PlayniteAchievements.Providers.Local
                         Log($"LUMAPLAY CAPABILITY: game='{game?.Name}' iniOverrideMissing='{lumaIniOverridePath}'");
                     }
 
-                    // Keep capability when explicit Local/manual fallback context exists
-                    // so refresh can proceed and produce richer diagnostics.
-                    if (SupportsSchemaOnlyManualFallback(game))
-                    {
-                        Log($"LOCAL CAPABILITY: game='{game?.Name}' using schema-only/manual fallback without resolved app id.");
-                        return true;
-                    }
-
-                    Log($"LOCAL CAPABILITY: game='{game?.Name}' not capable (no app id, no auto-detect, no valid LumaPlay.ini override).");
                     return false;
                 }
             }
