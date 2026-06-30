@@ -175,6 +175,7 @@ namespace PlayniteAchievements.Views
         private CustomRefreshPreset _placeholderPreset;
         private bool _suppressSummaryRefresh;
         private bool _initialLoadStarted;
+        private int _summaryCalculationVersion;
 
         public event EventHandler RequestClose;
         public event PropertyChangedEventHandler PropertyChanged;
@@ -611,7 +612,9 @@ namespace PlayniteAchievements.Views
 
                         var isEnabled = _refreshService.ProviderRegistry.IsProviderEnabled(provider.ProviderKey);
                         var isAuthenticated = isEnabled &&
-                            await _refreshService.IsProviderAuthenticatedAsync(provider, CancellationToken.None).ConfigureAwait(false);
+                            await Task.Run(
+                                () => _refreshService.IsProviderAuthenticatedAsync(provider, CancellationToken.None))
+                                .ConfigureAwait(false);
 
                         return new
                         {
@@ -930,7 +933,13 @@ namespace PlayniteAchievements.Views
             return SteamRefreshTargetMode.All;
         }
 
-        private List<Guid> ResolveEstimatedTargets(IReadOnlyList<IDataProvider> providers, CustomGameScope? scopeOverride = null)
+        private List<Guid> ResolveEstimatedTargets(
+            IReadOnlyList<IDataProvider> providers,
+            IReadOnlyList<ProviderOptionItem> selectedOptions,
+            IReadOnlyList<Guid> includeIds,
+            IReadOnlyList<Guid> excludeIds,
+            IReadOnlyList<Game> librarySelectedGames,
+            CustomGameScope? scopeOverride = null)
         {
             if (providers == null || providers.Count == 0)
             {
@@ -983,7 +992,7 @@ namespace PlayniteAchievements.Views
                     break;
 
                 case CustomGameScope.LibrarySelected:
-                    scopedGames = _api.MainView.SelectedGames?.Where(game => game != null) ?? Enumerable.Empty<Game>();
+                    scopedGames = librarySelectedGames ?? Enumerable.Empty<Game>();
                     break;
 
                 case CustomGameScope.Missing:
@@ -1005,17 +1014,6 @@ namespace PlayniteAchievements.Views
             {
                 scopedGames = BulkRefreshGameFilter.ApplyHiddenFilter(scopedGames, _settings?.Persisted);
             }
-
-            var includeIds = GameOptions
-                .Where(option => option.IsIncluded)
-                .Select(option => option.GameId)
-                .Distinct()
-                .ToList();
-            var excludeIds = GameOptions
-                .Where(option => option.IsExcluded)
-                .Select(option => option.GameId)
-                .Distinct()
-                .ToList();
 
             var explicitIncludeSet = new HashSet<Guid>(includeIds);
             var explicitExcludeSet = new HashSet<Guid>(excludeIds);
@@ -1066,8 +1064,6 @@ namespace PlayniteAchievements.Views
                         .ToList();
                 }
             }
-
-            var selectedOptions = GetSelectedProviderOptions();
 
             return orderedIds
                 .Select(id => _gamesById.TryGetValue(id, out var game) ? game : null)
@@ -1140,9 +1136,11 @@ namespace PlayniteAchievements.Views
                     GameCustomDataLookup.TryGetProviderOverride(game.Id, out _));
         }
 
-        private void RecalculateSummary()
+        private async void RecalculateSummary()
         {
+            var calculationVersion = Interlocked.Increment(ref _summaryCalculationVersion);
             var selectedProviders = GetSelectedProviders();
+            var selectedOptions = GetSelectedProviderOptions();
 
             var selectedProviderNames = ProviderOptions
                 .Where(option => option.IsSelected && option.IsSelectable)
@@ -1154,7 +1152,44 @@ namespace PlayniteAchievements.Views
                 ? L("LOCPlayAch_CustomRefresh_None", "None")
                 : string.Join(", ", selectedProviderNames);
 
-            var estimatedTargetIds = ResolveEstimatedTargets(selectedProviders);
+            var includeIds = GameOptions
+                .Where(option => option.IsIncluded)
+                .Select(option => option.GameId)
+                .Distinct()
+                .ToList();
+            var excludeIds = GameOptions
+                .Where(option => option.IsExcluded)
+                .Select(option => option.GameId)
+                .Distinct()
+                .ToList();
+            var librarySelectedGames = (_api.MainView.SelectedGames ?? Enumerable.Empty<Game>())
+                .Where(game => game != null)
+                .ToList();
+
+            SummaryText = L("LOCPlayAch_Common_Loading", "Loading...");
+            CanRun = false;
+
+            List<Guid> estimatedTargetIds;
+            try
+            {
+                estimatedTargetIds = await Task.Run(() => ResolveEstimatedTargets(
+                    selectedProviders,
+                    selectedOptions,
+                    includeIds,
+                    excludeIds,
+                    librarySelectedGames)).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to calculate Custom Refresh target estimate.");
+                estimatedTargetIds = new List<Guid>();
+            }
+
+            if (calculationVersion != Volatile.Read(ref _summaryCalculationVersion))
+            {
+                return;
+            }
+
             var estimatedTargets = estimatedTargetIds.Count;
             SummaryText = string.Format(
                 L("LOCPlayAch_CustomRefresh_SummaryFormat", "Providers: {0} | Estimated targets: {1}"),
