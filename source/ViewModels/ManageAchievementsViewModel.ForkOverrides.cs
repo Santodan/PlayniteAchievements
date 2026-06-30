@@ -234,8 +234,28 @@ namespace PlayniteAchievements.ViewModels
             else { HasLocalRefreshOnGameCloseOverride = false; LocalRefreshOnGameCloseOverrideValue = false; LocalRefreshOnGameCloseOverrideInput = LocalRefreshOnGameCloseGlobalValue; }
         }
 
-        private IReadOnlyList<GameOptionsProviderOption> BuildPreferredProviders() => new[] { "Automatic", "Local", "Steam", "RetroAchievements", "Exophase", "Xenia", "ShadPS4", "RPCS3", "Manual" }
-            .Select(key => new GameOptionsProviderOption { ProviderKey = key == "Automatic" ? string.Empty : key, DisplayName = key == "Automatic" ? L("LOCPlayAch_Menu_LocalProvider_Automatic", "Automatic") : ProviderRegistry.GetLocalizedName(key) }).ToList();
+        private IReadOnlyList<GameOptionsProviderOption> BuildPreferredProviders()
+        {
+            var options = (_refreshService?.Providers ?? Enumerable.Empty<IDataProvider>())
+                .Where(provider => provider != null && !string.IsNullOrWhiteSpace(provider.ProviderKey))
+                .Select(provider => provider.ProviderKey.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(ProviderRegistry.GetLocalizedName, StringComparer.CurrentCultureIgnoreCase)
+                .Select(key => new GameOptionsProviderOption
+                {
+                    ProviderKey = key,
+                    DisplayName = ProviderRegistry.GetLocalizedName(key)
+                })
+                .ToList();
+
+            options.Insert(0, new GameOptionsProviderOption
+            {
+                ProviderKey = string.Empty,
+                DisplayName = L("LOCPlayAch_Menu_LocalProvider_Automatic", "Automatic")
+            });
+
+            return options;
+        }
 
         private void RaiseForkOverrideCommandStates()
         {

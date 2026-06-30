@@ -104,6 +104,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed `LumaPlay` refreshing without a `LumaPlay.ini` override setting been set
 - Fixed the extension trying to fetch achievement for `New Game` when pressing to add a new manual game to the library
 - Fixed freeze when `Custom Refresh` checks the authentications
+- Fixed missing providers inside the `Overrides` -> `Local` -> `Change Providers`
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge
