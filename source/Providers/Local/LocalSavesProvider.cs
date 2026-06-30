@@ -1,4 +1,4 @@
-﻿using Playnite.SDK;
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
@@ -96,6 +96,10 @@ namespace PlayniteAchievements.Providers.Local
         private readonly Dictionary<int, string> _steamSchemaLanguageCache = new Dictionary<int, string>();
         // Maps Playnite game name to resolved Steam App ID for LumaPlay games (0 = not found / not applicable)
         private readonly Dictionary<string, int> _lumaPlaySteamAppIdCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan RealtimeRepeatedLogInterval = TimeSpan.FromMinutes(10);
+        private readonly object _logThrottleLock = new object();
+        private readonly Dictionary<string, DateTime> _lastRealtimeLogTimes = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+        private readonly AsyncLocal<int> _realtimeLogScopeDepth = new AsyncLocal<int>();
         private readonly object _discoveryCacheLock = new object();
         private readonly Dictionary<string, IReadOnlyList<string>> _localFolderCandidatesCache = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, IReadOnlyList<string>> _steamAppCacheSchemaFilePathsCache = new Dictionary<int, IReadOnlyList<string>>();
@@ -158,7 +162,52 @@ namespace PlayniteAchievements.Providers.Local
                 return;
             }
 
+            // Failures must always be recorded. Only real-time monitor refreshes throttle
+            // repeated provider messages; every other Local feature keeps normal logging.
+            if (_realtimeLogScopeDepth.Value > 0 &&
+                msg.IndexOf("ERROR", StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                var now = DateTime.UtcNow;
+                lock (_logThrottleLock)
+                {
+                    if (_lastRealtimeLogTimes.TryGetValue(msg, out var lastLogTime) &&
+                        now - lastLogTime < RealtimeRepeatedLogInterval)
+                    {
+                        return;
+                    }
+
+                    _lastRealtimeLogTimes[msg] = now;
+                }
+            }
+
             _logger?.Info($"[Local] {msg}");
+        }
+
+        internal IDisposable BeginRealtimeLogThrottle()
+        {
+            _realtimeLogScopeDepth.Value++;
+            return new RealtimeLogThrottleScope(this);
+        }
+
+        private sealed class RealtimeLogThrottleScope : IDisposable
+        {
+            private LocalSavesProvider _owner;
+
+            public RealtimeLogThrottleScope(LocalSavesProvider owner)
+            {
+                _owner = owner;
+            }
+
+            public void Dispose()
+            {
+                var owner = Interlocked.Exchange(ref _owner, null);
+                if (owner != null)
+                {
+                    owner._realtimeLogScopeDepth.Value = Math.Max(
+                        0,
+                        owner._realtimeLogScopeDepth.Value - 1);
+                }
+            }
         }
 
         private readonly SteamApiTokenService _steamApiTokenService;

@@ -375,7 +375,12 @@ namespace PlayniteAchievements.Services.Local
                 return cachedBefore;
             }
 
-            var data = await localProvider.GetAchievementsAsync(game, null).ConfigureAwait(false);
+            GameAchievementData data;
+            using (localProvider.BeginRealtimeLogThrottle())
+            {
+                data = await localProvider.GetAchievementsAsync(game, null).ConfigureAwait(false);
+            }
+
             if (data == null)
             {
                 return cachedBefore;
