@@ -3717,7 +3717,7 @@ namespace PlayniteAchievements.Providers.Local
                 return null;
             }
 
-            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{iconHash}";
+            return $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{appId}/{iconHash}";
         }
 
         private string GetSelectedSteamAppCacheUserId(Game game = null)

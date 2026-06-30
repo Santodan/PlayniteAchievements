@@ -307,7 +307,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return string.Empty;
             }
 
-            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{normalizedIconFile}";
+            return $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{appId}/{normalizedIconFile}";
         }
     }
 }

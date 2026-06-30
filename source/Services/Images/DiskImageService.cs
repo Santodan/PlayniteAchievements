@@ -568,6 +568,8 @@ namespace PlayniteAchievements.Services.Images
 
         private async Task<byte[]> DownloadBytesAsync(string url, CancellationToken cancel)
         {
+            url = NormalizeSteamAchievementIconUrl(url);
+
             const int maxAttempts = 3;
             var backoff = TimeSpan.FromSeconds(1);
 
@@ -641,6 +643,25 @@ namespace PlayniteAchievements.Services.Images
             }
 
             return null;
+        }
+
+        internal static string NormalizeSteamAchievementIconUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url) ||
+                !Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                !uri.Host.EndsWith("steamstatic.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return url;
+            }
+
+            const string legacyPath = "/steamcommunity/public/images/apps/";
+            if (!uri.AbsolutePath.StartsWith(legacyPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return url;
+            }
+
+            var assetPath = uri.AbsolutePath.Substring(legacyPath.Length);
+            return $"https://shared.fastly.steamstatic.com/community_assets/images/apps/{assetPath}{uri.Query}";
         }
 
         /// <summary>

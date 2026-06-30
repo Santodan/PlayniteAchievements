@@ -17,6 +17,27 @@ namespace PlayniteAchievements.Services.Images.Tests
     public class AchievementIconCacheTests
     {
         [TestMethod]
+        public void NormalizeSteamAchievementIconUrl_UpgradesLegacyCdnPath()
+        {
+            const string legacyUrl =
+                "https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/4260530/icon.jpg";
+
+            var normalized = DiskImageService.NormalizeSteamAchievementIconUrl(legacyUrl);
+
+            Assert.AreEqual(
+                "https://shared.fastly.steamstatic.com/community_assets/images/apps/4260530/icon.jpg",
+                normalized);
+        }
+
+        [TestMethod]
+        public void NormalizeSteamAchievementIconUrl_LeavesUnrelatedUrlsUnchanged()
+        {
+            const string url = "https://example.com/images/icon.jpg";
+
+            Assert.AreEqual(url, DiskImageService.NormalizeSteamAchievementIconUrl(url));
+        }
+
+        [TestMethod]
         public void BuildRelativePath_UsesApiNameVariantAndModeFolder()
         {
             var stems = AchievementIconCachePathBuilder.BuildFileStems(new[] { " boss:win " });
