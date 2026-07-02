@@ -30,13 +30,25 @@ namespace PlayniteAchievements.Models.Settings
 
         public int SoundLeadMilliseconds { get; set; }
 
+        public double? Opacity { get; set; }
+
+        public double? Scale { get; set; }
+
         public string OverlayPosition { get; set; } = LocalUnlockOverlayPosition.TopRight.ToString();
 
         public string TransitionStyle { get; set; } = LocalUnlockOverlayTransitionStyle.Fade.ToString();
 
+        public string TemplateAnimationStyle { get; set; } = LocalCustomOverlayAnimationStyle.Standard.ToString();
+
         public int SlideDistance { get; set; } = 72;
 
+        public double IconSize { get; set; }
+
+        public double SecondaryIconSize { get; set; }
+
         public string IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon.ToString();
+
+        public string SecondaryIconSource { get; set; } = LocalOverlayIconSource.None.ToString();
 
         public bool EnableGameCoverInOverlay { get; set; }
 
@@ -51,6 +63,8 @@ namespace PlayniteAchievements.Models.Settings
         public int GameBannerBlurRadius { get; set; } = 8;
 
         public bool ShowIconRarityGlow { get; set; }
+
+        public bool ShowSecondaryIconRarityGlow { get; set; }
 
         public string CustomCoverImagePath { get; set; } = string.Empty;
 
