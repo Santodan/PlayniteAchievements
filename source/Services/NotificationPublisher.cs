@@ -2041,7 +2041,13 @@ const sanApplyElems = () => {{
   }};
   views.forEach((root, index) => fillView(root, index));
   if (views.length === 1 && sanLineDefinitions.some(line => line.view === 1)) {{
-    window.setTimeout(() => fillView(views[0], 1), {Math.Max(500, (int)Math.Round(view1Seconds * 1000)).ToString(CultureInfo.InvariantCulture)});
+    window.setTimeout(() => {{
+      const root = views[0];
+      if (root && root.dataset) {{
+        root.dataset.sanViewIndex = '2';
+      }}
+      fillView(root, 1);
+    }}, {Math.Max(500, (int)Math.Round(view1Seconds * 1000)).ToString(CultureInfo.InvariantCulture)});
   }}
   document.body.toggleAttribute('alldetails', sanLineDefinitions.filter(line => line.html).length >= 3);
 }};

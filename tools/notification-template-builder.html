@@ -1769,17 +1769,26 @@
       return '#E6BA90';
     }
 
+    function rarityBadgePalette() {
+      const key = rarityKey();
+      if (key === 'ultra') return { fill: '#B490FF', stroke: '#F0DCFF' };
+      if (key === 'rare') return { fill: '#4AA3FF', stroke: '#CDE9FF' };
+      if (key === 'uncommon') return { fill: '#75C878', stroke: '#DDF7DF' };
+      return { fill: '#B8B8B8', stroke: '#FFFFFF' };
+    }
+
+    function iconGlyphColor(slot) {
+      return slot.AccentColor || slot.TitleColor || '#FFFFFF';
+    }
+
+    function rarityBadgeSvg() {
+      const palette = rarityBadgePalette();
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="M32 5 58 24 48 56H16L6 24Z" fill="${palette.fill}" stroke="${palette.stroke}" stroke-width="5" stroke-linejoin="round"/><path d="M32 13 49 26 43 48H21L15 26Z" fill="#111" opacity=".22"/></svg>`;
+    }
+
     function rarityIconMarkup(size) {
       const px = Math.max(10, size * 1.25);
-      const key = rarityKey();
-      const shapes = {
-        ultra: { points: '32,5 55,18 55,46 32,59 9,46 9,18', fill: '#DDF8FF' },
-        rare: { points: '32,6 56,22 47,53 17,53 8,22', fill: '#FFD45A' },
-        uncommon: { points: '32,7 57,32 32,57 7,32', fill: '#DDE6EF' },
-        common: { points: '32,7 58,56 6,56', fill: '#D99355' }
-      };
-      const shape = shapes[key] || shapes.common;
-      return `<svg width="${px}" height="${px}" viewBox="0 0 64 64" aria-hidden="true" style="display:inline-block;vertical-align:-0.18em;margin:0 1px"><polygon points="${shape.points}" fill="${shape.fill}" stroke="rgba(255,255,255,.7)" stroke-width="2" stroke-linejoin="round"/></svg>`;
+      return rarityBadgeSvg().replace('<svg ', `<svg width="${px}" height="${px}" aria-hidden="true" style="display:inline-block;vertical-align:-0.18em;margin:0 1px" `);
     }
 
     function tokenReplace(template, renderIcons = false, fontSize = 12) {
@@ -2068,7 +2077,7 @@
     function renderIcon(slot, targetId = 'iconWrap', source = slot.IconSource, requestedSize = slot.IconSize) {
       const iconWrap = $(targetId);
       const size = Math.max(24, requestedSize || slot.IconSize);
-      const glyphColor = slot.AccentColor || slot.TitleColor || '#FFFFFF';
+      const glyphColor = iconGlyphColor(slot);
       iconWrap.innerHTML = '';
       iconWrap.style.width = `${size}px`;
       iconWrap.style.height = `${size}px`;
@@ -2085,7 +2094,7 @@
         iconWrap.style.display = 'none';
       } else if (source === 'PentagonIcon') {
         iconWrap.style.display = 'grid';
-        iconWrap.innerHTML = `<svg width="${size * .84}" height="${size * .84}" viewBox="0 0 100 100" aria-hidden="true"><polygon points="50,6 92,36 76,92 24,92 8,36" fill="${glyphColor}"/></svg>`;
+        iconWrap.innerHTML = rarityBadgeSvg().replace('<svg ', `<svg width="${size * .84}" height="${size * .84}" aria-hidden="true" `);
       } else if (source === 'ProviderIcon') {
         iconWrap.style.display = 'grid';
         const provider = providerPreview[$('sampleProvider').value] || providerPreview.Local;
@@ -2216,23 +2225,24 @@
     }
 
     function previewIconUri(source, size, slot, role = 'primary') {
+      const glyphColor = iconGlyphColor(slot);
       if (source === 'CustomIcon') {
         const custom = role === 'secondary'
           ? (customIconPreviewData.secondary || $('secondaryCustomIconUrl').value)
           : (customIconPreviewData.primary || $('primaryCustomIconUrl').value);
-        return normalizeImageInput(custom) || toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${slot.TitleColor}" d="m32 6 8 17 18 3-13 13 3 18-16-8-16 8 3-18L6 26l18-3 8-17Z"/></svg>`);
+        return normalizeImageInput(custom) || toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${glyphColor}" d="m32 6 8 17 18 3-13 13 3 18-16-8-16 8 3-18L6 26l18-3 8-17Z"/></svg>`);
       }
       if (source === 'ProviderIcon') {
         const provider = providerPreview[$('sampleProvider').value] || providerPreview.Local;
         return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" rx="16" fill="${provider.color}"/><text x="48" y="55" text-anchor="middle" font-family="Segoe UI,Arial" font-size="18" font-weight="900" fill="#0b0d10">${escapeHtml(provider.label)}</text></svg>`);
       }
       if (source === 'TrophyIcon') {
-        return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${slot.TitleColor}" d="M18 8h28v8h8v7c0 9-6 16-14 18-2 4-5 7-8 8v7h10v6H22v-6h10v-7c-4-1-7-4-8-8-8-2-14-9-14-18v-7h8V8Zm0 14h-4v1c0 5 3 9 8 11-2-4-4-8-4-12Zm28 0c0 4-1 8-4 12 5-2 8-6 8-11v-1h-4Z"/></svg>`);
+        return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${glyphColor}" d="M18 8h28v8h8v7c0 9-6 16-14 18-2 4-5 7-8 8v7h10v6H22v-6h10v-7c-4-1-7-4-8-8-8-2-14-9-14-18v-7h8V8Zm0 14h-4v1c0 5 3 9 8 11-2-4-4-8-4-12Zm28 0c0 4-1 8-4 12 5-2 8-6 8-11v-1h-4Z"/></svg>`);
       }
       if (source === 'PentagonIcon') {
-        return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,6 92,36 76,92 24,92 8,36" fill="${slot.TitleColor}"/></svg>`);
+        return toDataUriSvg(rarityBadgeSvg());
       }
-      return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${slot.TitleColor}" d="m32 6 8 17 18 3-13 13 3 18-16-8-16 8 3-18L6 26l18-3 8-17Z"/></svg>`);
+      return toDataUriSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${glyphColor}" d="m32 6 8 17 18 3-13 13 3 18-16-8-16 8 3-18L6 26l18-3 8-17Z"/></svg>`);
     }
 
     async function fetchSanAsset(path) {
@@ -2280,6 +2290,16 @@
       }
       // xQjan's compact icon is a transition phase, not its editable secondary icon.
       return ['primary'];
+    }
+
+    function sanPresetTextIntroMultiplier(preset) {
+      const id = String(preset || '').toLowerCase();
+      if (id === 'xqjan') return 12;
+      if (id === 'xboxone') return 8.5;
+      if (id === 'default') return 6;
+      if (id === 'epicgames') return 5;
+      if (id === 'ps5') return 2;
+      return 2;
     }
 
     function renderSanParentDragOverlay(slot, transition, frame, width, height) {
@@ -2461,6 +2481,14 @@
           const previewWidth=${JSON.stringify(width)};
           const previewHeight=${JSON.stringify(height)};
           const previewPosition=${JSON.stringify(transition.OverlayPosition || 'TopRight')};
+          const previewDuration=Math.max(250,${JSON.stringify(Math.max(250, Number(transition.DurationMilliseconds) || 3400))});
+          const previewFadeOut=Math.max(0,${JSON.stringify(Math.max(0, Number(transition.FadeOutMilliseconds) || 0))});
+          const previewView1Duration=Math.max(500,${JSON.stringify(Math.max(500, Number(slot.SanView1DurationMilliseconds) || 5000))});
+          const previewTextIntro=Math.min(
+            Math.max(0,Math.min(previewView1Duration,previewDuration)-50),
+            Math.max(0,${JSON.stringify(Math.max(0, Number(transition.FadeInMilliseconds) || 0) * sanPresetTextIntroMultiplier(animationPreset))})
+          );
+          const previewStartedAt=performance.now();
           const dragEditEnabled=${JSON.stringify(dragEditEnabled)};
           const staticSanViewIndex=${JSON.stringify(sanDragViewIndex)};
           const positionSanPreset=()=>{
@@ -2586,10 +2614,16 @@
           };
           const forceVisible=()=>{
             document.querySelectorAll('#achcont,#achcontent,#content,#header').forEach(showTree);
-            document.querySelectorAll('.san-line-stack,.san-generated-line').forEach(showTree);
-            document.querySelectorAll('#achicon,#achiconwrapper img,#achiconwrapper image').forEach(el=>setImageLike(el,iconUri));
+            document.querySelectorAll('.san-line-stack,.san-generated-line').forEach(el=>{
+              if(el.dataset.sanManualHidden!=='1'&&el.dataset.sanTimingHidden!=='1')showTree(el);
+            });
+            document.querySelectorAll('#achicon,#achiconwrapper img,#achiconwrapper image').forEach(el=>{
+              if(el.dataset.sanManualHidden!=='1')setImageLike(el,iconUri);
+            });
             if(showSecondary){
-              document.querySelectorAll('#logo,#logo img,#logo image').forEach(el=>setImageLike(el,secondaryUri));
+              document.querySelectorAll('#logo,#logo img,#logo image').forEach(el=>{
+                if(el.dataset.sanManualHidden!=='1')setImageLike(el,secondaryUri);
+              });
             }
           };
           const sanitizeClone=(node)=>{
@@ -2671,9 +2705,9 @@
             document.body.classList.toggle('san-webview-disable-san-transition', disableSanTransition);
             document.body.classList.toggle('san-builder-static', dragEditEnabled);
             const roots=[...document.querySelectorAll('#achcont')];
-            const offsetBaseId=id=>String(id||'').replace(/@v\d+$/i,'');
+            const offsetBaseId=id=>String(id||'').replace(/@v\\d+$/i,'');
             const offsetView=(id,offset)=>{
-              const fromId=/@v(\d+)$/i.exec(String(id||''));
+              const fromId=/@v(\\d+)$/i.exec(String(id||''));
               if(fromId)return Math.max(1,Number(fromId[1])||1);
               return offset&&offset.view?Math.max(1,Number(offset.view)||1):0;
             };
@@ -2690,6 +2724,7 @@
               }[baseId];
               if(!selectors)return;
               root.querySelectorAll(selectors).forEach(el=>{
+                el.dataset.sanManualHidden='1';
                 el.style.setProperty('visibility','hidden','important');
                 el.style.setProperty('opacity','0','important');
                 el.style.setProperty('pointer-events','none','important');
@@ -2702,39 +2737,78 @@
               const entries=Object.entries(manualOffsets||{}).filter(([id,offset])=>{
                 if(id==='notification')return false;
                 const base=offsetBaseId(id);
-                if(!/^(primaryIcon|secondaryIcon|line\d+)$/i.test(base))return false;
+                if(!/^(primaryIcon|secondaryIcon|line\\d+)$/i.test(base))return false;
                 if(base==='secondaryIcon'&&(!showSecondary||!secondaryViewEnabled||viewNumber!==2))return false;
                 const view=offsetView(id,offset);
                 return !view||view===viewNumber;
               });
               if(!entries.length)return;
+              const rootRectAtCreation=root.getBoundingClientRect();
+              const manualHost=roots.length===1&&rootRectAtCreation.width<previewWidth*0.45
+                ? (root.closest('#outerwrapper')||root)
+                : root;
               const layer=document.createElement('div');
               layer.id='san-builder-manual-layer-v'+viewNumber;
               layer.dataset.sanManualView=String(viewNumber);
-              layer.style.setProperty('position','fixed','important');
+              layer.style.setProperty('position','absolute','important');
               layer.style.setProperty('left','0','important');
               layer.style.setProperty('top','0','important');
-              layer.style.setProperty('width',previewWidth+'px','important');
-              layer.style.setProperty('height',previewHeight+'px','important');
+              layer.style.setProperty('width','100%','important');
+              layer.style.setProperty('height','100%','important');
               layer.style.setProperty('z-index','100000','important');
               layer.style.setProperty('pointer-events','none','important');
-              layer.style.setProperty('overflow','visible','important');
-              document.body.appendChild(layer);
+              layer.style.setProperty('overflow','hidden','important');
+              manualHost.style.setProperty('position','relative','important');
+              manualHost.appendChild(layer);
               if(roots.length===1){
                 document.querySelectorAll('[data-san-manual-view]').forEach(candidate=>{
-                  candidate.style.setProperty('display',candidate===layer?'block':'none','important');
+                  candidate.dataset.sanManualActive=candidate===layer?'1':'0';
                 });
               }else{
-                const syncVisibility=()=>{
-                  if(!layer.isConnected)return;
-                  const style=getComputedStyle(root);
-                  const visible=style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity||'1')>0.02;
-                  layer.style.setProperty('display',visible?'block':'none','important');
-                  layer.style.setProperty('opacity',style.opacity||'1','important');
-                  requestAnimationFrame(syncVisibility);
-                };
-                requestAnimationFrame(syncVisibility);
+                layer.dataset.sanManualActive='1';
               }
+              const expiresIn=Math.max(0,previewStartedAt+previewDuration-performance.now());
+              setTimeout(()=>{
+                if(!layer.isConnected)return;
+                layer.dataset.sanManualActive='0';
+                layer.style.setProperty('opacity','0','important');
+                layer.style.setProperty('display','none','important');
+              },expiresIn+32);
+              const positionedElements=[];
+              const syncVisibility=()=>{
+                if(!layer.isConnected)return;
+                const now=performance.now();
+                const style=getComputedStyle(manualHost);
+                const rect=manualHost.getBoundingClientRect();
+                const active=layer.dataset.sanManualActive==='1';
+                const animationAlive=now<previewStartedAt+previewDuration;
+                const viewStart=previewStartedAt+(viewNumber===1?previewTextIntro:previewView1Duration);
+                const viewEnd=previewStartedAt+(viewNumber===1?Math.min(previewView1Duration,previewDuration):previewDuration);
+                const viewAlive=now>=viewStart&&now<viewEnd;
+                const nativeVisible=style.display!=='none'&&style.visibility!=='hidden'&&rect.width>2&&rect.height>2;
+                const nativeExpanded=manualHost!==root||(rect.width>=previewWidth*0.45&&rect.height>=previewHeight*0.45);
+                const fadeStart=previewStartedAt+previewDuration-Math.min(previewFadeOut,previewDuration);
+                const fadeOpacity=previewFadeOut>0&&now>fadeStart
+                  ? Math.max(0,(previewStartedAt+previewDuration-now)/previewFadeOut)
+                  : 1;
+                const visible=active&&animationAlive&&viewAlive&&nativeVisible&&nativeExpanded;
+                layer.style.setProperty('display',visible?'block':'none','important');
+                layer.style.setProperty('opacity',String(visible?fadeOpacity:0),'important');
+                if(nativeVisible){
+                  const scaleX=rect.width/Math.max(1,manualHost.offsetWidth||previewWidth);
+                  const scaleY=rect.height/Math.max(1,manualHost.offsetHeight||previewHeight);
+                  if(scaleX>0.001&&scaleY>0.001){
+                    positionedElements.forEach(item=>{
+                      item.element.style.setProperty('left',(((item.left-rect.left)/scaleX)-manualHost.clientLeft)+'px','important');
+                      item.element.style.setProperty('top',(((item.top-rect.top)/scaleY)-manualHost.clientTop)+'px','important');
+                      item.element.style.setProperty('width',(item.width/scaleX)+'px','important');
+                      item.element.style.setProperty('height',(item.height/scaleY)+'px','important');
+                    });
+                  }
+                }
+                if(animationAlive)requestAnimationFrame(syncVisibility);
+              };
+              requestAnimationFrame(syncVisibility);
               entries.forEach(([id,offset])=>{
                 const base=offsetBaseId(id);
                 hideNativeManualTarget(root,base);
@@ -2751,6 +2825,13 @@
                 el.style.setProperty('align-items','center','important');
                 el.style.setProperty('justify-content',/^line/i.test(base)?'flex-start':'center','important');
                 el.style.setProperty('overflow','visible','important');
+                positionedElements.push({
+                  element:el,
+                  left:Math.round(Number(offset.left)||0),
+                  top:Math.round(Number(offset.top)||0),
+                  width:Math.max(1,Math.round(Number(offset.width)||1)),
+                  height:Math.max(1,Math.round(Number(offset.height)||1))
+                });
                 if(base==='primaryIcon'||base==='secondaryIcon'){
                   const img=document.createElement('img');
                   img.src=base==='primaryIcon'?iconUri:secondaryUri;
@@ -2798,6 +2879,21 @@
                 stack.appendChild(el);
               });
               stack.style.display=viewLines.length?'flex':'none';
+              if(!dragEditEnabled&&viewLines.length){
+                const delay=viewIndex===0?Math.max(0,previewTextIntro-(performance.now()-previewStartedAt)):0;
+                stack.dataset.sanTimingHidden='1';
+                stack.style.setProperty('visibility','hidden','important');
+                stack.style.setProperty('opacity','0','important');
+                setTimeout(()=>{
+                  if(!stack.isConnected)return;
+                  delete stack.dataset.sanTimingHidden;
+                  stack.style.removeProperty('visibility');
+                  stack.style.removeProperty('opacity');
+                  stack.querySelectorAll('.san-generated-line').forEach(el=>{
+                    if(el.dataset.sanManualHidden!=='1')showTree(el);
+                  });
+                },delay);
+              }
             };
             const staticRoot=(roots.length?roots[Math.min(Math.max(staticSanViewIndex,0),roots.length-1)]:null)||roots[0]||document.body;
             (roots.length?roots:[document.body]).forEach((root,viewIndex)=>{
@@ -2916,7 +3012,7 @@
               });
             };
             const promoteDragTarget=(id,target)=>{
-              const isLine=/^line\d+$/i.test(id);
+              const isLine=/^line\\d+$/i.test(id);
               const isIcon=id==='primaryIcon'||id==='secondaryIcon';
               if((!isLine&&!isIcon)||!target)return target;
               if(isLine){
@@ -3118,7 +3214,7 @@
                   dragTarget.style.setProperty('transform','none','important');
                   dragTarget.style.setProperty('margin','0','important');
                   dragTarget.style.setProperty('z-index','80','important');
-                  if(/^line\d+/i.test(id)){
+                  if(/^line\\d+/i.test(id)){
                     const stack=dragTarget.closest?.('.san-line-stack');
                     if(stack){
                       stack.style.setProperty('position','static','important');
@@ -3308,14 +3404,14 @@
       renderIcon(slot, 'secondaryIconWrap', slot.SecondaryIconSource || 'None', slot.SecondaryIconSize || slot.IconSize);
 
       if (slot.ShowIconRarityGlow) {
-        $('iconWrap').style.boxShadow = `0 0 18px ${rarityGlowColor()}`;
+        $('iconWrap').style.filter = `drop-shadow(0 0 18px ${rarityGlowColor()}AD)`;
       } else {
-        $('iconWrap').style.boxShadow = 'none';
+        $('iconWrap').style.filter = 'none';
       }
       if (slot.ShowSecondaryIconRarityGlow && slot.SecondaryIconSource !== 'None') {
-        $('secondaryIconWrap').style.boxShadow = `0 0 18px ${rarityGlowColor()}`;
+        $('secondaryIconWrap').style.filter = `drop-shadow(0 0 18px ${rarityGlowColor()}AD)`;
       } else {
-        $('secondaryIconWrap').style.boxShadow = 'none';
+        $('secondaryIconWrap').style.filter = 'none';
       }
 
       const coverLeft = $('coverLeft');
