@@ -8162,6 +8162,8 @@ namespace PlayniteAchievements.Providers.Local
                 _steamSchemaLanguageCache.Remove(appId);
             }
 
+            SchemaAndPercentages cachedFallback = null;
+            string cachedFallbackSource = null;
             if (_steamSchemaCache.TryGetValue(appId, out var cached) && cached != null)
             {
                 var cachedSource = _steamSchemaSourceCache.TryGetValue(appId, out var source) ? source : null;
@@ -8169,19 +8171,24 @@ namespace PlayniteAchievements.Providers.Local
                 if (IsSchemaSourceCompatibleWithPreference(cachedSource, schemaPreference) &&
                     string.Equals(cachedLanguage, schemaLanguage, StringComparison.OrdinalIgnoreCase))
                 {
-                    return cached;
-                }
+                    if (string.Equals(cachedSource, "steam-web-api", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return cached;
+                    }
 
-                RemoveCachedSchema();
+                    // Keep an anonymous/local result available, but first give an authenticated
+                    // Steam session a chance to replace it with the authoritative Web API schema.
+                    cachedFallback = cached;
+                    cachedFallbackSource = cachedSource;
+                }
+                else
+                {
+                    RemoveCachedSchema();
+                }
             }
 
-            var steamSettings = ProviderRegistry.Settings<SteamSettings>();
-
-            async Task<SchemaAndPercentages> TryPreferredAnonymousSchemaAsync()
+            async Task<SchemaAndPercentages> TryAuthenticatedSteamSchemaAsync()
             {
-                // If a Steam API token is available (session or manual key), use the official
-                // Steam Web API, it returns fully localized text for ALL achievements including
-                // hidden ones, in the requested language.
                 if (_steamApiTokenService != null)
                 {
                     try
@@ -8207,6 +8214,24 @@ namespace PlayniteAchievements.Providers.Local
                     }
                 }
 
+                return null;
+            }
+
+            var authenticatedSteamSchema = await TryAuthenticatedSteamSchemaAsync().ConfigureAwait(false);
+            if (authenticatedSteamSchema?.Achievements?.Count > 0)
+            {
+                CacheSchema(authenticatedSteamSchema, "steam-web-api");
+                return authenticatedSteamSchema;
+            }
+
+            if (cachedFallback != null)
+            {
+                CacheSchema(cachedFallback, cachedFallbackSource);
+                return cachedFallback;
+            }
+
+            async Task<SchemaAndPercentages> TryPreferredAnonymousSchemaAsync()
+            {
                 // Get base schema for correlation with local entries
                 SchemaAndPercentages baseSchema = null;
                 switch (schemaPreference)
@@ -8355,6 +8380,13 @@ namespace PlayniteAchievements.Providers.Local
             if (string.IsNullOrWhiteSpace(source))
             {
                 return false;
+            }
+
+            // An authenticated Steam Web API schema is authoritative regardless of which
+            // anonymous fallback the user selected.
+            if (string.Equals(source, "steam-web-api", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
             }
 
             switch (preference)
