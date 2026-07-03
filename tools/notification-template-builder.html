@@ -285,9 +285,29 @@
 
     .token-bar {
       display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 8px 0 0;
+    }
+
+    .token-group {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+    }
+
+    .token-group-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding-top: 4px;
+    }
+
+    .token-group-items {
+      display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin: 8px 0 0;
     }
 
     .token {
@@ -702,7 +722,7 @@
             </div>
             <div class="field">
               <label for="TitleTemplate">Line 1 template</label>
-              <input id="TitleTemplate" data-template-field value="<title>">
+              <input id="TitleTemplate" data-template-field value="Achievement unlocked">
             </div>
           </div>
 
@@ -991,11 +1011,25 @@
   </div>
 
   <script>
-    const tokens = [
-      '<title>', '<gameName>', '<achievementName>', '<achievementDescription>',
-      '<points>', '<rarity>', '<rarityIcon>', '<trophy>', '<trophyIcon>',
-      '<provider>', '<style>', '<date>', '<time>', '<dateTime>', '<source>',
-      '<gameId>'
+    const tokenGroups = [
+      { label: 'Achievement', tokens: [
+        '<gameName>', '<achievementName>', '<achievementDescription>', '<points>',
+        '<rarity>', '<rarityIcon>', '<trophy>', '<trophyIcon>', '<type>', '<category>'
+      ]},
+      { label: 'Collection score', tokens: [
+        '<achievementCollectionScore>', '<gameCollectionScore>', '<gameCollectionScoreTotal>',
+        '<totalCollectionScore>', '<collectionLevel>', '<collectionTier>',
+        '<collectionExp>', '<collectionExpTotal>', '<collectionExpUntilNextLevel>',
+        '<collectionNextTier>', '<collectionExpUntilNextTier>'
+      ]},
+      { label: 'Prestige score', tokens: [
+        '<achievementPrestigeScore>', '<gamePrestigeScore>', '<gamePrestigeScoreTotal>',
+        '<totalPrestigeScore>', '<prestigeLevel>', '<prestigeTier>',
+        '<prestigeExp>', '<prestigeExpTotal>', '<prestigeExpUntilNextLevel>',
+        '<prestigeNextTier>', '<prestigeExpUntilNextTier>'
+      ]},
+      { label: 'Points', tokens: ['<gamePoints>', '<gamePointsTotal>', '<totalPoints>'] },
+      { label: 'Context', tokens: ['<provider>', '<source>', '<date>', '<time>', '<dateTime>'] }
     ];
 
     const ids = [
@@ -1250,13 +1284,24 @@
 
     function initializeTokens() {
       const bar = $('tokenBar');
-      tokens.forEach(token => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'token';
-        button.textContent = token;
-        button.addEventListener('click', () => insertToken(token));
-        bar.appendChild(button);
+      tokenGroups.forEach(group => {
+        const row = document.createElement('div');
+        row.className = 'token-group';
+        const label = document.createElement('div');
+        label.className = 'token-group-label';
+        label.textContent = group.label;
+        const items = document.createElement('div');
+        items.className = 'token-group-items';
+        group.tokens.forEach(token => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'token';
+          button.textContent = token;
+          button.addEventListener('click', () => insertToken(token));
+          items.appendChild(button);
+        });
+        row.append(label, items);
+        bar.appendChild(row);
       });
 
       document.querySelectorAll('[data-template-field]').forEach(input => {
@@ -1809,7 +1854,34 @@
         time: timePart,
         datetime: `${datePart} ${timePart}`,
         source: $('sampleSource').value || '',
-        gameid: $('sampleGameId').value || ''
+        gameid: $('sampleGameId').value || '',
+        achievementcollectionscore: '90',
+        achievementprestigescore: '162',
+        gamecollectionscore: '1245',
+        gamecollectionscoretotal: '1800',
+        gameprestigescore: '980',
+        gameprestigescoretotal: '1500',
+        totalcollectionscore: '24250',
+        totalprestigescore: '18740',
+        collectionlevel: '46',
+        collectiontier: 'Bronze I',
+        collectionexp: '1925',
+        collectionexptotal: '1940',
+        collectionexpuntilnextlevel: '16',
+        collectionnexttier: 'Silver V',
+        collectionexpuntilnexttier: '6076',
+        prestigelevel: '53',
+        prestigetier: 'Silver V',
+        prestigeexp: '246',
+        prestigeexptotal: '2220',
+        prestigeexpuntilnextlevel: '1975',
+        prestigenexttier: 'Silver IV',
+        prestigeexpuntilnexttier: '16135',
+        type: 'Base',
+        category: 'Story',
+        gamepoints: '725',
+        gamepointstotal: '1000',
+        totalpoints: '16480'
       };
 
       return (template || '')

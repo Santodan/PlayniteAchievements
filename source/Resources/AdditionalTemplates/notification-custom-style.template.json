@@ -24,7 +24,7 @@
     "DetailColor": "#E8F1FA",
     "MetaColor": "#C0D6EA",
     "BackgroundImagePath": "",
-    "TitleTemplate": "<title>",
+    "TitleTemplate": "Achievement unlocked",
     "GameNameTemplate": "<gameName>",
     "AchievementTemplate": "Unlocked: <achievementName>",
     "MetaTemplate": "<provider> / Custom",

@@ -192,7 +192,7 @@ namespace PlayniteAchievements.Providers.Local
         public string DetailColor { get; set; } = "#E7EEF7";
         public string MetaColor { get; set; } = "#BCD0E5";
         public string BackgroundImagePath { get; set; } = string.Empty;
-        public string TitleTemplate { get; set; } = "<title>";
+        public string TitleTemplate { get; set; } = "Achievement unlocked";
         public string GameNameTemplate { get; set; } = "<gameName>";
         public string AchievementTemplate { get; set; } = "Unlocked: <achievementName>";
         public string MetaTemplate { get; set; } = "<provider> / Custom";
@@ -392,7 +392,7 @@ namespace PlayniteAchievements.Providers.Local
         private string _overlayCustomDetailColor = "#E7EEF7";
         private string _overlayCustomMetaColor = "#BCD0E5";
         private string _overlayCustomBackgroundImagePath = string.Empty;
-        private string _overlayCustomTitleTemplate = "<title>";
+        private string _overlayCustomTitleTemplate = "Achievement unlocked";
         private string _overlayCustomGameNameTemplate = "<gameName>";
         private string _overlayCustomAchievementTemplate = "Unlocked: <achievementName>";
         private string _overlayCustomMetaTemplate = "<provider> / Custom";
@@ -2108,7 +2108,7 @@ namespace PlayniteAchievements.Providers.Local
         {
             return new List<LocalCustomOverlayStyleSlot>(1)
             {
-                new LocalCustomOverlayStyleSlot { Name = "Slot 1", IconSize = 58, TitleTemplate = "<title>", GameNameTemplate = "<gameName>", AchievementTemplate = "Unlocked: <achievementName>", MetaTemplate = "<provider> / Custom" }
+                new LocalCustomOverlayStyleSlot { Name = "Slot 1", IconSize = 58, TitleTemplate = "Achievement unlocked", GameNameTemplate = "<gameName>", AchievementTemplate = "Unlocked: <achievementName>", MetaTemplate = "<provider> / Custom" }
             };
         }
 
@@ -2152,7 +2152,7 @@ namespace PlayniteAchievements.Providers.Local
                     DetailColor = NormalizeColorSetting(slot.DetailColor, "#E7EEF7"),
                     MetaColor = NormalizeColorSetting(slot.MetaColor, "#BCD0E5"),
                     BackgroundImagePath = slot.BackgroundImagePath ?? string.Empty,
-                    TitleTemplate = slot.TitleTemplate ?? "<title>",
+                    TitleTemplate = slot.TitleTemplate ?? "Achievement unlocked",
                     GameNameTemplate = slot.GameNameTemplate ?? "<gameName>",
                     AchievementTemplate = slot.AchievementTemplate ?? "Unlocked: <achievementName>",
                     MetaTemplate = slot.MetaTemplate ?? "<provider> / Custom",

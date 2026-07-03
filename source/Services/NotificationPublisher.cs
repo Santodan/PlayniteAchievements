@@ -23,6 +23,8 @@ using Newtonsoft.Json.Linq;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Achievements.Scoring;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Local;
 
@@ -31,6 +33,10 @@ namespace PlayniteAchievements.Services
     public class NotificationPublisher
     {
         private static readonly Regex OverlayTemplateTokenPattern = new Regex("<([a-zA-Z0-9]+)>", RegexOptions.Compiled);
+        private static readonly object NotificationScoreCacheLock = new object();
+        private static string _notificationScoreCacheKey;
+        private static DateTime _notificationScoreCacheUtc;
+        private static NotificationScoreContext _notificationScoreCache;
 
         public const string NotificationStyleSteam = "Steam";
         public const string NotificationStylePlayStation = "PlayStation";
@@ -1684,7 +1690,7 @@ steamImage +
             var titleTemplate = ResolveSanRuntimeTitleTemplate(settings.OverlayCustomTitleTemplate, preset);
             var gameTemplate = ResolveSanRuntimeGameTemplate(settings.OverlayCustomGameNameTemplate, preset);
             var line1 = settings.OverlayCustomShowLine1 != false
-                ? ResolveSanTemplateLineHtml(settings, titleTemplate, "<title>", "Achievement unlocked", gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, provider, NotificationStyleCustom, game, game?.Source?.Name, DateTime.Now, false)
+                ? ResolveSanTemplateLineHtml(settings, titleTemplate, "Achievement unlocked", "Achievement unlocked", gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, provider, NotificationStyleCustom, game, game?.Source?.Name, DateTime.Now, false)
                 : string.Empty;
             var line2 = settings.OverlayCustomShowGameName != false
                 ? ResolveSanTemplateLineHtml(settings, gameTemplate, scoreLineFallback, "Achievement unlocked", gameName, achievementName, achievementDescription, achievementPoints, achievementRarity, achievementTrophy, provider, NotificationStyleCustom, game, game?.Source?.Name, DateTime.Now, true)
@@ -4180,7 +4186,7 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
             {
                 var line = CreateCustomTemplateTextBlock(
                     settings?.OverlayCustomTitleTemplate,
-                    "<title>",
+                    "Achievement unlocked",
                     title,
                     gameName,
                     achievementName,
@@ -5532,42 +5538,23 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
                 return string.Empty;
             }
 
-            var replaced = OverlayTemplateTokenPattern.Replace(effectiveTemplate, match =>
-            {
-                switch (match.Groups[1].Value.ToLowerInvariant())
-                {
-                    case "title":
-                        return title ?? string.Empty;
-                    case "gamename":
-                        return gameName ?? string.Empty;
-                    case "achievementname":
-                        return achievementName ?? string.Empty;
-                    case "achievementdescription":
-                        return achievementDescription ?? string.Empty;
-                    case "points":
-                        return achievementPoints?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-                    case "rarity":
-                        return achievementRarity ?? string.Empty;
-                    case "trophy":
-                        return FormatTrophyText(achievementTrophy);
-                    case "provider":
-                        return providerKey ?? string.Empty;
-                    case "style":
-                        return style ?? string.Empty;
-                    case "date":
-                        return timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                    case "time":
-                        return timestamp.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-                    case "datetime":
-                        return timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-                    case "source":
-                        return sourceName ?? string.Empty;
-                    case "gameid":
-                        return game?.Id.ToString() ?? string.Empty;
-                    default:
-                        return match.Value;
-                }
-            });
+            var replaced = OverlayTemplateTokenPattern.Replace(
+                effectiveTemplate,
+                match => ResolveCustomTemplateToken(
+                    match.Groups[1].Value,
+                    title,
+                    gameName,
+                    achievementName,
+                    achievementDescription,
+                    achievementPoints,
+                    achievementRarity,
+                    achievementTrophy,
+                    providerKey,
+                    style,
+                    game,
+                    sourceName,
+                    timestamp,
+                    match.Value));
 
             return replaced?.Trim() ?? string.Empty;
         }
@@ -5945,7 +5932,13 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
             DateTime timestamp,
             string fallback)
         {
-            switch ((tokenName ?? string.Empty).ToLowerInvariant())
+            var normalizedToken = (tokenName ?? string.Empty).ToLowerInvariant();
+            if (IsNotificationScoreToken(normalizedToken))
+            {
+                return ResolveNotificationScoreToken(normalizedToken, game, gameName, achievementName, achievementRarity);
+            }
+
+            switch (normalizedToken)
             {
                 case "title":
                     return title ?? string.Empty;
@@ -5978,6 +5971,352 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
                 default:
                     return fallback;
             }
+        }
+
+        private sealed class NotificationScoreContext
+        {
+            public int AchievementCollectionScore { get; set; }
+            public int AchievementPrestigeScore { get; set; }
+            public int GameCollectionScore { get; set; }
+            public int GameCollectionScoreTotal { get; set; }
+            public int GamePrestigeScore { get; set; }
+            public int GamePrestigeScoreTotal { get; set; }
+            public int TotalCollectionScore { get; set; }
+            public int TotalPrestigeScore { get; set; }
+            public int CollectionLevel { get; set; }
+            public string CollectionTier { get; set; } = string.Empty;
+            public int CollectionExp { get; set; }
+            public int CollectionExpTotal { get; set; }
+            public int CollectionExpUntilNextLevel { get; set; }
+            public int CollectionExpUntilNextTier { get; set; }
+            public string CollectionNextTier { get; set; } = string.Empty;
+            public int PrestigeLevel { get; set; }
+            public string PrestigeTier { get; set; } = string.Empty;
+            public int PrestigeExp { get; set; }
+            public int PrestigeExpTotal { get; set; }
+            public int PrestigeExpUntilNextLevel { get; set; }
+            public int PrestigeExpUntilNextTier { get; set; }
+            public string PrestigeNextTier { get; set; } = string.Empty;
+            public string AchievementType { get; set; } = string.Empty;
+            public string AchievementCategory { get; set; } = string.Empty;
+            public int GamePoints { get; set; }
+            public int GamePointsTotal { get; set; }
+            public int TotalPoints { get; set; }
+        }
+
+        private static bool IsNotificationScoreToken(string token)
+        {
+            switch (token)
+            {
+                case "achievementcollectionscore":
+                case "achievementprestigescore":
+                case "gamecollectionscore":
+                case "gamecollectionscoretotal":
+                case "gameprestigescore":
+                case "gameprestigescoretotal":
+                case "totalcollectionscore":
+                case "totalprestigescore":
+                case "collectionlevel":
+                case "collectiontier":
+                case "collectionexp":
+                case "collectionexptotal":
+                case "collectionexpuntilnextlevel":
+                case "collectionexpuntilnexttier":
+                case "collectionnexttier":
+                case "prestigelevel":
+                case "prestigetier":
+                case "prestigeexp":
+                case "prestigeexptotal":
+                case "prestigeexpuntilnextlevel":
+                case "prestigeexpuntilnexttier":
+                case "prestigenexttier":
+                case "type":
+                case "category":
+                case "gamepoints":
+                case "gamepointstotal":
+                case "totalpoints":
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static string ResolveNotificationScoreToken(string token, Game game, string gameName, string achievementName, string achievementRarity)
+        {
+            var scores = GetNotificationScoreContext(game, gameName, achievementName, achievementRarity);
+            switch (token)
+            {
+                case "collectiontier":
+                    return scores.CollectionTier;
+                case "collectionnexttier":
+                    return scores.CollectionNextTier;
+                case "prestigetier":
+                    return scores.PrestigeTier;
+                case "prestigenexttier":
+                    return scores.PrestigeNextTier;
+                case "type":
+                    return scores.AchievementType;
+                case "category":
+                    return scores.AchievementCategory;
+            }
+
+            int value;
+            switch (token)
+            {
+                case "achievementcollectionscore":
+                    value = scores.AchievementCollectionScore;
+                    break;
+                case "achievementprestigescore":
+                    value = scores.AchievementPrestigeScore;
+                    break;
+                case "gamecollectionscore":
+                    value = scores.GameCollectionScore;
+                    break;
+                case "gamecollectionscoretotal":
+                    value = scores.GameCollectionScoreTotal;
+                    break;
+                case "gameprestigescore":
+                    value = scores.GamePrestigeScore;
+                    break;
+                case "gameprestigescoretotal":
+                    value = scores.GamePrestigeScoreTotal;
+                    break;
+                case "totalcollectionscore":
+                    value = scores.TotalCollectionScore;
+                    break;
+                case "totalprestigescore":
+                    value = scores.TotalPrestigeScore;
+                    break;
+                case "collectionlevel":
+                    value = scores.CollectionLevel;
+                    break;
+                case "collectionexp":
+                    value = scores.CollectionExp;
+                    break;
+                case "collectionexptotal":
+                    value = scores.CollectionExpTotal;
+                    break;
+                case "collectionexpuntilnextlevel":
+                    value = scores.CollectionExpUntilNextLevel;
+                    break;
+                case "collectionexpuntilnexttier":
+                    value = scores.CollectionExpUntilNextTier;
+                    break;
+                case "prestigelevel":
+                    value = scores.PrestigeLevel;
+                    break;
+                case "prestigeexp":
+                    value = scores.PrestigeExp;
+                    break;
+                case "prestigeexptotal":
+                    value = scores.PrestigeExpTotal;
+                    break;
+                case "prestigeexpuntilnextlevel":
+                    value = scores.PrestigeExpUntilNextLevel;
+                    break;
+                case "prestigeexpuntilnexttier":
+                    value = scores.PrestigeExpUntilNextTier;
+                    break;
+                case "gamepoints":
+                    value = scores.GamePoints;
+                    break;
+                case "gamepointstotal":
+                    value = scores.GamePointsTotal;
+                    break;
+                case "totalpoints":
+                    value = scores.TotalPoints;
+                    break;
+                default:
+                    value = 0;
+                    break;
+            }
+
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static NotificationScoreContext GetNotificationScoreContext(Game game, string gameName, string achievementName, string achievementRarity)
+        {
+            var cacheKey = $"{game?.Id.ToString() ?? gameName ?? string.Empty}|{achievementName ?? string.Empty}|{achievementRarity ?? string.Empty}";
+            lock (NotificationScoreCacheLock)
+            {
+                if (_notificationScoreCache != null &&
+                    string.Equals(_notificationScoreCacheKey, cacheKey, StringComparison.OrdinalIgnoreCase) &&
+                    DateTime.UtcNow - _notificationScoreCacheUtc < TimeSpan.FromSeconds(2))
+                {
+                    return _notificationScoreCache;
+                }
+            }
+
+            var context = new NotificationScoreContext();
+            var plugin = PlayniteAchievementsPlugin.Instance;
+            var runtimeSettings = plugin?.Settings;
+            if (runtimeSettings != null)
+            {
+                context.TotalCollectionScore = Math.Max(0, runtimeSettings.CollectorScore);
+                context.TotalPrestigeScore = Math.Max(0, runtimeSettings.PrestigeScore);
+                context.CollectionLevel = Math.Max(0, runtimeSettings.CollectorLevel);
+                context.CollectionTier = AchievementRankPresentation.FormatRank(runtimeSettings.CollectorRank);
+                context.PrestigeLevel = Math.Max(0, runtimeSettings.PrestigeLevel);
+                context.PrestigeTier = AchievementRankPresentation.FormatRank(runtimeSettings.PrestigeRank);
+            }
+
+            try
+            {
+                var dataService = plugin?.AchievementDataService;
+                var gameData = game != null && game.Id != Guid.Empty
+                    ? dataService?.GetVisibleGameAchievementData(game.Id)
+                    : null;
+                var allData = dataService?.GetAllVisibleGameAchievementDataForTheme() ?? new List<GameAchievementData>();
+                gameData = gameData ?? allData.FirstOrDefault(data =>
+                    !string.IsNullOrWhiteSpace(gameName) &&
+                    string.Equals(data?.GameName, gameName, StringComparison.OrdinalIgnoreCase));
+                var achievement = gameData?.Achievements?.FirstOrDefault(item =>
+                    string.Equals(item?.DisplayName, achievementName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(item?.ApiName, achievementName, StringComparison.OrdinalIgnoreCase));
+
+                if (achievement != null)
+                {
+                    context.AchievementCollectionScore = achievement.CollectionScore;
+                    context.AchievementPrestigeScore = achievement.PrestigeScore;
+                }
+                else
+                {
+                    var fallbackTier = ResolveNotificationRarityTier(achievementRarity);
+                    context.AchievementCollectionScore = AchievementScoreCalculator.GetCollectionValue(fallbackTier);
+                    context.AchievementPrestigeScore = AchievementScoreCalculator.GetPrestigeValue(
+                        TryParseRarityPercent(achievementRarity),
+                        fallbackTier);
+                }
+                context.AchievementType = achievement?.CategoryType ?? string.Empty;
+                context.AchievementCategory = achievement?.Category ?? string.Empty;
+                PopulateGameNotificationScores(context, gameData);
+
+                var libraryScores = AchievementScoreCalculator.CalculateModernScores(allData);
+                if (context.TotalCollectionScore <= 0 && libraryScores.CollectorScore > 0)
+                {
+                    context.TotalCollectionScore = libraryScores.CollectorScore;
+                    context.CollectionLevel = libraryScores.CollectorLevel?.DisplayLevel ?? 0;
+                    context.CollectionTier = AchievementRankPresentation.FormatRank(libraryScores.CollectorLevel?.RankValue ?? AchievementRank.Bronze5);
+                }
+                if (context.TotalPrestigeScore <= 0 && libraryScores.PrestigeScore > 0)
+                {
+                    context.TotalPrestigeScore = libraryScores.PrestigeScore;
+                    context.PrestigeLevel = libraryScores.PrestigeLevel?.DisplayLevel ?? 0;
+                    context.PrestigeTier = AchievementRankPresentation.FormatRank(libraryScores.PrestigeLevel?.RankValue ?? AchievementRank.Bronze5);
+                }
+                context.TotalPoints = SumNotificationPoints(
+                    allData.SelectMany(data => data?.Achievements ?? Enumerable.Empty<AchievementDetail>())
+                        .Where(item => item?.Unlocked == true));
+            }
+            catch
+            {
+                // Score wildcards should never prevent an unlock notification from rendering.
+            }
+
+            PopulateNotificationLevelProgress(context);
+
+            lock (NotificationScoreCacheLock)
+            {
+                _notificationScoreCacheKey = cacheKey;
+                _notificationScoreCacheUtc = DateTime.UtcNow;
+                _notificationScoreCache = context;
+            }
+
+            return context;
+        }
+
+        private static void PopulateNotificationLevelProgress(NotificationScoreContext context)
+        {
+            var collection = AchievementLevelCalculator.CalculateModern(context.TotalCollectionScore);
+            context.CollectionLevel = collection.DisplayLevel;
+            context.CollectionTier = AchievementRankPresentation.FormatRank(collection.RankValue);
+            context.CollectionExp = collection.CurrentLevelPoints;
+            context.CollectionExpTotal = collection.CurrentLevelTotalPoints;
+            context.CollectionExpUntilNextLevel = collection.PointsUntilNextLevel;
+            context.CollectionExpUntilNextTier = collection.PointsUntilNextRank;
+            context.CollectionNextTier = string.IsNullOrWhiteSpace(collection.NextRank)
+                ? context.CollectionTier
+                : AchievementRankPresentation.FormatRank(collection.NextRank);
+
+            var prestige = AchievementLevelCalculator.CalculateModern(context.TotalPrestigeScore);
+            context.PrestigeLevel = prestige.DisplayLevel;
+            context.PrestigeTier = AchievementRankPresentation.FormatRank(prestige.RankValue);
+            context.PrestigeExp = prestige.CurrentLevelPoints;
+            context.PrestigeExpTotal = prestige.CurrentLevelTotalPoints;
+            context.PrestigeExpUntilNextLevel = prestige.PointsUntilNextLevel;
+            context.PrestigeExpUntilNextTier = prestige.PointsUntilNextRank;
+            context.PrestigeNextTier = string.IsNullOrWhiteSpace(prestige.NextRank)
+                ? context.PrestigeTier
+                : AchievementRankPresentation.FormatRank(prestige.NextRank);
+        }
+
+        private static RarityTier ResolveNotificationRarityTier(string rarity)
+        {
+            var key = ResolveRarityKey(rarity, null);
+            switch (key)
+            {
+                case "UltraRare":
+                    return RarityTier.UltraRare;
+                case "Rare":
+                    return RarityTier.Rare;
+                case "Uncommon":
+                    return RarityTier.Uncommon;
+                default:
+                    return RarityTier.Common;
+            }
+        }
+
+        private static double? TryParseRarityPercent(string rarity)
+        {
+            if (string.IsNullOrWhiteSpace(rarity))
+            {
+                return null;
+            }
+
+            var match = Regex.Match(rarity, @"[-+]?\d+(?:[.,]\d+)?");
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var normalized = match.Value.Replace(',', '.');
+            return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out var percent)
+                ? (double?)percent
+                : null;
+        }
+
+        private static void PopulateGameNotificationScores(NotificationScoreContext context, GameAchievementData gameData)
+        {
+            var achievements = gameData?.Achievements ?? new List<AchievementDetail>();
+            var unlocked = achievements.Where(item => item?.Unlocked == true).ToList();
+            context.GameCollectionScore = SumNotificationValues(unlocked.Select(item => item.CollectionScore));
+            context.GameCollectionScoreTotal = SumNotificationValues(achievements.Where(item => item != null).Select(item => item.CollectionScore));
+            context.GamePrestigeScore = SumNotificationValues(unlocked.Select(item => item.PrestigeScore));
+            context.GamePrestigeScoreTotal = SumNotificationValues(achievements.Where(item => item != null).Select(item => item.PrestigeScore));
+            context.GamePoints = SumNotificationPoints(unlocked);
+            context.GamePointsTotal = SumNotificationPoints(achievements);
+        }
+
+        private static int SumNotificationPoints(IEnumerable<AchievementDetail> achievements)
+        {
+            return SumNotificationValues((achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(item => item != null)
+                .Select(item => Math.Max(0, item.Points ?? item.ScaledPoints ?? 0)));
+        }
+
+        private static int SumNotificationValues(IEnumerable<int> values)
+        {
+            long total = 0;
+            foreach (var value in values ?? Enumerable.Empty<int>())
+            {
+                total += Math.Max(0, value);
+                if (total >= int.MaxValue)
+                {
+                    return int.MaxValue;
+                }
+            }
+
+            return (int)total;
         }
 
         private static string FormatTrophyText(string trophy)

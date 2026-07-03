@@ -3302,12 +3302,13 @@
                                                          <TextBlock Text="Custom text templates (wildcards)"
                                                                     Style="{StaticResource SubSectionHeaderStyle}"
                                                                     Margin="0,0,0,6"/>
-                                                         <TextBlock Text="Supported tokens: &lt;title&gt; &lt;gameName&gt; &lt;achievementName&gt; &lt;achievementDescription&gt; &lt;points&gt; &lt;rarity&gt; &lt;rarityIcon&gt; &lt;trophy&gt; &lt;trophyIcon&gt; &lt;provider&gt; &lt;style&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;gameId&gt;"
+                                                         <TextBlock Text="Click a wildcard to insert it at the cursor in the selected line."
                                                                     Style="{StaticResource MutedTextStyle}"
                                                                     TextWrapping="Wrap"
                                                                     Margin="0,0,0,8"/>
-                                                         <WrapPanel Margin="0,0,0,8">
-                                                             <Button Content="&lt;title&gt;" Tag="&lt;title&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                         <StackPanel Margin="0,0,0,8">
+                                                             <TextBlock Text="Achievement" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                             <WrapPanel Margin="0,0,0,6">
                                                              <Button Content="&lt;gameName&gt;" Tag="&lt;gameName&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;achievementName&gt;" Tag="&lt;achievementName&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;achievementDescription&gt;" Tag="&lt;achievementDescription&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
@@ -3316,14 +3317,56 @@
                                                              <Button Content="&lt;rarityIcon&gt;" Tag="&lt;rarityIcon&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;trophy&gt;" Tag="&lt;trophy&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;trophyIcon&gt;" Tag="&lt;trophyIcon&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;type&gt;" Tag="&lt;type&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;category&gt;" Tag="&lt;category&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             </WrapPanel>
+
+                                                             <TextBlock Text="Collection score" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                             <WrapPanel Margin="0,0,0,6">
+                                                             <Button Content="&lt;achievementCollectionScore&gt;" Tag="&lt;achievementCollectionScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gameCollectionScore&gt;" Tag="&lt;gameCollectionScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gameCollectionScoreTotal&gt;" Tag="&lt;gameCollectionScoreTotal&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;totalCollectionScore&gt;" Tag="&lt;totalCollectionScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionLevel&gt;" Tag="&lt;collectionLevel&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionTier&gt;" Tag="&lt;collectionTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionExp&gt;" Tag="&lt;collectionExp&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionExpTotal&gt;" Tag="&lt;collectionExpTotal&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionExpUntilNextLevel&gt;" Tag="&lt;collectionExpUntilNextLevel&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionNextTier&gt;" Tag="&lt;collectionNextTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;collectionExpUntilNextTier&gt;" Tag="&lt;collectionExpUntilNextTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             </WrapPanel>
+
+                                                             <TextBlock Text="Prestige score" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                             <WrapPanel Margin="0,0,0,6">
+                                                             <Button Content="&lt;achievementPrestigeScore&gt;" Tag="&lt;achievementPrestigeScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gamePrestigeScore&gt;" Tag="&lt;gamePrestigeScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gamePrestigeScoreTotal&gt;" Tag="&lt;gamePrestigeScoreTotal&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;totalPrestigeScore&gt;" Tag="&lt;totalPrestigeScore&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeLevel&gt;" Tag="&lt;prestigeLevel&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeTier&gt;" Tag="&lt;prestigeTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeExp&gt;" Tag="&lt;prestigeExp&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeExpTotal&gt;" Tag="&lt;prestigeExpTotal&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeExpUntilNextLevel&gt;" Tag="&lt;prestigeExpUntilNextLevel&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeNextTier&gt;" Tag="&lt;prestigeNextTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;prestigeExpUntilNextTier&gt;" Tag="&lt;prestigeExpUntilNextTier&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             </WrapPanel>
+
+                                                             <TextBlock Text="Points" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                             <WrapPanel Margin="0,0,0,6">
+                                                             <Button Content="&lt;gamePoints&gt;" Tag="&lt;gamePoints&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;gamePointsTotal&gt;" Tag="&lt;gamePointsTotal&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;totalPoints&gt;" Tag="&lt;totalPoints&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             </WrapPanel>
+
+                                                             <TextBlock Text="Context" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                                                             <WrapPanel>
                                                              <Button Content="&lt;provider&gt;" Tag="&lt;provider&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
-                                                             <Button Content="&lt;style&gt;" Tag="&lt;style&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
+                                                             <Button Content="&lt;source&gt;" Tag="&lt;source&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;date&gt;" Tag="&lt;date&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;time&gt;" Tag="&lt;time&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
                                                              <Button Content="&lt;dateTime&gt;" Tag="&lt;dateTime&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
-                                                             <Button Content="&lt;source&gt;" Tag="&lt;source&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
-                                                             <Button Content="&lt;gameId&gt;" Tag="&lt;gameId&gt;" Click="NotificationTemplateToken_Click" Margin="0,0,6,6"/>
-                                                         </WrapPanel>
+                                                             </WrapPanel>
+                                                         </StackPanel>
 
                                                          <DockPanel Margin="0,0,0,6" LastChildFill="True">
                                                              <CheckBox Content="Line 1"
