@@ -4700,6 +4700,8 @@ namespace PlayniteAchievements.Providers.Local
                 Unlocked = entry.earned,
                 Hidden = entry.hidden || (schemaAch?.Hidden == 1),
                 Points = schemaAch?.Points,
+                ProgressNum = NormalizeAchievementProgress(entry.progress, entry.max_progress),
+                ProgressDenom = NormalizeAchievementProgressMaximum(entry.max_progress),
                 UnlockTimeUtc = entry.earned && entry.earned_time > 0
                     ? DateTimeOffset.FromUnixTimeSeconds(entry.earned_time).UtcDateTime
                     : (DateTime?)null
@@ -6529,7 +6531,35 @@ namespace PlayniteAchievements.Providers.Local
                 existing.percent = incoming.percent;
             }
 
+            if (!existing.progress.HasValue && incoming.progress.HasValue)
+            {
+                existing.progress = incoming.progress;
+            }
+
+            if (!existing.max_progress.HasValue && incoming.max_progress.HasValue)
+            {
+                existing.max_progress = incoming.max_progress;
+            }
+
             return existing;
+        }
+
+        private static int? NormalizeAchievementProgressMaximum(int? maximum)
+        {
+            return maximum.HasValue && maximum.Value > 0
+                ? maximum
+                : null;
+        }
+
+        private static int? NormalizeAchievementProgress(int? progress, int? maximum)
+        {
+            var normalizedMaximum = NormalizeAchievementProgressMaximum(maximum);
+            if (!progress.HasValue || !normalizedMaximum.HasValue)
+            {
+                return null;
+            }
+
+            return Math.Min(Math.Max(progress.Value, 0), normalizedMaximum.Value);
         }
 
         private static IEnumerable<string> BuildLumaPlayAppIdCandidates(string appId)
@@ -10021,6 +10051,11 @@ namespace PlayniteAchievements.Providers.Local
 
             public bool hidden { get; set; }
             public double? percent { get; set; }
+
+            public int? progress { get; set; }
+
+            [JsonProperty("max_progress")]
+            public int? max_progress { get; set; }
         }
 
         private sealed class IniSectionInfo

@@ -107,6 +107,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed missing providers inside the `Overrides` -> `Local` -> `Change Providers`
 - Changed the `Real-time monitoring` logs to only be generated every 10 minutes or in case of error
 - Fixed some icons missing from schemas from Steam
+- Fixed schema fetch not been done through steam when authenticated
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge
@@ -118,6 +119,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the stuttering when using the `Game Overview` global hotkey
 - Fixed the missing tooltip menu for the `Prestige Score` and the `Collection Score`
 - Fixed the wrong placement for the level and points in `Prestige Score` and the `Collection Score`
+- Added support for achievement with progress bar
 
 ## 2026-06-18 - v2.5.1.1
 - v2.5.1 merge
