@@ -50,6 +50,11 @@ namespace PlayniteAchievements.Services
         private static Window _persistentSettingsPreviewOverlay;
         private static readonly List<OverlayWindowState> ActiveOverlayWindows = new List<OverlayWindowState>();
         private static readonly List<IWebView> ActiveSanOverlayWebViews = new List<IWebView>();
+        private static readonly object WebView2LoaderSync = new object();
+        private static bool _webView2LoaderConfigured;
+        private static bool _sanWebViewWarmupStarted;
+        private static Window _sanWebViewWarmupWindow;
+        private static WebView2 _sanWebViewWarmupControl;
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetDllDirectory(string lpPathName);
@@ -62,6 +67,7 @@ namespace PlayniteAchievements.Services
             _api = api;
             _settings = settings;
             _logger = logger;
+            WarmUpSanWebView2();
         }
 
         public void ShowPeriodicStatus(string status)
@@ -1473,32 +1479,122 @@ steamImage +
         {
             try
             {
-                var pluginDirectory = GetPluginAssemblyDirectory();
-                var architectureFolder = Environment.Is64BitProcess ? "x64" : "x86";
-                var loaderDirectory = Path.Combine(pluginDirectory, architectureFolder);
-                var loaderPath = Path.Combine(loaderDirectory, "WebView2Loader.dll");
-                if (!File.Exists(loaderPath))
+                lock (WebView2LoaderSync)
                 {
-                    _logger?.Warn($"[LocalOverlay] WebView2 loader was not found at '{loaderPath}'.");
-                    return;
-                }
+                    if (_webView2LoaderConfigured)
+                    {
+                        return;
+                    }
 
-                TryCopyWebView2LoaderToPluginRoot(loaderPath);
-                SetDllDirectory(loaderDirectory);
-                var module = LoadLibrary(loaderPath);
-                if (module == IntPtr.Zero)
-                {
-                    _logger?.Warn($"[LocalOverlay] Failed to preload WebView2 loader from '{loaderPath}'.");
-                }
+                    var pluginDirectory = GetPluginAssemblyDirectory();
+                    var architectureFolder = Environment.Is64BitProcess ? "x64" : "x86";
+                    var loaderDirectory = Path.Combine(pluginDirectory, architectureFolder);
+                    var loaderPath = Path.Combine(loaderDirectory, "WebView2Loader.dll");
+                    if (!File.Exists(loaderPath))
+                    {
+                        _logger?.Warn($"[LocalOverlay] WebView2 loader was not found at '{loaderPath}'.");
+                        return;
+                    }
 
-                if (!SetDllDirectory(loaderDirectory))
-                {
-                    _logger?.Warn($"[LocalOverlay] Failed to set WebView2 loader directory to '{loaderDirectory}'.");
+                    TryCopyWebView2LoaderToPluginRoot(loaderPath);
+                    SetDllDirectory(loaderDirectory);
+                    var module = LoadLibrary(loaderPath);
+                    if (module == IntPtr.Zero)
+                    {
+                        _logger?.Warn($"[LocalOverlay] Failed to preload WebView2 loader from '{loaderPath}'.");
+                    }
+
+                    if (!SetDllDirectory(loaderDirectory))
+                    {
+                        _logger?.Warn($"[LocalOverlay] Failed to set WebView2 loader directory to '{loaderDirectory}'.");
+                    }
+
+                    _webView2LoaderConfigured = true;
                 }
             }
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "[LocalOverlay] Failed to configure WebView2 loader directory.");
+            }
+        }
+
+        private void WarmUpSanWebView2()
+        {
+            if (_sanWebViewWarmupStarted)
+            {
+                return;
+            }
+
+            _sanWebViewWarmupStarted = true;
+
+            try
+            {
+                var dispatcher = _api?.MainView?.UIDispatcher ?? Application.Current?.Dispatcher;
+                if (dispatcher == null)
+                {
+                    return;
+                }
+
+                dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    try
+                    {
+                        ConfigureWebView2LoaderDirectory();
+
+                        var webView = new WebView2
+                        {
+                            Width = 1,
+                            Height = 1,
+                            DefaultBackgroundColor = System.Drawing.Color.Transparent
+                        };
+
+                        var window = new Window
+                        {
+                            Content = webView,
+                            Width = 1,
+                            Height = 1,
+                            WindowStyle = WindowStyle.None,
+                            ResizeMode = ResizeMode.NoResize,
+                            AllowsTransparency = true,
+                            Background = Brushes.Transparent,
+                            ShowInTaskbar = false,
+                            ShowActivated = false,
+                            IsHitTestVisible = false,
+                            Focusable = false,
+                            Opacity = 0,
+                            Left = -32000,
+                            Top = -32000
+                        };
+
+                        _sanWebViewWarmupWindow = window;
+                        _sanWebViewWarmupControl = webView;
+                        window.Show();
+
+                        await webView.EnsureCoreWebView2Async();
+                        webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                        webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                        webView.NavigateToString("<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
+                        _logger?.Debug("[LocalOverlay] SAN WebView2 warm-up completed.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "[LocalOverlay] SAN WebView2 warm-up failed.");
+                        try
+                        {
+                            _sanWebViewWarmupWindow?.Close();
+                        }
+                        catch
+                        {
+                        }
+
+                        _sanWebViewWarmupWindow = null;
+                        _sanWebViewWarmupControl = null;
+                    }
+                }), DispatcherPriority.ApplicationIdle);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "[LocalOverlay] Failed to schedule SAN WebView2 warm-up.");
             }
         }
 
