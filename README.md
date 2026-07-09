@@ -96,9 +96,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-- Added RetroAchievement to `Achievement Notification`
 
-## 
+## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
 - Fixed missing `Prestige Score` and `Collection Score` when using `SteamHunters` to fetch the schema
 - Fixed `LumaPlay` refreshing without a `LumaPlay.ini` override setting been set
@@ -108,9 +107,13 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Changed the `Real-time monitoring` logs to only be generated every 10 minutes or in case of error
 - Fixed some icons missing from schemas from Steam
 - Fixed schema fetch not been done through steam when authenticated
-- `Achievement notification` reimagined
+- Added support for achievements with a progress bar
+- Added the option to refresh the game's achievements when the real time notification is triggered
+- Fixed fullscreen themes showing `Unknown` instead of `Local` provider in the achievements
+- Added `RetroAchievement` to `Achievement Notification`
+ - It might trigger some rate-limit since it is through API
+- `Achievement notification` reimagined (`SAN-Integration` branch merged)
   - You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986
-
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge

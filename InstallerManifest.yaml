@@ -1,5 +1,26 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.5.3.2
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-07-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.3.2/PlayniteAchievementsSantodan_2_5_3_2.pext
+    Changelog:
+    - "Fixed the multiple folders detection showing the list index instead of the folder path"
+    - "Fixed missing `Prestige Score` and `Collection Score` when using `SteamHunters` to fetch the schema"
+    - "Fixed `LumaPlay` refreshing without a `LumaPlay.ini` override setting been set"
+    - "Fixed the extension trying to fetch achievement for `New Game` when pressing to add a new manual game to the library"
+    - "Fixed freeze when `Custom Refresh` checks the authentications"
+    - "Fixed missing providers inside the `Overrides` -> `Local` -> `Change Providers`"
+    - "Changed the `Real-time monitoring` logs to only be generated every 10 minutes or in case of error"
+    - "Fixed some icons missing from schemas from Steam"
+    - "Fixed schema fetch not been done through steam when authenticated"
+    - "Added support for achievements with a progress bar"
+    - "Fixed fullscreen themes showing `Unknown` instead of `Local` provider in the achievements"
+    - "Added `RetroAchievement` to `Achievement Notification`"
+      - "It might trigger some rate-limit since it is through API"
+    - "`Achievement notification` reimagined (`SAN-Integration` branch merged)"
+      - "You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986"
+
   - Version: 2.5.3.1
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-06-22
