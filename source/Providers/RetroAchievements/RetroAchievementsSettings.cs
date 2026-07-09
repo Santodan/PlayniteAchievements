@@ -21,6 +21,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         private bool _enableFuzzyNameMatching = true;
         private bool _enableRaSubsetScanning = true;
         private bool _enableAutomaticCapstoneAssignment = false;
+        private bool _enableActiveMonitoring = false;
+        private int _monitoringIntervalSeconds = 300;
         private Dictionary<Guid, int> _raGameIdOverrides = new Dictionary<Guid, int>();
 
         /// <inheritdoc />
@@ -145,6 +147,25 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         {
             get => _enableAutomaticCapstoneAssignment;
             set => SetValue(ref _enableAutomaticCapstoneAssignment, value);
+        }
+
+        /// <summary>
+        /// When true, polls the RetroAchievements API during gameplay to detect newly unlocked
+        /// achievements and show the configured real-time unlock notification.
+        /// </summary>
+        public bool EnableActiveMonitoring
+        {
+            get => _enableActiveMonitoring;
+            set => SetValue(ref _enableActiveMonitoring, value);
+        }
+
+        /// <summary>
+        /// How often to poll the RetroAchievements API while a monitored game is running.
+        /// </summary>
+        public int MonitoringIntervalSeconds
+        {
+            get => _monitoringIntervalSeconds;
+            set => SetValue(ref _monitoringIntervalSeconds, Math.Max(30, Math.Min(3600, value)));
         }
 
         /// <summary>

@@ -576,6 +576,29 @@ namespace PlayniteAchievements.Views
         /// Notifications tab is first initialised; may be null if Exophase is not configured.
         /// </summary>
         public Providers.Exophase.ExophaseSettings ExophaseEditSettings { get; private set; }
+        public Providers.RetroAchievements.RetroAchievementsSettings RetroAchievementsEditSettings { get; private set; }
+        public static readonly DependencyProperty ApiVerificationActiveMonitoringProperty =
+            DependencyProperty.Register(
+                nameof(ApiVerificationActiveMonitoring),
+                typeof(bool),
+                typeof(SettingsControl),
+                new PropertyMetadata(false, OnApiVerificationActiveMonitoringChanged));
+
+        public bool ApiVerificationActiveMonitoring
+        {
+            get => (bool)GetValue(ApiVerificationActiveMonitoringProperty);
+            set => SetValue(ApiVerificationActiveMonitoringProperty, value);
+        }
+
+        private bool _isRefreshingApiVerificationControls;
+
+        private static void OnApiVerificationActiveMonitoringChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is SettingsControl control)
+            {
+                control.ApplyApiVerificationActiveMonitoring((bool)e.NewValue);
+            }
+        }
 
         private readonly Dictionary<string, ProviderSettingsViewBase> _providerViewsByKey = new Dictionary<string, ProviderSettingsViewBase>(StringComparer.OrdinalIgnoreCase);
         private readonly ObservableCollection<NotificationSoundOption> _notificationSoundOptions = new ObservableCollection<NotificationSoundOption>();
@@ -952,8 +975,10 @@ namespace PlayniteAchievements.Views
                 {
                     achievementNotificationsTab.DataContext = localSettings;
 
-                    // Populate ExophaseEditSettings so the XAML Exophase checkbox can bind via ElementName.
+                    // Populate API-backed provider settings so shared notification controls can update them.
                     ExophaseEditSettings = _providerRegistry?.GetSettingsForEdit("Exophase") as Providers.Exophase.ExophaseSettings;
+                    RetroAchievementsEditSettings = _providerRegistry?.GetSettingsForEdit("RetroAchievements") as Providers.RetroAchievements.RetroAchievementsSettings;
+                    RefreshApiVerificationControls();
 
                     if (!ReferenceEquals(_notificationPreviewSettings, localSettings))
                     {
@@ -1391,6 +1416,87 @@ namespace PlayniteAchievements.Views
             }
         }
 
+        private void RefreshApiVerificationControls()
+        {
+            _isRefreshingApiVerificationControls = true;
+            try
+            {
+                ApiVerificationActiveMonitoring =
+                    ExophaseEditSettings?.EnableActiveMonitoring == true &&
+                    RetroAchievementsEditSettings?.EnableActiveMonitoring == true;
+
+                if (ApiVerificationPollingIntervalSecondsTextBox != null)
+                {
+                    var interval = ExophaseEditSettings?.MonitoringIntervalSeconds
+                        ?? RetroAchievementsEditSettings?.MonitoringIntervalSeconds
+                        ?? 300;
+                    ApiVerificationPollingIntervalSecondsTextBox.Text = interval.ToString();
+                }
+            }
+            finally
+            {
+                _isRefreshingApiVerificationControls = false;
+            }
+        }
+
+        private void ApplyApiVerificationActiveMonitoring(bool enabled)
+        {
+            if (_isRefreshingApiVerificationControls)
+            {
+                return;
+            }
+
+            if (ExophaseEditSettings != null)
+            {
+                ExophaseEditSettings.EnableActiveMonitoring = enabled;
+            }
+
+            if (RetroAchievementsEditSettings != null)
+            {
+                RetroAchievementsEditSettings.EnableActiveMonitoring = enabled;
+            }
+        }
+
+        private void ApiVerificationPollingIntervalSecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyApiVerificationPollingIntervalFromTextBox(updateTextBox: false);
+        }
+
+        private void ApiVerificationPollingIntervalSecondsTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            ApplyApiVerificationPollingIntervalFromTextBox(updateTextBox: true);
+        }
+
+        private void ApplyApiVerificationPollingIntervalFromTextBox(bool updateTextBox)
+        {
+            if (_isRefreshingApiVerificationControls || ApiVerificationPollingIntervalSecondsTextBox == null)
+            {
+                return;
+            }
+
+            if (int.TryParse(ApiVerificationPollingIntervalSecondsTextBox.Text, out var interval))
+            {
+                if (ExophaseEditSettings != null)
+                {
+                    ExophaseEditSettings.MonitoringIntervalSeconds = interval;
+                    interval = ExophaseEditSettings.MonitoringIntervalSeconds;
+                }
+
+                if (RetroAchievementsEditSettings != null)
+                {
+                    RetroAchievementsEditSettings.MonitoringIntervalSeconds = interval;
+                    interval = RetroAchievementsEditSettings.MonitoringIntervalSeconds;
+                }
+            }
+
+            if (updateTextBox)
+            {
+                var resolvedInterval = ExophaseEditSettings?.MonitoringIntervalSeconds
+                    ?? RetroAchievementsEditSettings?.MonitoringIntervalSeconds
+                    ?? 300;
+                ApiVerificationPollingIntervalSecondsTextBox.Text = resolvedInterval.ToString();
+            }
+        }
         private void NotificationsPollingIntervalSecondsTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             ApplyNotificationsPollingIntervalFromTextBox(updateTextBox: false);

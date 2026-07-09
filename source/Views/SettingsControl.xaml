@@ -2644,38 +2644,6 @@
                                            Margin="36,0,0,10"
                                            TextWrapping="Wrap"/>
 
-                                <!-- Exophase Monitoring -->
-                                <CheckBox Content="Enable real-time monitoring for running game (Exophase provider)"
-                                          IsChecked="{Binding Path=ExophaseEditSettings.EnableActiveMonitoring,
-                                                      ElementName=SettingsControlRoot, Mode=TwoWay}"
-                                          Margin="0,0,0,4"/>
-                                <TextBlock Text="Polls the Exophase API at regular intervals to detect newly unlocked achievements. Minimum 5-minute interval."
-                                           Style="{StaticResource MutedTextStyle}"
-                                           Margin="18,0,0,8"
-                                           TextWrapping="Wrap"/>
-
-                                <!-- Exophase Polling Interval -->
-                                <Grid Style="{StaticResource SettingRowStyle}"
-                                      IsEnabled="{Binding Path=ExophaseEditSettings.EnableActiveMonitoring, ElementName=SettingsControlRoot}"
-                                      Margin="18,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="Exophase polling interval (seconds):"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,8,0"
-                                               Foreground="{DynamicResource TextBrush}"
-                                               FontWeight="SemiBold"/>
-                                    <TextBox Grid.Column="1"
-                                             Width="55"
-                                             VerticalContentAlignment="Center"
-                                             Text="{Binding Path=ExophaseEditSettings.MonitoringIntervalSeconds,
-                                                    ElementName=SettingsControlRoot, Mode=TwoWay,
-                                                    UpdateSourceTrigger=LostFocus}"/>
-                                </Grid>
-
                                 <!-- Polling Interval -->
                                 <Grid Style="{StaticResource SettingRowStyle}"
                                       IsEnabled="{Binding EnableActiveGameMonitoring}"
@@ -2704,6 +2672,37 @@
                                            Margin="18,0,0,10"
                                            TextWrapping="Wrap"
                                            IsEnabled="{Binding EnableActiveGameMonitoring}"/>
+
+                                <!-- API Verification Monitoring -->
+                                <CheckBox Content="API verification (Exophase / RetroAchievements)"
+                                          IsChecked="{Binding ApiVerificationActiveMonitoring, ElementName=SettingsControlRoot, Mode=TwoWay}"
+                                          Margin="0,0,0,4"/>
+                                <TextBlock Text="Polls the Exophase and RetroAchievements APIs at regular intervals to detect newly unlocked achievements for the running game. Rate-limit may be applied by the provider."
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="18,0,0,8"
+                                           TextWrapping="Wrap"/>
+
+                                <!-- API Polling Interval -->
+                                <Grid Style="{StaticResource SettingRowStyle}"
+                                      IsEnabled="{Binding ApiVerificationActiveMonitoring, ElementName=SettingsControlRoot}"
+                                      Margin="18,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="API polling interval (seconds):"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextBrush}"
+                                               FontWeight="SemiBold"/>
+                                    <TextBox Grid.Column="1"
+                                             Width="55"
+                                             VerticalContentAlignment="Center"
+                                             x:Name="ApiVerificationPollingIntervalSecondsTextBox"
+                                             TextChanged="ApiVerificationPollingIntervalSecondsTextBox_TextChanged"
+                                             LostFocus="ApiVerificationPollingIntervalSecondsTextBox_LostFocus"/>
+                                </Grid>
 
                                 <!-- Notification Options -->
                                 <Border Style="{StaticResource SettingGroupCardStyle}"

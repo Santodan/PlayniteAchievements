@@ -26,6 +26,7 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Services.Images;
 using PlayniteAchievements.Services.Logging;
 using PlayniteAchievements.Services.ReleaseMonitoring;
+using PlayniteAchievements.Services.RetroAchievements;
 using PlayniteAchievements.Services.ThemeIntegration;
 using PlayniteAchievements.Services.Local;
 using PlayniteAchievements.Services.ThemeMigration;
@@ -105,6 +106,7 @@ namespace PlayniteAchievements
         private readonly ForkReleaseMonitor _forkReleaseMonitor;
         private readonly ActiveGameAchievementMonitor _activeGameAchievementMonitor;
         private readonly Services.Exophase.ExophaseGameAchievementMonitor _exophaseGameAchievementMonitor;
+        private readonly RetroAchievementsGameAchievementMonitor _retroAchievementsGameAchievementMonitor;
 
         // Tagging
         private readonly object _tagSyncGate = new object();
@@ -383,6 +385,14 @@ namespace PlayniteAchievements
                         IsGameExcluded,
                         RefreshGameInExtensionAfterRealtimeUnlockAsync,
                         _logger);
+                    _retroAchievementsGameAchievementMonitor = new RetroAchievementsGameAchievementMonitor(
+                        _cacheManager,
+                        _providerRegistry,
+                        _notifications,
+                        IsRealtimeNotificationDisabledForGame,
+                        IsGameExcluded,
+                        RefreshGameInExtensionAfterRealtimeUnlockAsync,
+                        _logger);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
                     // Create tag sync service
@@ -581,6 +591,7 @@ namespace PlayniteAchievements
 
             _activeGameAchievementMonitor?.Start(args.Game);
             _exophaseGameAchievementMonitor?.Start(args.Game);
+            _retroAchievementsGameAchievementMonitor?.Start(args.Game);
         }
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
@@ -601,6 +612,7 @@ namespace PlayniteAchievements
 
             _activeGameAchievementMonitor?.Stop();
             _exophaseGameAchievementMonitor?.Stop();
+            _retroAchievementsGameAchievementMonitor?.Stop();
             _ = _activeGameAchievementMonitor?.TryDetectMissedUnlocksAfterStopAsync(args.Game);
 
             if (!LocalSavesProvider.ShouldRefreshAchievementsOnGameClose(args.Game.Id))
@@ -858,6 +870,7 @@ namespace PlayniteAchievements
             _backgroundUpdates.Stop();
             _activeGameAchievementMonitor?.Dispose();
             _exophaseGameAchievementMonitor?.Dispose();
+            _retroAchievementsGameAchievementMonitor?.Dispose();
 
             try { _achievementHotkeyService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose achievementHotkeyService"); }
             try { _windowService?.Dispose(); } catch (Exception ex) { _logger?.Debug(ex, "Failed to dispose windowService"); }
