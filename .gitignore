@@ -80,3 +80,29 @@ wiki/
 PlayniteAchievementsWiki/
 PlayniteAchievements.code-workspace
 merge-conflict-backups/*
+tools/NotificationTemplates/SAN Videos
+extract_san_video_frames.py
+generate_san_notification_templates.py
+tools/NotificationTemplates/Backup
+tools/SteamAchievementNotifier-reference
+tools/NotificationTemplates/SAN Export templates
+tools/SAN-source/*
+!tools/SAN-source/notify/
+!tools/SAN-source/notify/**
+!tools/SAN-source/dist/
+tools/SAN-source/dist/*
+!tools/SAN-source/dist/app/
+tools/SAN-source/dist/app/*
+!tools/SAN-source/dist/app/global.css
+!tools/SAN-source/img/
+!tools/SAN-source/img/**
+!tools/SAN-source/icon/
+!tools/SAN-source/icon/lock.svg
+!tools/SAN-source/sound/
+!tools/SAN-source/sound/notify.wav
+!tools/SAN-source/fonts/
+!tools/SAN-source/fonts/**
+tools/SAN-installed-extracted
+tools/NotificationTemplates/Icons
+Test*.json
+merge-conflict-backup/*

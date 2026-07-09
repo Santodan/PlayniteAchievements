@@ -108,6 +108,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Changed the `Real-time monitoring` logs to only be generated every 10 minutes or in case of error
 - Fixed some icons missing from schemas from Steam
 - Fixed schema fetch not been done through steam when authenticated
+- `Achievement notification` reimagined
+  - You can see the changelog in https://github.com/Santodan/PlayniteAchievements/issues/5#issuecomment-4877909986
+
 
 ## 2026-06-22 - v2.5.3.1
 - v2.5.2 + v2.5.3 merge

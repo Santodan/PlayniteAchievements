@@ -64,6 +64,14 @@
       <HintPath>packages\LiveCharts.Wpf.0.9.7\lib\net45\LiveCharts.Wpf.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>packages\Microsoft.Web.WebView2.1.0.2592.51\lib\net462\Microsoft.Web.WebView2.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.Wpf">
+      <HintPath>packages\Microsoft.Web.WebView2.1.0.2592.51\lib\net462\Microsoft.Web.WebView2.Wpf.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
@@ -150,8 +158,54 @@
     <Content Include="Resources\Sounds\**\*.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll">
+      <Link>x86\WebView2Loader.dll</Link>
+      <TargetPath>x86\WebView2Loader.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x64\native\WebView2Loader.dll">
+      <Link>x64\WebView2Loader.dll</Link>
+      <TargetPath>x64\WebView2Loader.dll</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\tools\notification-template-builder.html">
       <Link>Resources\Tools\notification-template-builder.html</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\notify\**\*.*">
+      <Link>Resources\Tools\SAN-source\notify\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\dist\app\global.css">
+      <Link>Resources\Tools\SAN-source\dist\app\global.css</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\img\achicon.png;..\tools\SAN-source\img\base64.png;..\tools\SAN-source\img\ribbonbw.svg;..\tools\SAN-source\img\s.svg;..\tools\SAN-source\img\sanimgbg.png;..\tools\SAN-source\img\sanlogo.svg;..\tools\SAN-source\img\sanlogotrophy.svg;..\tools\SAN-source\img\sanlogotrophy_bronze.svg;..\tools\SAN-source\img\sanlogotrophy_gold.svg;..\tools\SAN-source\img\sanlogotrophy_silver.svg;..\tools\SAN-source\img\sanlogotrophy_small.svg;..\tools\SAN-source\img\steamlogonew.svg">
+      <Link>Resources\Tools\SAN-source\img\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\icon\lock.svg">
+      <Link>Resources\Tools\SAN-source\icon\lock.svg</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\sound\notify.wav">
+      <Link>Resources\Tools\SAN-source\sound\notify.wav</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\SAN-source\fonts\JetBrainsMono-Light.ttf;..\tools\SAN-source\fonts\Mandali-Regular.ttf;..\tools\SAN-source\fonts\NotoSans-ExtraLight.ttf;..\tools\SAN-source\fonts\NotoSans-Light.ttf;..\tools\SAN-source\fonts\NotoSans-Medium.ttf;..\tools\SAN-source\fonts\OpenSans-Medium.ttf;..\tools\SAN-source\fonts\Roboto-Medium.ttf;..\tools\SAN-source\fonts\SourceSansPro-ExtraLight.ttf;..\tools\SAN-source\fonts\SourceSansPro-Light.ttf;..\tools\SAN-source\fonts\TitilliumWeb-Regular.ttf;..\tools\SAN-source\fonts\TitilliumWeb-SemiBold.ttf;..\tools\SAN-source\fonts\VT323-Regular.ttf">
+      <Link>Resources\Tools\SAN-source\fonts\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\NotificationTemplates\**\*.json">
+      <Link>Resources\Tools\NotificationTemplates\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\NotificationTemplates\README.md">
+      <Link>Resources\Tools\NotificationTemplates\README.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\tools\NotificationTemplates\SAN_COMPATIBILITY.md" Condition="Exists('..\tools\NotificationTemplates\SAN_COMPATIBILITY.md')">
+      <Link>Resources\Tools\NotificationTemplates\SAN_COMPATIBILITY.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\StartPage\StartPagePlugin.dll">
@@ -169,6 +223,8 @@
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>if exist "$(MSBuildProjectDirectory)\Localization\*.xaml" xcopy "$(MSBuildProjectDirectory)\Localization\*.xaml" "$(MSBuildProjectDirectory)\$(OutputPath)Localization" /Y /I /E
+if exist "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll" xcopy "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll" "$(TargetDir)x86\" /Y /I
+if exist "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x64\native\WebView2Loader.dll" xcopy "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x64\native\WebView2Loader.dll" "$(TargetDir)x64\" /Y /I
 if exist "$(LocalAppData)\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playnite\Playnite.dll" (
     "$(LocalAppData)\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
     if errorlevel 1 if exist "E:\Programs\Playnite\Toolbox.exe" if exist "E:\Programs\Playnite\Playnite.dll" "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
