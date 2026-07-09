@@ -2639,7 +2639,7 @@
                                 <CheckBox Content="Refresh extension achievements when a real-time unlock is detected"
                                           IsChecked="{Binding RefreshAchievementsOnRealtimeUnlock, Mode=TwoWay}"
                                           Margin="18,0,0,4"/>
-                                <TextBlock Text="Runs a silent single-game refresh before showing the unlock overlay, so extension views and notification templates can use the updated achievement data."
+                                <TextBlock Text="Shows the unlock overlay immediately, then runs a silent single-game refresh so extension views can catch up with the updated achievement data."
                                            Style="{StaticResource MutedTextStyle}"
                                            Margin="36,0,0,10"
                                            TextWrapping="Wrap"/>

@@ -145,17 +145,6 @@ namespace PlayniteAchievements.Services.Local
                     return;
                 }
 
-                if (ProviderRegistry.Settings<LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock == true)
-                {
-                    currentSnapshot = await TryRefreshGameInExtensionAsync(game, currentSnapshot, cancellationToken)
-                        .ConfigureAwait(false);
-                    newlyUnlocked = FindNewlyUnlockedAchievements(previousSnapshot, currentSnapshot);
-                    if (newlyUnlocked.Count == 0)
-                    {
-                        return;
-                    }
-                }
-
                 var localSettings = ProviderRegistry.Settings<LocalSettings>();
                 var soundPath = localSettings?.UnlockSoundPath;
                 var unlockNames = newlyUnlocked.Select(item => item.DisplayName).ToList();
@@ -185,6 +174,7 @@ namespace PlayniteAchievements.Services.Local
                 }
 
                 _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
+                QueueRefreshGameInExtensionAfterUnlock(game);
 
                 lock (_sync)
                 {
@@ -268,26 +258,6 @@ namespace PlayniteAchievements.Services.Local
                     var newlyUnlocked = FindNewlyUnlockedAchievements(previousSnapshot, currentSnapshot);
                     if (previousSnapshot != null && newlyUnlocked.Count > 0)
                     {
-                        if (ProviderRegistry.Settings<LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock == true)
-                        {
-                            currentSnapshot = await TryRefreshGameInExtensionAsync(game, currentSnapshot, cancellationToken)
-                                .ConfigureAwait(false);
-                            newlyUnlocked = FindNewlyUnlockedAchievements(previousSnapshot, currentSnapshot);
-                            if (newlyUnlocked.Count == 0)
-                            {
-                                previousSnapshot = currentSnapshot ?? previousSnapshot;
-                                lock (_sync)
-                                {
-                                    _lastKnownSnapshot = previousSnapshot;
-                                    _lastKnownGameId = game.Id;
-                                    _lastKnownGameName = game.Name;
-                                    _lastKnownSourceFingerprint = sourceFingerprint;
-                                }
-
-                                continue;
-                            }
-                        }
-
                         var localSettings = ProviderRegistry.Settings<LocalSettings>();
                         var soundPath = localSettings?.UnlockSoundPath;
                         var unlockNames = newlyUnlocked
@@ -318,6 +288,8 @@ namespace PlayniteAchievements.Services.Local
                                 soundPath,
                                 game: game);
                         }
+
+                        QueueRefreshGameInExtensionAfterUnlock(game);
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)
                     {
@@ -441,32 +413,28 @@ namespace PlayniteAchievements.Services.Local
             return currentSnapshot;
         }
 
-        private async Task<AchievementSnapshot> TryRefreshGameInExtensionAsync(
-            Game game,
-            AchievementSnapshot fallbackSnapshot,
-            CancellationToken cancellationToken)
+        private void QueueRefreshGameInExtensionAfterUnlock(Game game)
         {
-            if (_refreshGameInExtensionAsync == null || game == null || game.Id == Guid.Empty)
+            if (_refreshGameInExtensionAsync == null ||
+                game == null ||
+                game.Id == Guid.Empty ||
+                ProviderRegistry.Settings<LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock != true)
             {
-                return fallbackSnapshot;
+                return;
             }
 
-            try
+            _ = Task.Run(async () =>
             {
-                _logger?.Info($"[LocalMonitor] Refreshing extension data for '{game.Name}' before showing real-time unlock notification.");
-                await _refreshGameInExtensionAsync(game, cancellationToken).ConfigureAwait(false);
-                var refreshedSnapshot = CaptureSnapshot(game.Id);
-                return refreshedSnapshot ?? fallbackSnapshot;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[LocalMonitor] Extension refresh after real-time unlock failed for '{game.Name}'. Showing notification with monitor data.");
-                return fallbackSnapshot;
-            }
+                try
+                {
+                    _logger?.Info($"[LocalMonitor] Refreshing extension data for '{game.Name}' after showing real-time unlock notification.");
+                    await _refreshGameInExtensionAsync(game, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"[LocalMonitor] Extension refresh after real-time unlock failed for '{game.Name}'.");
+                }
+            });
         }
 
         private AchievementSnapshot CaptureSnapshot(Guid gameId)

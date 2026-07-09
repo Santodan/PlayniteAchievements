@@ -150,24 +150,6 @@ namespace PlayniteAchievements.Services.Exophase
 
                     if (previousSnapshot != null && newlyUnlocked.Count > 0)
                     {
-                        if (ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock == true)
-                        {
-                            currentSnapshot = await TryRefreshGameInExtensionAsync(game, currentSnapshot, cancellationToken)
-                                .ConfigureAwait(false);
-                            newlyUnlocked = FindNewlyUnlocked(previousSnapshot, currentSnapshot);
-                            if (newlyUnlocked.Count == 0)
-                            {
-                                previousSnapshot = currentSnapshot ?? previousSnapshot;
-                                lock (_sync)
-                                {
-                                    _lastKnownSnapshot = previousSnapshot;
-                                    _lastKnownGameId = game.Id;
-                                }
-
-                                continue;
-                            }
-                        }
-
                         var unlockNotifications = newlyUnlocked
                             .Select(i => new AchievementUnlockNotificationItem(
                                 i.DisplayName,
@@ -195,6 +177,8 @@ namespace PlayniteAchievements.Services.Exophase
                                 game: game,
                                 notificationProviderKey: "Exophase");
                         }
+
+                        QueueRefreshGameInExtensionAfterUnlock(game);
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)
                     {
@@ -284,32 +268,28 @@ namespace PlayniteAchievements.Services.Exophase
             return BuildSnapshot(fetchedData);
         }
 
-        private async Task<AchievementSnapshot> TryRefreshGameInExtensionAsync(
-            Game game,
-            AchievementSnapshot fallbackSnapshot,
-            CancellationToken cancellationToken)
+        private void QueueRefreshGameInExtensionAfterUnlock(Game game)
         {
-            if (_refreshGameInExtensionAsync == null || game == null || game.Id == Guid.Empty)
+            if (_refreshGameInExtensionAsync == null ||
+                game == null ||
+                game.Id == Guid.Empty ||
+                ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock != true)
             {
-                return fallbackSnapshot;
+                return;
             }
 
-            try
+            _ = Task.Run(async () =>
             {
-                _logger?.Info($"[ExophaseMonitor] Refreshing extension data for '{game.Name}' before showing real-time unlock notification.");
-                await _refreshGameInExtensionAsync(game, cancellationToken).ConfigureAwait(false);
-                var refreshedSnapshot = CaptureSnapshot(game.Id);
-                return refreshedSnapshot ?? fallbackSnapshot;
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger?.Warn(ex, $"[ExophaseMonitor] Extension refresh after real-time unlock failed for '{game.Name}'. Showing notification with monitor data.");
-                return fallbackSnapshot;
-            }
+                try
+                {
+                    _logger?.Info($"[ExophaseMonitor] Refreshing extension data for '{game.Name}' after showing real-time unlock notification.");
+                    await _refreshGameInExtensionAsync(game, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Warn(ex, $"[ExophaseMonitor] Extension refresh after real-time unlock failed for '{game.Name}'.");
+                }
+            });
         }
 
         private AchievementSnapshot CaptureSnapshot(Guid gameId)
