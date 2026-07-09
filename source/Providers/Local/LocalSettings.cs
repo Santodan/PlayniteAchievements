@@ -342,6 +342,7 @@ namespace PlayniteAchievements.Providers.Local
         private Dictionary<Guid, bool> _refreshOnGameCloseOverrides = new Dictionary<Guid, bool>();
         private string _steamUserdataPath = string.Empty;
         private bool _enableActiveGameMonitoring;
+        private bool _refreshAchievementsOnRealtimeUnlock;
         private bool _refreshAchievementsOnGameClose;
         private int _activeGameMonitoringIntervalSeconds = 5;
         private bool _enableUnlockScreenshots;
@@ -555,6 +556,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _enableActiveGameMonitoring;
             set => SetValue(ref _enableActiveGameMonitoring, value);
+        }
+
+        public bool RefreshAchievementsOnRealtimeUnlock
+        {
+            get => _refreshAchievementsOnRealtimeUnlock;
+            set => SetValue(ref _refreshAchievementsOnRealtimeUnlock, value);
         }
 
         public int ActiveGameMonitoringIntervalSeconds

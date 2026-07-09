@@ -28,6 +28,7 @@ namespace PlayniteAchievements.Services.Exophase
         private readonly NotificationPublisher _notifications;
         private readonly Func<Guid, bool> _isRealtimeNotificationDisabled;
         private readonly Func<Guid, bool> _isExcludedFromRefreshes;
+        private readonly Func<Game, CancellationToken, Task> _refreshGameInExtensionAsync;
         private readonly ILogger _logger;
 
         private readonly object _sync = new object();
@@ -43,6 +44,7 @@ namespace PlayniteAchievements.Services.Exophase
             NotificationPublisher notifications,
             Func<Guid, bool> isRealtimeNotificationDisabled,
             Func<Guid, bool> isExcludedFromRefreshes,
+            Func<Game, CancellationToken, Task> refreshGameInExtensionAsync,
             ILogger logger)
         {
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
@@ -50,6 +52,7 @@ namespace PlayniteAchievements.Services.Exophase
             _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
             _isRealtimeNotificationDisabled = isRealtimeNotificationDisabled;
             _isExcludedFromRefreshes = isExcludedFromRefreshes;
+            _refreshGameInExtensionAsync = refreshGameInExtensionAsync;
             _logger = logger;
         }
 
@@ -147,6 +150,24 @@ namespace PlayniteAchievements.Services.Exophase
 
                     if (previousSnapshot != null && newlyUnlocked.Count > 0)
                     {
+                        if (ProviderRegistry.Settings<Providers.Local.LocalSettings>()?.RefreshAchievementsOnRealtimeUnlock == true)
+                        {
+                            currentSnapshot = await TryRefreshGameInExtensionAsync(game, currentSnapshot, cancellationToken)
+                                .ConfigureAwait(false);
+                            newlyUnlocked = FindNewlyUnlocked(previousSnapshot, currentSnapshot);
+                            if (newlyUnlocked.Count == 0)
+                            {
+                                previousSnapshot = currentSnapshot ?? previousSnapshot;
+                                lock (_sync)
+                                {
+                                    _lastKnownSnapshot = previousSnapshot;
+                                    _lastKnownGameId = game.Id;
+                                }
+
+                                continue;
+                            }
+                        }
+
                         var unlockNotifications = newlyUnlocked
                             .Select(i => new AchievementUnlockNotificationItem(
                                 i.DisplayName,
@@ -261,6 +282,34 @@ namespace PlayniteAchievements.Services.Exophase
 
             _cacheManager.NotifyCacheInvalidated();
             return BuildSnapshot(fetchedData);
+        }
+
+        private async Task<AchievementSnapshot> TryRefreshGameInExtensionAsync(
+            Game game,
+            AchievementSnapshot fallbackSnapshot,
+            CancellationToken cancellationToken)
+        {
+            if (_refreshGameInExtensionAsync == null || game == null || game.Id == Guid.Empty)
+            {
+                return fallbackSnapshot;
+            }
+
+            try
+            {
+                _logger?.Info($"[ExophaseMonitor] Refreshing extension data for '{game.Name}' before showing real-time unlock notification.");
+                await _refreshGameInExtensionAsync(game, cancellationToken).ConfigureAwait(false);
+                var refreshedSnapshot = CaptureSnapshot(game.Id);
+                return refreshedSnapshot ?? fallbackSnapshot;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.Warn(ex, $"[ExophaseMonitor] Extension refresh after real-time unlock failed for '{game.Name}'. Showing notification with monitor data.");
+                return fallbackSnapshot;
+            }
         }
 
         private AchievementSnapshot CaptureSnapshot(Guid gameId)

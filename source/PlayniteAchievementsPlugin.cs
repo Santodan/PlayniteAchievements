@@ -373,6 +373,7 @@ namespace PlayniteAchievements
                         localAchievementScreenshotService,
                         IsRealtimeNotificationDisabledForGame,
                         IsGameExcluded,
+                        RefreshGameInExtensionAfterRealtimeUnlockAsync,
                         _logger);
                     _exophaseGameAchievementMonitor = new Services.Exophase.ExophaseGameAchievementMonitor(
                         _cacheManager,
@@ -380,6 +381,7 @@ namespace PlayniteAchievements
                         _notifications,
                         IsRealtimeNotificationDisabledForGame,
                         IsGameExcluded,
+                        RefreshGameInExtensionAfterRealtimeUnlockAsync,
                         _logger);
                     _backgroundUpdates = new BackgroundUpdater(_refreshCoordinator, _refreshService, _cacheManager, settings, _logger, _notifications, null);
 
@@ -613,6 +615,28 @@ namespace PlayniteAchievements
                 Mode = RefreshModeType.Single,
                 SingleGameId = args.Game.Id
             });
+        }
+
+        private Task RefreshGameInExtensionAfterRealtimeUnlockAsync(Game game, CancellationToken cancellationToken)
+        {
+            if (game == null || game.Id == Guid.Empty || _refreshCoordinator == null)
+            {
+                return Task.CompletedTask;
+            }
+
+            return _refreshCoordinator.ExecuteAsync(
+                new RefreshRequest
+                {
+                    Mode = RefreshModeType.Single,
+                    SingleGameId = game.Id,
+                    SuppressUserMessages = true
+                },
+                new RefreshExecutionPolicy
+                {
+                    ExternalCancellationToken = cancellationToken,
+                    ErrorLogMessage = $"Real-time achievement refresh failed for '{game.Name}'.",
+                    SwallowExceptions = false
+                });
         }
 
         // === Lifecycle ===
