@@ -2747,66 +2747,6 @@
                                             </ComboBox>
                                         </DockPanel>
 
-                                        <DockPanel Margin="0,0,0,4">
-                                            <TextBlock Text="Overlay duration (ms):"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       Foreground="{DynamicResource TextBrush}"
-                                                       FontWeight="SemiBold"/>
-                                            <Slider x:Name="NotificationsOverlayDurationSlider"
-                                                    Minimum="1000"
-                                                    Maximum="10000"
-                                                    TickFrequency="500"
-                                                    IsSnapToTickEnabled="True"
-                                                    Width="220"
-                                                    Value="{Binding UnlockOverlayDurationMilliseconds, Mode=TwoWay}"
-                                                    ValueChanged="NotificationsOverlayDurationSlider_ValueChanged"/>
-                                            <TextBlock x:Name="NotificationsOverlayDurationValueTextBlock"
-                                                       Text="{Binding UnlockOverlayDurationMilliseconds, StringFormat='{}{0} ms'}"
-                                                       Margin="8,0,0,0"
-                                                       VerticalAlignment="Center"
-                                                       Style="{StaticResource MutedTextStyle}"/>
-                                        </DockPanel>
-
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="120"/>
-                                                <ColumnDefinition Width="20"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="120"/>
-                                                <ColumnDefinition Width="20"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="120"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Fade in (ms):"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       FontWeight="SemiBold"/>
-                                            <TextBox Grid.Column="1"
-                                                     x:Name="NotificationsOverlayFadeInMillisecondsTextBox"
-                                                     TextChanged="NotificationsOverlayFadeInMillisecondsTextBox_TextChanged"
-                                                     LostFocus="NotificationsOverlayFadeInMillisecondsTextBox_LostFocus"/>
-                                            <TextBlock Grid.Column="3"
-                                                       Text="Fade out (ms):"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       FontWeight="SemiBold"/>
-                                            <TextBox Grid.Column="4"
-                                                     x:Name="NotificationsOverlayFadeOutMillisecondsTextBox"
-                                                     TextChanged="NotificationsOverlayFadeOutMillisecondsTextBox_TextChanged"
-                                                     LostFocus="NotificationsOverlayFadeOutMillisecondsTextBox_LostFocus"/>
-                                            <TextBlock Grid.Column="6"
-                                                       Text="Sound lead (ms):"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       FontWeight="SemiBold"/>
-                                            <TextBox Grid.Column="7"
-                                                     x:Name="NotificationsUnlockSoundLeadMillisecondsTextBox"
-                                                     TextChanged="NotificationsUnlockSoundLeadMillisecondsTextBox_TextChanged"
-                                                     LostFocus="NotificationsUnlockSoundLeadMillisecondsTextBox_LostFocus"/>
-                                        </Grid>
-
                                         <CheckBox Content="Show in-app notification when achievement is unlocked"
                                                   IsChecked="{Binding EnableInAppUnlockNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   Margin="0,0,0,12"/>
@@ -3073,19 +3013,6 @@
                                                                         FontWeight="SemiBold"/>
                                                              <TextBox Grid.Column="10"
                                                                       Text="{Binding UnlockOverlayFadeOutMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
-                                                         </Grid>
-
-                                                         <Grid>
-                                                             <Grid.ColumnDefinitions>
-                                                                 <ColumnDefinition Width="Auto"/>
-                                                                 <ColumnDefinition Width="90"/>
-                                                             </Grid.ColumnDefinitions>
-                                                             <TextBlock Text="Sound lead (ms):"
-                                                                        VerticalAlignment="Center"
-                                                                        Margin="0,0,8,0"
-                                                                        FontWeight="SemiBold"/>
-                                                             <TextBox Grid.Column="1"
-                                                                      Text="{Binding UnlockSoundLeadMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
                                                          </Grid>
 
                                                          <Grid Margin="0,8,0,0">
@@ -4004,6 +3931,24 @@
                                                        TextWrapping="Wrap"
                                                        Style="{StaticResource MutedTextStyle}"/>
                                         </DockPanel>
+
+                                        <DockPanel Margin="0,0,0,4" LastChildFill="False">
+                                            <TextBlock Text="Sound lead (ms):"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBox x:Name="NotificationsUnlockSoundLeadMillisecondsTextBox"
+                                                     Width="90"
+                                                     VerticalContentAlignment="Center"
+                                                     TextChanged="NotificationsUnlockSoundLeadMillisecondsTextBox_TextChanged"
+                                                     LostFocus="NotificationsUnlockSoundLeadMillisecondsTextBox_LostFocus"/>
+                                        </DockPanel>
+
+                                        <TextBlock Text="Positive values start the sound before the overlay. Negative values show the overlay first and delay the sound."
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="0,0,0,8"
+                                                   TextWrapping="Wrap"/>
 
                                         <TextBlock Text="Steam is the default sound and cannot be removed. Use Add File or Add Folder to include more .wav sounds, then pick one from the Sound list."
                                                    Style="{StaticResource MutedTextStyle}"

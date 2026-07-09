@@ -96,6 +96,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Removed duplicated variables in the `Achievement Notification`
+- Moved `Sound lead` to the sound part
+- removed the limit in the `Sound lead`, it can now accept negative values
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path

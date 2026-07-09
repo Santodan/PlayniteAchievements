@@ -248,7 +248,6 @@ namespace PlayniteAchievements.Services
                 return;
             }
 
-            PlayCustomSound(customSoundPath);
             var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
             var resolvedProviderKey = string.IsNullOrWhiteSpace(notificationProviderKey) ? "Local" : notificationProviderKey.Trim();
             var enableInAppNotification = localSettings?.EnableInAppUnlockNotifications != false;
@@ -307,7 +306,12 @@ namespace PlayniteAchievements.Services
 
             if (achievements.Count > 0)
             {
-                var soundLeadMs = Math.Max(0, localSettings?.UnlockSoundLeadMilliseconds ?? 0);
+                var soundLeadMs = localSettings?.UnlockSoundLeadMilliseconds ?? 0;
+                void PlayUnlockSound()
+                {
+                    PlayCustomSound(customSoundPath);
+                }
+
                 void SendAllUnlockPopups()
                 {
                     foreach (var achievement in achievements)
@@ -330,6 +334,7 @@ namespace PlayniteAchievements.Services
 
                 if (soundLeadMs > 0)
                 {
+                    PlayUnlockSound();
                     _ = Task.Run(async () =>
                     {
                         try
@@ -343,8 +348,25 @@ namespace PlayniteAchievements.Services
                         }
                     });
                 }
+                else if (soundLeadMs < 0)
+                {
+                    SendAllUnlockPopups();
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromMilliseconds(Math.Abs((long)soundLeadMs))).ConfigureAwait(false);
+                            PlayUnlockSound();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "Failed to play delayed Local unlock sound.");
+                        }
+                    });
+                }
                 else
                 {
+                    PlayUnlockSound();
                     SendAllUnlockPopups();
                 }
             }

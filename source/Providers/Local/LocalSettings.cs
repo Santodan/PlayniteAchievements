@@ -666,7 +666,7 @@ namespace PlayniteAchievements.Providers.Local
         public int UnlockSoundLeadMilliseconds
         {
             get => _unlockSoundLeadMilliseconds;
-            set => SetValue(ref _unlockSoundLeadMilliseconds, Math.Max(0, Math.Min(3000, value)));
+            set => SetValue(ref _unlockSoundLeadMilliseconds, value);
         }
 
         public double OverlaySteamOpacity
