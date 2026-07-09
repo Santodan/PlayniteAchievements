@@ -1297,6 +1297,49 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
         }
 
         [TestMethod]
+        public void DynamicBindings_LocalProviderIgnoresUnknownPlatformKey()
+        {
+            PercentRarityHelper.Configure(5, 10, 50);
+
+            using var context = CreateServiceContext();
+            var gameId = Guid.NewGuid();
+            context.AchievementDataService.AllGameData = new List<GameAchievementData>
+            {
+                new GameAchievementData
+                {
+                    PlayniteGameId = gameId,
+                    ProviderKey = "Local",
+                    ProviderPlatformKey = "Unknown",
+                    Game = new Game
+                    {
+                        Id = gameId,
+                        Name = "Local Summary",
+                        LastActivity = Utc(2026, 4, 7, 12, 0, 0)
+                    },
+                    HasAchievements = true,
+                    Achievements = new List<AchievementDetail>
+                    {
+                        Achievement("Local Unlock", 25.0, unlocked: true, unlockTimeUtc: Utc(2026, 3, 5, 10, 0, 0)),
+                        Achievement("Local Locked", 80.0, unlocked: false)
+                    }
+                }
+            };
+
+            context.Settings.OpenAchievementWindow.Execute(null);
+
+            var summary = FindSummary(context.Settings.DynamicGameSummaries, gameId);
+            Assert.AreEqual("Local", summary.ProviderKey);
+            Assert.AreEqual("Local", summary.ProviderName);
+            Assert.AreEqual("Local", summary.Platform);
+            CollectionAssert.Contains(
+                context.Settings.DynamicGameSummariesProviderOptions.Select(item => item.Key).ToList(),
+                "Local");
+            CollectionAssert.AreEqual(
+                new[] { "Local", "Local" },
+                context.Settings.DynamicLibraryAchievements.Select(item => item.ProviderKey).ToArray());
+        }
+
+        [TestMethod]
         public void DynamicBindings_ExposeOptionsAndWritableKeysForComboBoxes()
         {
             PercentRarityHelper.Configure(5, 10, 50);
