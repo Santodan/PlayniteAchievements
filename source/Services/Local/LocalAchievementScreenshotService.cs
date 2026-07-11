@@ -52,7 +52,10 @@ namespace PlayniteAchievements.Services.Local
                     await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                 }
 
-                var targetDirectory = ResolveTargetDirectory(settings);
+                var timestamp = DateTime.Now;
+                var unlockCount = unlockedAchievements.Count;
+                var achievementName = ResolveBatchAchievementName(unlockedAchievements);
+                var targetDirectory = ResolveTargetDirectory(settings, game, achievementName, timestamp, 1, unlockCount);
                 if (string.IsNullOrWhiteSpace(targetDirectory))
                 {
                     return;
@@ -67,11 +70,8 @@ namespace PlayniteAchievements.Services.Local
                         return;
                     }
 
-                    var timestamp = DateTime.Now;
-                    var unlockCount = unlockedAchievements.Count;
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var achievementName = ResolveBatchAchievementName(unlockedAchievements);
                     var baseFileName = BuildFileName(settings, game, achievementName, timestamp, 1, unlockCount);
                     var extension = GetFileExtension(settings);
                     var outputPath = BuildUniquePath(targetDirectory, baseFileName, extension);
@@ -107,7 +107,7 @@ namespace PlayniteAchievements.Services.Local
             return string.Format(CultureInfo.InvariantCulture, "{0} (+{1} more)", names[0], names.Count - 1);
         }
 
-        private static string ResolveTargetDirectory(LocalSettings settings)
+        private static string ResolveTargetDirectory(LocalSettings settings, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount)
         {
             var configuredPath = settings?.EffectiveScreenshotSaveFolder?.Trim();
             if (string.IsNullOrWhiteSpace(configuredPath))
@@ -117,7 +117,8 @@ namespace PlayniteAchievements.Services.Local
 
             try
             {
-                return Path.GetFullPath(configuredPath);
+                var expandedPath = ReplaceTokens(configuredPath, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: true);
+                return Path.GetFullPath(expandedPath);
             }
             catch
             {
@@ -189,39 +190,63 @@ namespace PlayniteAchievements.Services.Local
                 ? LocalSettings.DefaultScreenshotFilenameTemplate
                 : settings.ScreenshotFilenameTemplate;
 
-            var sourceName = game?.Source?.Name ?? string.Empty;
-            var replaced = TokenPattern.Replace(template, match =>
-            {
-                switch (match.Groups[1].Value.ToLowerInvariant())
-                {
-                    case "gamename":
-                        return game?.Name ?? string.Empty;
-                    case "achievementname":
-                        return achievementName ?? string.Empty;
-                    case "date":
-                        return timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-                    case "time":
-                        return timestamp.ToString("HH-mm-ss", CultureInfo.InvariantCulture);
-                    case "datetime":
-                        return timestamp.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
-                    case "source":
-                        return sourceName;
-                    case "provider":
-                        return ProviderName;
-                    case "gameid":
-                        return game?.Id.ToString() ?? string.Empty;
-                    case "unlockindex":
-                        return unlockIndex.ToString(CultureInfo.InvariantCulture);
-                    case "unlockcount":
-                        return unlockCount.ToString(CultureInfo.InvariantCulture);
-                    default:
-                        return match.Value;
-                }
-            });
+            var replaced = ReplaceTokens(template, game, achievementName, timestamp, unlockIndex, unlockCount, sanitizeValues: false);
 
             return SanitizeFileName(string.IsNullOrWhiteSpace(replaced)
                 ? LocalSettings.DefaultScreenshotFilenameTemplate
                 : replaced);
+        }
+
+        private static string ReplaceTokens(string template, Game game, string achievementName, DateTime timestamp, int unlockIndex, int unlockCount, bool sanitizeValues)
+        {
+            var sourceName = game?.Source?.Name ?? string.Empty;
+            return TokenPattern.Replace(template ?? string.Empty, match =>
+            {
+                string value;
+                switch (match.Groups[1].Value.ToLowerInvariant())
+                {
+                    case "gamename":
+                        value = game?.Name ?? string.Empty;
+                        break;
+                    case "achievementname":
+                        value = achievementName ?? string.Empty;
+                        break;
+                    case "date":
+                        value = timestamp.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                        break;
+                    case "time":
+                        value = timestamp.ToString("HH-mm-ss", CultureInfo.InvariantCulture);
+                        break;
+                    case "datetime":
+                        value = timestamp.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+                        break;
+                    case "source":
+                        value = sourceName;
+                        break;
+                    case "provider":
+                        value = ProviderName;
+                        break;
+                    case "gameid":
+                        value = game?.Id.ToString() ?? string.Empty;
+                        break;
+                    case "unlockindex":
+                        value = unlockIndex.ToString(CultureInfo.InvariantCulture);
+                        break;
+                    case "unlockcount":
+                        value = unlockCount.ToString(CultureInfo.InvariantCulture);
+                        break;
+                    default:
+                        return match.Value;
+                }
+
+                return sanitizeValues ? SanitizePathComponent(value) : value;
+            });
+        }
+
+        private static string SanitizePathComponent(string value)
+        {
+            var sanitized = SanitizeFileName(value);
+            return string.Equals(sanitized, "unlock_screenshot", StringComparison.Ordinal) ? "_" : sanitized;
         }
 
         private static string SanitizeFileName(string value)

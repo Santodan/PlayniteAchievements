@@ -52,6 +52,8 @@ namespace PlayniteAchievements.Views
         private System.Collections.ObjectModel.ObservableCollection<AchievementDisplayItem> _mockCompactListItems;
         private TextBox _lastNotificationTemplateTextBox;
         private int _lastNotificationTemplateCaretIndex;
+        private TextBox _lastScreenshotTemplateTextBox;
+        private int _lastScreenshotTemplateCaretIndex;
         private readonly ObservableCollection<NotificationCustomIconOption> _notificationCustomIconOptions = new ObservableCollection<NotificationCustomIconOption>();
         private readonly Dictionary<string, List<SvgRepoSearchResult>> _svgRepoSearchCache = new Dictionary<string, List<SvgRepoSearchResult>>(StringComparer.OrdinalIgnoreCase);
 
@@ -862,6 +864,39 @@ namespace PlayniteAchievements.Views
             target.SelectionLength = 0;
             _lastNotificationTemplateTextBox = target;
             _lastNotificationTemplateCaretIndex = caret;
+            target.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+        }
+
+        private void ScreenshotTemplate_SelectionChanged(object sender, RoutedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox != null)
+            {
+                _lastScreenshotTemplateTextBox = textBox;
+                _lastScreenshotTemplateCaretIndex = Math.Max(0, Math.Min(textBox.SelectionStart, textBox.Text?.Length ?? 0));
+            }
+        }
+
+        private void ScreenshotFilenameToken_Click(object sender, RoutedEventArgs e)
+        {
+            var token = (sender as FrameworkElement)?.Tag as string;
+            var target = _lastScreenshotTemplateTextBox ?? NotificationsScreenshotFilenameTemplateTextBox;
+            if (string.IsNullOrWhiteSpace(token) || target == null)
+            {
+                return;
+            }
+
+            var text = target.Text ?? string.Empty;
+            var start = Math.Max(0, Math.Min(_lastScreenshotTemplateCaretIndex, text.Length));
+            var selectionLength = Math.Max(0, Math.Min(target.SelectionLength, text.Length - start));
+            target.Text = text.Substring(0, start) + token + text.Substring(start + selectionLength);
+
+            var caret = start + token.Length;
+            target.Focus();
+            target.SelectionStart = caret;
+            target.SelectionLength = 0;
+            _lastScreenshotTemplateTextBox = target;
+            _lastScreenshotTemplateCaretIndex = caret;
             target.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
         }
 

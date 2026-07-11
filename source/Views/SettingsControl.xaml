@@ -4066,9 +4066,11 @@
                                                         DockPanel.Dock="Right"
                                                         Margin="8,0,0,0"
                                                         Click="NotificationsScreenshotSaveFolder_Click"/>
-                                                <TextBox Text="{Binding ScreenshotSaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox x:Name="NotificationsScreenshotSaveFolderTextBox"
+                                                         Text="{Binding ScreenshotSaveFolder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                          VerticalContentAlignment="Center"
-                                                         ToolTip="Leave empty to use the default Pictures\PlayniteAchievements\UnlockScreenshots folder."/>
+                                                         SelectionChanged="ScreenshotTemplate_SelectionChanged"
+                                                         ToolTip="Leave empty to use the default Pictures\PlayniteAchievements\UnlockScreenshots folder. Wildcards are supported."/>
                                             </DockPanel>
 
                                             <DockPanel Margin="0,0,0,6">
@@ -4077,10 +4079,31 @@
                                                            Margin="0,0,8,0"
                                                            Foreground="{DynamicResource TextBrush}"
                                                            FontWeight="SemiBold"/>
-                                                <TextBox Text="{Binding ScreenshotFilenameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox x:Name="NotificationsScreenshotFilenameTemplateTextBox"
+                                                         Text="{Binding ScreenshotFilenameTemplate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                          VerticalContentAlignment="Center"
+                                                         SelectionChanged="ScreenshotTemplate_SelectionChanged"
                                                          ToolTip="Supported tokens: &lt;gameName&gt; &lt;achievementName&gt; &lt;date&gt; &lt;time&gt; &lt;dateTime&gt; &lt;source&gt; &lt;provider&gt; &lt;gameId&gt; &lt;unlockIndex&gt; &lt;unlockCount&gt;. PNG is added automatically."/>
                                             </DockPanel>
+
+                                            <StackPanel Margin="0,0,0,6">
+                                                <TextBlock Text="Click a wildcard to insert it at the cursor in the selected folder or filename field."
+                                                           Style="{StaticResource MutedTextStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,0,0,6"/>
+                                                <WrapPanel>
+                                                    <Button Content="&lt;gameName&gt;" Tag="&lt;gameName&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;achievementName&gt;" Tag="&lt;achievementName&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;date&gt;" Tag="&lt;date&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;time&gt;" Tag="&lt;time&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;dateTime&gt;" Tag="&lt;dateTime&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;source&gt;" Tag="&lt;source&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;provider&gt;" Tag="&lt;provider&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;gameId&gt;" Tag="&lt;gameId&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;unlockIndex&gt;" Tag="&lt;unlockIndex&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                    <Button Content="&lt;unlockCount&gt;" Tag="&lt;unlockCount&gt;" Click="ScreenshotFilenameToken_Click" Margin="0,0,6,6"/>
+                                                </WrapPanel>
+                                            </StackPanel>
 
                                             <DockPanel Margin="0,0,0,6" LastChildFill="False">
                                                 <TextBlock Text="Capture delay (ms):"

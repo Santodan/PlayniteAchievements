@@ -10,6 +10,7 @@
 [![Playnite SDK](https://img.shields.io/badge/Playnite%20SDK-6.14.0-6366f1?style=for-the-badge)](https://playnite.link/)
 [![Downloads](https://img.shields.io/github/downloads/Santodan/PlayniteAchievements/total?style=for-the-badge&label=Total%20Downloads&color=10b981)](https://github.com/Santodan/PlayniteAchievements/releases)
 [![Latest Release Downloads](https://img.shields.io/github/downloads/Santodan/PlayniteAchievements/latest/total?style=for-the-badge&label=Latest%20Release%20Downloads&color=8b5cf6&cacheSeconds=3600)](https://github.com/Santodan/PlayniteAchievements/releases/latest)
+[![\Stars](https://img.shields.io/github/stars/Santodan/PlayniteAchievements?style=for-the-badge&logo=github&label=Stars&color=f59e0b)](https://github.com/Santodan/PlayniteAchievements/stargazers)
 
 </div>
 
@@ -101,6 +102,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Moved `Sound lead` to the sound part
 - Removed the limit in the `Sound lead`, it can now accept negative values
 - Added notification for `Prestige` and `Collection` level up and tier up
+- Added wildcards to the `Save Folder` for the `Achievement Notification` screenshot
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
@@ -141,6 +143,10 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the missing right click options in the `Game Summary`
 - Fixed the locked achievements have the same icon
 - Fixed the Achievements rarity not been filled when there is no achievement file
+
+
+## Old Changelogs
+<details>
 
 ## 2026-06-16 - v2.5.0.1
 - v2.5.0 merge
@@ -355,7 +361,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added initial support for Local saves.
 - Cleaned up leftover provider debug-path behavior during the early Local provider work.
 
-
+</details>
 
 ## Upstream Docs And Credits
 
