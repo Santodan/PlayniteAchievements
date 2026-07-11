@@ -1332,6 +1332,10 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     return;
                 }
 
+#if !TEST
+                PublishScoreProgressNotifications(persisted, library);
+#endif
+
                 persisted.LastAllGamesCollectorScore = library.CollectorScore;
                 persisted.LastAllGamesCollectorLevel = library.CollectorLevel;
                 persisted.LastAllGamesCollectorLevelProgress = library.CollectorLevelProgress;
@@ -1348,6 +1352,54 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 _logger?.Debug(ex, "Failed to persist all-games score snapshot.");
             }
         }
+
+#if !TEST
+        private void PublishScoreProgressNotifications(PersistedSettings persisted, LibraryRuntimeState library)
+        {
+            // A zero snapshot is startup/migration state, not an earned progression event.
+            if (persisted == null || library == null ||
+                (persisted.LastAllGamesCollectorScore <= 0 && persisted.LastAllGamesPrestigeScore <= 0))
+            {
+                return;
+            }
+
+            var local = ProviderRegistry.Settings<Providers.Local.LocalSettings>();
+            if (local == null) return;
+            var publisher = new NotificationPublisher(_api, _settings, _logger);
+
+            PublishScoreProgress(
+                publisher, "Collection", local.CollectionProgressNotifications, local,
+                persisted.LastAllGamesCollectorScore, persisted.LastAllGamesCollectorLevel, persisted.LastAllGamesCollectorRank,
+                library.CollectorScore, library.CollectorLevel, library.CollectorRank);
+            PublishScoreProgress(
+                publisher, "Prestige", local.PrestigeProgressNotifications, local,
+                persisted.LastAllGamesPrestigeScore, persisted.LastAllGamesPrestigeLevel, persisted.LastAllGamesPrestigeRank,
+                library.PrestigeScore, library.PrestigeLevel, library.PrestigeRank);
+        }
+
+        private static void PublishScoreProgress(
+            NotificationPublisher publisher,
+            string scoreName,
+            Providers.Local.ScoreProgressNotificationSettings notification,
+            Providers.Local.LocalSettings local,
+            int oldScore,
+            int oldLevel,
+            string oldRank,
+            int newScore,
+            int newLevel,
+            string newRank)
+        {
+            if (notification == null || oldScore <= 0 || newScore <= oldScore) return;
+            if (notification.NotifyTierUp && !string.Equals(oldRank, newRank, StringComparison.Ordinal))
+            {
+                publisher.SendScoreProgressNotification(scoreName, "tier", newLevel, newRank, notification, local);
+            }
+            else if (notification.NotifyLevelUp && newLevel > oldLevel)
+            {
+                publisher.SendScoreProgressNotification(scoreName, "level", newLevel, newRank, notification, local);
+            }
+        }
+#endif
 
         private void PreserveExistingScoresDuringTransientRebuild(LibraryRuntimeState library)
         {

@@ -1036,6 +1036,19 @@ namespace PlayniteAchievements.Views
                     {
                         localSettings.BundledUnlockSoundPath = selectedOption.SoundPath;
                     }
+
+                    CollectionProgressSoundComboBox.ItemsSource = _notificationSoundOptions;
+                    PrestigeProgressSoundComboBox.ItemsSource = _notificationSoundOptions;
+                    if (string.IsNullOrWhiteSpace(localSettings.CollectionProgressNotifications.SoundPath))
+                    {
+                        localSettings.CollectionProgressNotifications.SoundPath = localSettings.UnlockSoundPath;
+                    }
+                    if (string.IsNullOrWhiteSpace(localSettings.PrestigeProgressNotifications.SoundPath))
+                    {
+                        localSettings.PrestigeProgressNotifications.SoundPath = localSettings.UnlockSoundPath;
+                    }
+                    CollectionProgressSoundComboBox.SelectedValue = localSettings.CollectionProgressNotifications.SoundPath;
+                    PrestigeProgressSoundComboBox.SelectedValue = localSettings.PrestigeProgressNotifications.SoundPath;
                 }
                 finally
                 {
@@ -1495,6 +1508,32 @@ namespace PlayniteAchievements.Views
             }
 
             UpdateNotificationSoundButtons();
+        }
+
+        private void ScoreProgressSoundBrowse_Click(object sender, RoutedEventArgs e)
+        {
+            var path = _plugin?.PlayniteApi?.Dialogs?.SelectFile("Wave files|*.wav|All files|*.*");
+            if (string.IsNullOrWhiteSpace(path)) return;
+            var local = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (local == null) return;
+            var isPrestige = string.Equals((sender as FrameworkElement)?.Tag as string, "Prestige", StringComparison.OrdinalIgnoreCase);
+            if (isPrestige) local.PrestigeProgressNotifications.SoundPath = path;
+            else local.CollectionProgressNotifications.SoundPath = path;
+            AddNotificationSoundEntries(local, new[] { path }, autoSelectFirstAdded: false);
+            if (isPrestige) PrestigeProgressSoundComboBox.SelectedValue = path;
+            else CollectionProgressSoundComboBox.SelectedValue = path;
+        }
+
+        private void ScoreProgressNotificationTest_Click(object sender, RoutedEventArgs e)
+        {
+            var local = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (local == null) return;
+            var isPrestige = string.Equals((sender as FrameworkElement)?.Tag as string, "Prestige", StringComparison.OrdinalIgnoreCase);
+            var config = isPrestige ? local.PrestigeProgressNotifications : local.CollectionProgressNotifications;
+            var scoreName = isPrestige ? "Prestige" : "Collection";
+            new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger)
+                .SendScoreProgressNotification(scoreName, "tier", 12, "Gold2", config, local);
+            NotificationsUnlockSoundStatusTextBlock.Text = $"Tested {scoreName} score notification.";
         }
 
         private void NotificationsAddSoundFile_Click(object sender, RoutedEventArgs e)

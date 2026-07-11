@@ -3958,6 +3958,61 @@
 
                                 <Separator Margin="0,16,0,16"/>
 
+                                <!-- Collection / Prestige progress notifications -->
+                                <Border Style="{StaticResource SettingGroupCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Score Progress Notifications" Style="{StaticResource SubSectionHeaderStyle}" Margin="0,0,0,6"/>
+                                        <TextBlock Text="Reuse a saved custom-style slot when your Collection or Prestige score reaches a new level or tier. Tier notifications take priority when both happen together."
+                                                   Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                        <GroupBox Header="Collection Score" Margin="0,0,0,8">
+                                            <StackPanel Margin="8">
+                                                <WrapPanel Margin="0,0,0,6">
+                                                    <CheckBox Content="Notify on level up" IsChecked="{Binding CollectionProgressNotifications.NotifyLevelUp, Mode=TwoWay}" Margin="0,0,18,0"/>
+                                                    <CheckBox Content="Notify on tier up" IsChecked="{Binding CollectionProgressNotifications.NotifyTierUp, Mode=TwoWay}"/>
+                                                </WrapPanel>
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock Text="Saved style:" Width="90" VerticalAlignment="Center"/>
+                                                    <ComboBox ItemsSource="{Binding CustomOverlayStyleSlots}" DisplayMemberPath="Name" SelectedIndex="{Binding CollectionProgressNotifications.CustomStyleSlotIndex, Mode=TwoWay}" MinWidth="220"/>
+                                                </DockPanel>
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock Text="Sound:" Width="90" VerticalAlignment="Center"/>
+                                                    <ComboBox x:Name="CollectionProgressSoundComboBox" Width="240" DisplayMemberPath="DisplayName"
+                                                              SelectedValuePath="SoundPath" SelectedValue="{Binding CollectionProgressNotifications.SoundPath, Mode=TwoWay}"/>
+                                                    <Button Content="Browse" Tag="Collection" Width="72" Margin="8,0,0,0" Click="ScoreProgressSoundBrowse_Click"/>
+                                                    <TextBlock Text="Lead (ms):" Margin="12,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBox Width="70" Text="{Binding CollectionProgressNotifications.SoundLeadMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                    <Button Content="Test" Tag="Collection" Width="58" Margin="8,0,0,0" Click="ScoreProgressNotificationTest_Click"/>
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </GroupBox>
+
+                                        <GroupBox Header="Prestige Score">
+                                            <StackPanel Margin="8">
+                                                <WrapPanel Margin="0,0,0,6">
+                                                    <CheckBox Content="Notify on level up" IsChecked="{Binding PrestigeProgressNotifications.NotifyLevelUp, Mode=TwoWay}" Margin="0,0,18,0"/>
+                                                    <CheckBox Content="Notify on tier up" IsChecked="{Binding PrestigeProgressNotifications.NotifyTierUp, Mode=TwoWay}"/>
+                                                </WrapPanel>
+                                                <DockPanel Margin="0,0,0,6">
+                                                    <TextBlock Text="Saved style:" Width="90" VerticalAlignment="Center"/>
+                                                    <ComboBox ItemsSource="{Binding CustomOverlayStyleSlots}" DisplayMemberPath="Name" SelectedIndex="{Binding PrestigeProgressNotifications.CustomStyleSlotIndex, Mode=TwoWay}" MinWidth="220"/>
+                                                </DockPanel>
+                                                <DockPanel LastChildFill="False">
+                                                    <TextBlock Text="Sound:" Width="90" VerticalAlignment="Center"/>
+                                                    <ComboBox x:Name="PrestigeProgressSoundComboBox" Width="240" DisplayMemberPath="DisplayName"
+                                                              SelectedValuePath="SoundPath" SelectedValue="{Binding PrestigeProgressNotifications.SoundPath, Mode=TwoWay}"/>
+                                                    <Button Content="Browse" Tag="Prestige" Width="72" Margin="8,0,0,0" Click="ScoreProgressSoundBrowse_Click"/>
+                                                    <TextBlock Text="Lead (ms):" Margin="12,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBox Width="70" Text="{Binding PrestigeProgressNotifications.SoundLeadMilliseconds, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                    <Button Content="Test" Tag="Prestige" Width="58" Margin="8,0,0,0" Click="ScoreProgressNotificationTest_Click"/>
+                                                </DockPanel>
+                                            </StackPanel>
+                                        </GroupBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <Separator Margin="0,16,0,16"/>
+
                                 <!-- Screenshots -->
                                 <Border Style="{StaticResource SettingGroupCardStyle}"
                                         IsEnabled="{Binding EnableActiveGameMonitoring}">

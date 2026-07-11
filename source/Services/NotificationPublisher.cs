@@ -1540,6 +1540,51 @@ steamImage +
             }
         }
 
+        public void SendScoreProgressNotification(
+            string scoreName,
+            string changeName,
+            int level,
+            string tier,
+            ScoreProgressNotificationSettings notification,
+            LocalSettings baseSettings)
+        {
+            if (notification == null || baseSettings == null) return;
+            var localSettings = baseSettings.CreateProgressNotificationCopy(notification);
+            var detail = string.Equals(changeName, "tier", StringComparison.OrdinalIgnoreCase)
+                ? $"{scoreName} tier reached: {tier}"
+                : $"{scoreName} level reached: {level}";
+            var soundPath = string.IsNullOrWhiteSpace(notification.SoundPath)
+                ? baseSettings.UnlockSoundPath
+                : notification.SoundPath;
+            Action showPopup = () => SendUnlockPopup(
+                    "Achievement Collection",
+                    detail,
+                    providerKey: "Local",
+                    forcedStyle: NotificationStyleCustom,
+                    overrideLocalSettings: localSettings,
+                    achievementDescription: $"{scoreName} score progress",
+                    achievementPoints: level,
+                    achievementRarity: tier,
+                    achievementTrophy: tier);
+
+            var lead = notification.SoundLeadMilliseconds;
+            if (lead > 0)
+            {
+                PlayCustomSound(soundPath);
+                Task.Delay(lead).ContinueWith(_ => showPopup());
+            }
+            else if (lead < 0)
+            {
+                showPopup();
+                Task.Delay(Math.Abs(lead)).ContinueWith(_ => PlayCustomSound(soundPath));
+            }
+            else
+            {
+                showPopup();
+                PlayCustomSound(soundPath);
+            }
+        }
+
         private void WarmUpSanWebView2()
         {
             if (_sanWebViewWarmupStarted)

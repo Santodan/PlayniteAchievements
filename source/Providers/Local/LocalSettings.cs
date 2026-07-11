@@ -54,6 +54,15 @@ namespace PlayniteAchievements.Providers.Local
         Hybrid = 2
     }
 
+    public sealed class ScoreProgressNotificationSettings
+    {
+        public bool NotifyLevelUp { get; set; }
+        public bool NotifyTierUp { get; set; }
+        public int CustomStyleSlotIndex { get; set; }
+        public string SoundPath { get; set; } = string.Empty;
+        public int SoundLeadMilliseconds { get; set; }
+    }
+
     public enum LocalUnlockOverlayPosition
     {
         TopRight = 0,
@@ -521,6 +530,8 @@ namespace PlayniteAchievements.Providers.Local
         private string _bundledUnlockSoundPath = string.Empty;
         private string _customUnlockSoundPath = string.Empty;
         private string _extraUnlockSoundPaths = string.Empty;
+        private ScoreProgressNotificationSettings _collectionProgressNotifications = new ScoreProgressNotificationSettings();
+        private ScoreProgressNotificationSettings _prestigeProgressNotifications = new ScoreProgressNotificationSettings();
         private LocalSteamSchemaPreference _steamSchemaPreference = LocalSteamSchemaPreference.PreferSteam;
         private LocalImportedGameLibraryTarget _importedGameLibraryTarget = LocalImportedGameLibraryTarget.None;
         private string _importedGameCustomSourceName = string.Empty;
@@ -1615,6 +1626,53 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _extraUnlockSoundPaths;
             set => SetValue(ref _extraUnlockSoundPaths, value ?? string.Empty);
+        }
+
+        public ScoreProgressNotificationSettings CollectionProgressNotifications
+        {
+            get => _collectionProgressNotifications ?? (_collectionProgressNotifications = new ScoreProgressNotificationSettings());
+            set => SetValue(ref _collectionProgressNotifications, value ?? new ScoreProgressNotificationSettings());
+        }
+
+        public ScoreProgressNotificationSettings PrestigeProgressNotifications
+        {
+            get => _prestigeProgressNotifications ?? (_prestigeProgressNotifications = new ScoreProgressNotificationSettings());
+            set => SetValue(ref _prestigeProgressNotifications, value ?? new ScoreProgressNotificationSettings());
+        }
+
+        public LocalSettings CreateProgressNotificationCopy(ScoreProgressNotificationSettings notification)
+        {
+            var copy = (LocalSettings)Clone();
+            var slots = copy.CustomOverlayStyleSlots;
+            if (slots == null || slots.Count == 0)
+            {
+                return copy;
+            }
+
+            var index = Math.Max(0, Math.Min(slots.Count - 1, notification?.CustomStyleSlotIndex ?? 0));
+            ApplyCustomStyleSlot(copy, slots[index]);
+            return copy;
+        }
+
+        public static void ApplyCustomStyleSlot(LocalSettings target, LocalCustomOverlayStyleSlot slot)
+        {
+            if (target == null || slot == null) return;
+            foreach (var sourceProperty in typeof(LocalCustomOverlayStyleSlot).GetProperties())
+            {
+                if (!sourceProperty.CanRead || sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.Name)) continue;
+                var targetName = "OverlayCustom" + sourceProperty.Name;
+                if (sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.TransitionStyle)) targetName = nameof(UnlockOverlayTransitionStyle);
+                else if (sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.CustomIconPath)) targetName = nameof(OverlayCustomIconPath);
+                else if (sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.SecondaryCustomIconPath)) targetName = nameof(OverlayCustomSecondaryIconPath);
+                else if (sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.CustomCoverImagePath)) targetName = nameof(OverlayCustomCoverImagePath);
+                else if (sourceProperty.Name == nameof(LocalCustomOverlayStyleSlot.CustomBannerImagePath)) targetName = nameof(OverlayCustomBannerImagePath);
+
+                var targetProperty = typeof(LocalSettings).GetProperty(targetName) ?? typeof(LocalSettings).GetProperty(sourceProperty.Name);
+                if (targetProperty?.CanWrite == true && targetProperty.PropertyType == sourceProperty.PropertyType)
+                {
+                    targetProperty.SetValue(target, sourceProperty.GetValue(slot));
+                }
+            }
         }
 
         public string BundledUnlockSoundPath

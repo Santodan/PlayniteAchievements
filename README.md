@@ -96,9 +96,11 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Trying to make the WebView notification quicker
 - Removed duplicated variables in the `Achievement Notification`
 - Moved `Sound lead` to the sound part
-- removed the limit in the `Sound lead`, it can now accept negative values
+- Removed the limit in the `Sound lead`, it can now accept negative values
+- Added notification for `Prestige` and `Collection` level up and tier up
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
