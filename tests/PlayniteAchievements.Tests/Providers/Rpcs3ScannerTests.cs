@@ -281,6 +281,52 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_MultiRegionTropdir_PrefersTrophySetInRpcs3Cache()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Demons Souls");
+
+            try
+            {
+                // Only the EUR trophy set exists in the RPCS3 trophy cache.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR00033_00", "Demon's Souls", "EUR Cache Trophy");
+
+                // Multi-region dump: TROPDIR carries a trophy set per region and the
+                // set that is not in the cache enumerates first.
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "TROPDIR", "NPWR00011_00", "TROPHY.TRP"),
+                    "NPWR00011_00",
+                    "Demon's Souls",
+                    "JAP Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "TROPDIR", "NPWR00033_00", "TROPHY.TRP"),
+                    "NPWR00033_00",
+                    "Demon's Souls",
+                    "EUR Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Demon's Souls",
+                    InstallDirectory = gameRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("EUR Cache Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_NpwrOverride_DisablesCollectionExpansion()
         {
             var tempDir = CreateTempDirectory();
