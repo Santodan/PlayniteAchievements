@@ -1415,6 +1415,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 trpPaths.Add(Path.Combine(dir, "PS3_GAME", "TROPHY", "TROPHY.TRP"));
             }
 
+            // Multi-region dumps carry several trophy sets (e.g. TROPDIR/NPWR_EUR, NPWR_US, NPWR_JAP).
+            // Prefer the set RPCS3 actually created a trophy folder for; only fall back to the
+            // first valid TRP when none match the cache (pre-launch case).
+            string fallbackNpcommid = null;
+            string fallbackTrpPath = null;
+
             foreach (var trpPath in trpPaths)
             {
                 if (!File.Exists(trpPath))
@@ -1425,15 +1431,22 @@ namespace PlayniteAchievements.Providers.RPCS3
                 try
                 {
                     var npcommid = ExtractNpCommIdFromTrpFile(trpPath);
-                    // Return if found in cache OR if we just have a valid TRP file (for pre-launch fallback)
-                    if (!string.IsNullOrWhiteSpace(npcommid))
+                    if (string.IsNullOrWhiteSpace(npcommid))
                     {
-                        if (trophyFolderCache.ContainsKey(npcommid))
-                        {
-                            return (npcommid, trpPath);
-                        }
-                        // Not in cache but valid TRP - still return for pre-launch fallback
-                        return (npcommid, trpPath);
+                        continue;
+                    }
+
+                    var normalized = Rpcs3MatchIdHelper.Normalize(npcommid) ?? npcommid;
+                    if (trophyFolderCache?.ContainsKey(normalized) == true)
+                    {
+                        _logger?.Info($"[RPCS3-DIAG] FindNpCommIdAndTrpFromInstalledGame: '{normalized}' from '{trpPath}' matches RPCS3 trophy cache - selected");
+                        return (normalized, trpPath);
+                    }
+
+                    if (fallbackNpcommid == null)
+                    {
+                        fallbackNpcommid = normalized;
+                        fallbackTrpPath = trpPath;
                     }
                 }
                 catch
@@ -1442,7 +1455,12 @@ namespace PlayniteAchievements.Providers.RPCS3
                 }
             }
 
-            return (null, null);
+            if (fallbackNpcommid != null)
+            {
+                _logger?.Info($"[RPCS3-DIAG] FindNpCommIdAndTrpFromInstalledGame: no trophy set under '{gameDirectory}' matches the RPCS3 trophy cache - falling back to first valid TRP '{fallbackNpcommid}' at '{fallbackTrpPath}' (pre-launch)");
+            }
+
+            return (fallbackNpcommid, fallbackTrpPath);
         }
 
         /// <summary>
