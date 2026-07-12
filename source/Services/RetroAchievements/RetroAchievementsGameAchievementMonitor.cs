@@ -9,6 +9,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.RetroAchievements;
+using PlayniteAchievements.Services.Local;
 
 namespace PlayniteAchievements.Services.RetroAchievements
 {
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.Services.RetroAchievements
         private readonly ICacheManager _cacheManager;
         private readonly ProviderRegistry _providerRegistry;
         private readonly NotificationPublisher _notifications;
+        private readonly LocalAchievementScreenshotService _screenshotService;
         private readonly Func<Guid, bool> _isRealtimeNotificationDisabled;
         private readonly Func<Guid, bool> _isExcludedFromRefreshes;
         private readonly Func<Game, CancellationToken, Task> _refreshGameInExtensionAsync;
@@ -37,6 +39,7 @@ namespace PlayniteAchievements.Services.RetroAchievements
             ICacheManager cacheManager,
             ProviderRegistry providerRegistry,
             NotificationPublisher notifications,
+            LocalAchievementScreenshotService screenshotService,
             Func<Guid, bool> isRealtimeNotificationDisabled,
             Func<Guid, bool> isExcludedFromRefreshes,
             Func<Game, CancellationToken, Task> refreshGameInExtensionAsync,
@@ -45,6 +48,7 @@ namespace PlayniteAchievements.Services.RetroAchievements
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
             _providerRegistry = providerRegistry ?? throw new ArgumentNullException(nameof(providerRegistry));
             _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
+            _screenshotService = screenshotService ?? throw new ArgumentNullException(nameof(screenshotService));
             _isRealtimeNotificationDisabled = isRealtimeNotificationDisabled;
             _isExcludedFromRefreshes = isExcludedFromRefreshes;
             _refreshGameInExtensionAsync = refreshGameInExtensionAsync;
@@ -174,6 +178,9 @@ namespace PlayniteAchievements.Services.RetroAchievements
                             .ToList();
 
                         _logger?.Info($"[RAMonitor] {newlyUnlocked.Count} new RetroAchievements unlock(s) for '{game.Name}'.");
+
+                        var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
+                        _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
 
                         if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
                         {

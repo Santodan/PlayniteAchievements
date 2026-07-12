@@ -104,6 +104,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added notification for `Prestige` and `Collection` level up and tier up
 - Added wildcards to the `Save Folder` for the `Achievement Notification` screenshot
 - Fixed `Auto resize window to fit text` not working with SAN elements / transitions
+- Fixed the screenshot feature nto working with the `API Verification` for `exophase` and `RetroAchievements`
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
