@@ -1345,6 +1345,7 @@ steamImage +
             {
                 var canvasWidth = (int)Math.Ceiling(Math.Max(1, width));
                 var canvasHeight = (int)Math.Ceiling(Math.Max(1, height));
+                var autoResizeToContent = settings.OverlayCustomAutoResizeToContent;
                 var isSanTransition = IsSanTransitionStyle(settings.UnlockOverlayTransitionStyle);
                 var overlayOpacity = Math.Max(0.35, Math.Min(1.0, settings.OverlayCustomOpacity));
                 var fadeInMs = settings.UnlockOverlayFadeInMilliseconds;
@@ -1423,6 +1424,32 @@ steamImage +
                         await webView.EnsureCoreWebView2Async();
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+                        if (autoResizeToContent)
+                        {
+                            webView.CoreWebView2.WebMessageReceived += (_, messageArgs) =>
+                            {
+                                const string prefix = "san-height:";
+                                var message = messageArgs.TryGetWebMessageAsString();
+                                if (string.IsNullOrWhiteSpace(message) || !message.StartsWith(prefix, StringComparison.Ordinal))
+                                {
+                                    return;
+                                }
+
+                                if (!double.TryParse(message.Substring(prefix.Length), NumberStyles.Float, CultureInfo.InvariantCulture, out var measuredHeight))
+                                {
+                                    return;
+                                }
+
+                                var resizedHeight = Math.Max(canvasHeight, Math.Min(2000, Math.Ceiling(measuredHeight)));
+                                if (Math.Abs(window.Height - resizedHeight) < 1)
+                                {
+                                    return;
+                                }
+
+                                window.Height = resizedHeight;
+                                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState));
+                            };
+                        }
                         webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
                         if (!isSanTransition && !persistentPreviewRequested)
                         {
@@ -2268,6 +2295,28 @@ window.setTimeout(() => {{
   }});
 if (!visibleText) document.body.classList.add('san-webview-force-visible');
 }}, 250);
+if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
+  let lastSanHeight = 0;
+  const reportSanContentHeight = () => {{
+    let bottom = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    document.querySelectorAll('body *').forEach(el => {{
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') return;
+      const rect = el.getBoundingClientRect();
+      if (Number.isFinite(rect.bottom)) bottom = Math.max(bottom, rect.bottom);
+    }});
+    const measured = Math.ceil(bottom + 2);
+    if (measured > lastSanHeight) {{
+      lastSanHeight = measured;
+      document.documentElement.style.setProperty('--notifyheight', measured + 'px');
+      if (window.chrome && window.chrome.webview) window.chrome.webview.postMessage('san-height:' + measured);
+    }}
+  }};
+  window.addEventListener('load', reportSanContentHeight);
+  window.setTimeout(reportSanContentHeight, 50);
+  window.setTimeout(reportSanContentHeight, 300);
+  window.setTimeout(reportSanContentHeight, 800);
+}}
 </script>";
 
             var manualCss = SanitizeInlineCss(settings?.OverlayCustomManualElementCss);
@@ -4185,7 +4234,6 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
             var root = new Border
             {
                 Width = customWidth,
-                Height = customHeight,
                 Background = bannerSource == null ? backgroundBrush : Brushes.Transparent,
                 BorderBrush = borderBrush,
                 BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
@@ -4200,6 +4248,15 @@ if (!visibleText) document.body.classList.add('san-webview-force-visible');
                     Color = Colors.Black
                 }
             };
+
+            if (settings?.OverlayCustomAutoResizeToContent == true)
+            {
+                root.MinHeight = customHeight;
+            }
+            else
+            {
+                root.Height = customHeight;
+            }
 
             var container = new Grid
             {
