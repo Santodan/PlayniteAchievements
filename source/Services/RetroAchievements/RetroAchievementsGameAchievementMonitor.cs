@@ -179,9 +179,6 @@ namespace PlayniteAchievements.Services.RetroAchievements
 
                         _logger?.Info($"[RAMonitor] {newlyUnlocked.Count} new RetroAchievements unlock(s) for '{game.Name}'.");
 
-                        var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
-                        _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
-
                         if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
                         {
                             _logger?.Info($"[RAMonitor] Skipped notification for '{game.Name}' because real-time notifications are disabled for this game.");
@@ -195,6 +192,8 @@ namespace PlayniteAchievements.Services.RetroAchievements
                                 localSettings?.UnlockSoundPath,
                                 game: game,
                                 notificationProviderKey: "RetroAchievements");
+                            var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
+                            _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                         }
                     }
                     else if (previousSnapshot == null && currentSnapshot != null)
@@ -238,6 +237,12 @@ namespace PlayniteAchievements.Services.RetroAchievements
             if (_isExcludedFromRefreshes?.Invoke(game.Id) == true)
             {
                 _logger?.Info($"[RAMonitor] Skipping monitor for '{game.Name}' because the game is excluded from refreshes.");
+                return false;
+            }
+
+            if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
+            {
+                _logger?.Info($"[RAMonitor] Skipping monitor for '{game.Name}' because real-time notifications are disabled for this game.");
                 return false;
             }
 

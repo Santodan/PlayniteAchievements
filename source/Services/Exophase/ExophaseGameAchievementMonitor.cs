@@ -166,9 +166,6 @@ namespace PlayniteAchievements.Services.Exophase
 
                         _logger?.Info($"[ExophaseMonitor] {newlyUnlocked.Count} new Exophase unlock(s) for '{game.Name}'.");
 
-                        var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
-                        _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
-
                         if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
                         {
                             _logger?.Info($"[ExophaseMonitor] Skipped notification for '{game.Name}' (disabled for this game).");
@@ -183,6 +180,8 @@ namespace PlayniteAchievements.Services.Exophase
                                 soundPath,
                                 game: game,
                                 notificationProviderKey: "Exophase");
+                            var unlockNames = newlyUnlocked.Select(i => i.DisplayName).ToList();
+                            _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                         }
 
                         QueueRefreshGameInExtensionAfterUnlock(game);
@@ -222,6 +221,12 @@ namespace PlayniteAchievements.Services.Exophase
             if (_isExcludedFromRefreshes?.Invoke(game.Id) == true)
             {
                 _logger?.Info($"[ExophaseMonitor] Skipping monitor for '{game.Name}' because the game is excluded from refreshes.");
+                return false;
+            }
+
+            if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
+            {
+                _logger?.Info($"[ExophaseMonitor] Skipping monitor for '{game.Name}' because real-time notifications are disabled for this game.");
                 return false;
             }
 

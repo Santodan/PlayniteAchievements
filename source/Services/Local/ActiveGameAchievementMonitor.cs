@@ -171,9 +171,8 @@ namespace PlayniteAchievements.Services.Local
                         unlockNotifications,
                         soundPath,
                         game: game);
+                    _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                 }
-
-                _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                 QueueRefreshGameInExtensionAfterUnlock(game);
 
                 lock (_sync)
@@ -275,7 +274,6 @@ namespace PlayniteAchievements.Services.Local
 
                         _logger?.Info($"Detected {newlyUnlocked.Count} newly unlocked Local achievement(s) for '{game.Name}'.");
 
-                        _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                         if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
                         {
                             _logger?.Info($"Skipped Local unlock notification for '{game.Name}' because real-time notifications are disabled for this game.");
@@ -287,6 +285,7 @@ namespace PlayniteAchievements.Services.Local
                                 unlockNotifications,
                                 soundPath,
                                 game: game);
+                            _ = _screenshotService.TryCaptureUnlockScreenshotsAsync(game, unlockNames, cancellationToken);
                         }
 
                         QueueRefreshGameInExtensionAfterUnlock(game);
@@ -335,6 +334,12 @@ namespace PlayniteAchievements.Services.Local
             if (_isExcludedFromRefreshes?.Invoke(game.Id) == true)
             {
                 _logger?.Info($"Skipping active Local achievement monitor for '{game.Name}' because the game is excluded from refreshes.");
+                return false;
+            }
+
+            if (_isRealtimeNotificationDisabled?.Invoke(game.Id) == true)
+            {
+                _logger?.Info($"Skipping active Local achievement monitor for '{game.Name}' because real-time notifications are disabled for this game.");
                 return false;
             }
 
