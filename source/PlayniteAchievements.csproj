@@ -223,8 +223,6 @@
   </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>if exist "$(MSBuildProjectDirectory)\Localization\*.xaml" xcopy "$(MSBuildProjectDirectory)\Localization\*.xaml" "$(MSBuildProjectDirectory)\$(OutputPath)Localization" /Y /I /E
-if exist "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll" xcopy "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x86\native\WebView2Loader.dll" "$(TargetDir)x86\" /Y /I
-if exist "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x64\native\WebView2Loader.dll" xcopy "$(MSBuildProjectDirectory)\packages\Microsoft.Web.WebView2.1.0.2592.51\runtimes\win-x64\native\WebView2Loader.dll" "$(TargetDir)x64\" /Y /I
 if exist "$(LocalAppData)\Playnite\Toolbox.exe" if exist "$(LocalAppData)\Playnite\Playnite.dll" (
     "$(LocalAppData)\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"
     if errorlevel 1 if exist "E:\Programs\Playnite\Toolbox.exe" if exist "E:\Programs\Playnite\Playnite.dll" "E:\Programs\Playnite\Toolbox.exe" pack "$(MSBuildProjectDirectory)\$(OutputPath)." "$(MSBuildProjectDirectory)\bin"

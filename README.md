@@ -98,6 +98,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 ## Next release - TBD
 
 - Trying to make the WebView notification quicker
+- Fixed a duplicate playnite window in the `ALT+TAB` menu in windows
 - Removed duplicated variables in the `Achievement Notification`
 - Moved `Sound lead` to the sound part
 - Removed the limit in the `Sound lead`, it can now accept negative values

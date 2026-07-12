@@ -18,6 +18,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Newtonsoft.Json.Linq;
 using Playnite.SDK;
@@ -53,6 +54,7 @@ namespace PlayniteAchievements.Services
         private static readonly object WebView2LoaderSync = new object();
         private static bool _webView2LoaderConfigured;
         private static bool _sanWebViewWarmupStarted;
+        private static Task<CoreWebView2Environment> _sanWebViewEnvironmentTask;
         private static Window _sanWebViewWarmupWindow;
         private static WebView2 _sanWebViewWarmupControl;
 
@@ -1420,8 +1422,8 @@ steamImage +
                 {
                     try
                     {
-                        ConfigureWebView2LoaderDirectory();
-                        await webView.EnsureCoreWebView2Async();
+                        var environment = await GetSanWebView2EnvironmentAsync();
+                        await webView.EnsureCoreWebView2Async(environment);
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
                         if (autoResizeToContent)
@@ -1633,8 +1635,7 @@ steamImage +
                 {
                     try
                     {
-                        ConfigureWebView2LoaderDirectory();
-
+                        var environment = await GetSanWebView2EnvironmentAsync();
                         var webView = new WebView2
                         {
                             Width = 1,
@@ -1644,10 +1645,11 @@ steamImage +
 
                         var window = new Window
                         {
+                            Owner = _api?.Dialogs?.GetCurrentAppWindow(),
                             Content = webView,
                             Width = 1,
                             Height = 1,
-                            WindowStyle = WindowStyle.None,
+                            WindowStyle = WindowStyle.ToolWindow,
                             ResizeMode = ResizeMode.NoResize,
                             AllowsTransparency = true,
                             Background = Brushes.Transparent,
@@ -1664,18 +1666,19 @@ steamImage +
                         _sanWebViewWarmupControl = webView;
                         window.Show();
 
-                        await webView.EnsureCoreWebView2Async();
+                        await webView.EnsureCoreWebView2Async(environment);
                         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
                         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
                         webView.NavigateToString("<!doctype html><html><head><meta charset=\"utf-8\"></head><body></body></html>");
-                        _logger?.Debug("[LocalOverlay] SAN WebView2 warm-up completed.");
+                        _logger?.Debug("[LocalOverlay] SAN WebView2 controller warm-up completed.");
                     }
                     catch (Exception ex)
                     {
-                        _logger?.Debug(ex, "[LocalOverlay] SAN WebView2 warm-up failed.");
+                        _logger?.Debug(ex, "[LocalOverlay] SAN WebView2 controller warm-up failed.");
                         try
                         {
                             _sanWebViewWarmupWindow?.Close();
+                            _sanWebViewWarmupControl?.Dispose();
                         }
                         catch
                         {
@@ -1689,6 +1692,20 @@ steamImage +
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "[LocalOverlay] Failed to schedule SAN WebView2 warm-up.");
+            }
+        }
+
+        private Task<CoreWebView2Environment> GetSanWebView2EnvironmentAsync()
+        {
+            lock (WebView2LoaderSync)
+            {
+                if (_sanWebViewEnvironmentTask == null)
+                {
+                    ConfigureWebView2LoaderDirectory();
+                    _sanWebViewEnvironmentTask = CoreWebView2Environment.CreateAsync();
+                }
+
+                return _sanWebViewEnvironmentTask;
             }
         }
 
