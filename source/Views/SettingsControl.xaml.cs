@@ -3676,6 +3676,7 @@ namespace PlayniteAchievements.Views
         private void NotificationsTransitionStyleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            NormalizeImportedSanPresentationWhenDisabled(localSettings);
             RefreshSanViewDurationControls(localSettings);
             RefreshSanCompatibilityControls(localSettings);
         }
@@ -3683,8 +3684,30 @@ namespace PlayniteAchievements.Views
         private void NotificationsSanElementsComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            NormalizeImportedSanPresentationWhenDisabled(localSettings);
             RefreshSanViewDurationControls(localSettings);
             RefreshSanCompatibilityControls(localSettings);
+        }
+
+        private static void NormalizeImportedSanPresentationWhenDisabled(Providers.Local.LocalSettings localSettings)
+        {
+            if (localSettings == null ||
+                IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) ||
+                !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId) ||
+                string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanPresetId))
+            {
+                return;
+            }
+
+            // Imported SAN templates carry renderer-specific layout and icon choices.
+            // Once neither a SAN transition nor a standalone SAN element is selected,
+            // restore the standard custom-card presentation while keeping the SAN data
+            // available if the user selects a SAN option again.
+            localSettings.OverlayCustomLayoutStyle = LocalCustomOverlayLayoutStyle.Standard;
+            localSettings.OverlayCustomAnimationStyle = LocalCustomOverlayAnimationStyle.Standard;
+            localSettings.OverlayCustomIconSource = LocalOverlayIconSource.AchievementIcon;
+            localSettings.OverlayCustomSecondaryIconSource = LocalOverlayIconSource.None;
+            localSettings.OverlayCustomShowSecondaryIcon = false;
         }
 
         private void RefreshSanCompatibilityControls(Providers.Local.LocalSettings localSettings)
