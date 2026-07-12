@@ -2840,6 +2840,23 @@
                                                 Click="NotificationsPreviewAllStyles_Click"/>
                                     </Grid>
 
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="260"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Preview achievement:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                        <ComboBox Grid.Column="2"
+                                            x:Name="NotificationsPreviewAchievementComboBox"
+                                            MinWidth="240"
+                                            IsEditable="True"
+                                            IsTextSearchEnabled="True"
+                                            StaysOpenOnEdit="True"
+                                            DisplayMemberPath="DisplayName"
+                                            SelectionChanged="NotificationsPreviewAchievementComboBox_SelectionChanged"/>
+                                    </Grid>
+
                                          <DockPanel Margin="0,0,0,6" Visibility="Collapsed">
                                              <TextBlock Text="Overlay preset style:"
                                                  VerticalAlignment="Center"
@@ -3024,6 +3041,10 @@
                                                                  <ColumnDefinition Width="70"/>
                                                                  <ColumnDefinition Width="20"/>
                                                                  <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="8"/>
+                                                                 <ColumnDefinition Width="52"/>
+                                                                 <ColumnDefinition Width="16"/>
+                                                                 <ColumnDefinition Width="Auto"/>
                                                              </Grid.ColumnDefinitions>
                                                              <TextBlock Text="Primary icon source:"
                                                                         VerticalAlignment="Center"
@@ -3046,7 +3067,11 @@
                                                                         FontWeight="SemiBold"/>
                                                              <TextBox Grid.Column="4"
                                                                       Text="{Binding OverlayCustomIconSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
-                                                             <CheckBox Grid.Column="6"
+                                                             <TextBlock Grid.Column="6" Text="Corners:" VerticalAlignment="Center"/>
+                                                             <TextBox Grid.Column="8"
+                                                                      Width="52"
+                                                                      Text="{Binding OverlayCustomIconCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                             <CheckBox Grid.Column="10"
                                                                        Content="Rarity glow behind icon"
                                                                        IsChecked="{Binding OverlayCustomShowIconRarityGlow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                        VerticalAlignment="Center"/>
@@ -3061,7 +3086,11 @@
                                                                  <ColumnDefinition Width="70"/>
                                                                  <ColumnDefinition Width="20"/>
                                                                  <ColumnDefinition Width="Auto"/>
-                                                                 <ColumnDefinition Width="20"/>
+                                                                 <ColumnDefinition Width="8"/>
+                                                                 <ColumnDefinition Width="52"/>
+                                                                 <ColumnDefinition Width="16"/>
+                                                                 <ColumnDefinition Width="Auto"/>
+                                                                 <ColumnDefinition Width="16"/>
                                                                  <ColumnDefinition Width="Auto"/>
                                                              </Grid.ColumnDefinitions>
                                                              <TextBlock Text="Secondary icon source:"
@@ -3087,11 +3116,15 @@
                                                                         FontWeight="SemiBold"/>
                                                              <TextBox Grid.Column="4"
                                                                       Text="{Binding OverlayCustomSecondaryIconSize, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
-                                                             <CheckBox Grid.Column="6"
+                                                             <TextBlock Grid.Column="6" Text="Corners:" VerticalAlignment="Center"/>
+                                                             <TextBox Grid.Column="8"
+                                                                      Width="52"
+                                                                      Text="{Binding OverlayCustomSecondaryIconCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                             <CheckBox Grid.Column="10"
                                                                        Content="Rarity glow behind icon"
                                                                        IsChecked="{Binding OverlayCustomShowSecondaryIconRarityGlow, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                        VerticalAlignment="Center"/>
-                                                             <CheckBox Grid.Column="8"
+                                                             <CheckBox Grid.Column="12"
                                                                        Content="Place next to primary"
                                                                        IsChecked="{Binding OverlayCustomSecondaryIconNextToPrimary, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                        IsEnabled="{Binding OverlayCustomShowSecondaryIcon}"

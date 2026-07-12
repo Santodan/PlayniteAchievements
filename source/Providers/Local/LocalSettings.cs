@@ -185,6 +185,8 @@ namespace PlayniteAchievements.Providers.Local
         public bool ShowMeta { get; set; }
         public double IconSize { get; set; } = 58;
         public double SecondaryIconSize { get; set; } = 58;
+        public double IconCornerRadius { get; set; } = 10;
+        public double SecondaryIconCornerRadius { get; set; } = 10;
         public double Width { get; set; } = 460;
         public double Height { get; set; } = 128;
         public double CornerRadius { get; set; } = 18;
@@ -380,6 +382,8 @@ namespace PlayniteAchievements.Providers.Local
         private double _overlayCustomScale = 1.00;
         private double _overlayCustomIconSize = 58;
         private double _overlayCustomSecondaryIconSize = 58;
+        private double _overlayCustomIconCornerRadius = 10;
+        private double _overlayCustomSecondaryIconCornerRadius = 10;
         private double _overlayCustomWidth = 460;
         private double _overlayCustomHeight = 128;
         private double _overlayCustomCornerRadius = 18;
@@ -1628,6 +1632,18 @@ namespace PlayniteAchievements.Providers.Local
             set => SetValue(ref _extraUnlockSoundPaths, value ?? string.Empty);
         }
 
+        public double OverlayCustomIconCornerRadius
+        {
+            get => _overlayCustomIconCornerRadius;
+            set => SetValue(ref _overlayCustomIconCornerRadius, Math.Max(0, Math.Min(110, value)));
+        }
+
+        public double OverlayCustomSecondaryIconCornerRadius
+        {
+            get => _overlayCustomSecondaryIconCornerRadius;
+            set => SetValue(ref _overlayCustomSecondaryIconCornerRadius, Math.Max(0, Math.Min(110, value)));
+        }
+
         public ScoreProgressNotificationSettings CollectionProgressNotifications
         {
             get => _collectionProgressNotifications ?? (_collectionProgressNotifications = new ScoreProgressNotificationSettings());
@@ -2201,6 +2217,8 @@ namespace PlayniteAchievements.Providers.Local
                     ShowMeta = slot.ShowMeta,
                     IconSize = Math.Max(24, Math.Min(220, slot.IconSize <= 0 ? 58 : slot.IconSize)),
                     SecondaryIconSize = Math.Max(24, Math.Min(220, slot.SecondaryIconSize <= 0 ? (slot.IconSize <= 0 ? 58 : slot.IconSize) : slot.SecondaryIconSize)),
+                    IconCornerRadius = Math.Max(0, Math.Min(110, slot.IconCornerRadius)),
+                    SecondaryIconCornerRadius = Math.Max(0, Math.Min(110, slot.SecondaryIconCornerRadius)),
                     Width = Math.Max(280, Math.Min(900, slot.Width)),
                     Height = Math.Max(MinCustomOverlayHeight, Math.Min(320, slot.Height)),
                     CornerRadius = Math.Max(0, Math.Min(180, slot.CornerRadius)),

@@ -46,6 +46,10 @@ namespace PlayniteAchievements.Models.Settings
 
         public double SecondaryIconSize { get; set; }
 
+        public double IconCornerRadius { get; set; } = 10;
+
+        public double SecondaryIconCornerRadius { get; set; } = 10;
+
         public string IconSource { get; set; } = LocalOverlayIconSource.AchievementIcon.ToString();
 
         public string SecondaryIconSource { get; set; } = LocalOverlayIconSource.None.ToString();

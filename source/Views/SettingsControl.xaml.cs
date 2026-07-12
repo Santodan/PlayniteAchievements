@@ -607,6 +607,7 @@ namespace PlayniteAchievements.Views
         private readonly ObservableCollection<NotificationStyleOption> _notificationStyleOptions = new ObservableCollection<NotificationStyleOption>();
         private readonly ObservableCollection<NotificationProviderOption> _notificationProviderOptions = new ObservableCollection<NotificationProviderOption>();
         private readonly ObservableCollection<NotificationPreviewGameOption> _notificationPreviewGameOptions = new ObservableCollection<NotificationPreviewGameOption>();
+        private readonly ObservableCollection<NotificationPreviewAchievementOption> _notificationPreviewAchievementOptions = new ObservableCollection<NotificationPreviewAchievementOption>();
         private readonly ObservableCollection<CustomStyleSlotOption> _customStyleSlotOptions = new ObservableCollection<CustomStyleSlotOption>();
         private readonly DispatcherTimer _notificationAutoPopupPreviewTimer;
         private readonly DispatcherTimer _notificationInlinePreviewLoopTimer;
@@ -651,6 +652,13 @@ namespace PlayniteAchievements.Views
             public string DisplayName { get; set; }
 
             public Game Game { get; set; }
+        }
+
+        private sealed class NotificationPreviewAchievementOption
+        {
+            public string DisplayName { get; set; }
+
+            public AchievementDetail Achievement { get; set; }
         }
 
         private sealed class CustomStyleSlotOption
@@ -1182,6 +1190,8 @@ namespace PlayniteAchievements.Views
                 case nameof(Providers.Local.LocalSettings.OverlayCustomCornerRadius):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomIconSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomSecondaryIconSize):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomIconCornerRadius):
+                case nameof(Providers.Local.LocalSettings.OverlayCustomSecondaryIconCornerRadius):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomTitleFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomDetailFontSize):
                 case nameof(Providers.Local.LocalSettings.OverlayCustomMetaFontSize):
@@ -1697,19 +1707,21 @@ namespace PlayniteAchievements.Views
 
             var previewGame = GetSelectedNotificationPreviewGame();
             var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+            var previewAchievement = GetSelectedNotificationPreviewAchievement();
 
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             publisher.SendUnlockPopup(
                 previewGameName,
-                $"Preview ({styleOption.DisplayName})",
+                previewAchievement?.DisplayName ?? $"Preview ({styleOption.DisplayName})",
+                achievementIconPath: previewAchievement?.UnlockedIconPath,
                 providerKey: providerOption.ProviderKey,
                 forcedStyle: styleOption.StyleKey,
                 overrideLocalSettings: localSettings,
                 game: previewGame,
-                achievementDescription: "Win your first fight without taking damage.",
-                achievementPoints: 25,
-                achievementRarity: "12.7%",
-                achievementTrophy: "Gold");
+                achievementDescription: previewAchievement?.Description ?? "Win your first fight without taking damage.",
+                achievementPoints: previewAchievement?.Points ?? 25,
+                achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "12.7%"),
+                achievementTrophy: previewAchievement?.TrophyType ?? "Gold");
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed {styleOption.DisplayName} style for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
         }
 
@@ -1728,21 +1740,23 @@ namespace PlayniteAchievements.Views
 
             var previewGame = GetSelectedNotificationPreviewGame();
             var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+            var previewAchievement = GetSelectedNotificationPreviewAchievement();
 
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             foreach (var style in _notificationStyleOptions)
             {
                 publisher.SendUnlockPopup(
                     previewGameName,
-                    $"Preview ({style.DisplayName})",
+                    previewAchievement?.DisplayName ?? $"Preview ({style.DisplayName})",
+                    achievementIconPath: previewAchievement?.UnlockedIconPath,
                     providerKey: providerOption.ProviderKey,
                     forcedStyle: style.StyleKey,
                     overrideLocalSettings: localSettings,
                     game: previewGame,
-                    achievementDescription: "Win your first fight without taking damage.",
-                    achievementPoints: 25,
-                    achievementRarity: "12.7%",
-                    achievementTrophy: "Gold");
+                    achievementDescription: previewAchievement?.Description ?? "Win your first fight without taking damage.",
+                    achievementPoints: previewAchievement?.Points ?? 25,
+                    achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "12.7%"),
+                    achievementTrophy: previewAchievement?.TrophyType ?? "Gold");
             }
 
             NotificationsUnlockSoundStatusTextBlock.Text = $"Previewed all styles for {providerOption.DisplayName} using {localSettings.UnlockNotificationDeliveryMode}.";
@@ -1833,6 +1847,7 @@ namespace PlayniteAchievements.Views
 
                 var previewGame = GetSelectedNotificationPreviewGame();
                 var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+                var previewAchievement = GetSelectedNotificationPreviewAchievement();
                 var previewProviderKey = ResolveCurrentNotificationTestProviderKey();
                 var hasSanTemplate = (IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) ||
                     !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId)) &&
@@ -1851,14 +1866,14 @@ namespace PlayniteAchievements.Views
                 var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
                 publisher.ShowLocalAchievementUnlocked(
                     previewGameName,
-                    new[] { "Test Achievement" },
+                    new[] { previewAchievement?.DisplayName ?? "Test Achievement" },
                     soundPath,
-                    unlockedAchievementIconPath: null,
+                    unlockedAchievementIconPath: previewAchievement?.UnlockedIconPath,
                     game: previewGame,
-                    achievementDescription: "Test description for preview.",
-                    achievementPoints: 25,
-                    achievementRarity: "52.4%",
-                    achievementTrophy: "Gold",
+                    achievementDescription: previewAchievement?.Description ?? "Test description for preview.",
+                    achievementPoints: previewAchievement?.Points ?? 25,
+                    achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "52.4%"),
+                    achievementTrophy: previewAchievement?.TrophyType ?? "Gold",
                     forcedStyle: resolvedStyle,
                     forcedDeliveryMode: forcedDeliveryMode,
                     overrideLocalSettings: localSettings,
@@ -2169,6 +2184,7 @@ namespace PlayniteAchievements.Views
             NotificationsPreviewGameComboBox.ItemsSource = _notificationPreviewGameOptions;
             NotificationsPreviewGameComboBox.SelectedItem = _notificationPreviewGameOptions.FirstOrDefault(option => option.Game?.Id == selectedGameId)
                 ?? _notificationPreviewGameOptions.FirstOrDefault();
+            RefreshNotificationPreviewAchievementOptions();
         }
 
         private Game GetSelectedNotificationPreviewGame()
@@ -2176,7 +2192,73 @@ namespace PlayniteAchievements.Views
             return (NotificationsPreviewGameComboBox?.SelectedItem as NotificationPreviewGameOption)?.Game;
         }
 
+        private AchievementDetail GetSelectedNotificationPreviewAchievement()
+        {
+            return (NotificationsPreviewAchievementComboBox?.SelectedItem as NotificationPreviewAchievementOption)?.Achievement;
+        }
+
+        private static string FormatPreviewAchievementRarity(AchievementDetail achievement, string fallback)
+        {
+            return achievement?.GlobalPercentUnlocked.HasValue == true
+                ? achievement.GlobalPercentUnlocked.Value.ToString("0.#", CultureInfo.InvariantCulture) + "%"
+                : fallback;
+        }
+
+        private void RefreshNotificationPreviewAchievementOptions()
+        {
+            if (NotificationsPreviewAchievementComboBox == null)
+            {
+                return;
+            }
+
+            var selectedApiName = GetSelectedNotificationPreviewAchievement()?.ApiName;
+            var game = GetSelectedNotificationPreviewGame();
+            var achievements = game == null
+                ? new List<AchievementDetail>()
+                : (_plugin?.AchievementDataService?.GetVisibleGameAchievementData(game.Id)?.Achievements ?? new List<AchievementDetail>())
+                    .Where(achievement => achievement != null)
+                    .OrderBy(achievement => achievement.DisplayName)
+                    .ToList();
+
+            _notificationPreviewAchievementOptions.Clear();
+            _notificationPreviewAchievementOptions.Add(new NotificationPreviewAchievementOption
+            {
+                DisplayName = "Sample achievement",
+                Achievement = null
+            });
+
+            foreach (var achievement in achievements)
+            {
+                _notificationPreviewAchievementOptions.Add(new NotificationPreviewAchievementOption
+                {
+                    DisplayName = string.IsNullOrWhiteSpace(achievement.DisplayName) ? achievement.ApiName : achievement.DisplayName,
+                    Achievement = achievement
+                });
+            }
+
+            NotificationsPreviewAchievementComboBox.ItemsSource = _notificationPreviewAchievementOptions;
+            NotificationsPreviewAchievementComboBox.IsEnabled = game != null && achievements.Count > 0;
+            NotificationsPreviewAchievementComboBox.SelectedItem = _notificationPreviewAchievementOptions
+                .FirstOrDefault(option => string.Equals(option.Achievement?.ApiName, selectedApiName, StringComparison.Ordinal))
+                ?? _notificationPreviewAchievementOptions.FirstOrDefault();
+        }
+
         private void NotificationsPreviewGameComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RefreshNotificationPreviewAchievementOptions();
+            var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
+            if (localSettings != null)
+            {
+                UpdateCustomStyleInlinePreview(localSettings);
+            }
+
+            if (NotificationsAutoPopupPreviewCheckBox?.IsChecked == true)
+            {
+                ScheduleAutoPopupPreview();
+            }
+        }
+
+        private void NotificationsPreviewAchievementComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var localSettings = _providerRegistry?.GetSettingsForEdit("Local") as Providers.Local.LocalSettings;
             if (localSettings != null)
@@ -3584,11 +3666,13 @@ namespace PlayniteAchievements.Views
 
             var previewGame = GetSelectedNotificationPreviewGame();
             var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+            var previewAchievement = GetSelectedNotificationPreviewAchievement();
 
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             publisher.SendUnlockPopup(
                 previewGameName,
-                "Sample Achievement",
+                previewAchievement?.DisplayName ?? "Sample Achievement",
+                achievementIconPath: previewAchievement?.UnlockedIconPath,
                 providerKey: ResolveCurrentNotificationTestProviderKey(),
                 forcedStyle: NotificationPublisher.NotificationStyleCustom,
                 forcedDeliveryMode: LocalUnlockNotificationDeliveryMode.Overlay,
@@ -3596,10 +3680,10 @@ namespace PlayniteAchievements.Views
                 game: previewGame,
                 togglePersistentOverlay: forceStatusMessage,
                 refreshPersistentOverlay: !forceStatusMessage,
-                achievementDescription: "Win your first fight without taking damage.",
-                achievementPoints: 25,
-                achievementRarity: "12.7%",
-                achievementTrophy: "Gold");
+                achievementDescription: previewAchievement?.Description ?? "Win your first fight without taking damage.",
+                achievementPoints: previewAchievement?.Points ?? 25,
+                achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "12.7%"),
+                achievementTrophy: previewAchievement?.TrophyType ?? "Gold");
 
             if (forceStatusMessage)
             {
@@ -3947,6 +4031,8 @@ namespace PlayniteAchievements.Views
                 ShowMeta = localSettings.OverlayCustomShowMeta,
                 IconSize = localSettings.OverlayCustomIconSize,
                 SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
+                IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
+                SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
                 Width = localSettings.OverlayCustomWidth,
                 Height = localSettings.OverlayCustomHeight,
                 CornerRadius = localSettings.OverlayCustomCornerRadius,
@@ -4139,6 +4225,8 @@ namespace PlayniteAchievements.Views
                         ShowMeta = localSettings.OverlayCustomShowMeta,
                         IconSize = localSettings.OverlayCustomIconSize,
                         SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
+                        IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
+                        SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
                         Width = localSettings.OverlayCustomWidth,
                         Height = localSettings.OverlayCustomHeight,
                         CornerRadius = localSettings.OverlayCustomCornerRadius,
@@ -4294,6 +4382,8 @@ namespace PlayniteAchievements.Views
                         SlideDistance = localSettings.UnlockOverlaySlideDistance,
                         IconSize = localSettings.OverlayCustomIconSize,
                         SecondaryIconSize = localSettings.OverlayCustomSecondaryIconSize,
+                        IconCornerRadius = localSettings.OverlayCustomIconCornerRadius,
+                        SecondaryIconCornerRadius = localSettings.OverlayCustomSecondaryIconCornerRadius,
                         IconSource = localSettings.OverlayCustomIconSource.ToString(),
                         SecondaryIconSource = localSettings.OverlayCustomSecondaryIconSource.ToString(),
                         EnableGameCoverInOverlay = localSettings.EnableGameCoverInOverlay,
@@ -4502,6 +4592,7 @@ namespace PlayniteAchievements.Views
             {
                 localSettings.OverlayCustomIconSize = imported.Transition.IconSize;
             }
+            localSettings.OverlayCustomIconCornerRadius = imported.Transition.IconCornerRadius;
 
             if (!string.IsNullOrWhiteSpace(imported.Transition.SecondaryIconSource) &&
                 Enum.TryParse(imported.Transition.SecondaryIconSource, true, out LocalOverlayIconSource parsedSecondaryIconSource))
@@ -4514,6 +4605,7 @@ namespace PlayniteAchievements.Views
             {
                 localSettings.OverlayCustomSecondaryIconSize = imported.Transition.SecondaryIconSize;
             }
+            localSettings.OverlayCustomSecondaryIconCornerRadius = imported.Transition.SecondaryIconCornerRadius;
 
             localSettings.OverlayCustomShowIconRarityGlow = imported.Transition.ShowIconRarityGlow;
             localSettings.OverlayCustomShowSecondaryIconRarityGlow = imported.Transition.ShowSecondaryIconRarityGlow;
@@ -5453,6 +5545,8 @@ namespace PlayniteAchievements.Views
             localSettings.OverlayCustomCornerRadius = slot.CornerRadius;
             localSettings.OverlayCustomIconSize = slot.IconSize;
             localSettings.OverlayCustomSecondaryIconSize = slot.SecondaryIconSize <= 0 ? slot.IconSize : slot.SecondaryIconSize;
+            localSettings.OverlayCustomIconCornerRadius = slot.IconCornerRadius;
+            localSettings.OverlayCustomSecondaryIconCornerRadius = slot.SecondaryIconCornerRadius;
             localSettings.OverlayCustomTitleFontSize = slot.TitleFontSize;
             localSettings.OverlayCustomDetailFontSize = slot.DetailFontSize;
             localSettings.OverlayCustomMetaFontSize = slot.MetaFontSize;
@@ -5790,18 +5884,20 @@ namespace PlayniteAchievements.Views
 
             var previewGame = GetSelectedNotificationPreviewGame();
             var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
+            var previewAchievement = GetSelectedNotificationPreviewAchievement();
             var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
             NotificationsCustomInlinePreviewHost.Content = publisher.CreateOverlayPreviewContent(
                 previewGameName,
-                "Sample Achievement",
+                previewAchievement?.DisplayName ?? "Sample Achievement",
                 forcedStyle: NotificationPublisher.NotificationStyleCustom,
                 providerKey: ResolveCurrentNotificationTestProviderKey(),
                 overrideLocalSettings: localSettings,
+                achievementIconPath: previewAchievement?.UnlockedIconPath,
                 game: previewGame,
-                achievementDescription: "Win your first fight without taking damage.",
-                achievementPoints: 25,
-                achievementRarity: "12.7%",
-                achievementTrophy: "Gold");
+                achievementDescription: previewAchievement?.Description ?? "Win your first fight without taking damage.",
+                achievementPoints: previewAchievement?.Points ?? 25,
+                achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "12.7%"),
+                achievementTrophy: previewAchievement?.TrophyType ?? "Gold");
 
             if (ShouldLoopCustomInlinePreview(localSettings))
             {

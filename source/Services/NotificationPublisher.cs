@@ -4144,6 +4144,8 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
             var iconSize = Math.Max(24, (settings?.OverlayCustomIconSize ?? 58) * overlayScale);
             var secondaryIconSize = Math.Max(24, (settings?.OverlayCustomSecondaryIconSize ?? settings?.OverlayCustomIconSize ?? 58) * overlayScale);
+            var iconCornerRadius = Math.Max(0, Math.Min(iconSize / 2, (settings?.OverlayCustomIconCornerRadius ?? 10) * overlayScale));
+            var secondaryIconCornerRadius = Math.Max(0, Math.Min(secondaryIconSize / 2, (settings?.OverlayCustomSecondaryIconCornerRadius ?? 10) * overlayScale));
             var titleSize = settings?.OverlayCustomTitleFontSize ?? 17;
             var detailSize = settings?.OverlayCustomDetailFontSize ?? 13;
             var metaSize = settings?.OverlayCustomMetaFontSize ?? 11;
@@ -4345,12 +4347,12 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 Width = iconSize,
                 Height = iconSize,
                 Background = iconBackground,
-                CornerRadius = new CornerRadius(isCompactSanCard ? Math.Max(2, cornerRadius / 3) : Math.Max(6, cornerRadius / 2.5)),
+                CornerRadius = new CornerRadius(iconCornerRadius),
                 Margin = new Thickness(0, 0, isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0)
             };
 
             var rarityKey = ResolveRarityKey(achievementRarity, achievementPoints);
-            icon.Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, iconSize, titleSize, rarityKey);
+            icon.Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, iconSize, titleSize, rarityKey, cornerRadius: iconCornerRadius);
             if (settings?.OverlayCustomShowIconRarityGlow == true)
             {
                 var glow = CreateIconRarityGlowEffect(rarityKey);
@@ -4375,9 +4377,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     Width = secondaryIconSize,
                     Height = secondaryIconSize,
                     Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)),
-                    CornerRadius = new CornerRadius(isCompactSanCard ? Math.Max(2, cornerRadius / 3) : Math.Max(6, cornerRadius / 2.5)),
+                    CornerRadius = new CornerRadius(secondaryIconCornerRadius),
                     Margin = new Thickness(0, 0, isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0),
-                    Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon)
+                    Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
                 };
                 if (settings?.OverlayCustomShowSecondaryIconRarityGlow == true)
                 {
@@ -4568,9 +4570,9 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                     Width = secondaryIconSize,
                     Height = secondaryIconSize,
                     Background = new SolidColorBrush(Color.FromArgb(24, 255, 255, 255)),
-                    CornerRadius = new CornerRadius(isCompactSanCard ? Math.Max(2, cornerRadius / 3) : Math.Max(6, cornerRadius / 2.5)),
+                    CornerRadius = new CornerRadius(secondaryIconCornerRadius),
                     Margin = new Thickness(isCompactSanCard ? Math.Max(6, 8 * overlayScale) : 14, 0, 0, 0),
-                    Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon)
+                    Child = CreateCustomOverlayIconContent(settings, rawIconPath, providerKey, titleBrush, secondaryIconSize, titleSize, rarityKey, settings?.OverlayCustomSecondaryIconSource ?? LocalOverlayIconSource.AchievementIcon, secondaryIconCornerRadius)
                 };
                 if (settings?.OverlayCustomShowSecondaryIconRarityGlow == true)
                 {
@@ -6566,7 +6568,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             }
         }
 
-        private FrameworkElement CreateCustomOverlayIconContent(LocalSettings settings, string rawIconPath, string providerKey, Brush titleBrush, double iconSize, double titleSize, string rarityKey, LocalOverlayIconSource? iconSourceOverride = null)
+        private FrameworkElement CreateCustomOverlayIconContent(LocalSettings settings, string rawIconPath, string providerKey, Brush titleBrush, double iconSize, double titleSize, string rarityKey, LocalOverlayIconSource? iconSourceOverride = null, double cornerRadius = 0)
         {
             var iconSourceMode = iconSourceOverride ?? settings?.OverlayCustomIconSource ?? LocalOverlayIconSource.AchievementIcon;
             var fallbackIconBrush = ParseBrushOrDefault(settings?.OverlayCustomAccentColor, Color.FromRgb(255, 255, 255));
@@ -6576,13 +6578,16 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 var iconSource = TryCreateOverlayImageSource(rawIconPath);
                 if (iconSource != null)
                 {
-                    return new Image
+                    var image = new Image
                     {
                         Source = iconSource,
                         Stretch = Stretch.UniformToFill,
                         Width = iconSize,
                         Height = iconSize
                     };
+                    var radius = Math.Max(0, Math.Min(iconSize / 2, cornerRadius));
+                    image.Clip = new RectangleGeometry(new Rect(0, 0, iconSize, iconSize), radius, radius);
+                    return image;
                 }
             }
 
