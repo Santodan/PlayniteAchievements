@@ -4241,14 +4241,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
                 BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
                 CornerRadius = new CornerRadius(cornerRadius),
                 Padding = new Thickness(0),
-                ClipToBounds = true,
-                Effect = new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    BlurRadius = 16,
-                    ShadowDepth = 0,
-                    Opacity = 0.55,
-                    Color = Colors.Black
-                }
+                ClipToBounds = true
             };
 
             if (settings?.OverlayCustomAutoResizeToContent == true)
