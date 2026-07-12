@@ -2934,12 +2934,12 @@
                                                      <Button Grid.Column="7"
                                                              Content="+"
                                                              ToolTip="Add slot"
-                                                             MinWidth="28"
+                                                             Width="28"
                                                              Click="NotificationsAddCustomStyleSlot_Click"/>
                                                      <Button Grid.Column="9"
-                                                             Content="âˆ’"
+                                                             Content="-"
                                                              ToolTip="Remove current slot"
-                                                             MinWidth="28"
+                                                             Width="28"
                                                              Click="NotificationsRemoveCustomStyleSlot_Click"/>
                                                      <Button Grid.Column="11"
                                                              Content="Clear all slots"
