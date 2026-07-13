@@ -822,7 +822,7 @@ namespace PlayniteAchievements
                 MessageBoxImage.Information);
         }
 
-        private void ClearGameDataAndOverrides(Game game)
+        internal void ClearGameDataAndOverrides(Game game)
         {
             if (game == null || game.Id == Guid.Empty)
             {
