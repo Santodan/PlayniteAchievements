@@ -2951,12 +2951,12 @@
                                                      <Button Grid.Column="7"
                                                              Content="+"
                                                              ToolTip="Add slot"
-                                                             Width="28"
+                                                             Width="90"
                                                              Click="NotificationsAddCustomStyleSlot_Click"/>
                                                      <Button Grid.Column="9"
                                                              Content="-"
                                                              ToolTip="Remove current slot"
-                                                             Width="28"
+                                                             Width="90"
                                                              Click="NotificationsRemoveCustomStyleSlot_Click"/>
                                                      <Button Grid.Column="11"
                                                              Content="Clear all slots"
