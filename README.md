@@ -112,6 +112,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Added `Preview Achievement` next to the `Preview Game`
 - Fixed the square shadow when using corners in the notification
 - Fixed the screenshot feature taking effect when enabled and the real-time notification been disabled
+- Fixed the `Provider Override` not been properly set
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path

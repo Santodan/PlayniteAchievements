@@ -134,7 +134,18 @@ namespace PlayniteAchievements.ViewModels
         public bool HasSteamAccountOverride => !string.IsNullOrWhiteSpace(_steamAccountOverrideValue);
         public IReadOnlyList<SteamAccountOption> AvailableSteamAccounts { get => _availableSteamAccounts; private set => SetValue(ref _availableSteamAccounts, value ?? Array.Empty<SteamAccountOption>()); }
         public IReadOnlyList<GameOptionsProviderOption> AvailablePreferredProviders { get => _availablePreferredProviders; private set => SetValue(ref _availablePreferredProviders, value ?? Array.Empty<GameOptionsProviderOption>()); }
-        public string PreferredProviderOverrideInput { get => _preferredProviderOverrideInput; set => SetValue(ref _preferredProviderOverrideInput, value ?? string.Empty); }
+        public string PreferredProviderOverrideInput
+        {
+            get => _preferredProviderOverrideInput;
+            set
+            {
+                if (SetValueAndReturn(ref _preferredProviderOverrideInput, value ?? string.Empty))
+                {
+                    OnPropertyChanged(nameof(HasPreferredProviderOverride));
+                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
+                }
+            }
+        }
         public string PreferredProviderStatusText { get => _preferredProviderStatusText; private set => SetValue(ref _preferredProviderStatusText, value ?? string.Empty); }
         public bool HasPreferredProviderOverride => !string.IsNullOrWhiteSpace(PreferredProviderOverrideInput);
 

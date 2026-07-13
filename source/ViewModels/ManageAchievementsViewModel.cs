@@ -336,7 +336,20 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        public string ProviderOverrideSummaryText => ProviderOverrideStatusText;
+        public string ProviderOverrideSummaryText
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(PreferredProviderOverrideInput))
+                {
+                    return string.Format(
+                        L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"),
+                        ProviderRegistry.GetLocalizedName(PreferredProviderOverrideInput));
+                }
+
+                return ProviderOverrideStatusText;
+            }
+        }
 
         public bool HasGame
         {
