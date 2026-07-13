@@ -1960,6 +1960,8 @@ steamImage +
             variables.AppendLine($"  --notifyheight: {Math.Max(1, height).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --san-icon-size: {Math.Max(1, settings?.OverlayCustomIconSize ?? 58).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --san-secondary-icon-size: {Math.Max(1, settings?.OverlayCustomSecondaryIconSize ?? settings?.OverlayCustomIconSize ?? 58).ToString("0.###", CultureInfo.InvariantCulture)}px;");
+            variables.AppendLine($"  --san-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
+            variables.AppendLine($"  --san-secondary-icon-corner-radius: {Math.Max(0, settings?.OverlayCustomSecondaryIconCornerRadius ?? 10).ToString("0.###", CultureInfo.InvariantCulture)}px;");
             variables.AppendLine($"  --iconsize: var(--san-icon-size);");
             variables.AppendLine($"  --icon-size: var(--san-icon-size);");
             variables.AppendLine($"  --achicon-size: var(--san-icon-size);");
@@ -2049,6 +2051,10 @@ steamImage +
             variables.AppendLine(".san-line-inner, .san-line-inner * { font-weight: inherit !important; font-style: inherit !important; text-decoration: inherit !important; }");
             variables.AppendLine(".wrapper#achiconwrapper { width: var(--san-icon-size) !important; height: var(--san-icon-size) !important; min-width: var(--san-icon-size) !important; min-height: var(--san-icon-size) !important; max-width: var(--san-icon-size) !important; max-height: var(--san-icon-size) !important; }");
             variables.AppendLine(".wrapper#logo { width: var(--san-secondary-icon-size) !important; height: var(--san-secondary-icon-size) !important; min-width: var(--san-secondary-icon-size) !important; min-height: var(--san-secondary-icon-size) !important; max-width: var(--san-secondary-icon-size) !important; max-height: var(--san-secondary-icon-size) !important; }");
+            variables.AppendLine(".wrapper#achiconwrapper, .wrapper#achiconinnerwrapper, #achicon, #iconbg { border-radius: var(--san-icon-corner-radius) !important; }");
+            variables.AppendLine(".wrapper#achiconinnerwrapper, #achicon, #iconbg { overflow: hidden !important; }");
+            variables.AppendLine(".wrapper#logo, #logo, .san-secondary-icon { border-radius: var(--san-secondary-icon-corner-radius) !important; }");
+            variables.AppendLine("#logo, .san-secondary-icon { overflow: hidden !important; }");
             variables.AppendLine(".wrapper#achiconwrapper > *, .wrapper#logo > *, .wrapper#achiconwrapper img, .wrapper#logo img, .wrapper#achiconwrapper svg, .wrapper#logo svg { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; }");
             variables.AppendLine("body[data-san-elements] #iconbg, body[data-san-elements] #achicon, body[data-san-elements] .icon, body[data-san-elements] .achicon { width: var(--san-icon-size) !important; height: var(--san-icon-size) !important; min-width: var(--san-icon-size) !important; min-height: var(--san-icon-size) !important; max-width: var(--san-icon-size) !important; max-height: var(--san-icon-size) !important; background-size: contain !important; }");
             variables.AppendLine("body[data-san-elements] #logo { width: var(--san-secondary-icon-size) !important; height: var(--san-secondary-icon-size) !important; min-width: var(--san-secondary-icon-size) !important; min-height: var(--san-secondary-icon-size) !important; max-width: var(--san-secondary-icon-size) !important; max-height: var(--san-secondary-icon-size) !important; background-size: contain !important; }");
