@@ -781,7 +781,10 @@ namespace PlayniteAchievements.Services.UI
             return true;
         }
 
-        private bool TryActivateManageAchievementsWindow(Guid gameId, ManageAchievementsTab tab)
+        private bool TryActivateManageAchievementsWindow(
+            Guid gameId,
+            ManageAchievementsTab tab,
+            Action<ManageAchievementsControl> configureView = null)
         {
             if (!TryGetTrackedWindow(AchievementWindowKind.ManageAchievements, gameId, out var window))
             {
@@ -790,7 +793,14 @@ namespace PlayniteAchievements.Services.UI
 
             if (TryGetWindowContent<ManageAchievementsControl>(window, out var control))
             {
-                control.SelectTab(tab);
+                if (configureView != null)
+                {
+                    configureView(control);
+                }
+                else
+                {
+                    control.SelectTab(tab);
+                }
             }
 
             ActivateTrackedWindow(window);
@@ -1266,9 +1276,30 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
-        private void OpenManageAchievementsViewCore(Guid gameId, ManageAchievementsTab initialTab)
+        public void OpenManageAchievementsLocalFolderOverrideView(Guid gameId)
         {
-            if (TryActivateManageAchievementsWindow(gameId, initialTab))
+            try
+            {
+                InvokeOnUiThread(() => OpenManageAchievementsViewCore(
+                    gameId,
+                    ManageAchievementsTab.Overrides,
+                    control => control.SelectLocalFolderOverride()));
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to open Local folder override view for gameId={gameId}");
+                _api?.Dialogs?.ShowErrorMessage(
+                    $"Failed to open the Local folder override view: {ex.Message}",
+                    "Playnite Achievements");
+            }
+        }
+
+        private void OpenManageAchievementsViewCore(
+            Guid gameId,
+            ManageAchievementsTab initialTab,
+            Action<ManageAchievementsControl> configureView = null)
+        {
+            if (TryActivateManageAchievementsWindow(gameId, initialTab, configureView))
             {
                 return;
             }
@@ -1300,6 +1331,8 @@ namespace PlayniteAchievements.Services.UI
                     _logger,
                     _settings,
                     _manualSourceRegistry);
+
+                configureView?.Invoke(view);
 
                 var windowOptions = new WindowOptions
                 {

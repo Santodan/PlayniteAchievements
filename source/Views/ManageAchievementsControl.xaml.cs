@@ -142,6 +142,20 @@ namespace PlayniteAchievements.Views
             QueueFocusSelectedTab();
         }
 
+        internal void SelectLocalFolderOverride()
+        {
+            if (_viewModel == null)
+            {
+                return;
+            }
+
+            _viewModel.SelectedOverridesTab = GameOptionsOverrideTab.Local;
+            _viewModel.SelectedLocalOverrideTab = GameOptionsLocalOverrideTab.LocalSavesSchema;
+            _viewModel.SelectedTab = ManageAchievementsTab.Overrides;
+            QueueEnsureSelectedTabContent();
+            QueueFocusSelectedTab();
+        }
+
         private void ManageAchievementsControl_Loaded(object sender, System.Windows.RoutedEventArgs e)
         {
             QueueEnsureSelectedTabContent();

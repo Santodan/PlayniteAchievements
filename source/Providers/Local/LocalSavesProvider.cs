@@ -7599,7 +7599,8 @@ namespace PlayniteAchievements.Providers.Local
                 _api?.Notifications?.Add(new NotificationMessage(
                     $"PlayAch-LocalFolderAmbiguous-{game.Id}",
                     $"{ResourceProvider.GetString("LOCPlayAch_Title_PluginName")}\n{message}",
-                    NotificationType.Info));
+                    NotificationType.Info,
+                    () => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsLocalFolderOverrideView(game.Id)));
             }
             catch (Exception ex)
             {

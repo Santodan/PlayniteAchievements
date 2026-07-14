@@ -1042,7 +1042,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Schema">Schema</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Open Game Options to choose a different folder if needed. Candidates found: {3}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Double-click this notification to choose a different folder in Manage Achievements. Candidates found: {3}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_InvalidGame">No game was selected.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoAppId">No Steam App ID could be resolved for this game. Set a forced Steam App ID first if needed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoFolder">No local save folder was found for Steam App ID {0}. Create or configure the local save path first.</sys:String>
