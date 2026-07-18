@@ -18,6 +18,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -1058,6 +1059,7 @@ steamImage +
                         }
 
                         overlayWindow.Content = BuildOverlayContent(title, safeGameName, safeAchievement, achievementIconPath, style, providerKey, localSettings, overlayScale, game, achievementDescription, achievementPoints, achievementRarity, achievementTrophy);
+                        AttachOverlayTopmostGuard(overlayWindow);
                         var overlayState = persistentPreviewRequested
                             ? null
                             : RegisterOverlayWindow(overlayWindow, position);
@@ -1403,6 +1405,7 @@ steamImage +
                 window.IsHitTestVisible = false;
                 window.Focusable = false;
                 window.Opacity = isSanTransition || persistentPreviewRequested ? 1 : 0;
+                AttachOverlayTopmostGuard(window);
 
                 var overlayState = persistentPreviewRequested ? null : RegisterOverlayWindow(window, position);
                 PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor);
@@ -1640,6 +1643,74 @@ steamImage +
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
+
+        private static void AttachOverlayTopmostGuard(Window window)
+        {
+            if (window == null)
+            {
+                return;
+            }
+
+            DispatcherTimer topmostTimer = null;
+            Action enforceTopmost = () =>
+            {
+                try
+                {
+                    var handle = new WindowInteropHelper(window).Handle;
+                    if (handle != IntPtr.Zero)
+                    {
+                        SetWindowPos(
+                            handle,
+                            HwndTopmost,
+                            0,
+                            0,
+                            0,
+                            0,
+                            SetWindowPosNoMove |
+                            SetWindowPosNoSize |
+                            SetWindowPosNoActivate |
+                            SetWindowPosShowWindow);
+                    }
+                }
+                catch
+                {
+                }
+            };
+
+            window.SourceInitialized += (_, __) => enforceTopmost();
+            window.Loaded += (_, __) =>
+            {
+                enforceTopmost();
+                topmostTimer = new DispatcherTimer(DispatcherPriority.Send)
+                {
+                    Interval = TimeSpan.FromMilliseconds(250)
+                };
+                topmostTimer.Tick += (_, __) => enforceTopmost();
+                topmostTimer.Start();
+            };
+            window.Closed += (_, __) =>
+            {
+                topmostTimer?.Stop();
+                topmostTimer = null;
+            };
+        }
+
+        private static readonly IntPtr HwndTopmost = new IntPtr(-1);
+        private const uint SetWindowPosNoSize = 0x0001;
+        private const uint SetWindowPosNoMove = 0x0002;
+        private const uint SetWindowPosNoActivate = 0x0010;
+        private const uint SetWindowPosShowWindow = 0x0040;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetWindowPos(
+            IntPtr window,
+            IntPtr insertAfter,
+            int x,
+            int y,
+            int width,
+            int height,
+            uint flags);
 
         public void SendScoreProgressNotification(
             string scoreName,
