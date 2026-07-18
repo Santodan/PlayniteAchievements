@@ -18,6 +18,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Newtonsoft.Json.Linq;
@@ -1060,7 +1061,7 @@ steamImage +
                         var overlayState = persistentPreviewRequested
                             ? null
                             : RegisterOverlayWindow(overlayWindow, position);
-                        PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState));
+                        PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor != false);
 
                         overlayWindow.Loaded += (sender, args) =>
                         {
@@ -1068,7 +1069,7 @@ steamImage +
                             {
                                 if (autoResizeCustom)
                                 {
-                                    PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState));
+                                    PositionOverlayWindow(overlayWindow, position, GetOverlayStackIndex(overlayState), localSettings?.ShowOverlayOnActiveGameMonitor != false);
                                 }
 
                                 ApplyOverlayEnterAnimation(overlayWindow, overlayOpacity, fadeInMs, transitionStyle, slideDistance);
@@ -1156,7 +1157,11 @@ steamImage +
             return "Local Achievement Unlocked";
         }
 
-        private static void PositionOverlayWindow(Window window, LocalUnlockOverlayPosition position, int stackIndex = 0)
+        private static void PositionOverlayWindow(
+            Window window,
+            LocalUnlockOverlayPosition position,
+            int stackIndex = 0,
+            bool followActiveGameMonitor = true)
         {
             if (window == null)
             {
@@ -1165,7 +1170,9 @@ steamImage +
 
             const double margin = 16;
             const double spacing = 8;
-            var workArea = SystemParameters.WorkArea;
+            var workArea = followActiveGameMonitor
+                ? GetForegroundMonitorWorkArea()
+                : SystemParameters.WorkArea;
             var stackOffset = Math.Max(0, stackIndex) * (GetOverlayWindowHeight(window) + spacing);
             switch (position)
             {
@@ -1266,7 +1273,12 @@ steamImage +
 
             for (var i = 0; i < overlays.Count; i++)
             {
-                PositionOverlayWindow(overlays[i].Window, position, i);
+                var settings = ProviderRegistry.Settings<LocalSettings>();
+                PositionOverlayWindow(
+                    overlays[i].Window,
+                    position,
+                    i,
+                    settings?.ShowOverlayOnActiveGameMonitor != false);
             }
         }
 
@@ -1393,7 +1405,7 @@ steamImage +
                 window.Opacity = isSanTransition || persistentPreviewRequested ? 1 : 0;
 
                 var overlayState = persistentPreviewRequested ? null : RegisterOverlayWindow(window, position);
-                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState));
+                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor);
 
                 window.Closed += (_, __) =>
                 {
@@ -1449,7 +1461,7 @@ steamImage +
                                 }
 
                                 window.Height = resizedHeight;
-                                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState));
+                                PositionOverlayWindow(window, position, GetOverlayStackIndex(overlayState), settings.ShowOverlayOnActiveGameMonitor);
                             };
                         }
                         webView.CoreWebView2.Navigate(new Uri(htmlPath).AbsoluteUri);
@@ -1568,6 +1580,66 @@ steamImage +
                 _logger?.Warn(ex, "[LocalOverlay] Failed to configure WebView2 loader directory.");
             }
         }
+
+        private static Rect GetForegroundMonitorWorkArea()
+        {
+            try
+            {
+                var foregroundWindow = GetForegroundWindow();
+                var monitor = MonitorFromWindow(foregroundWindow, MonitorDefaultToPrimary);
+                if (monitor != IntPtr.Zero)
+                {
+                    var monitorInfo = new MonitorInfo
+                    {
+                        Size = Marshal.SizeOf(typeof(MonitorInfo))
+                    };
+
+                    if (GetMonitorInfo(monitor, ref monitorInfo))
+                    {
+                        return new Rect(
+                            monitorInfo.Work.Left,
+                            monitorInfo.Work.Top,
+                            monitorInfo.Work.Right - monitorInfo.Work.Left,
+                            monitorInfo.Work.Bottom - monitorInfo.Work.Top);
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return SystemParameters.WorkArea;
+        }
+
+        private const uint MonitorDefaultToPrimary = 1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct MonitorInfo
+        {
+            public int Size;
+            public NativeRect Monitor;
+            public NativeRect Work;
+            public uint Flags;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
 
         public void SendScoreProgressNotification(
             string scoreName,

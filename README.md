@@ -115,6 +115,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the `Provider Override` not been properly set
 - Fixed the `Clear` in the `Manage Achievement` not clearing the `Provider Override`
 - Pressing the multiple folders notification will take you to the folder selection page
+- Added a setting to have the overlay in the same monitor as the game for multiple monitors
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path

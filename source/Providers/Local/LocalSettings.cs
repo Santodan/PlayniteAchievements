@@ -364,6 +364,7 @@ namespace PlayniteAchievements.Providers.Local
         private LocalUnlockScreenshotImageFormat _screenshotImageFormat = LocalUnlockScreenshotImageFormat.Png;
         private LocalUnlockNotificationDeliveryMode _unlockNotificationDeliveryMode = LocalUnlockNotificationDeliveryMode.Hybrid;
         private LocalUnlockOverlayPosition _unlockOverlayPosition = LocalUnlockOverlayPosition.TopRight;
+        private bool _showOverlayOnActiveGameMonitor = true;
         private int _unlockOverlayDurationMilliseconds = 3400;
         private int _unlockOverlayFadeInMilliseconds = 180;
         private int _unlockOverlayFadeOutMilliseconds = 280;
@@ -646,6 +647,12 @@ namespace PlayniteAchievements.Providers.Local
         {
             get => _unlockOverlayPosition;
             set => SetValue(ref _unlockOverlayPosition, value);
+        }
+
+        public bool ShowOverlayOnActiveGameMonitor
+        {
+            get => _showOverlayOnActiveGameMonitor;
+            set => SetValue(ref _showOverlayOnActiveGameMonitor, value);
         }
 
         public int UnlockOverlayDurationMilliseconds

@@ -2726,26 +2726,13 @@
                                             </ComboBox>
                                         </DockPanel>
 
-                                        <DockPanel Margin="0,0,0,8"
-                                                   Visibility="Collapsed">
-                                            <TextBlock Text="Overlay position:"
-                                                       VerticalAlignment="Center"
-                                                       Margin="0,0,8,0"
-                                                       Foreground="{DynamicResource TextBrush}"
-                                                       FontWeight="SemiBold"/>
-                                            <ComboBox SelectedValue="{Binding UnlockOverlayPosition, Mode=TwoWay}"
-                                                      SelectedValuePath="Tag"
-                                                      MinWidth="200">
-                                                <ComboBoxItem Content="Top-right"
-                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.TopRight}"/>
-                                                <ComboBoxItem Content="Top-left"
-                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.TopLeft}"/>
-                                                <ComboBoxItem Content="Bottom-right"
-                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.BottomRight}"/>
-                                                <ComboBoxItem Content="Bottom-left"
-                                                              Tag="{x:Static local:LocalUnlockOverlayPosition.BottomLeft}"/>
-                                            </ComboBox>
-                                        </DockPanel>
+                                        <CheckBox Content="Show overlay on the active game's monitor (windowed or borderless fullscreen)"
+                                                  IsChecked="{Binding ShowOverlayOnActiveGameMonitor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Margin="0,0,0,4"/>
+                                        <TextBlock Text="Keeps the notification above the game and follows it to another monitor. Exclusive fullscreen may block external Windows overlays; use borderless fullscreen when that happens."
+                                                   Style="{StaticResource MutedTextStyle}"
+                                                   Margin="18,0,0,12"
+                                                   TextWrapping="Wrap"/>
 
                                         <CheckBox Content="Show in-app notification when achievement is unlocked"
                                                   IsChecked="{Binding EnableInAppUnlockNotifications, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
