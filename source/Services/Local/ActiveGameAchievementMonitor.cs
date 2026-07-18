@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -402,6 +403,8 @@ namespace PlayniteAchievements.Services.Local
                 data.ProviderKey = "Local";
             }
 
+            RestoreCachedAchievementIconPaths(data, cachedBefore);
+
             var writeResult = _cacheManager.SaveGameData(game.Id.ToString(), data);
             if (writeResult?.Success != true)
             {
@@ -449,6 +452,53 @@ namespace PlayniteAchievements.Services.Local
             return BuildSnapshot(data);
         }
 
+        private static void RestoreCachedAchievementIconPaths(
+            GameAchievementData currentData,
+            AchievementSnapshot cachedSnapshot)
+        {
+            if (currentData?.Achievements == null || cachedSnapshot?.Achievements == null)
+            {
+                return;
+            }
+
+            foreach (var achievement in currentData.Achievements)
+            {
+                var key = BuildAchievementKey(achievement);
+                if (string.IsNullOrWhiteSpace(key) ||
+                    !cachedSnapshot.Achievements.TryGetValue(key, out var cachedAchievement))
+                {
+                    continue;
+                }
+
+                if (IsExistingLocalFile(cachedAchievement.UnlockedIconPath))
+                {
+                    achievement.UnlockedIconPath = cachedAchievement.UnlockedIconPath;
+                }
+
+                if (IsExistingLocalFile(cachedAchievement.LockedIconPath))
+                {
+                    achievement.LockedIconPath = cachedAchievement.LockedIconPath;
+                }
+            }
+        }
+
+        private static bool IsExistingLocalFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return false;
+            }
+
+            var normalized = AchievementIconResolver.NormalizeIconPath(path);
+            if (Uri.TryCreate(normalized, UriKind.Absolute, out var uri) &&
+                uri.IsFile)
+            {
+                normalized = uri.LocalPath;
+            }
+
+            return Path.IsPathRooted(normalized) && File.Exists(normalized);
+        }
+
         private AchievementSnapshot BuildSnapshot(GameAchievementData data)
         {
             if (data == null)
@@ -479,7 +529,17 @@ namespace PlayniteAchievements.Services.Local
                     achievement.TrophyType);
             }
 
-            return new AchievementSnapshot(data.UnlockedCount, unlocked);
+            var achievements = (data.Achievements ?? Enumerable.Empty<AchievementDetail>())
+                .Where(achievement => !string.IsNullOrWhiteSpace(BuildAchievementKey(achievement)))
+                .GroupBy(BuildAchievementKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new CachedAchievementIconInfo(
+                        group.First().UnlockedIconPath,
+                        group.First().LockedIconPath),
+                    StringComparer.OrdinalIgnoreCase);
+
+            return new AchievementSnapshot(data.UnlockedCount, unlocked, achievements);
         }
 
         private static bool SnapshotsEqual(AchievementSnapshot left, AchievementSnapshot right)
@@ -553,17 +613,38 @@ namespace PlayniteAchievements.Services.Local
 
         private sealed class AchievementSnapshot
         {
-            public AchievementSnapshot(int unlockedCount, IDictionary<string, UnlockedAchievementInfo> unlockedAchievements)
+            public AchievementSnapshot(
+                int unlockedCount,
+                IDictionary<string, UnlockedAchievementInfo> unlockedAchievements,
+                IDictionary<string, CachedAchievementIconInfo> achievements)
             {
                 UnlockedCount = unlockedCount;
                 UnlockedAchievements = new Dictionary<string, UnlockedAchievementInfo>(
                     unlockedAchievements ?? new Dictionary<string, UnlockedAchievementInfo>(),
+                    StringComparer.OrdinalIgnoreCase);
+                Achievements = new Dictionary<string, CachedAchievementIconInfo>(
+                    achievements ?? new Dictionary<string, CachedAchievementIconInfo>(),
                     StringComparer.OrdinalIgnoreCase);
             }
 
             public int UnlockedCount { get; }
 
             public IDictionary<string, UnlockedAchievementInfo> UnlockedAchievements { get; }
+
+            public IDictionary<string, CachedAchievementIconInfo> Achievements { get; }
+        }
+
+        private sealed class CachedAchievementIconInfo
+        {
+            public CachedAchievementIconInfo(string unlockedIconPath, string lockedIconPath)
+            {
+                UnlockedIconPath = unlockedIconPath;
+                LockedIconPath = lockedIconPath;
+            }
+
+            public string UnlockedIconPath { get; }
+
+            public string LockedIconPath { get; }
         }
 
         private sealed class UnlockedAchievementInfo
