@@ -42,6 +42,8 @@
 - `SuccessStory` Import
 - Theme and `StartPage` migration
 
+Guides available in [Achievement Notifications Guide](ACHIEVEMENT_NOTIFICATIONS_GUIDE.md) and [Local Provider Troubleshooting](LOCAL_PROVIDER_TROUBLESHOOTING.md)
+
 ## Local Provider Folder List And Browse Flow
 
 You can set any custom folder where you have saves located in your system as exception to never detect achievements from it
