@@ -1,5 +1,32 @@
 AddonId: PlayniteAchievementsSantodan
 Packages:
+  - Version: 2.5.3.3
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-07-09
+    PackageUrl: https://github.com/santodan/PlayniteAchievements/releases/download/v2.5.3.3/PlayniteAchievementsSantodan_2_5_3_3.pext
+    Changelog:
+    - "Trying to make the WebView notification quicker"
+    - "Fixed a duplicate playnite window in the `ALT+TAB` menu in windows"
+    - "Removed duplicated variables in the `Achievement Notification`"
+    - "Moved `Sound lead` to the sound part"
+    - "Removed the limit in the `Sound lead`, it can now accept negative values"
+    - "Added notification for `Prestige` and `Collection` level up and tier up"
+    - "Added wildcards to the `Save Folder` for the `Achievement Notification` screenshot"
+    - "Fixed `Auto resize window to fit text` not working with SAN elements / transitions"
+    - "Fixed the screenshot feature nto working with the `API Verification` for `exophase` and `RetroAchievements`"
+    - "Fixed the `Remove current slot` size and strange characters"
+    - "Fixed the san template remaining active when changed back to the "normal" notifications"
+    - "Added `Corners` setting for the icons"
+    - "Added `Preview Achievement` next to the `Preview Game`"
+    - "Fixed the square shadow when using corners in the notification"
+    - "Fixed the screenshot feature taking effect when enabled and the real-time notification been disabled"
+    - "Fixed the `Provider Override` not been properly set"
+    - "Fixed the `Clear` in the `Manage Achievement` not clearing the `Provider Override`"
+    - "Pressing the multiple folders notification will take you to the folder selection page"
+    - "Added a setting to have the overlay in the same monitor as the game for multiple monitors"
+    - "Fixed the notification not showing the achievement's icon when offline"
+    - "Guides added to the github"
+
   - Version: 2.5.3.2
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-07-09

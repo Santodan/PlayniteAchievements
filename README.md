@@ -99,6 +99,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
 - Fixed a duplicate playnite window in the `ALT+TAB` menu in windows
 - Removed duplicated variables in the `Achievement Notification`
@@ -119,6 +120,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Pressing the multiple folders notification will take you to the folder selection page
 - Added a setting to have the overlay in the same monitor as the game for multiple monitors
 - Fixed the notification not showing the achievement's icon when offline
+- Guides added to the github
 
 ## 2026-07-09 - v2.5.3.2
 - Fixed the multiple folders detection showing the list index instead of the folder path
