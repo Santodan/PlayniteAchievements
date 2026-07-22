@@ -99,6 +99,8 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
+- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
+
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
 - Fixed a duplicate playnite window in the `ALT+TAB` menu in windows
@@ -152,6 +154,9 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the wrong placement for the level and points in `Prestige Score` and the `Collection Score`
 - Added support for achievement with progress bar
 
+## Old Changelogs
+<details>
+
 ## 2026-06-18 - v2.5.1.1
 - v2.5.1 merge
 - Fixed `RetroAchievement` sort
@@ -162,9 +167,6 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed the locked achievements have the same icon
 - Fixed the Achievements rarity not been filled when there is no achievement file
 
-
-## Old Changelogs
-<details>
 
 ## 2026-06-16 - v2.5.0.1
 - v2.5.0 merge

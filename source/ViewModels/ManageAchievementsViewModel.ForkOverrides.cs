@@ -186,13 +186,13 @@ namespace PlayniteAchievements.ViewModels
             SteamAccountOverrideInput = SteamDataProvider.TryGetSteamAccountOverride(_gameId, out var steamAccount) ? steamAccount : string.Empty;
             _steamAccountOverrideValue = SteamAccountOverrideInput;
             OnPropertyChanged(nameof(SteamAccountStatusText)); OnPropertyChanged(nameof(HasSteamAccountOverride));
-            RaOverrideInput = data?.RetroAchievementsGameIdOverride?.ToString() ?? string.Empty;
+            RaOverrideInput = GetProviderOverrideValue(data, "RetroAchievements", data?.RetroAchievementsGameIdOverride?.ToString());
             RaStatusText = string.IsNullOrWhiteSpace(RaOverrideInput) ? L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set") : string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), RaOverrideInput);
-            XeniaTitleIdOverrideInput = data?.XeniaTitleIdOverride ?? string.Empty;
+            XeniaTitleIdOverrideInput = GetProviderOverrideValue(data, "Xenia", data?.XeniaTitleIdOverride);
             XeniaTitleIdStatusText = string.IsNullOrWhiteSpace(XeniaTitleIdOverrideInput) ? L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set") : string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), XeniaTitleIdOverrideInput);
-            ShadPS4MatchIdOverrideInput = data?.ShadPS4MatchIdOverride ?? string.Empty;
+            ShadPS4MatchIdOverrideInput = GetProviderOverrideValue(data, "ShadPS4", data?.ShadPS4MatchIdOverride);
             ShadPS4MatchIdStatusText = string.IsNullOrWhiteSpace(ShadPS4MatchIdOverrideInput) ? L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set") : string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), ShadPS4MatchIdOverrideInput);
-            ExophaseSlugOverrideValue = data?.ExophaseSlugOverride ?? string.Empty;
+            ExophaseSlugOverrideValue = GetProviderOverrideValue(data, "Exophase", data?.ExophaseSlugOverride);
             ExophaseSlugInput = ExophaseSlugOverrideValue;
             SetValue(ref _useExophaseForGame, data?.ForceUseExophase == true);
             OnPropertyChanged(nameof(UseExophaseForGame));
@@ -201,6 +201,23 @@ namespace PlayniteAchievements.ViewModels
             PreferredProviderOverrideInput = _achievementOverridesService?.GetPreferredProviderOverride(_gameId) ?? string.Empty;
             PreferredProviderStatusText = string.IsNullOrWhiteSpace(PreferredProviderOverrideInput) ? L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set") : string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), ProviderRegistry.GetLocalizedName(PreferredProviderOverrideInput));
         }
+
+        private static string GetProviderOverrideValue(
+            PlayniteAchievements.Models.Settings.GameCustomDataFile data,
+            string providerKey,
+            string legacyValue)
+        {
+            var providerOverride = data?.ProviderOverride;
+            if (providerOverride != null)
+            {
+                return string.Equals(providerOverride.ProviderKey, providerKey, StringComparison.OrdinalIgnoreCase)
+                    ? providerOverride.Value ?? string.Empty
+                    : string.Empty;
+            }
+
+            return legacyValue ?? string.Empty;
+        }
+
         private void RefreshSteamAccounts()
         {
             var steamSettings = ProviderRegistry.Settings<SteamSettings>();
