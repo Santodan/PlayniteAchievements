@@ -1482,6 +1482,7 @@ namespace PlayniteAchievements.Views
         private void AchievementDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
+            e.Handled = true;
 
             var control = sender as Controls.AchievementDataGridControl;
             var grid = control?.InternalDataGrid;
@@ -1489,15 +1490,78 @@ namespace PlayniteAchievements.Views
 
             var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
                 == System.Windows.Input.ModifierKeys.Control;
+            if (isAdditive)
+            {
+                var additiveDirection = DataGridSortingHelper.HandleSorting(
+                    sender,
+                    e,
+                    grid,
+                    clearOtherColumns: false);
+                if (additiveDirection == null) return;
 
-            // Use HandleSorting for uniform A-Z / Z-A first-click logic
-            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);
-            if (sortDirection == null) return;
+                _viewModel.SortDataGrid(
+                    grid,
+                    e.Column.SortMemberPath,
+                    additiveDirection.Value,
+                    isAdditive: true);
 
-            _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, sortDirection.Value, isAdditive);
+                if (control == RecentAchievementsDataGrid)
+                    ResetRecentAchievementsSortDirection();
+                else if (control == SidebarAllAchievementsDataGrid)
+                    ResetSidebarAllAchievementsSortDirection();
+                return;
+            }
+
+            var isRecent = control == RecentAchievementsDataGrid;
+            var currentSortPath = isRecent
+                ? _viewModel.RecentSortPath
+                : _viewModel.SidebarAllSortPath;
+            var currentSortDirection = isRecent
+                ? _viewModel.RecentSortDirection
+                : _viewModel.SidebarAllSortDirection;
+            var surface = isRecent
+                ? AchievementSortSurface.OverviewRecentAchievements
+                : AchievementSortSurface.AchievementDataGrid;
+
+            var sortAction = AchievementSortHelper.ResolveGridSortAction(
+                e.Column?.SortMemberPath,
+                currentSortPath,
+                currentSortDirection,
+                _settings?.Persisted,
+                surface,
+                e.Column?.SortDirection);
+            if (sortAction.Kind == AchievementGridSortActionKind.None)
+            {
+                return;
+            }
+
+            if (sortAction.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                if (isRecent)
+                    _viewModel.ApplyDefaultRecentSort();
+                else
+                    _viewModel.ApplyDefaultSidebarAllSort();
+
+                foreach (var column in grid.Columns)
+                {
+                    column.SortDirection = null;
+                    SetColumnSortLevel(grid, column, null);
+                }
+                control.SetSortIndicator(null, null);
+                return;
+            }
+
+            if (sortAction.Direction.HasValue)
+            {
+                _viewModel.SortDataGrid(
+                    grid,
+                    sortAction.SortMemberPath,
+                    sortAction.Direction.Value,
+                    isAdditive: false);
+            }
 
             // Update sort level badges to reflect the new multi-column sort state
-            if (control == RecentAchievementsDataGrid)
+            if (isRecent)
                 ResetRecentAchievementsSortDirection();
             else if (control == SidebarAllAchievementsDataGrid)
                 ResetSidebarAllAchievementsSortDirection();

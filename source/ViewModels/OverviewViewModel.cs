@@ -4371,6 +4371,16 @@ namespace PlayniteAchievements.ViewModels
             _recentSortDirection = AchievementSortHelper.GetConfiguredDefaultSort(
                 _settings?.Persisted,
                 AchievementSortSurface.OverviewRecentAchievements).Direction;
+            _recentSecondarySorts.Clear();
+        }
+
+        private void ResetSidebarAllSortToDefault()
+        {
+            _sidebarAllSortPath = null;
+            _sidebarAllSortDirection = AchievementSortHelper.GetConfiguredDefaultSort(
+                _settings?.Persisted,
+                AchievementSortSurface.AchievementDataGrid).Direction;
+            _sidebarAllSecondarySorts.Clear();
         }
 
         public void ApplyDefaultSelectedGameSort()
@@ -4394,6 +4404,16 @@ namespace PlayniteAchievements.ViewModels
             ResetRecentSortToDefault();
 
             if (!IsGameSelected)
+            {
+                ApplyRightFilters();
+            }
+        }
+
+        public void ApplyDefaultSidebarAllSort()
+        {
+            ResetSidebarAllSortToDefault();
+
+            if (IsAllAchievementsTabSelected)
             {
                 ApplyRightFilters();
             }
