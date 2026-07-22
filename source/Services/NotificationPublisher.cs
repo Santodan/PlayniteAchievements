@@ -1792,7 +1792,7 @@ steamImage +
                             Content = webView,
                             Width = 1,
                             Height = 1,
-                            WindowStyle = WindowStyle.ToolWindow,
+                            WindowStyle = WindowStyle.None,
                             ResizeMode = ResizeMode.NoResize,
                             AllowsTransparency = true,
                             Background = Brushes.Transparent,
