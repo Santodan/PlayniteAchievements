@@ -4181,7 +4181,7 @@ namespace PlayniteAchievements.ViewModels
                     {
                         SortSelectedGameAchievements(_selectedGameSortPath, _selectedGameSortDirection, persistCustomSortSelection: false);
                     }
-                    else
+                    else if (!skipDefaultSort)
                     {
                         AchievementSortHelper.ApplyConfiguredDefaultSort(
                             _filteredSelectedGameAchievements,
@@ -4190,6 +4190,17 @@ namespace PlayniteAchievements.ViewModels
                             AchievementSortScope.GameAchievements,
                             stableOrder: AchievementSortHelper.CreateStableOrderMap(_filteredSelectedGameAchievements));
 
+                        if (SelectedGameAchievements is BulkObservableCollection<AchievementDisplayItem> bulk)
+                        {
+                            bulk.ReplaceAll(_filteredSelectedGameAchievements);
+                        }
+                        else
+                        {
+                            CollectionHelper.SynchronizeCollection(SelectedGameAchievements, _filteredSelectedGameAchievements);
+                        }
+                    }
+                    else
+                    {
                         if (SelectedGameAchievements is BulkObservableCollection<AchievementDisplayItem> bulk)
                         {
                             bulk.ReplaceAll(_filteredSelectedGameAchievements);
@@ -4337,37 +4348,11 @@ namespace PlayniteAchievements.ViewModels
             _allSelectedGameAchievements = _selectedGameDefaultOrderedAchievements != null
                 ? new List<AchievementDisplayItem>(_selectedGameDefaultOrderedAchievements)
                 : new List<AchievementDisplayItem>();
-
-            var persisted = _settings?.Persisted;
-            if (persisted != null &&
-                (persisted.DefaultAchievementSortMode == CompactListSortMode.Custom ||
-                 persisted.SidebarSelectedGameGridSortMode == CompactListSortMode.Custom) &&
-                !string.IsNullOrWhiteSpace(persisted.SidebarSelectedGameCustomSortPath))
-            {
-                _selectedGameSortPath = persisted.SidebarSelectedGameCustomSortPath;
-                _selectedGameSortDirection = persisted.SidebarSelectedGameCustomSortDescending
-                    ? ListSortDirection.Descending
-                    : ListSortDirection.Ascending;
-                _selectedGameSecondarySorts.Clear();
-                _selectedGameSecondarySorts.AddRange(DeserializeSecondarySorts(persisted.SidebarSelectedGameCustomSecondarySorts));
-                return;
-            }
-
-            var defaultSort = AchievementSortHelper.GetConfiguredDefaultSort(
-                persisted,
-                AchievementSortSurface.OverviewSelectedGame);
-
-            if (defaultSort.Mode == CompactListSortMode.Custom && !string.IsNullOrWhiteSpace(defaultSort.SortMemberPath))
-            {
-                // Custom mode: restore the persisted user sort rather than clearing it
-                _selectedGameSortPath = defaultSort.SortMemberPath;
-                _selectedGameSortDirection = defaultSort.Direction;
-            }
-            else
-            {
-                _selectedGameSortPath = null;
-                _selectedGameSortDirection = defaultSort.Direction;
-            }
+            _selectedGameSortPath = null;
+            _selectedGameSortDirection = AchievementSortHelper.GetConfiguredDefaultSort(
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame).Direction;
+            _selectedGameSecondarySorts.Clear();
         }
 
         private void ResetOverviewSortToDefault()

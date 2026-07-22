@@ -1428,18 +1428,54 @@ namespace PlayniteAchievements.Views
         private void GameAchievementsGrid_Sorting(object sender, DataGridSortingEventArgs e)
         {
             if (_viewModel == null) return;
+            e.Handled = true;
 
             var grid = GameAchievementsGrid?.InternalDataGrid;
             if (grid == null) return;
 
             var isAdditive = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control)
                 == System.Windows.Input.ModifierKeys.Control;
+            if (isAdditive)
+            {
+                var additiveDirection = DataGridSortingHelper.HandleSorting(
+                    sender,
+                    e,
+                    grid,
+                    clearOtherColumns: false);
+                if (additiveDirection == null) return;
 
-            // Use HandleSorting for uniform A-Z / Z-A first-click logic
-            var sortDirection = DataGridSortingHelper.HandleSorting(sender, e, grid, clearOtherColumns: !isAdditive);
-            if (sortDirection == null) return;
+                _viewModel.SortDataGrid(
+                    grid,
+                    e.Column.SortMemberPath,
+                    additiveDirection.Value,
+                    isAdditive: true);
+                ResetAchievementsSortDirection();
+                return;
+            }
 
-            _viewModel.SortDataGrid(grid, e.Column.SortMemberPath, sortDirection.Value, isAdditive);
+            var sortAction = AchievementSortHelper.ResolveGridSortAction(
+                e.Column?.SortMemberPath,
+                _viewModel.SelectedGameSortPath,
+                _viewModel.SelectedGameSortDirection,
+                _settings?.Persisted,
+                AchievementSortSurface.OverviewSelectedGame,
+                e.Column?.SortDirection);
+            if (sortAction.Kind == AchievementGridSortActionKind.None)
+            {
+                return;
+            }
+
+            if (sortAction.Kind == AchievementGridSortActionKind.ResetToDefault)
+            {
+                _viewModel.ApplyDefaultSelectedGameSort();
+                ClearAchievementsSortIndicators();
+                return;
+            }
+            else if (sortAction.Direction.HasValue)
+            {
+                _viewModel.SortDataGrid(grid, sortAction.SortMemberPath, sortAction.Direction.Value);
+            }
+
             ResetAchievementsSortDirection();
         }
 
