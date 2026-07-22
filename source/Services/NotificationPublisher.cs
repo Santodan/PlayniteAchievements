@@ -1788,14 +1788,13 @@ steamImage +
 
                         var window = new Window
                         {
-                            Owner = _api?.Dialogs?.GetCurrentAppWindow(),
                             Content = webView,
                             Width = 1,
                             Height = 1,
-                            WindowStyle = WindowStyle.None,
+                            WindowStyle = WindowStyle.ToolWindow,
                             ResizeMode = ResizeMode.NoResize,
-                            AllowsTransparency = true,
-                            Background = Brushes.Transparent,
+                            AllowsTransparency = false,
+                            Background = Brushes.Black,
                             ShowInTaskbar = false,
                             ShowActivated = false,
                             IsHitTestVisible = false,
