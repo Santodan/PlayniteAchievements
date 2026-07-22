@@ -89,7 +89,6 @@ namespace PlayniteAchievements.Views.Controls
             {
                 ["Status"] = DefaultStatusColumnWidth,
                 ["Icon"] = 84,
-                ["DisplayOrder"] = 90,
                 ["Game"] = 64,
                 ["Achievement"] = 460,
                 ["Title"] = 260,

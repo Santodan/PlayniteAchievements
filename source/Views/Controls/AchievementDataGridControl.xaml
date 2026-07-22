@@ -103,8 +103,8 @@
             
 
             <!-- Achievement Icon -->
-            <DataGridTemplateColumn Width="72" MinWidth="44" MaxWidth="180" CanUserResize="True"
-                                    Header="{DynamicResource LOCPlayAch_Column_Icon}" SortMemberPath="DisplayOrder"
+            <DataGridTemplateColumn Width="72" MinWidth="44" MaxWidth="180" CanUserResize="True" CanUserSort="False"
+                                    Header="{DynamicResource LOCPlayAch_Column_Icon}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Icon"
                                     CellStyle="{StaticResource AchievementGlowIconCellStyle}"
                                     CellTemplate="{StaticResource AchievementIconTemplate}">
@@ -113,17 +113,6 @@
                         <TextBlock Text="{Binding}" Opacity="0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.HeaderTemplate>
-            </DataGridTemplateColumn>
-
-            <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_DisplayOrder}" SortMemberPath="DisplayOrder" helpers:ColumnVisibilityHelper.ColumnKey="DisplayOrder" Visibility="Collapsed">
-                <DataGridTemplateColumn.CellTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding DisplayOrder}"
-                                   Style="{StaticResource WrappedCenteredDataGridTextStyle}"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Opacity="0.7"/>
-                    </DataTemplate>
-                </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
             <!-- Achievement Info -->
