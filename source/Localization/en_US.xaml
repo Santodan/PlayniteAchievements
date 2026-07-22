@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0"?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
     <!-- ================================================================= -->
@@ -461,7 +461,9 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Menu_EnableRealtimeNotification">Enable real-time notifications</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Download">Download expected achievements.json</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Progress">Generating expected achievements.json...</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_OverwriteConfirm">Replace the existing achievements.json for &quot;{0}&quot;?&#10;&#10;This resets all local earned states in that file to locked.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_OverwriteConfirm">Replace the existing achievements.json for &quot;{0}&quot;?
+
+This resets all local earned states in that file to locked.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Failed">Failed to generate achievements.json: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_ProviderUnavailable">The Local achievements provider is not available.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_UnknownError">The expected achievements.json could not be generated.</sys:String>
@@ -470,8 +472,10 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_Clear">Clear forced Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogTitle">Set forced Steam App ID</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHint">Enter the Steam App ID to use for Local achievements detection.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintDetected">Enter the Steam App ID to use for Local achievements detection.&#10;Auto-detected App ID: {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintOverride">Enter the Steam App ID to use for Local achievements detection.&#10;Current forced App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintDetected">Enter the Steam App ID to use for Local achievements detection.
+Auto-detected App ID: {0}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_DialogHintOverride">Enter the Steam App ID to use for Local achievements detection.
+Current forced App ID: {0}</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_InvalidId">Please enter a valid positive Steam App ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_SetFailed">The forced Steam App ID could not be saved.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalAppId_ClearConfirm">Clear the forced Steam App ID for &quot;{0}&quot;?</sys:String>
@@ -1042,12 +1046,13 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_GameOptions_Tab_Schema">Schema</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_Value_NotAvailable">N/A</sys:String>
     <sys:String x:Key="LOCPlayAch_GameOptions_WindowTitle">Game Options - {0}</sys:String>
-    <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for "{0}" (Steam App ID {1}). The Local provider is currently using: {2}. Double-click this notification to choose a different folder in Manage Achievements. Candidates found: {3}.</sys:String>
+    <sys:String x:Key="LOCPlayAch_LocalFolder_AmbiguousNotification">Multiple local folders were found for &quot;{0}&quot; (Steam App ID {1}). The Local provider is currently using: {2}. Double-click this notification to choose a different folder in Manage Achievements. Candidates found: {3}.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_InvalidGame">No game was selected.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoAppId">No Steam App ID could be resolved for this game. Set a forced Steam App ID first if needed.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoFolder">No local save folder was found for Steam App ID {0}. Create or configure the local save path first.</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_NoSchema">Steam did not return an achievement schema for App ID {0}.</sys:String>
-    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Success">Created expected achievements.json for "{0}" at:&#10;{1}</sys:String>
+    <sys:String x:Key="LOCPlayAch_Menu_LocalExpectedJson_Success">Created expected achievements.json for &quot;{0}&quot; at:
+{1}</sys:String>
     <sys:String x:Key="LOCPlayAch_Menu_LocalLumaPlayAppId_InvalidId">Please enter a valid positive LumaPlay Uplay App ID.</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockMultiple">{0} {1} new Local achievements unlocked.</sys:String>
     <sys:String x:Key="LOCPlayAch_Notification_LocalUnlockSingle">{0} Unlocked: {1}</sys:String>
