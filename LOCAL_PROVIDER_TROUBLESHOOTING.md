@@ -13,6 +13,62 @@ This guide covers the `Local` achievement provider in this fork. It is intended 
 
 The Local folder must contain a supported achievement-state file, or one of its subfolders must contain one. Common names recognized by the provider include `achievements.json`, `achievements.ini`, `user_stats.ini`, and Steam appcache stats files. A metadata schema may be needed to turn internal API keys into names, descriptions, and icons.
 
+Quickest way to check if the game is generating the achievement, search for the appid in in the whole pc.
+If you find a folder with the name of the app id, check if it has the `achievements.json`, `achievements.ini` or `user_stats.ini` inside.
+
+If you want to make sure that the game generates the achievements file, apply GSE ( my recommendation ):
+- Inside the game's folder, search for the `steam_api64.dll`
+- Get the release from https://github.com/alex47exe/gse_fork_tools
+- You will have the folder `generate_emu_config`
+- Open a terminal window in that folder and run the command `generate_emu_config.exe <appID>`
+- Insert the steam credentials and then the verification code
+    - If you don't want to insert the credentials every time, you can create a filde in the same folder with the name `my_login.txt` and the first line will be the username and the second line the password
+- It will generate all the files inside the `_OUTPUT\<appid>`
+- Copy all those files to the same folder where you found the `steam_api64.dll` in the game's folder
+- The game will start to generate the achievements into the folder `%appdata%\GSE Saves\<appid>` after unlocking the first achievement
+
+### Example:
+I test things with the game `100 Find Kitties Kitty house` since it is easy to get achievements
+If you search ins team, you will have the link https://store.steampowered.com/app/3220090/100_Find_Kitties_Kitty_house/
+The `appid` are the numbers between the `app` and the game's name, so for this game it is `3220090`
+I've found the `steam_api64.dll` in `100 Find Kitties Kitty house\find_kitty_house_Data\Plugins\x86_64`, I rename it only to keep a backup
+I've run the command `generate_emu_config.exe 3220090` from the location where I've download it.
+```
+E:\Things\GSE Fork Tools\generate_emu_config>generate_emu_config.exe 3220090
+Internet Connection - Online, Google OK via https://www.google.com
+Enter the Steam 2FA code emailed to you: 8F4QD
+
+*** STARTED config for app id 3220090 ***
+
+[ ] Found app id on Steam store
+[ ] Found app name on Steam store
+[ ] __ orig name: '100 Find Kitties: Kitty house'
+[ ] __ safe name: '100 Find Kitties Kitty house'
+[ ] DEF_DIR = E:\Things\GSE Fork Tools\generate_emu_config\_DEFAULT
+[ ] OUT_DIR = E:\Things\GSE Fork Tools\generate_emu_config\_OUTPUT\3220090
+[ ] Copying preset emu configs...
+[ ] __ default emu config from <DEF_DIR>\0 folder
+[ ] __ preset emu config from <DEF_DIR>\1 folder
+[ ] Found product info --- writing to <OUT_DIR>\steam_misc\app_info\app_product_info.json
+[ ] Found app details --- writing to <OUT_DIR>\steam_misc\app_info\app_details.json
+[?] No stats found - skip creating <OUT_DIR>\steam_settings\stats.json
+[ ] Found 100 achievements --- writing to <OUT_DIR>\steam_settings\achievements.json
+[ ] Found 2 achievements images --- downloading to <OUT_DIR>\steam_settings\img folder
+[ ] Found 103 supported languages --- writing to <OUT_DIR>\steam_settings\supported_languages.txt
+[?] No DLCs found - skip writing to <OUT_DIR>\steam_settings\configs.app.ini
+[ ] Found 2 depots --- writing to <OUT_DIR>\steam_settings\depots.txt
+[ ] Found 1 branch --- writing to <OUT_DIR>\steam_settings\branches.json
+[ ] __ default branch name: public, latest build id: 22019218
+[?] No controller configs found - skip generating action sets
+[?] No inventory items found - skip creating <OUT_DIR>\steam_settings\items.json & default_items.json
+[ ] Detected app exe: 'find_kitty_house.exe'
+
+*** FINISHED config for app id 3220090 ***
+```
+Then copy all the files from `_OUTPUT\3220090` to `100 Find Kitties Kitty house\find_kitty_house_Data\Plugins\x86_64`
+After getting the first achievement, I can see that the file now exists at `%appdata%\GSE Saves\3220090`
+
+
 ## What is scanned automatically
 
 The settings page shows the authoritative list. It includes Steam `userdata` and `appcache\stats`, common Steam installation roots on available drives, and common locations for OnlineFix, RUNE, CODEX, Goldberg/GSE, EMPRESS, SKIDROW, SmartSteamEmu, and CreamAPI saves.
