@@ -246,7 +246,23 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void ResolveGridSortAction_DefaultRarityDescending_CyclesDefaultAscendingNoneDefault()
+        public void ResolveGridSortAction_SwitchingFromAchievementAscendingToUnlockedStartsAscending()
+        {
+            var action = AchievementSortHelper.ResolveGridSortAction(
+                "UnlockTime",
+                currentSortPath: "DisplayName",
+                currentSortDirection: ListSortDirection.Ascending,
+                settings: new PersistedSettings(),
+                AchievementSortSurface.OverviewRecentAchievements,
+                visibleSortDirection: ListSortDirection.Descending);
+
+            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, action.Kind);
+            Assert.AreEqual("UnlockTime", action.SortMemberPath);
+            Assert.AreEqual(ListSortDirection.Ascending, action.Direction);
+        }
+
+        [TestMethod]
+        public void ResolveGridSortAction_DefaultRarityDescending_CyclesAscendingDescendingThenReset()
         {
             var settings = new PersistedSettings
             {
@@ -270,30 +286,30 @@ namespace PlayniteAchievements.Services.Tests
                 visibleSortDirection: first.Direction);
             var third = AchievementSortHelper.ResolveGridSortAction(
                 "RaritySortValue",
+                second.SortMemberPath,
+                second.Direction,
+                settings,
+                AchievementSortSurface.AchievementDataGrid,
+                visibleSortDirection: second.Direction);
+            var fourth = AchievementSortHelper.ResolveGridSortAction(
+                "RaritySortValue",
                 currentSortPath: null,
                 currentSortDirection: null,
                 settings,
                 AchievementSortSurface.AchievementDataGrid,
-                visibleSortDirection: null);
-            var fourth = AchievementSortHelper.ResolveGridSortAction(
-                "RaritySortValue",
-                third.SortMemberPath,
-                third.Direction,
-                settings,
-                AchievementSortSurface.AchievementDataGrid,
-                visibleSortDirection: third.Direction);
+                visibleSortDirection: ListSortDirection.Descending);
 
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, first.Kind);
             Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
-            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, second.Kind);
-            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, third.Kind);
-            Assert.AreEqual(ListSortDirection.Descending, third.Direction);
+            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, second.Kind);
+            Assert.AreEqual(ListSortDirection.Descending, second.Direction);
+            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, third.Kind);
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, fourth.Kind);
             Assert.AreEqual(ListSortDirection.Ascending, fourth.Direction);
         }
 
         [TestMethod]
-        public void ResolveGridSortAction_DefaultRarityAscending_CyclesDefaultDescendingNoneDefault()
+        public void ResolveGridSortAction_DefaultRarityAscending_CyclesAscendingDescendingThenReset()
         {
             var settings = new PersistedSettings
             {
@@ -317,21 +333,21 @@ namespace PlayniteAchievements.Services.Tests
                 visibleSortDirection: first.Direction);
             var third = AchievementSortHelper.ResolveGridSortAction(
                 "RaritySortValue",
-                currentSortPath: null,
-                currentSortDirection: null,
+                second.SortMemberPath,
+                second.Direction,
                 settings,
                 AchievementSortSurface.AchievementDataGrid,
-                visibleSortDirection: null);
+                visibleSortDirection: second.Direction);
 
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, first.Kind);
-            Assert.AreEqual(ListSortDirection.Descending, first.Direction);
-            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, second.Kind);
-            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, third.Kind);
-            Assert.AreEqual(ListSortDirection.Ascending, third.Direction);
+            Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
+            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, second.Kind);
+            Assert.AreEqual(ListSortDirection.Descending, second.Direction);
+            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, third.Kind);
         }
 
         [TestMethod]
-        public void ResolveGridSortAction_OverviewRecentDefaultOnSameColumn_CyclesAscendingThenReset()
+        public void ResolveGridSortAction_OverviewRecentDefaultOnSameColumn_CyclesAscendingDescendingThenReset()
         {
             var first = AchievementSortHelper.ResolveGridSortAction(
                 "UnlockTime",
@@ -347,10 +363,19 @@ namespace PlayniteAchievements.Services.Tests
                 settings: new PersistedSettings(),
                 AchievementSortSurface.OverviewRecentAchievements,
                 visibleSortDirection: first.Direction);
+            var third = AchievementSortHelper.ResolveGridSortAction(
+                "UnlockTime",
+                second.SortMemberPath,
+                second.Direction,
+                settings: new PersistedSettings(),
+                AchievementSortSurface.OverviewRecentAchievements,
+                visibleSortDirection: second.Direction);
 
             Assert.AreEqual(AchievementGridSortActionKind.ApplySort, first.Kind);
             Assert.AreEqual(ListSortDirection.Ascending, first.Direction);
-            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, second.Kind);
+            Assert.AreEqual(AchievementGridSortActionKind.ApplySort, second.Kind);
+            Assert.AreEqual(ListSortDirection.Descending, second.Direction);
+            Assert.AreEqual(AchievementGridSortActionKind.ResetToDefault, third.Kind);
         }
 
         [TestMethod]
