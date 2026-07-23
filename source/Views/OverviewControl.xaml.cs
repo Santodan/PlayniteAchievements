@@ -393,7 +393,9 @@ namespace PlayniteAchievements.Views
                 _viewModel?.RefreshManualSortSettings();
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
+                    ResetOverviewSortDirection();
                     ResetAchievementsSortDirection();
+                    ResetRecentAchievementsSortDirection();
                     ResetSidebarAllAchievementsSortDirection();
                     QueueActiveGridNormalization(rescaleAll: true);
                 }), DispatcherPriority.Render);
@@ -2580,6 +2582,12 @@ namespace PlayniteAchievements.Views
                 return;
             }
 
+            if (_viewModel.SelectedGameUsesSourceOrder)
+            {
+                GameAchievementsGrid?.SetSortIndicator(null, null);
+                return;
+            }
+
             AchievementSortHelper.ApplySortIndicator(
                 _viewModel.SelectedGameSortPath,
                 _viewModel.SelectedGameSortDirection,
@@ -2652,6 +2660,12 @@ namespace PlayniteAchievements.Views
         {
             if (RecentAchievementsDataGrid == null) return;
 
+            if (_viewModel?.RecentUsesSourceOrder == true)
+            {
+                RecentAchievementsDataGrid.SetSortIndicator(null, null);
+                return;
+            }
+
             AchievementSortHelper.ApplySortIndicator(
                 _viewModel?.RecentSortPath,
                 _viewModel?.RecentSortDirection,
@@ -2667,6 +2681,12 @@ namespace PlayniteAchievements.Views
             if (grid == null) return;
 
             foreach (var c in grid.Columns) { c.SortDirection = null; SetColumnSortLevel(grid, c, null); }
+
+            if (_viewModel?.SidebarAllUsesSourceOrder == true)
+            {
+                SidebarAllAchievementsDataGrid.SetSortIndicator(null, null);
+                return;
+            }
 
             AchievementSortHelper.ApplySortIndicator(
                 _viewModel?.SidebarAllSortPath,

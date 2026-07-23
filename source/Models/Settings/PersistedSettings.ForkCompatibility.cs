@@ -43,11 +43,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public string GamesOverviewCustomSecondarySorts { get; set; } = string.Empty;
 
+        public bool GamesOverviewCustomSortUsesSourceOrder { get; set; }
+
         public string RecentAchievementsCustomSortPath { get; set; }
 
         public bool RecentAchievementsCustomSortDescending { get; set; } = true;
 
         public string RecentAchievementsCustomSecondarySorts { get; set; } = string.Empty;
+
+        public bool RecentAchievementsCustomSortUsesSourceOrder { get; set; }
 
         public string SidebarAllAchievementsCustomSortPath { get; set; }
 
@@ -55,11 +59,15 @@ namespace PlayniteAchievements.Models.Settings
 
         public string SidebarAllAchievementsCustomSecondarySorts { get; set; } = string.Empty;
 
+        public bool SidebarAllAchievementsCustomSortUsesSourceOrder { get; set; }
+
         public string SidebarSelectedGameCustomSortPath { get; set; }
 
         public bool SidebarSelectedGameCustomSortDescending { get; set; } = true;
 
         public string SidebarSelectedGameCustomSecondarySorts { get; set; } = string.Empty;
+
+        public bool SidebarSelectedGameCustomSortUsesSourceOrder { get; set; }
         public string DefaultUnlockNotificationStyle { get; set; } = string.Empty;
 
         public Dictionary<string, string> ProviderUnlockNotificationStyles { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

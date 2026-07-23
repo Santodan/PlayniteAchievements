@@ -201,6 +201,31 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void CloneAndCopyFrom_PreserveManualSortSourceOrderSelections()
+        {
+            var source = new PersistedSettings
+            {
+                GamesOverviewCustomSortUsesSourceOrder = true,
+                RecentAchievementsCustomSortUsesSourceOrder = true,
+                SidebarAllAchievementsCustomSortUsesSourceOrder = true,
+                SidebarSelectedGameCustomSortUsesSourceOrder = true
+            };
+
+            var clone = source.Clone();
+            var target = new PersistedSettings();
+            target.CopyFrom(source);
+
+            Assert.IsTrue(clone.GamesOverviewCustomSortUsesSourceOrder);
+            Assert.IsTrue(clone.RecentAchievementsCustomSortUsesSourceOrder);
+            Assert.IsTrue(clone.SidebarAllAchievementsCustomSortUsesSourceOrder);
+            Assert.IsTrue(clone.SidebarSelectedGameCustomSortUsesSourceOrder);
+            Assert.IsTrue(target.GamesOverviewCustomSortUsesSourceOrder);
+            Assert.IsTrue(target.RecentAchievementsCustomSortUsesSourceOrder);
+            Assert.IsTrue(target.SidebarAllAchievementsCustomSortUsesSourceOrder);
+            Assert.IsTrue(target.SidebarSelectedGameCustomSortUsesSourceOrder);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveViewAchievementsTimelineState()
         {
             var source = new PersistedSettings

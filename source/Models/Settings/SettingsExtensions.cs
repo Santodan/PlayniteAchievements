@@ -355,15 +355,19 @@ namespace PlayniteAchievements.Models.Settings
             target.GamesOverviewCustomSortPath = source.GamesOverviewCustomSortPath;
             target.GamesOverviewCustomSortDescending = source.GamesOverviewCustomSortDescending;
             target.GamesOverviewCustomSecondarySorts = source.GamesOverviewCustomSecondarySorts;
+            target.GamesOverviewCustomSortUsesSourceOrder = source.GamesOverviewCustomSortUsesSourceOrder;
             target.RecentAchievementsCustomSortPath = source.RecentAchievementsCustomSortPath;
             target.RecentAchievementsCustomSortDescending = source.RecentAchievementsCustomSortDescending;
             target.RecentAchievementsCustomSecondarySorts = source.RecentAchievementsCustomSecondarySorts;
+            target.RecentAchievementsCustomSortUsesSourceOrder = source.RecentAchievementsCustomSortUsesSourceOrder;
             target.SidebarAllAchievementsCustomSortPath = source.SidebarAllAchievementsCustomSortPath;
             target.SidebarAllAchievementsCustomSortDescending = source.SidebarAllAchievementsCustomSortDescending;
             target.SidebarAllAchievementsCustomSecondarySorts = source.SidebarAllAchievementsCustomSecondarySorts;
+            target.SidebarAllAchievementsCustomSortUsesSourceOrder = source.SidebarAllAchievementsCustomSortUsesSourceOrder;
             target.SidebarSelectedGameCustomSortPath = source.SidebarSelectedGameCustomSortPath;
             target.SidebarSelectedGameCustomSortDescending = source.SidebarSelectedGameCustomSortDescending;
             target.SidebarSelectedGameCustomSecondarySorts = source.SidebarSelectedGameCustomSecondarySorts;
+            target.SidebarSelectedGameCustomSortUsesSourceOrder = source.SidebarSelectedGameCustomSortUsesSourceOrder;
             target.DefaultUnlockNotificationStyle = source.DefaultUnlockNotificationStyle;
             target.ProviderUnlockNotificationStyles = source.ProviderUnlockNotificationStyles != null
                 ? new Dictionary<string, string>(source.ProviderUnlockNotificationStyles, StringComparer.OrdinalIgnoreCase)

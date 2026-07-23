@@ -99,7 +99,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 
 ## Next release - TBD
 
-- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override3
+- Fixed `RetroAchievements Game ID Override` displaying `No override set` after setting an override
 - Removed `Display Order` column since the third click feature sorts with the correct RA order
 - Restored the third click in the header to remove the column sort
 - Fixed an error in the WebView2 warm-up window

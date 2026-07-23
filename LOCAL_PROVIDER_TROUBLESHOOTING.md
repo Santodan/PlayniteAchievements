@@ -29,7 +29,7 @@ If you want to make sure that the game generates the achievements file, apply GS
 
 ### Example:
 I test things with the game `100 Find Kitties Kitty house` since it is easy to get achievements
-If you search ins team, you will have the link https://store.steampowered.com/app/3220090/100_Find_Kitties_Kitty_house/
+If you search in steam, you will have the link https://store.steampowered.com/app/3220090/100_Find_Kitties_Kitty_house/
 The `appid` are the numbers between the `app` and the game's name, so for this game it is `3220090`
 I've found the `steam_api64.dll` in `100 Find Kitties Kitty house\find_kitty_house_Data\Plugins\x86_64`, I rename it only to keep a backup
 I've run the command `generate_emu_config.exe 3220090` from the location where I've download it.
