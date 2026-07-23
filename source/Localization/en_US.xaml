@@ -554,6 +554,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_Settings_ShowSidebarTrophyPieChart">Show Trophy Pie Chart</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_DefaultAchievementSort">Default Achievement Sort</sys:String>
     <sys:String x:Key="LOCPlayAch_SortMode_RetroAchievements">RetroAchievements</sys:String>
+    <sys:String x:Key="LOCPlayAch_SortMode_SourceOrder">Provider / Source Order (No Column Sort)</sys:String>
     <sys:String x:Key="LOCPlayAch_SortMode_CustomManual">Custom (Manual)</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode">Small Slice Handling</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_SidebarPieSmallSliceMode_Exact">Exact</sys:String>

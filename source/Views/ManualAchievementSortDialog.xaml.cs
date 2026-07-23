@@ -22,11 +22,12 @@ namespace PlayniteAchievements.Views
     {
         private sealed class SortOption
         {
-            public SortOption(string path, string label, bool isRetro = false)
+            public SortOption(string path, string label, bool isRetro = false, bool isSourceOrder = false)
             {
                 Path = path;
                 Label = label;
                 IsRetro = isRetro;
+                IsSourceOrder = isSourceOrder;
             }
 
             public string Path { get; }
@@ -34,6 +35,8 @@ namespace PlayniteAchievements.Views
             public string Label { get; }
 
             public bool IsRetro { get; }
+
+            public bool IsSourceOrder { get; }
         }
 
         private readonly PlayniteAchievementsSettings _settings;
@@ -90,6 +93,7 @@ namespace PlayniteAchievements.Views
 
             _overviewOptions = new List<SortOption>
             {
+                CreateSourceOrderOption(),
                 new SortOption("SortingName", ResourceProvider.GetString("LOCPlayAch_Column_Name") ?? "Name"),
                 new SortOption("LastPlayed", ResourceProvider.GetString("LOCPlayAch_Column_LastPlayed") ?? "Last Played"),
                 new SortOption("PlaytimeSeconds", ResourceProvider.GetString("LOCPlayAch_Column_Playtime") ?? "Playtime"),
@@ -139,6 +143,7 @@ namespace PlayniteAchievements.Views
         {
             var options = new List<SortOption>
             {
+                CreateSourceOrderOption(),
                 new SortOption("DisplayName", ResourceProvider.GetString("LOCPlayAch_Column_Achievement") ?? "Achievement"),
                 new SortOption("UnlockTime", ResourceProvider.GetString("LOCPlayAch_Common_Unlocked") ?? "Unlocked"),
                 new SortOption("CategoryType", ResourceProvider.GetString("LOCPlayAch_Common_Label_Type") ?? "Type"),
@@ -155,6 +160,14 @@ namespace PlayniteAchievements.Views
             }
 
             return options;
+        }
+
+        private static SortOption CreateSourceOrderOption()
+        {
+            return new SortOption(
+                null,
+                ResourceProvider.GetString("LOCPlayAch_SortMode_SourceOrder") ?? "Provider / Source Order (No Column Sort)",
+                isSourceOrder: true);
         }
 
         private void ManualAchievementSortDialog_Loaded(object sender, RoutedEventArgs e)
@@ -285,7 +298,7 @@ namespace PlayniteAchievements.Views
         {
             if (string.IsNullOrWhiteSpace(sortPath))
             {
-                return null;
+                return options.FirstOrDefault(option => option.IsSourceOrder);
             }
 
             return options.FirstOrDefault(option => string.Equals(option.Path, sortPath, StringComparison.Ordinal))
@@ -406,7 +419,7 @@ namespace PlayniteAchievements.Views
                 _overviewSortPath = null;
                 _overviewSecondarySorts.Clear();
                 ReplaceCollection(GamesOverviewItems, _overviewSource);
-                OverviewSortCombo.SelectedItem = null;
+                OverviewSortCombo.SelectedItem = FindOption(_overviewOptions, null);
                 RefreshSortLevelBadges();
                 UpdateDirectionButtons();
                 return;
@@ -543,7 +556,7 @@ namespace PlayniteAchievements.Views
                 currentPath = null;
                 secondaries.Clear();
                 ReplaceCollection(targetCollection, sourceItems);
-                combo.SelectedItem = null;
+                combo.SelectedItem = FindOption(options, null);
                 return;
             }
 
@@ -638,6 +651,16 @@ namespace PlayniteAchievements.Views
         {
             if (OverviewSortCombo.SelectedItem is SortOption option)
             {
+                if (option.IsSourceOrder)
+                {
+                    _overviewSortPath = null;
+                    _overviewSecondarySorts.Clear();
+                    ReplaceCollection(GamesOverviewItems, _overviewSource);
+                    RefreshSortLevelBadges();
+                    UpdateDirectionButtons();
+                    return;
+                }
+
                 _overviewSortPath = option.Path;
                 ApplyOverviewSort(_overviewSortPath, _overviewSortDirection, _overviewSecondarySorts);
                 RefreshSortLevelBadges();
@@ -648,6 +671,16 @@ namespace PlayniteAchievements.Views
         {
             if (RecentSortCombo.SelectedItem is SortOption option)
             {
+                if (option.IsSourceOrder)
+                {
+                    _recentSortPath = null;
+                    _recentSecondarySorts.Clear();
+                    ReplaceCollection(RecentItems, _recentSource);
+                    RefreshSortLevelBadges();
+                    UpdateDirectionButtons();
+                    return;
+                }
+
                 _recentSortPath = option.Path;
                 if (option.IsRetro)
                 {
@@ -664,6 +697,16 @@ namespace PlayniteAchievements.Views
         {
             if (AllSortCombo.SelectedItem is SortOption option)
             {
+                if (option.IsSourceOrder)
+                {
+                    _allSortPath = null;
+                    _allSecondarySorts.Clear();
+                    ReplaceCollection(AllItems, _allSource);
+                    RefreshSortLevelBadges();
+                    UpdateDirectionButtons();
+                    return;
+                }
+
                 _allSortPath = option.Path;
                 if (option.IsRetro)
                 {
@@ -680,6 +723,16 @@ namespace PlayniteAchievements.Views
         {
             if (SelectedSortCombo.SelectedItem is SortOption option)
             {
+                if (option.IsSourceOrder)
+                {
+                    _selectedSortPath = null;
+                    _selectedSecondarySorts.Clear();
+                    ReplaceCollection(SelectedItems, _selectedSource);
+                    RefreshSortLevelBadges();
+                    UpdateDirectionButtons();
+                    return;
+                }
+
                 _selectedSortPath = option.Path;
                 if (option.IsRetro)
                 {
@@ -850,13 +903,20 @@ namespace PlayniteAchievements.Views
             SetDirectionGlyph(AllDirectionIcon, _allSortDirection);
             SetDirectionGlyph(SelectedDirectionIcon, _selectedSortDirection);
 
-            OverviewDirectionButton.IsEnabled = OverviewSortCombo?.SelectedItem is SortOption;
+            OverviewDirectionButton.IsEnabled =
+                OverviewSortCombo?.SelectedItem is SortOption overview && !overview.IsSourceOrder;
             RecentDirectionButton.IsEnabled =
-                RecentSortCombo?.SelectedItem is SortOption && !IsRetroSelected(RecentSortCombo);
+                RecentSortCombo?.SelectedItem is SortOption recent &&
+                !recent.IsSourceOrder &&
+                !recent.IsRetro;
             AllDirectionButton.IsEnabled =
-                AllSortCombo?.SelectedItem is SortOption && !IsRetroSelected(AllSortCombo);
+                AllSortCombo?.SelectedItem is SortOption all &&
+                !all.IsSourceOrder &&
+                !all.IsRetro;
             SelectedDirectionButton.IsEnabled =
-                SelectedSortCombo?.SelectedItem is SortOption && !IsRetroSelected(SelectedSortCombo);
+                SelectedSortCombo?.SelectedItem is SortOption selected &&
+                !selected.IsSourceOrder &&
+                !selected.IsRetro;
         }
 
         private static bool IsRetroSelected(ComboBox combo)
@@ -1016,12 +1076,20 @@ namespace PlayniteAchievements.Views
         {
             if (OverviewSortCombo.SelectedItem is SortOption overview)
             {
-                _overviewSortPath = overview.Path;
+                _overviewSortPath = overview.IsSourceOrder ? null : overview.Path;
+                if (overview.IsSourceOrder)
+                {
+                    _overviewSecondarySorts.Clear();
+                }
             }
 
             if (RecentSortCombo.SelectedItem is SortOption recent)
             {
-                _recentSortPath = recent.Path;
+                _recentSortPath = recent.IsSourceOrder ? null : recent.Path;
+                if (recent.IsSourceOrder)
+                {
+                    _recentSecondarySorts.Clear();
+                }
                 if (recent.IsRetro)
                 {
                     _recentSortDirection = ListSortDirection.Ascending;
@@ -1030,7 +1098,11 @@ namespace PlayniteAchievements.Views
 
             if (AllSortCombo.SelectedItem is SortOption all)
             {
-                _allSortPath = all.Path;
+                _allSortPath = all.IsSourceOrder ? null : all.Path;
+                if (all.IsSourceOrder)
+                {
+                    _allSecondarySorts.Clear();
+                }
                 if (all.IsRetro)
                 {
                     _allSortDirection = ListSortDirection.Ascending;
@@ -1039,7 +1111,11 @@ namespace PlayniteAchievements.Views
 
             if (SelectedSortCombo.SelectedItem is SortOption selected)
             {
-                _selectedSortPath = selected.Path;
+                _selectedSortPath = selected.IsSourceOrder ? null : selected.Path;
+                if (selected.IsSourceOrder)
+                {
+                    _selectedSecondarySorts.Clear();
+                }
                 if (selected.IsRetro)
                 {
                     _selectedSortDirection = ListSortDirection.Ascending;

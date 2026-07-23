@@ -1566,7 +1566,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     if (previousGameId != newGameId)
                     {
-                        ResetSelectedGameSortToDefault();
+                        RestoreSelectedGameSortConfiguration();
                     }
 
                     ResetSelectedGameAchievementVisibilityFilters();
@@ -4439,7 +4439,25 @@ namespace PlayniteAchievements.ViewModels
             }
         }
 
-        private void ResetSelectedGameSortToDefault()
+        private void RestoreSelectedGameSortConfiguration()
+        {
+            _allSelectedGameAchievements = _selectedGameDefaultOrderedAchievements != null
+                ? new List<AchievementDisplayItem>(_selectedGameDefaultOrderedAchievements)
+                : new List<AchievementDisplayItem>();
+
+            var persisted = _settings?.Persisted;
+            _selectedGameSortPath = persisted?.SidebarSelectedGameCustomSortUsesSourceOrder == true
+                ? null
+                : persisted?.SidebarSelectedGameCustomSortPath;
+            _selectedGameSortDirection = persisted?.SidebarSelectedGameCustomSortDescending == true
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+            _selectedGameSecondarySorts.Clear();
+            _selectedGameSecondarySorts.AddRange(
+                DeserializeSecondarySorts(persisted?.SidebarSelectedGameCustomSecondarySorts));
+        }
+
+        private void ResetSelectedGameSortToSourceOrder()
         {
             _allSelectedGameAchievements = _selectedGameDefaultOrderedAchievements != null
                 ? new List<AchievementDisplayItem>(_selectedGameDefaultOrderedAchievements)
@@ -4510,7 +4528,7 @@ namespace PlayniteAchievements.ViewModels
 
         public void ApplyDefaultSelectedGameSort()
         {
-            ResetSelectedGameSortToDefault();
+            ResetSelectedGameSortToSourceOrder();
 
             if (IsGameSelected)
             {
