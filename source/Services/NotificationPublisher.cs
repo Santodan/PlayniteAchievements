@@ -394,7 +394,16 @@ namespace PlayniteAchievements.Services
         {
             var localSettings = overrideLocalSettings ?? ProviderRegistry.Settings<LocalSettings>();
             var mode = forcedDeliveryMode ?? localSettings?.UnlockNotificationDeliveryMode ?? LocalUnlockNotificationDeliveryMode.Hybrid;
-            var style = ResolveUnlockNotificationStyle(providerKey, forcedStyle);
+            // Achievement notifications use the custom renderer by default. The provider key
+            // supplies provider-specific icons and wildcard values; it does not select a style.
+            // A forced style is reserved for the explicit built-in style preview actions.
+            var style = string.IsNullOrWhiteSpace(forcedStyle)
+                ? NotificationStyleCustom
+                : ResolveUnlockNotificationStyle(providerKey, forcedStyle);
+
+            _logger?.Info(
+                $"[LocalOverlay] Dispatching unlock popup provider='{providerKey}', mode='{mode}', style='{style}', " +
+                $"transition='{localSettings?.UnlockOverlayTransitionStyle}', sanElement='{localSettings?.OverlayCustomSanElementPresetId ?? string.Empty}'.");
 
             if (mode == LocalUnlockNotificationDeliveryMode.Overlay || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
             {
@@ -416,7 +425,7 @@ namespace PlayniteAchievements.Services
 
             if (mode == LocalUnlockNotificationDeliveryMode.WindowsToast || mode == LocalUnlockNotificationDeliveryMode.Hybrid)
             {
-                SendWindowsToastNotification(gameName, achievementName, achievementIconPath, providerKey, forcedStyle, localSettings);
+                SendWindowsToastNotification(gameName, achievementName, achievementIconPath, providerKey, style, localSettings);
             }
         }
 

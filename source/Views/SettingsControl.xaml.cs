@@ -1849,18 +1849,14 @@ namespace PlayniteAchievements.Views
                 var previewGameName = string.IsNullOrWhiteSpace(previewGame?.Name) ? "Current Game" : previewGame.Name;
                 var previewAchievement = GetSelectedNotificationPreviewAchievement();
                 var previewProviderKey = ResolveCurrentNotificationTestProviderKey();
-                var hasSanTemplate = (IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) ||
-                    !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId)) &&
-                    !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanPresetHtml);
-                if (hasSanTemplate && string.IsNullOrWhiteSpace(soundPath))
+                var requiresCustomOverlay = IsSanTransitionStyle(localSettings.UnlockOverlayTransitionStyle) ||
+                    !string.IsNullOrWhiteSpace(localSettings.OverlayCustomSanElementPresetId);
+                if (requiresCustomOverlay && string.IsNullOrWhiteSpace(soundPath))
                 {
                     soundPath = NotificationPublisher.ResolveSanDefaultSoundPath(localSettings);
                 }
 
-                var resolvedStyle = hasSanTemplate
-                    ? NotificationPublisher.NotificationStyleCustom
-                    : ResolveCurrentNotificationTestStyle(previewProviderKey);
-                var forcedDeliveryMode = hasSanTemplate
+                var forcedDeliveryMode = requiresCustomOverlay
                     ? (LocalUnlockNotificationDeliveryMode?)LocalUnlockNotificationDeliveryMode.Overlay
                     : null;
                 var publisher = new NotificationPublisher(_plugin?.PlayniteApi, _settingsViewModel?.Settings, _logger);
@@ -1874,13 +1870,13 @@ namespace PlayniteAchievements.Views
                     achievementPoints: previewAchievement?.Points ?? 25,
                     achievementRarity: FormatPreviewAchievementRarity(previewAchievement, "52.4%"),
                     achievementTrophy: previewAchievement?.TrophyType ?? "Gold",
-                    forcedStyle: resolvedStyle,
+                    forcedStyle: NotificationPublisher.NotificationStyleCustom,
                     forcedDeliveryMode: forcedDeliveryMode,
                     overrideLocalSettings: localSettings,
                     notificationProviderKey: previewProviderKey);
 
-                NotificationsUnlockSoundStatusTextBlock.Text = hasSanTemplate
-                    ? $"Test SAN notification sent using preset '{localSettings.OverlayCustomSanPresetId}'."
+                NotificationsUnlockSoundStatusTextBlock.Text = requiresCustomOverlay
+                    ? $"Test custom overlay sent using transition '{localSettings.UnlockOverlayTransitionStyle}'."
                     : $"Test notification sent for {ProviderRegistry.GetLocalizedName(previewProviderKey)} using {localSettings.UnlockNotificationDeliveryMode}.";
                 if (NotificationsTestUnlockSoundButton != null)
                     NotificationsTestUnlockSoundButton.IsEnabled = true;
@@ -5527,7 +5523,6 @@ namespace PlayniteAchievements.Views
             }
 
             ApplyCustomStyleSlotToEditor(localSettings, slot);
-
             RefreshCustomStyleSlotControls(localSettings);
             UpdateCustomStyleInlinePreview(localSettings);
             NotificationsUnlockSoundStatusTextBlock.Text = $"Loaded custom style from Slot {slotIndex + 1}.";
