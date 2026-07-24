@@ -73,7 +73,7 @@ namespace PlayniteAchievements.Providers.PSN.Models
     }
 
     /// <summary>
-    /// Response from /npCommunicationIds/{id}/trophyGroups/all - the trophy group metadata
+    /// Response from /npCommunicationIds/{id}/trophyGroups - the trophy group metadata
     /// (base group plus each DLC group) carrying human-readable group titles.
     /// </summary>
     internal sealed class PsnTrophyGroupsResponse

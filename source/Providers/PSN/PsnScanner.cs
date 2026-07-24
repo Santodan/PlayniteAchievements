@@ -28,7 +28,7 @@ namespace PlayniteAchievements.Providers.PSN
         private const string UrlBase = "https://m.np.playstation.com/api/trophy/v1";
         private const string UrlTrophiesDetailsAll = UrlBase + "/npCommunicationIds/{0}/trophyGroups/all/trophies";
         private const string UrlTrophiesUserAll = UrlBase + "/users/me/npCommunicationIds/{0}/trophyGroups/all/trophies";
-        private const string UrlTrophyGroupsAll = UrlBase + "/npCommunicationIds/{0}/trophyGroups/all";
+        private const string UrlTrophyGroups = UrlBase + "/npCommunicationIds/{0}/trophyGroups";
         private const string UrlTitlesWithIdsMobile = UrlBase + "/users/me/titles/trophyTitles?npTitleIds={0}";
         private const string UrlAllTrophyTitles = UrlBase + "/users/me/trophyTitles";
 
@@ -394,7 +394,7 @@ namespace PlayniteAchievements.Providers.PSN
                 groupsJson = await PsnSuffixRetryHelper.GetStringWithSuffixRetryAsync(
                     suffix => GetStringWithAuthRetryAsync(
                         http,
-                        string.Format(UrlTrophyGroupsAll, npCommId) + suffix,
+                        string.Format(UrlTrophyGroups, npCommId) + suffix,
                         $"trophy groups for '{game?.Name}'",
                         cancel),
                     serviceSuffixCandidates).ConfigureAwait(false);
