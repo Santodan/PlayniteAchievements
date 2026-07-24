@@ -1032,7 +1032,7 @@ namespace PlayniteAchievements.Services.UI
         /// the natural card is a large fraction of the (small) DIP area and gets shrunk to fit, while on
         /// a roomy display it stays at its natural size (readable) because it already fits.
         /// </summary>
-        private const double MaxToastAreaFraction = 0.25;
+        private const double MaxToastAreaFraction = 0.40;
 
         /// <summary>
         /// The scale to apply to the toast content so it fits within <see cref="MaxToastAreaFraction"/>
