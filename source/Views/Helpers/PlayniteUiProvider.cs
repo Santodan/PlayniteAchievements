@@ -98,12 +98,15 @@ namespace PlayniteAchievements.Views.Helpers
 
             // Match Playnite's popout title strip to the surface the popout content roots paint
             // (PlayAch.Brush.Window.Background), so the chrome is not a distinct bar and Playnite's
-            // off-center title text is never noticeable.
+            // off-center title text is never noticeable. The strip renders the window's Background
+            // property (Playnite sets a local value that beats the theme's WindowBackgourndBrush
+            // setter), so assign it directly in addition to the chrome resource keys.
             if (app.TryFindResource("PlayAch.Brush.Window.Background") is Brush windowSurface)
             {
                 window.Resources["WindowBackgourndBrush"] = windowSurface;
                 window.Resources["StandardWindowBackgroundBrush"] = windowSurface;
                 window.Resources["WindowBaseBackgroundBrush"] = windowSurface;
+                window.Background = windowSurface;
             }
 
             var borderBrush =
