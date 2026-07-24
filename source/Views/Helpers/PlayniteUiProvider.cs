@@ -96,24 +96,14 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            // Back the popout chrome (Playnite's title strip and the window backdrop) with the same
-            // surface the popout content roots paint (PlayAch.Brush.Window.Background / WindowSurface).
-            // Matching the content color hides the title strip so Playnite's off-center title text is
-            // never noticeable. WindowSurface is allowed to ship transparent (so embedded theme views
-            // blend into the host), and a floating window with a transparent backdrop would be
-            // see-through, so force this brush opaque locally before applying it to the chrome. This
-            // stays scoped to popout windows and does not touch the global WindowSurface token.
-            var popoutSurface = ForceOpaque(
-                app.TryFindResource("PlayAch.Brush.Window.Background") as Brush ??
-                app.TryFindResource("PlayAch.Brush.WindowSurface") as Brush ??
-                app.TryFindResource("PlayAch.Brush.Dialog.Background") as Brush ??
-                app.TryFindResource("PlayAch.Brush.PopupSurface") as Brush);
-            if (popoutSurface != null)
+            // Match Playnite's popout title strip to the surface the popout content roots paint
+            // (PlayAch.Brush.Window.Background), so the chrome is not a distinct bar and Playnite's
+            // off-center title text is never noticeable.
+            if (app.TryFindResource("PlayAch.Brush.Window.Background") is Brush windowSurface)
             {
-                window.Resources["WindowBackgourndBrush"] = popoutSurface;
-                window.Resources["StandardWindowBackgroundBrush"] = popoutSurface;
-                window.Resources["WindowBaseBackgroundBrush"] = popoutSurface;
-                window.Background = popoutSurface;
+                window.Resources["WindowBackgourndBrush"] = windowSurface;
+                window.Resources["StandardWindowBackgroundBrush"] = windowSurface;
+                window.Resources["WindowBaseBackgroundBrush"] = windowSurface;
             }
 
             var borderBrush =
@@ -156,28 +146,6 @@ namespace PlayniteAchievements.Views.Helpers
             {
                 window.Resources["HighlightGlyphBrush"] = accentBrush;
             }
-        }
-
-        // Force a solid brush opaque for use as a floating window backdrop. A translucent
-        // SolidColorBrush is cloned with full alpha (preserving its color); already-opaque and
-        // non-solid brushes are returned unchanged. Mirrors PlayAchResourceService.EnsureOpaqueIfRequired
-        // but stays local so the global WindowSurface token keeps whatever transparency the theme intends.
-        private static Brush ForceOpaque(Brush brush)
-        {
-            if (!(brush is SolidColorBrush solid) || solid.Color.A == 255)
-            {
-                return brush;
-            }
-
-            var color = solid.Color;
-            color.A = 255;
-            var opaque = new SolidColorBrush(color);
-            if (opaque.CanFreeze)
-            {
-                opaque.Freeze();
-            }
-
-            return opaque;
         }
 
         private static Window CreateFullscreenWindow(string title, UserControl content, WindowOptions windowOptions)
