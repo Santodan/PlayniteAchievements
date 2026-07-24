@@ -2233,6 +2233,7 @@ steamImage +
             variables.AppendLine("body.san-webview-has-cover.san-cover-left .san-line-stack { margin-left: var(--san-cover-width) !important; max-width: calc(100% - var(--san-cover-width)) !important; }");
             variables.AppendLine("body.san-webview-has-cover.san-cover-right .san-line-stack { margin-right: var(--san-cover-width) !important; max-width: calc(100% - var(--san-cover-width)) !important; }");
             variables.AppendLine($"body {{ --san-cover-image: {(string.IsNullOrWhiteSpace(coverImageUri) ? "none" : $"url('{CssUrl(coverImageUri)}')")}; --san-cover-width: {Math.Max(24, settings?.GameCoverWidth ?? 80).ToString("0.###", CultureInfo.InvariantCulture)}px; }}");
+            variables.AppendLine("body[gameart] .wrapper#bg, body[bgimg] .wrapper#bg { background-color: var(--primarycolor) !important; }");
             variables.AppendLine($"body[gameart] .wrapper#bg::after, body[bgimg] .wrapper#bg::after {{ opacity: {Math.Max(0, Math.Min(1, settings?.GameBannerOpacity ?? 0.3)).ToString("0.###", CultureInfo.InvariantCulture)} !important; }}");
             variables.AppendLine("body[data-san-elements=\"xbox360\"] .wrapper#achcontent .san-line-stack, body[data-san-elements=\"xboxone\"] .wrapper#achcontent .san-line-stack, body[data-san-elements=\"ps5\"] .wrapper#achcontent .san-line-stack, body[data-san-elements=\"ps4\"] .wrapper#achcontent .san-line-stack { grid-column: 2 !important; }");
             variables.AppendLine("body[data-san-preset=\"epicgames\"] .wrapper#achcont, body[data-san-elements=\"epicgames\"] .wrapper#achcont { width: 100% !important; scale: 1 !important; opacity: var(--opacity) !important; }");
@@ -2243,7 +2244,7 @@ steamImage +
             {
                 variables.AppendLine("body[data-san-preset=\"epicgames\"] .wrapper#achcont::before, body[data-san-elements=\"epicgames\"] .wrapper#achcont::before { display: none !important; opacity: 0 !important; }");
                 variables.AppendLine("body[data-san-preset=\"epicgames\"] .shadow, body[data-san-elements=\"epicgames\"] .shadow { display: none !important; opacity: 0 !important; }");
-                variables.AppendLine("body[data-san-preset=\"epicgames\"] .wrapper#bg, body[data-san-elements=\"epicgames\"] .wrapper#bg { background-color: transparent !important; }");
+                variables.AppendLine("body[data-san-preset=\"epicgames\"] .wrapper#bg, body[data-san-elements=\"epicgames\"] .wrapper#bg { background-color: var(--primarycolor) !important; }");
             }
             variables.AppendLine("body[data-san-preset=\"default\"] #bg, body[data-san-elements=\"default\"] #bg { background-color: var(--primarycolor) !important; }");
             variables.AppendLine("body[data-san-preset=\"default\"] .wrapper#achcontent .san-line-stack, body[data-san-elements=\"default\"] .wrapper#achcontent .san-line-stack { box-sizing: border-box !important; padding-left: calc(12px * var(--scale)) !important; padding-right: calc(12px * var(--scale)) !important; }");
@@ -3951,7 +3952,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
 
             var root = new Border
             {
-                Background = bannerSource == null ? backgroundBrush : Brushes.Transparent,
+                Background = backgroundBrush,
                 BorderBrush = borderBrush,
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(10),
@@ -4410,7 +4411,7 @@ if ({JsBool(settings?.OverlayCustomAutoResizeToContent == true)}) {{
             var root = new Border
             {
                 Width = customWidth,
-                Background = bannerSource == null ? backgroundBrush : Brushes.Transparent,
+                Background = backgroundBrush,
                 BorderBrush = borderBrush,
                 BorderThickness = (settings?.OverlayCustomShowBorder != false) ? new Thickness(1.5) : new Thickness(0),
                 CornerRadius = new CornerRadius(cornerRadius),

@@ -105,6 +105,7 @@ The entries below are fork-side changes, grouped by date. When a date includes a
 - Fixed an error in the WebView2 warm-up window
 - Fixed an issue where the `Achievement Notification` wasn't trigger any custom setting
 - Fixed the first click in the column header is always ascending, the second descending and the third removes the sort
+- Fixed `Banner opacity` changing the notification opacity
 
 ## 2026-07-20 - v2.5.3.3
 - Trying to make the WebView notification quicker
