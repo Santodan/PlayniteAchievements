@@ -2856,7 +2856,7 @@
                                                  SelectionChanged="NotificationsOverlayPresetStyleComboBox_SelectionChanged"/>
                                          </DockPanel>
 
-                                         <DockPanel Margin="0,0,0,4">
+                                         <DockPanel Margin="0,0,0,4" Visibility="Collapsed">
                                              <TextBlock Text="Overlay opacity:"
                                                  VerticalAlignment="Center"
                                                  Margin="0,0,8,0"
@@ -3629,6 +3629,18 @@
                                                                 FontWeight="SemiBold"/>
                                                      <TextBox Grid.Column="1"
                                                               Text="{Binding OverlayCustomCornerRadius, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                                                     <TextBlock Grid.Column="3"
+                                                                Text="Opacity:"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,8,0"
+                                                                FontWeight="SemiBold"/>
+                                                     <Slider Grid.Column="4"
+                                                             Minimum="0.35"
+                                                             Maximum="1.00"
+                                                             TickFrequency="0.05"
+                                                             IsSnapToTickEnabled="True"
+                                                             Value="{Binding OverlayCustomOpacity, Mode=TwoWay}"
+                                                             ToolTip="Controls the opacity of the whole notification."/>
                                                  </Grid>
 
                                                  <Grid Margin="0,0,0,8">

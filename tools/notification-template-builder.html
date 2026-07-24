@@ -145,6 +145,10 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    .grid.four {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .grid.two {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -785,10 +789,11 @@
         <section id="tab-layout" class="section">
           <div class="group">
             <h2>Dimensions</h2>
-            <div class="grid three">
+            <div class="grid four">
               <div class="field"><label for="Width">Width</label><input id="Width" type="number" value="460"></div>
               <div class="field"><label for="Height">Height</label><input id="Height" type="number" value="128"></div>
               <div class="field"><label for="CornerRadius">Corner radius</label><input id="CornerRadius" type="number" value="18"></div>
+              <div class="field"><label for="Opacity">Opacity</label><input id="Opacity" type="number" min="0.35" max="1" step="0.05" value="0.98" title="Controls the opacity of the whole notification."></div>
               <div class="check"><label><input id="AutoResizeToContent" type="checkbox"> Auto height</label></div>
               <div class="check"><label><input id="WrapAllText" type="checkbox"> Wrap text</label></div>
               <div class="check"><label><input id="ShowBorder" type="checkbox" checked> Show border</label></div>
@@ -1037,7 +1042,7 @@
     const ids = [
       'TemplateName', 'Name', 'AutoResizeToContent', 'WrapAllText', 'ShowLine1',
       'ShowBorder', 'ShowGameName', 'ShowMeta', 'IconSize', 'IconCornerRadius', 'Width', 'Height',
-      'CornerRadius', 'SecondaryIconSize', 'SecondaryIconCornerRadius', 'TitleFontSize', 'DetailFontSize', 'MetaFontSize',
+      'CornerRadius', 'Opacity', 'SecondaryIconSize', 'SecondaryIconCornerRadius', 'TitleFontSize', 'DetailFontSize', 'MetaFontSize',
       'TitleBold', 'TitleItalic', 'TitleUnderline', 'TitleStrikethrough',
       'DetailBold', 'DetailItalic', 'DetailUnderline', 'DetailStrikethrough',
       'MetaBold', 'MetaItalic', 'MetaUnderline', 'MetaStrikethrough',
@@ -2043,6 +2048,7 @@
           DurationMilliseconds: num('DurationMilliseconds'),
           FadeInMilliseconds: num('FadeInMilliseconds'),
           FadeOutMilliseconds: num('FadeOutMilliseconds'),
+          Opacity: Math.max(0.35, Math.min(1, Number($('Opacity').value || 0.98))),
           SoundLeadMilliseconds: num('SoundLeadMilliseconds'),
           OverlayPosition: $('OverlayPosition').value,
           TransitionStyle: $('TransitionStyle').value,
@@ -2232,6 +2238,7 @@
       const stay = Math.max(500, transition.DurationMilliseconds);
       const total = Math.max(1, fadeIn + fadeOut + stay);
       const fadeInPct = Math.max(1, Math.round((fadeIn / total) * 100));
+      const notificationOpacity = Math.max(0.35, Math.min(1, Number(transition.Opacity ?? 0.98)));
       const stayPct = Math.max(fadeInPct + 1, Math.round(((fadeIn + stay) / total) * 100));
       const distance = Math.max(0, transition.SlideDistance || 72);
       const animationStyle = slot.AnimationStyle || 'Standard';
@@ -2278,7 +2285,7 @@
         document.head.appendChild(keyframes);
       }
       keyframes.textContent = `
-        @keyframes toastPreview{0%{opacity:0;transform:${start}} ${fadeInPct}%{opacity:1;transform:${middle}} ${stayPct}%{opacity:1;transform:${middle}} 100%{opacity:0;transform:${end}}}
+        @keyframes toastPreview{0%{opacity:0;transform:${start}} ${fadeInPct}%{opacity:${notificationOpacity};transform:${middle}} ${stayPct}%{opacity:${notificationOpacity};transform:${middle}} 100%{opacity:0;transform:${end}}}
         @keyframes toastCopyPreview{0%{opacity:${copyStartOpacity}} ${Math.min(45, fadeInPct + 16)}%{opacity:${copyMiddleOpacity}} ${stayPct}%{opacity:${copyMiddleOpacity}} 100%{opacity:${copyStartOpacity}}}`;
 
       toast.style.animation = 'none';
@@ -2545,7 +2552,8 @@
         const cover = normalizeImageInput($('coverUrl').value);
         const lines = buildSanPreviewLines(slot);
         const glowColor = rarityGlowColor();
-        const variables = `:root{--notifywidth:${width}px;--notifyheight:${height}px;--san-icon-size:${Math.max(1, slot.IconSize || 58)}px;--san-secondary-icon-size:${Math.max(1, slot.SecondaryIconSize || slot.IconSize || 58)}px;--iconsize:var(--san-icon-size);--icon-size:var(--san-icon-size);--achicon-size:var(--san-icon-size);--logo-size:var(--san-secondary-icon-size);--displaytime:${Math.max(1, transition.DurationMilliseconds / 1000)}s;--san-view1-displaytime:${Math.max(.5, slot.SanView1DurationMilliseconds / 1000)}s;--san-view2-displaytime:${Math.max(.5, slot.SanView2DurationMilliseconds / 1000)}s;--transition:${Math.max(.05, transition.FadeInMilliseconds / 1000)}s;--primarycolor:${slot.BackgroundColor};--secondarycolor:${slot.BorderColor};--tertiarycolor:${slot.AccentColor};--fontcolor:${slot.TitleColor};--unlockmsgfontcolor:${slot.TitleColor};--titlefontcolor:${slot.DetailColor};--descfontcolor:${slot.MetaColor};--roundness:${Math.max(0, slot.CornerRadius)}px;--scale:1;--fontsize:1;--unlockmsgfontsize:1;--titlefontsize:1;--descfontsize:1;--opacity:1;--bodyopacity:1;--elemopacity:1;--bgimg:${banner ? `url('${banner}')` : 'none'};--gameart:${banner ? `url('${banner}')` : 'none'};--gameicon:url('${iconUri}');--coverimg:${cover ? `url('${cover}')` : 'none'};--logo:url('${secondaryUri}');--decoration:none;--hiddenicon:url('${assetUri('icon/lock.svg')}');--base64:url('${assetUri('img/base64.png')}');--ssimg:url('${assetUri('img/santextlogobg.png')}');--s:url('${assetUri('img/s.svg')}');--outline:solid;--outlinewidth:${slot.ShowBorder ? 1.5 : 0}px;--outlinecolor:${slot.BorderColor};--iconborder:none;--iconborderpos:99;--iconborderscale:1;--iconborderx:0;--iconbordery:0;--textvspace:0;--iconscale:1;--logoscale:1;--decorationscale:1;--iconroundness:0px;--fontoutline:none;--fontshadow:none;--hiddenicondisplaytype:none;--percentdisplaytype:none;--decorationdisplaytype:none;}`;
+        const notificationOpacity = Math.max(0.35, Math.min(1, Number(transition.Opacity ?? 0.98)));
+        const variables = `:root{--notifywidth:${width}px;--notifyheight:${height}px;--san-icon-size:${Math.max(1, slot.IconSize || 58)}px;--san-secondary-icon-size:${Math.max(1, slot.SecondaryIconSize || slot.IconSize || 58)}px;--iconsize:var(--san-icon-size);--icon-size:var(--san-icon-size);--achicon-size:var(--san-icon-size);--logo-size:var(--san-secondary-icon-size);--displaytime:${Math.max(1, transition.DurationMilliseconds / 1000)}s;--san-view1-displaytime:${Math.max(.5, slot.SanView1DurationMilliseconds / 1000)}s;--san-view2-displaytime:${Math.max(.5, slot.SanView2DurationMilliseconds / 1000)}s;--transition:${Math.max(.05, transition.FadeInMilliseconds / 1000)}s;--primarycolor:${slot.BackgroundColor};--secondarycolor:${slot.BorderColor};--tertiarycolor:${slot.AccentColor};--fontcolor:${slot.TitleColor};--unlockmsgfontcolor:${slot.TitleColor};--titlefontcolor:${slot.DetailColor};--descfontcolor:${slot.MetaColor};--roundness:${Math.max(0, slot.CornerRadius)}px;--scale:1;--fontsize:1;--unlockmsgfontsize:1;--titlefontsize:1;--descfontsize:1;--opacity:${notificationOpacity};--bodyopacity:1;--elemopacity:1;--bgimg:${banner ? `url('${banner}')` : 'none'};--gameart:${banner ? `url('${banner}')` : 'none'};--gameicon:url('${iconUri}');--coverimg:${cover ? `url('${cover}')` : 'none'};--logo:url('${secondaryUri}');--decoration:none;--hiddenicon:url('${assetUri('icon/lock.svg')}');--base64:url('${assetUri('img/base64.png')}');--ssimg:url('${assetUri('img/santextlogobg.png')}');--s:url('${assetUri('img/s.svg')}');--outline:solid;--outlinewidth:${slot.ShowBorder ? 1.5 : 0}px;--outlinecolor:${slot.BorderColor};--iconborder:none;--iconborderpos:99;--iconborderscale:1;--iconborderx:0;--iconbordery:0;--textvspace:0;--iconscale:1;--logoscale:1;--decorationscale:1;--iconroundness:0px;--fontoutline:none;--fontshadow:none;--hiddenicondisplaytype:none;--percentdisplaytype:none;--decorationdisplaytype:none;}`;
         const script = `<script>
           window.onerror=(message,source,line,column,error)=>{
             parent.postMessage({type:'san-preview-error',message:String(message||'Script error'),detail:error&&error.stack?String(error.stack):''},'*');
@@ -3671,7 +3679,7 @@
 
       [
         'DurationMilliseconds', 'FadeInMilliseconds', 'FadeOutMilliseconds',
-        'SoundLeadMilliseconds', 'OverlayPosition', 'TransitionStyle',
+        'Opacity', 'SoundLeadMilliseconds', 'OverlayPosition', 'TransitionStyle',
         'SlideDistance', 'IconSize', 'SecondaryIconSize', 'IconCornerRadius', 'SecondaryIconCornerRadius', 'GameCoverPosition', 'GameCoverWidth',
         'GameBannerOpacity', 'GameBannerBlurRadius'
       ].forEach(key => assign(key, transition[key]));
