@@ -1026,16 +1026,17 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Largest fraction of the placement area (game window or work area) the toast card is allowed
-        /// to occupy on either axis. Sizing by proportion instead of a fixed DIP width keeps the toast
-        /// modest across every resolution and display-scale combination: at high scale on a small panel
-        /// the natural card is a large fraction of the (small) DIP area and gets shrunk to fit, while on
-        /// a roomy display it stays at its natural size (readable) because it already fits.
+        /// Largest fraction of the placement area's width / height the toast card is allowed to occupy.
+        /// Sizing by proportion instead of a fixed DIP size keeps the toast modest across every
+        /// resolution and display-scale combination: at high scale on a small panel the natural card is
+        /// a large fraction of the (small) DIP area and gets shrunk to fit, while on a roomy display it
+        /// stays at its natural, readable size because it already fits.
         /// </summary>
-        private const double MaxToastAreaFraction = 0.40;
+        private const double MaxToastWidthFraction = 0.40;
+        private const double MaxToastHeightFraction = 0.25;
 
         /// <summary>
-        /// The scale to apply to the toast content so it fits within <see cref="MaxToastAreaFraction"/>
+        /// The scale to apply to the toast content so it fits within the per-axis width/height fractions
         /// of the placement area. Returns 1.0 (no scaling) when the content already fits or when the
         /// area/natural size cannot be resolved; only ever shrinks, never enlarges past the template's
         /// natural size. Works pre-Show: <see cref="ResolvePlacementArea(Window)"/> uses the main
@@ -1068,8 +1069,8 @@ namespace PlayniteAchievements.Services.UI
                     _logger?.Debug(ex, "Toast fit measure failed; using default card size.");
                 }
 
-                var widthScale = (MaxToastAreaFraction * area.Width) / natural.Width;
-                var heightScale = (MaxToastAreaFraction * area.Height) / natural.Height;
+                var widthScale = (MaxToastWidthFraction * area.Width) / natural.Width;
+                var heightScale = (MaxToastHeightFraction * area.Height) / natural.Height;
                 var scale = Math.Min(widthScale, heightScale);
 
                 return scale < 1.0 ? scale : 1.0;
