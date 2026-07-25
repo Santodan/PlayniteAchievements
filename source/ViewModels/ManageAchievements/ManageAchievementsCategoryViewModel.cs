@@ -188,7 +188,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var selected = GetSelectedCategoryTypeValues(TypeSelectionOptions);
                 return selected.Count == 0
                     ? L("LOCPlayAch_Common_Label_Type")
-                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
+                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
             }
         }
 
@@ -199,7 +199,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
                     ? L("LOCPlayAch_Common_Label_Type")
-                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
+                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
             }
         }
 

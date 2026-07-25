@@ -259,16 +259,19 @@ namespace PlayniteAchievements.Services.Achievements
             return ToDisplayText(values);
         }
 
+        /// <summary>
+        /// Joined display text for a category type value. The Default sentinel renders as an
+        /// empty string so untyped achievements show blank Type cells; use
+        /// <see cref="ToCategoryTypeDisplayText"/> where a single token (including Default)
+        /// needs a visible name, e.g. filter and selector option labels.
+        /// </summary>
         public static string ToDisplayText(IEnumerable<string> categoryTypes)
         {
             var values = (categoryTypes ?? Enumerable.Empty<string>())
                 .SelectMany(value => ParseValues(NormalizeOrDefault(value)))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(value => !string.Equals(value, DefaultCategoryType, StringComparison.OrdinalIgnoreCase))
                 .ToList();
-            if (values.Count == 0)
-            {
-                values.Add(DefaultCategoryType);
-            }
 
             return string.Join(
                 ", ",
@@ -289,6 +292,19 @@ namespace PlayniteAchievements.Services.Achievements
             var label = NormalizeCategoryOrDefault(rawValue);
             return string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
                 ? L("LOCPlayAch_Common_Default", DefaultCategoryLabel)
+                : label;
+        }
+
+        /// <summary>
+        /// Grid-cell variant of <see cref="ToCategoryLabelDisplayText"/>: the Default bucket
+        /// renders as an empty string instead of the localized "Default" placeholder. Category
+        /// management rows, summaries, and theme options keep the named bucket.
+        /// </summary>
+        public static string ToCategoryLabelCellText(string rawValue)
+        {
+            var label = NormalizeCategory(rawValue);
+            return label == null || string.Equals(label, DefaultCategoryLabel, StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
                 : label;
         }
 
