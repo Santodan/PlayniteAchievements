@@ -92,17 +92,20 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
             AchievementRows = new BulkObservableCollection<ManageAchievementsCategoryItem>();
             CategoryRows = new ObservableCollection<ManageAchievementsCategoryMetadataItem>();
-            CategoryLabelOptions = new ObservableCollection<string>();
             CategoryLabelFilterOptions = new ObservableCollection<string>();
-            TypeSelectionOptions = CreateCategoryTypeOptions(() =>
-            {
-                OnPropertyChanged(nameof(SelectedTypeSelectionText));
-            });
-            TypeFilterOptions = CreateCategoryTypeOptions(() =>
-            {
-                OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
-                ApplyFilter();
-            });
+            TypeSelectionOptions = CreateCategoryTypeOptions(
+                AchievementCategoryTypeHelper.AssignableCategoryTypes,
+                () =>
+                {
+                    OnPropertyChanged(nameof(SelectedTypeSelectionText));
+                });
+            TypeFilterOptions = CreateCategoryTypeOptions(
+                AchievementCategoryTypeHelper.AllowedCategoryTypes,
+                () =>
+                {
+                    OnPropertyChanged(nameof(SelectedCategoryTypeFilterText));
+                    ApplyFilter();
+                });
             ClearSearchCommand = new RelayCommand(_ => SearchText = string.Empty);
             OpenCategoryImagesFolderCommand = new RelayCommand(_ => OpenCategoryImagesFolder());
 
@@ -111,7 +114,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
 
         public ObservableCollection<ManageAchievementsCategoryItem> AchievementRows { get; }
         public ObservableCollection<ManageAchievementsCategoryMetadataItem> CategoryRows { get; }
-        public ObservableCollection<string> CategoryLabelOptions { get; }
         public ObservableCollection<string> CategoryLabelFilterOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeSelectionOptions { get; }
         public ObservableCollection<CategoryTypeSelectionOption> TypeFilterOptions { get; }
@@ -188,7 +190,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var selected = GetSelectedCategoryTypeValues(TypeSelectionOptions);
                 return selected.Count == 0
                     ? L("LOCPlayAch_Common_Label_Type")
-                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
+                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
             }
         }
 
@@ -199,7 +201,7 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 var selected = GetSelectedCategoryTypeFilterValues();
                 return selected.Count == 0
                     ? L("LOCPlayAch_Common_Label_Type")
-                    : AchievementCategoryTypeHelper.ToDisplayText(selected);
+                    : string.Join(", ", selected.Select(AchievementCategoryTypeHelper.ToCategoryTypeDisplayText));
             }
         }
 
@@ -502,7 +504,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 _canonicalCategoryLabelFilterOptions = new List<string>();
                 ReplaceAchievementRows(_allRows);
                 ReplaceCategoryRows(Array.Empty<ManageAchievementsCategoryMetadataItem>());
-                CollectionHelper.SynchronizeCollection(CategoryLabelOptions, new List<string>());
                 CollectionHelper.SynchronizeCollection(CategoryLabelFilterOptions, new List<string>());
                 _selectedCategoryLabelFilters.Clear();
                 OnPropertyChanged(nameof(SelectedCategoryLabelFilterText));
@@ -979,8 +980,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool RenameCategoryLabel(string sourceCategoryLabel, string targetCategoryLabel)
         {
             var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
-            if (string.IsNullOrWhiteSpace(normalizedSourceCategory))
+            if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
+                string.Equals(
+                    normalizedSourceCategory,
+                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    StringComparison.OrdinalIgnoreCase))
             {
+                // The Default bucket holds every achievement without an explicit category;
+                // renaming it away would leave no fallback bucket.
                 return false;
             }
 
@@ -1020,8 +1027,14 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public bool MergeCategoryInto(string sourceCategoryLabel, string targetCategoryLabel)
         {
             var normalizedSourceCategory = AchievementCategoryTypeHelper.NormalizeCategory(sourceCategoryLabel);
-            if (string.IsNullOrWhiteSpace(normalizedSourceCategory))
+            if (string.IsNullOrWhiteSpace(normalizedSourceCategory) ||
+                string.Equals(
+                    normalizedSourceCategory,
+                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
+                    StringComparison.OrdinalIgnoreCase))
             {
+                // Merging the Default bucket away is blocked; merging INTO Default remains
+                // a supported way to un-categorize achievements.
                 return false;
             }
 
@@ -1419,13 +1432,6 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(label => label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var renameableLabels = labels
-                .Where(label => !string.Equals(
-                    label,
-                    AchievementCategoryTypeHelper.DefaultCategoryLabel,
-                    StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            CollectionHelper.SynchronizeCollection(CategoryLabelOptions, renameableLabels);
 
             var labelSet = new HashSet<string>(labels, StringComparer.OrdinalIgnoreCase);
             var categoryLabelFilterOptions = (_canonicalCategoryLabelFilterOptions ?? new List<string>())
@@ -1892,10 +1898,12 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
             }
         }
 
-        private ObservableCollection<CategoryTypeSelectionOption> CreateCategoryTypeOptions(Action onSelectionChanged)
+        private ObservableCollection<CategoryTypeSelectionOption> CreateCategoryTypeOptions(
+            IReadOnlyList<string> categoryTypes,
+            Action onSelectionChanged)
         {
             var options = new ObservableCollection<CategoryTypeSelectionOption>(
-                AchievementCategoryTypeHelper.AllowedCategoryTypes
+                categoryTypes
                     .Select(type => new CategoryTypeSelectionOption(type, GetCategoryTypeDisplayName(type))));
 
             foreach (var option in options)
@@ -1973,6 +1981,15 @@ namespace PlayniteAchievements.ViewModels.ManageAchievements
         public string CategoryLabel { get; private set; }
 
         public string CategoryDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+
+        /// <summary>
+        /// True for the Default bucket row. It cannot be renamed or merged away because it is
+        /// the fallback bucket for achievements without an explicit category.
+        /// </summary>
+        public bool IsDefaultCategory => string.Equals(
+            CategoryLabel,
+            AchievementCategoryTypeHelper.DefaultCategoryLabel,
+            StringComparison.OrdinalIgnoreCase);
 
         public string ProviderCategoryLabel { get; private set; }
 

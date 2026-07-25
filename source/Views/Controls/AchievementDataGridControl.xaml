@@ -430,7 +430,7 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Score_Collection}" SortMemberPath="CollectionScore" helpers:ColumnVisibilityHelper.ColumnKey="CollectionScore">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding CollectionScore, StringFormat={}{0:N0}}"
+                        <TextBlock Text="{Binding CollectionScore, Converter={StaticResource BlankZeroNumber}}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>
@@ -441,7 +441,7 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Score_Prestige}" SortMemberPath="PrestigeScore" helpers:ColumnVisibilityHelper.ColumnKey="PrestigeScore">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock Text="{Binding PrestigeScore, StringFormat={}{0:N0}}"
+                        <TextBlock Text="{Binding PrestigeScore, Converter={StaticResource BlankZeroNumber}}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    Opacity="{StaticResource PlayAch.Opacity.Subtle}"/>

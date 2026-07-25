@@ -32,6 +32,7 @@
     <converters:DateDisplayModeConverter x:Key="DateDisplayMode"/>
     <converters:HeightToFontSizeConverter x:Key="HeightToFontSizeConverter"/>
     <converters:ValueOperationConverter x:Key="ValueOperationConverter"/>
+    <converters:BlankZeroNumberConverter x:Key="BlankZeroNumber"/>
     <converters:NullableDoubleTextConverter x:Key="NullableDoubleTextConverter"/>
     <converters:NullableIntTextConverter x:Key="NullableIntTextConverter"/>
     <converters:HiddenAchievementConverter x:Key="HiddenIconConverter" ConversionMode="Icon"/>

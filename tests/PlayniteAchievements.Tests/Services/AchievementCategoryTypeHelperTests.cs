@@ -53,6 +53,31 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ToDisplayText_DefaultRendersBlank()
+        {
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToDisplayText((string)null));
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToDisplayText("Default"));
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToDisplayText("not-a-category"));
+            Assert.AreEqual("DLC", AchievementCategoryTypeHelper.ToDisplayText("default|dlc"));
+        }
+
+        [TestMethod]
+        public void ToCategoryTypeDisplayText_DefaultKeepsVisibleName()
+        {
+            Assert.AreEqual("Default", AchievementCategoryTypeHelper.ToCategoryTypeDisplayText("Default"));
+            Assert.AreEqual("Default", AchievementCategoryTypeHelper.ToCategoryTypeDisplayText(null));
+        }
+
+        [TestMethod]
+        public void ToCategoryLabelCellText_DefaultRendersBlank()
+        {
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToCategoryLabelCellText(null));
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToCategoryLabelCellText("  "));
+            Assert.AreEqual(string.Empty, AchievementCategoryTypeHelper.ToCategoryLabelCellText("Default"));
+            Assert.AreEqual("Story DLC", AchievementCategoryTypeHelper.ToCategoryLabelCellText(" Story DLC "));
+        }
+
+        [TestMethod]
         public void AssignableCategoryTypes_IncludesSubset()
         {
             CollectionAssert.Contains(

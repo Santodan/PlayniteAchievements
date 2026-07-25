@@ -242,7 +242,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
 
         private string _achievementNote;
         public string AchievementNote
@@ -274,7 +274,9 @@ namespace PlayniteAchievements.ViewModels.Items
         public string UnlockTimeText => UnlockTime.ToLocalTime().ToString("g");
         public string GlobalPercentText => AchievementRarityResolver.GetDisplayText(GlobalPercentUnlocked, Rarity);
         public int Points => PointsValue ?? 0;
-        public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString("N0", FormattingCulture.Current) : "-";
+        public string PointsText => PointsValue.GetValueOrDefault() != 0
+            ? PointsValue.Value.ToString("N0", FormattingCulture.Current)
+            : string.Empty;
 
         /// <summary>
         /// True if rarity percentage data is available for this achievement.

@@ -498,6 +498,7 @@
                                                      Text="{Binding RenameOverrideText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                      LostFocus="CategoryRenameTextBox_LostFocus"
                                                      KeyDown="CategoryRenameTextBox_KeyDown"
+                                                     IsEnabled="{Binding IsDefaultCategory, Converter={StaticResource InvertBoolConverter}}"
                                                      Padding="6,4"
                                                      VerticalContentAlignment="Center" />
                                             <TextBlock Text="{Binding ProviderCategoryDisplay}"
@@ -622,10 +623,22 @@
                                     <Button Content="{DynamicResource LOCPlayAch_Common_Merge}"
                                             Click="MergeCategoryButton_Click"
                                             ToolTip="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeTooltip}"
-                                            IsEnabled="{Binding DataContext.CanMergeCategories, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                             Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
                                             HorizontalAlignment="Center"
-                                            VerticalAlignment="Center" />
+                                            VerticalAlignment="Center">
+                                        <!-- IsEnabled lives in a style so the IsDefaultCategory trigger can
+                                             override it; a local IsEnabled value would always win. -->
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="IsEnabled" Value="{Binding DataContext.CanMergeCategories, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDefaultCategory}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>

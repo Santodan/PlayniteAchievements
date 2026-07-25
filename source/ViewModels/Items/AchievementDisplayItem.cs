@@ -591,7 +591,7 @@ namespace PlayniteAchievements.ViewModels.Items
             }
         }
 
-        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelDisplayText(CategoryLabel);
+        public string CategoryLabelDisplay => AchievementCategoryTypeHelper.ToCategoryLabelCellText(CategoryLabel);
 
         /// <summary>
         /// Path to the game's icon image.
@@ -954,7 +954,9 @@ namespace PlayniteAchievements.ViewModels.Items
 
         public int Points => PointsValue ?? 0;
 
-        public string PointsText => PointsValue.HasValue ? PointsValue.Value.ToString("N0", FormattingCulture.Current) : "-";
+        public string PointsText => PointsValue.GetValueOrDefault() != 0
+            ? PointsValue.Value.ToString("N0", FormattingCulture.Current)
+            : string.Empty;
 
         public int CollectionScore => _source?.CollectionScore ?? 0;
 

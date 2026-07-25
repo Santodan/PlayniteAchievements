@@ -12,6 +12,11 @@ namespace PlayniteAchievements.Common
         /// </summary>
         public static string Format(double percentValue, int decimals)
         {
+            if (double.IsNaN(percentValue) || double.IsInfinity(percentValue))
+            {
+                return string.Empty;
+            }
+
             return (percentValue / 100d).ToString("P" + decimals, FormattingCulture.Current);
         }
 
