@@ -194,6 +194,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
@@ -214,12 +215,36 @@
                     <TextBlock Grid.Row="2"
                                Style="{StaticResource FieldLabelStyle}"
                                Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHeader}"
-                               Margin="0,8,0,0" />
+                               Margin="0,8,0,0"
+                               Visibility="{Binding HasProviderOverrideSummary, Converter={StaticResource BoolToVis}}" />
                     <TextBlock Grid.Row="2"
                                Grid.Column="1"
                                Style="{StaticResource FieldValueStyle}"
                                Text="{Binding ProviderOverrideSummaryText}"
-                               Margin="0,8,0,0" />
+                               Margin="0,8,0,0"
+                               Visibility="{Binding HasProviderOverrideSummary, Converter={StaticResource BoolToVis}}" />
+
+                    <ItemsControl Grid.Row="3"
+                                  Grid.ColumnSpan="2"
+                                  ItemsSource="{Binding OverviewOverrides}"
+                                  Visibility="{Binding HasOverviewOverrides, Converter={StaticResource BoolToVis}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Style="{StaticResource FieldLabelStyle}"
+                                               Text="{Binding Label}" />
+                                    <TextBlock Grid.Column="1"
+                                               Style="{StaticResource FieldValueStyle}"
+                                               Text="{Binding Value}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </Grid>
             </Border>
 

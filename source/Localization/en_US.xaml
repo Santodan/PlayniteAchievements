@@ -1116,7 +1116,7 @@ This removes per-game exclusions, manual links, capstones, custom icon links, or
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_ShadPS4Hint">Enter a PS4 title ID such as CUSA00432 or a trophy ID such as NPWR12345_00 to override automatic matching for this game. This forces the game to be managed by ShadPS4.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_XeniaHeader">Xenia TitleID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overrides_XeniaHint">Enter the Xbox 360 TitleID to override automatic matching for this game. This forces the game to be managed by Xenia.</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_RaOverride">RetroAchievements Override</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_RaOverride">RA GameID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_ShadPS4Override">ShadPS4 Match ID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Overview_XeniaOverride">Xenia TitleID Override</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_UseExophase">Use Exophase for this game</sys:String>

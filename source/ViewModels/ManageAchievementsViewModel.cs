@@ -221,6 +221,7 @@ namespace PlayniteAchievements.ViewModels
                     _achievementOverridesService?.SetSeparateLockedIconOverride(_gameId, value);
                     RefreshCustomDataState();
                     OnPropertyChanged(nameof(SeparateLockedIconsStatusText));
+                    RefreshOverviewOverrides();
                 }
             }
         }
@@ -288,6 +289,7 @@ namespace PlayniteAchievements.ViewModels
                 {
                     OnPropertyChanged(nameof(ProviderOverrideStatusText));
                     OnPropertyChanged(nameof(ProviderOverrideSummaryText));
+                    OnPropertyChanged(nameof(HasProviderOverrideSummary));
                     RaiseCommandStates();
                 }
             }
@@ -340,16 +342,13 @@ namespace PlayniteAchievements.ViewModels
         {
             get
             {
-                if (!string.IsNullOrWhiteSpace(PreferredProviderOverrideInput))
-                {
-                    return string.Format(
-                        L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"),
-                        ProviderRegistry.GetLocalizedName(PreferredProviderOverrideInput));
-                }
-
-                return ProviderOverrideStatusText;
+                return HasProviderOverride
+                    ? GetProviderOverrideDisplayName(_providerOverrideKey)
+                    : string.Empty;
             }
         }
+
+        public bool HasProviderOverrideSummary => HasProviderOverride;
 
         public bool HasGame
         {

@@ -20,6 +20,12 @@ namespace PlayniteAchievements.ViewModels
             public string DisplayName { get; set; }
         }
 
+        public sealed class OverviewOverrideItem
+        {
+            public string Label { get; set; }
+            public string Value { get; set; }
+        }
+
         private const string LocalProviderKey = "Local";
         private GameOptionsOverrideTab _selectedOverridesTab = GameOptionsOverrideTab.Main;
         private GameOptionsLocalOverrideTab _selectedLocalOverrideTab = GameOptionsLocalOverrideTab.LocalSavesSchema;
@@ -64,6 +70,7 @@ namespace PlayniteAchievements.ViewModels
         private IReadOnlyList<GameOptionsProviderOption> _availablePreferredProviders = Array.Empty<GameOptionsProviderOption>();
         private string _preferredProviderOverrideInput = string.Empty;
         private string _preferredProviderStatusText = string.Empty;
+        private IReadOnlyList<OverviewOverrideItem> _overviewOverrides = Array.Empty<OverviewOverrideItem>();
         private RelayCommand _applyLocalFolderOverrideCommand, _clearLocalFolderOverrideCommand, _browseLocalFolderOverrideCommand;
         private RelayCommand _applyLocalSteamAppIdOverrideCommand, _clearLocalSteamAppIdOverrideCommand, _applyLocalSteamAppCacheUserOverrideCommand, _clearLocalSteamAppCacheUserOverrideCommand;
         private RelayCommand _applyLocalLumaPlayAppIdOverrideCommand, _clearLocalLumaPlayAppIdOverrideCommand, _applyLocalLumaPlayIniPathOverrideCommand, _clearLocalLumaPlayIniPathOverrideCommand, _browseLocalLumaPlayIniPathOverrideCommand;
@@ -80,7 +87,7 @@ namespace PlayniteAchievements.ViewModels
         public bool HasExophaseSlugOverride => !string.IsNullOrWhiteSpace(_exophaseSlugOverrideValue);
         public string ExophaseSlugOverrideValue { get => _exophaseSlugOverrideValue; private set { if (SetValueAndReturn(ref _exophaseSlugOverrideValue, value ?? string.Empty)) OnPropertyChanged(nameof(HasExophaseSlugOverride)); } }
         public string ExophaseAutoSlug { get => _exophaseAutoSlug; private set => SetValue(ref _exophaseAutoSlug, value ?? string.Empty); }
-        public bool UseExophaseForGame { get => _useExophaseForGame; set { if (SetValueAndReturn(ref _useExophaseForGame, value)) ApplyExophaseForceFlag(value); } }
+        public bool UseExophaseForGame { get => _useExophaseForGame; set { if (SetValueAndReturn(ref _useExophaseForGame, value)) { ApplyExophaseForceFlag(value); RefreshOverviewOverrides(); } } }
         public bool HasLocalFolderOverride { get => _hasLocalFolderOverride; private set { if (SetValueAndReturn(ref _hasLocalFolderOverride, value)) { OnPropertyChanged(nameof(LocalFolderStatusText)); RaiseForkOverrideCommandStates(); } } }
         public string LocalFolderOverrideValue { get => _localFolderOverrideValue; private set { if (SetValueAndReturn(ref _localFolderOverrideValue, value ?? string.Empty)) OnPropertyChanged(nameof(LocalFolderStatusText)); } }
         public string LocalFolderOverrideInput { get => _localFolderOverrideInput; set { if (SetValueAndReturn(ref _localFolderOverrideInput, value ?? string.Empty)) RaiseForkOverrideCommandStates(); } }
@@ -142,12 +149,13 @@ namespace PlayniteAchievements.ViewModels
                 if (SetValueAndReturn(ref _preferredProviderOverrideInput, value ?? string.Empty))
                 {
                     OnPropertyChanged(nameof(HasPreferredProviderOverride));
-                    OnPropertyChanged(nameof(ProviderOverrideSummaryText));
                 }
             }
         }
         public string PreferredProviderStatusText { get => _preferredProviderStatusText; private set => SetValue(ref _preferredProviderStatusText, value ?? string.Empty); }
         public bool HasPreferredProviderOverride => !string.IsNullOrWhiteSpace(PreferredProviderOverrideInput);
+        public IReadOnlyList<OverviewOverrideItem> OverviewOverrides { get => _overviewOverrides; private set { if (SetValueAndReturn(ref _overviewOverrides, value ?? Array.Empty<OverviewOverrideItem>())) OnPropertyChanged(nameof(HasOverviewOverrides)); } }
+        public bool HasOverviewOverrides => OverviewOverrides.Count > 0;
 
         public RelayCommand ApplyLocalFolderOverrideCommand => _applyLocalFolderOverrideCommand ??= new RelayCommand(_ => ApplyLocalFolderOverride(), _ => HasGame);
         public RelayCommand ClearLocalFolderOverrideCommand => _clearLocalFolderOverrideCommand ??= new RelayCommand(_ => ClearLocalFolderOverride(), _ => HasGame && HasLocalFolderOverride);
@@ -200,6 +208,102 @@ namespace PlayniteAchievements.ViewModels
             AvailablePreferredProviders = BuildPreferredProviders();
             PreferredProviderOverrideInput = _achievementOverridesService?.GetPreferredProviderOverride(_gameId) ?? string.Empty;
             PreferredProviderStatusText = string.IsNullOrWhiteSpace(PreferredProviderOverrideInput) ? L("LOCPlayAch_Common_Status_NoOverrideSet", "No override set") : string.Format(L("LOCPlayAch_Common_Status_OverrideSetValue", "Override set: {0}"), ProviderRegistry.GetLocalizedName(PreferredProviderOverrideInput));
+            RefreshOverviewOverrides();
+        }
+
+        private void RefreshOverviewOverrides()
+        {
+            var items = new List<OverviewOverrideItem>();
+
+            void Add(string label, string value)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    items.Add(new OverviewOverrideItem { Label = label, Value = value });
+                }
+            }
+
+            if (IsExcludedFromSummaries)
+            {
+                Add(L("LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader", "Summary Exclusion"), SummaryExclusionStatusText);
+            }
+
+            if (UseSeparateLockedIconsOverride)
+            {
+                Add(L("LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader", "Separate Locked Icons"), SeparateLockedIconsStatusText);
+            }
+
+            if (HasPreferredProviderOverride)
+            {
+                Add(
+                    L("LOCPlayAch_Menu_LocalProvider_Change", "Preferred Achievement Provider"),
+                    ProviderRegistry.GetLocalizedName(PreferredProviderOverrideInput));
+            }
+
+            Add(L("LOCPlayAch_ManageAchievements_Overview_RaOverride", "RA GameID Override"), RaOverrideInput);
+            Add(L("LOCPlayAch_GameOptions_Overrides_XeniaHeader", "Xenia TitleID Override"), XeniaTitleIdOverrideInput);
+            Add(L("LOCPlayAch_GameOptions_Overrides_ShadPS4Header", "ShadPS4 Match ID Override"), ShadPS4MatchIdOverrideInput);
+            Add(L("LOCPlayAch_GameOptions_ExophaseSlugLabel", "Exophase Game ID Override"), ExophaseSlugOverrideValue);
+
+            if (UseExophaseForGame)
+            {
+                Add(
+                    L("LOCPlayAch_ManageAchievements_UseExophase", "Use Exophase for this game"),
+                    L("LOCPlayAch_Common_Enabled", "Enabled"));
+            }
+
+            if (HasSteamAccountOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_SteamAccountHeader", "Steam Account Override"),
+                    GetSteamAccountDisplayName(_steamAccountOverrideValue));
+            }
+
+            if (HasLocalFolderOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalFolderHeader", "Local save folder override"),
+                    LocalFolderOverrideValue);
+            }
+
+            if (HasLocalSteamAppIdOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalSteamAppIdHeader", "Local forced Steam App ID"),
+                    LocalSteamAppIdOverrideValue);
+            }
+
+            if (HasLocalSteamAppCacheUserOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalSteamUserHeader", "Local forced Steam user"),
+                    GetSteamUserDisplayName(LocalSteamAppCacheUserOverrideValue));
+            }
+
+            if (HasLocalLumaPlayAppIdOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalLumaPlayAppIdHeader", "Local forced LumaPlay Uplay App ID"),
+                    LocalLumaPlayAppIdOverrideValue);
+            }
+
+            if (HasLocalLumaPlayIniPathOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalLumaPlayIniPathHeader", "LumaPlay.ini override"),
+                    LocalLumaPlayIniPathOverrideValue);
+            }
+
+            if (HasLocalRefreshOnGameCloseOverride)
+            {
+                Add(
+                    L("LOCPlayAch_GameOptions_Overrides_LocalRefreshOnCloseHeader", "Refresh when game closes"),
+                    LocalRefreshOnGameCloseOverrideValue
+                        ? L("LOCPlayAch_Common_Enabled", "Enabled")
+                        : L("LOCPlayAch_Common_Status_Disabled", "Disabled"));
+            }
+
+            OverviewOverrides = items;
         }
 
         private static string GetProviderOverrideValue(
