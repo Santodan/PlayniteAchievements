@@ -96,17 +96,21 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            // Match Playnite's popout title strip to the surface the popout content roots paint
-            // (PlayAch.Brush.Window.Background), so the chrome is not a distinct bar and Playnite's
-            // off-center title text is never noticeable. The strip renders the window's Background
-            // property (Playnite sets a local value that beats the theme's WindowBackgourndBrush
-            // setter), so assign it directly in addition to the chrome resource keys.
-            if (app.TryFindResource("PlayAch.Brush.Window.Background") is Brush windowSurface)
+            // Back standalone popout windows with the opaque popout (popup/dialog) surface rather
+            // than WindowSurface. WindowSurface ships transparent so embedded theme views blend into
+            // the host; a floating window with a transparent backdrop would be see-through, so use
+            // PopupSurface (guaranteed opaque via EnsureOpaqueIfRequired) instead.
+            var popoutSurface =
+                app.TryFindResource("PlayAch.Brush.Dialog.Background") as Brush ??
+                app.TryFindResource("PlayAch.Brush.PopupSurface") as Brush ??
+                app.TryFindResource("PlayAch.Brush.Window.Background") as Brush ??
+                app.TryFindResource("PlayAch.Brush.WindowSurface") as Brush;
+            if (popoutSurface != null)
             {
-                window.Resources["WindowBackgourndBrush"] = windowSurface;
-                window.Resources["StandardWindowBackgroundBrush"] = windowSurface;
-                window.Resources["WindowBaseBackgroundBrush"] = windowSurface;
-                window.Background = windowSurface;
+                window.Resources["WindowBackgourndBrush"] = popoutSurface;
+                window.Resources["StandardWindowBackgroundBrush"] = popoutSurface;
+                window.Resources["WindowBaseBackgroundBrush"] = popoutSurface;
+                window.Background = popoutSurface;
             }
 
             var borderBrush =
