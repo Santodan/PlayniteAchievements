@@ -436,7 +436,8 @@
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            TextWrapping="Wrap"
-                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                                           Visibility="{Binding CollectionScoreTotal, Converter={StaticResource IntToVis}}">
                                     <TextBlock.Inlines><Run Text="{Binding CollectionScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource PlayAch.Brush.Text}"/><Run Text="{Binding CollectionScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource PlayAch.Brush.Text}"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
@@ -455,7 +456,8 @@
                                            Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            TextWrapping="Wrap"
-                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                                           TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                                           Visibility="{Binding PrestigeScoreTotal, Converter={StaticResource IntToVis}}">
                                     <TextBlock.Inlines><Run Text="{Binding PrestigeScore, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/" Foreground="{DynamicResource PlayAch.Brush.Text}"/><Run Text="{Binding PrestigeScoreTotal, Mode=OneWay, StringFormat={}{0:N0}}" Foreground="{DynamicResource PlayAch.Brush.Text}"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
@@ -474,7 +476,7 @@
                                            Foreground="{DynamicResource PlayAch.Brush.Text}"
                                            TextWrapping="Wrap"
                                            TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
-                                    <TextBlock.Inlines><Run Text="{Binding Points, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/></TextBlock.Inlines>
+                                    <TextBlock.Inlines><Run Text="{Binding Points, Mode=OneWay, Converter={StaticResource BlankZeroNumber}}" FontWeight="Bold"/></TextBlock.Inlines>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
