@@ -384,7 +384,7 @@ Zwischengespeicherte Erfolgsdaten bleiben erhalten.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overrides">Übersteuerungen</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Tab_Overview">Übersicht</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Value_NotAvailable">Nicht zutreffend</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_WindowTitle">&quot;{0}&quot; Erfolgsverwaltung</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_WindowTitle">{0} - Erfolgsverwaltung</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_Bold">Fett</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_CharacterCountFormat">{0}/{1} Zeichen</sys:String>
     <sys:String x:Key="LOCPlayAch_NotesDialog_EditTitle">Notiz bearbeiten</sys:String>
