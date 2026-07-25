@@ -183,39 +183,42 @@
                                     Visibility="Collapsed">
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
-                        <TextBlock TextWrapping="Wrap"
-                                   FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
-                                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
-                                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                                   helpers:AchievementNoteInlineFormatter.NoteToolTip="{Binding AchievementNote}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                     <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
-                                     <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
-                                     <Setter Property="Opacity" Value="0.7"/>
-                                     <Setter Property="TextAlignment"
-                                             Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
-                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Unlocked}" Value="True">
-                                            <Setter Property="Opacity" Value="1"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
-                                            <Setter Property="FontStyle" Value="Italic"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding ColorNamesByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
-                                            <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                            <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
-                            <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
-                                 FontStyle="Italic"
-                                 Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
-                            <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
-                                 FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
-                                 Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
-                        </TextBlock>
+                        <Grid Background="Transparent"
+                              helpers:ClippedTextToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
+                              helpers:ClippedTextToolTipHelper.NoteText="{Binding AchievementNote}">
+                            <TextBlock TextWrapping="Wrap"
+                                       FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                                       VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                                       HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                                        <Setter Property="Opacity" Value="0.7"/>
+                                        <Setter Property="TextAlignment"
+                                                Value="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                                <Setter Property="Opacity" Value="1"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                                <Setter Property="FontStyle" Value="Italic"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding ColorNamesByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                                <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                                <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                                     FontStyle="Italic"
+                                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                                <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
+                                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                            </TextBlock>
+                        </Grid>
                     </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
@@ -323,6 +326,8 @@
                         <TextBlock Text="{Binding FriendName}"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"
+                                   Background="Transparent"
+                                   helpers:ClippedTextToolTipHelper.HeaderText="{Binding FriendName}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    FontWeight="SemiBold"
