@@ -127,6 +127,8 @@
                              fits the art inside both cell dimensions without clipping. -->
                         <Grid ClipToBounds="False"
                               Margin="8,6"
+                              Background="Transparent"
+                              ToolTip="{Binding GameName}"
                               UseLayoutRounding="True"
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
