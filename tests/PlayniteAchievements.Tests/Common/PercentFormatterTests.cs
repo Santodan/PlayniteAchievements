@@ -43,6 +43,15 @@ namespace PlayniteAchievements.Tests.Common
         }
 
         [TestMethod]
+        public void Format_NanAndInfinityReturnEmpty()
+        {
+            Assert.AreEqual(string.Empty, PercentFormatter.Format(double.NaN, 1));
+            Assert.AreEqual(string.Empty, PercentFormatter.FormatWhole(double.NaN));
+            Assert.AreEqual(string.Empty, PercentFormatter.FormatWhole(double.PositiveInfinity));
+            Assert.AreEqual(string.Empty, PercentFormatter.FormatWhole(double.NegativeInfinity));
+        }
+
+        [TestMethod]
         public void FormatWhole_EnglishRoundsMidpointAwayFromZero()
         {
             Assert.AreEqual("13%", PercentFormatter.FormatWhole(12.5));
