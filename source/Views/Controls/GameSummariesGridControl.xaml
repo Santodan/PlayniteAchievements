@@ -179,6 +179,8 @@
                                             HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                     <TextBlock Text="{Binding GameName}"
+                                               Background="Transparent"
+                                               helpers:ClippedTextToolTipHelper.HeaderText="{Binding GameName}"
                                                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                                Style="{StaticResource GameSummaryNameTextStyle}"/>
                                     <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -318,6 +320,12 @@
                                             <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
+                                    <TextBlock.ToolTip>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                            <Binding Path="LastPlayedLocal"/>
+                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.ToolTip>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
@@ -337,6 +345,12 @@
                                             <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
+                                    <TextBlock.ToolTip>
+                                        <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                            <Binding Path="LastUnlockLocal"/>
+                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                        </MultiBinding>
+                                    </TextBlock.ToolTip>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
@@ -368,7 +382,12 @@
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}"
                                         Padding="4,6,2,6">
-                            <Grid>
+                            <Grid Background="Transparent">
+                                <Grid.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock><Run Text="{Binding UnlockedAchievements, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/"/><Run Text="{Binding TotalAchievements, Mode=OneWay, StringFormat={}{0:N0}}"/></TextBlock>
+                                    </ToolTip>
+                                </Grid.ToolTip>
                                 <Grid Style="{StaticResource OverviewProgressContainerStyle}">
                                     <StackPanel Style="{StaticResource OverviewProgressStackStyle}">
                                         <TextBlock Text="{Binding GameName}"
