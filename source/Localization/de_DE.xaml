@@ -265,7 +265,7 @@ Dadurch wird die manuelle Verknüpfung, Freischaltzeiten und zwischengespeichert
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Tab_Assign">Erfolgszuweisung</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Base">Basis</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Collectable">Sammelbar</sys:String>
-    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Default">-</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Default">Standard</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Difficulty">Schwierigkeit</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_DLC">DLC</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Hardcore">Hardcore</sys:String>
