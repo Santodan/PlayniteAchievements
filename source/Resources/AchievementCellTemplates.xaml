@@ -455,11 +455,13 @@
     <DataTemplate x:Key="AchievementInfoTemplate">
         <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                     HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
-                    Background="Transparent">
+                    Background="Transparent"
+                    helpers:ClippedTextToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
+                    helpers:ClippedTextToolTipHelper.BodyText="{Binding DescriptionResolved}"
+                    helpers:ClippedTextToolTipHelper.NoteText="{Binding AchievementNote}">
             <TextBlock FontWeight="SemiBold"
                        TextWrapping="Wrap"
-                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
-                       helpers:AchievementNoteInlineFormatter.NoteToolTip="{Binding AchievementNote}">
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
@@ -527,6 +529,12 @@
                         <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
                     </MultiBinding>
                 </TextBlock.Text>
+                <TextBlock.ToolTip>
+                    <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                        <Binding Path="UnlockTimeLocal"/>
+                        <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                    </MultiBinding>
+                </TextBlock.ToolTip>
             </TextBlock>
 
             <Grid Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
