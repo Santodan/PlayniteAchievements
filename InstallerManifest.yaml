@@ -1,6 +1,31 @@
 AddonId: PlayniteAchievements
 Packages:
 
+  - Version: 3.0.0
+    RequiredApiVersion: 6.14.0
+    ReleaseDate: 2026-07-19
+    PackageUrl: https://github.com/justin-delano/PlayniteAchievements/releases/download/v3.0.0/PlayniteAchievements_3_0_0.pext
+    Changelog:
+    - "The largest PlayniteAchievements update yet! Almost every file in the project was touched in some way, and many large new features have been added. This changelog will cover the largest changes, but there are dozens of smaller improvements and fixes that are documented in the Wiki."
+    - "[New] Added support for Friend Achievements. Steam, RetroAchievements, and Exophase now support tracking your friends' achievements, and comparing them to your own."
+    - "[New] Added Category Mode for all achievement grids. Toggling into Category Mode will group achievements by their category."
+    - "[Adjusted] Redesigned Categories tab in Manage Achievements. Now, categories can be re-ordered, and given custom Category Art."
+    - "[New] Added SteamHunters support to the Steam platform. Enabling this setting now automatically fetches SteamHunters category data for your Steam games, after a refresh."
+    - "[New] Added live achievement polling while in game."
+    - "[New] Added a customizable notification overlay for in-game achievement unlocks. Themes have full control over the overlay's appearance as well."
+    - "[New] Added achievement unlock music, enabled when UniPlaySong (https://github.com/aHuddini/UniPlaySong) is installed. Please check it out, and consider supporting the developer!"
+    - "[New] Added Screenshot and Recording support. When new achievements are unlocked via live achievement polling, screenshots and videos can now be automatically captured."
+    - "[New] Added Appearance customization. Now, every color in the theme can be customized, including rarity badges. Presets are available, and colors follow Playnite by default."
+    - "[New] Added support for Final Fantasy XIV achievements."
+    - "[New] Many new column customization options for grids, for various colors and features."
+    - "[New] Added Hardcore icon borders for RetroAchievements."
+    - "[Fixed] Too many things to count."
+    - "[Fixed] Many performance improvements, especially for large libraries."
+    - "[Feedback] Please continue to leave Github issues, or come chat in the Playnite discord."
+    - "[Plug] Check out Aniki-ReMake 3.3.0 (https://github.com/Mike-Aniki/Aniki-ReMake), which fully supports the new Friend features in this update!"
+    - "[Plug] Check out UniPlaySong (https://github.com/aHuddini/UniPlaySong), which adds achievement unlock music support!"
+    - "[Plug] This update has taken an immense amount of work to develop, and I would greatly appreciate any support you can provide! Please consider supporting me on Ko-fi (https://ko-fi.com/justindelano)!"
+
   - Version: 2.5.3
     RequiredApiVersion: 6.14.0
     ReleaseDate: 2026-06-21
