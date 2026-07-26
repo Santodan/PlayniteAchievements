@@ -112,13 +112,17 @@
         </DataGrid.RowStyle>
         <DataGrid.Columns>
             <DataGridTemplateColumn Width="96" MinWidth="56" MaxWidth="600" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Cover}"
-                                    CellStyle="{StaticResource GameSummariesImageCellStyle}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="Cover">
                 <DataGridTemplateColumn.HeaderTemplate>
                     <DataTemplate>
                         <TextBlock Text="{Binding}" Opacity="0"/>
                     </DataTemplate>
                 </DataGridTemplateColumn.HeaderTemplate>
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
+                        <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <!-- Width-driven: the Uniform image fills the column width, so resizing
@@ -127,8 +131,6 @@
                              fits the art inside both cell dimensions without clipping. -->
                         <Grid ClipToBounds="False"
                               Margin="8,6"
-                              Background="Transparent"
-                              ToolTip="{Binding GameName}"
                               UseLayoutRounding="True"
                               SnapsToDevicePixels="True"
                               HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -173,6 +175,11 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_Game}" SortMemberPath="SortingName" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryName">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip" Value="{Binding GameName}"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
@@ -181,8 +188,6 @@
                                             HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                     <TextBlock Text="{Binding GameName}"
-                                               Background="Transparent"
-                                               helpers:CellToolTipHelper.HeaderText="{Binding GameName}"
                                                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                                Style="{StaticResource GameSummaryNameTextStyle}"/>
                                     <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
@@ -219,7 +224,6 @@
                                     Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
                                     CanUserResize="True"
                                     CanUserSort="False"
-                                    CellStyle="{StaticResource GameSummariesImageCellStyle}"
                                     helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryPlatform">
                     <DataGridTemplateColumn.HeaderTemplate>
                         <DataTemplate>
@@ -228,13 +232,17 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.HeaderTemplate>
 
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesImageCellStyle}">
+                        <Setter Property="ToolTip" Value="{Binding Provider}"/>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}"
                                         Padding="0,6">
                             <Grid>
-                                <Image ToolTip="{Binding Provider}"
-                                       Style="{StaticResource GameSummaryProviderIconStyle}">
+                                <Image Style="{StaticResource GameSummaryProviderIconStyle}">
                                     <Image.Width>
                                         <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,16,14">
                                             <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
@@ -305,6 +313,18 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Column_LastPlayed}" SortMemberPath="LastPlayed" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastPlayed">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                    <Binding Path="LastPlayedLocal"/>
+                                    <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
@@ -322,12 +342,6 @@
                                             <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
-                                    <TextBlock.ToolTip>
-                                        <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
-                                            <Binding Path="LastPlayedLocal"/>
-                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                        </MultiBinding>
-                                    </TextBlock.ToolTip>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
@@ -336,6 +350,18 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Common_LastUnlock}" SortMemberPath="LastUnlockUtc" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryLastUnlock">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
+                                    <Binding Path="LastUnlockLocal"/>
+                                    <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}">
@@ -347,12 +373,6 @@
                                             <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
                                         </MultiBinding>
                                     </TextBlock.Text>
-                                    <TextBlock.ToolTip>
-                                        <MultiBinding Converter="{StaticResource DateDisplayMode}" ConverterParameter="Exact">
-                                            <Binding Path="LastUnlockLocal"/>
-                                            <Binding Path="LastPlayedDateMode" RelativeSource="{RelativeSource AncestorType=controls:GameSummariesGridControl}"/>
-                                        </MultiBinding>
-                                    </TextBlock.ToolTip>
                                 </TextBlock>
                             </Grid>
                         </ContentControl>
@@ -380,16 +400,23 @@
             </DataGridTemplateColumn>
 
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryProgression">
+                <DataGridTemplateColumn.CellStyle>
+                    <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
+                        <Setter Property="ToolTip">
+                            <Setter.Value>
+                                <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
+                                    <Binding Path="UnlockedAchievements"/>
+                                    <Binding Path="TotalAchievements"/>
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <ContentControl Style="{StaticResource OverviewCellFrameStyle}"
                                         Padding="4,6,2,6">
-                            <Grid Background="Transparent">
-                                <Grid.ToolTip>
-                                    <ToolTip>
-                                        <TextBlock><Run Text="{Binding UnlockedAchievements, Mode=OneWay, StringFormat={}{0:N0}}" FontWeight="Bold"/><Run Text="/"/><Run Text="{Binding TotalAchievements, Mode=OneWay, StringFormat={}{0:N0}}"/></TextBlock>
-                                    </ToolTip>
-                                </Grid.ToolTip>
+                            <Grid>
                                 <Grid Style="{StaticResource OverviewProgressContainerStyle}">
                                     <StackPanel Style="{StaticResource OverviewProgressStackStyle}">
                                         <TextBlock Text="{Binding GameName}"
