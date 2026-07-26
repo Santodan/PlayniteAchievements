@@ -10,9 +10,9 @@ namespace PlayniteAchievements.Providers.RPCS3
     /// Per-resolution-run context for resolving PS3 serials (e.g. BLES01039) to NPWR
     /// trophy sets through RPCS3's own records: dev_hdd0/game/{serial} installs and
     /// games.yml registrations. Holds the emulator root, a lazily-built games.yml
-    /// title-path map, and a serial memo that includes negative results.
-    /// Memoized results depend on the caller's allowRawIsoScan flag, so an instance
-    /// must not be shared across runs using different flag values.
+    /// title-path map, and a per-serial trophy-source memo (empty lists record
+    /// negative results). Memoized results depend on the caller's allowRawIsoScan
+    /// flag, so an instance must not be shared across runs using different flag values.
     /// </summary>
     internal sealed class Rpcs3SerialNpwrBridge
     {
@@ -24,8 +24,8 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private readonly ILogger _logger;
         private readonly object _sync = new object();
-        private readonly Dictionary<string, GameTrophySource> _memo =
-            new Dictionary<string, GameTrophySource>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, IReadOnlyList<GameTrophySource>> _memo =
+            new Dictionary<string, IReadOnlyList<GameTrophySource>>(StringComparer.OrdinalIgnoreCase);
         private IReadOnlyDictionary<string, string> _gamesYmlMap;
 
         public Rpcs3SerialNpwrBridge(string rpcs3Root, ILogger logger)
@@ -52,9 +52,9 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
         }
 
-        public bool TryGetMemoizedSource(string serial, out GameTrophySource source)
+        public bool TryGetMemoizedSources(string serial, out IReadOnlyList<GameTrophySource> sources)
         {
-            source = null;
+            sources = null;
             if (string.IsNullOrWhiteSpace(serial))
             {
                 return false;
@@ -62,11 +62,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             lock (_sync)
             {
-                return _memo.TryGetValue(serial, out source);
+                return _memo.TryGetValue(serial, out sources);
             }
         }
 
-        public void MemoizeSource(string serial, GameTrophySource source)
+        public void MemoizeSources(string serial, IReadOnlyList<GameTrophySource> sources)
         {
             if (string.IsNullOrWhiteSpace(serial))
             {
@@ -75,7 +75,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             lock (_sync)
             {
-                _memo[serial] = source;
+                _memo[serial] = sources ?? Array.Empty<GameTrophySource>();
             }
         }
 
