@@ -536,24 +536,6 @@ namespace PlayniteAchievements.Providers.RPCS3
                 {
                     return true;
                 }
-
-                // Fall back to game ID pattern (e.g., NPEB01947)
-                var gameIdMatch = Ps3IdPattern.Match(installDir);
-                if (gameIdMatch.Success)
-                {
-                    var gameId = gameIdMatch.Groups[1].Value.ToUpperInvariant();
-                    // Game ID might match cache directly (same value)
-                    if (cache != null && cache.ContainsKey(gameId))
-                    {
-                        return true;
-                    }
-                    // Game ID found but not in cache - check for TROPHY.TRP fallback
-                    var trpPath = FindTrpPathForGameDirectory(installDir);
-                    if (!string.IsNullOrWhiteSpace(trpPath) && File.Exists(trpPath))
-                    {
-                        return true; // Pre-launch detection possible
-                    }
-                }
             }
 
             // If we can't verify by ID, fall back to true
@@ -694,11 +676,6 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             return null;
         }
-
-        // PS3 title/serial ID patterns: BLUS, BLES, BCES, NPUB, NPEB, etc.
-        private static readonly System.Text.RegularExpressions.Regex Ps3IdPattern =
-            new System.Text.RegularExpressions.Regex(@"\b([A-Z]{2,4}\d{5})\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         // npcommid pattern: NPWR05920_00 format (in TROPDIR subdirectory names)
         private static readonly System.Text.RegularExpressions.Regex NpCommIdPathPattern =
