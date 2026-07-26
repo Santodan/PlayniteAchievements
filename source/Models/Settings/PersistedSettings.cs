@@ -90,6 +90,9 @@ namespace PlayniteAchievements.Models.Settings
         private bool _unlockScreenshotClean = false;
         private bool _unlockScreenshotWithToast = true;
         private bool _unlockScreenshotFramed = false;
+        private string _unlockScreenshotSuffixClean = "clean";
+        private string _unlockScreenshotSuffixWithToast = "notification";
+        private string _unlockScreenshotSuffixFramed = "framed";
         private bool _frameShowHeader = true;
         private bool _frameShowName = true;
         private bool _frameShowDescription = true;
@@ -1063,6 +1066,33 @@ namespace PlayniteAchievements.Models.Settings
         {
             get => _unlockScreenshotFramed;
             set => SetValue(ref _unlockScreenshotFramed, value);
+        }
+
+        /// <summary>
+        /// Filename suffix appended to clean-variant screenshots. Blank means no suffix.
+        /// </summary>
+        public string UnlockScreenshotSuffixClean
+        {
+            get => _unlockScreenshotSuffixClean;
+            set => SetValue(ref _unlockScreenshotSuffixClean, value);
+        }
+
+        /// <summary>
+        /// Filename suffix appended to with-toast-variant screenshots. Blank means no suffix.
+        /// </summary>
+        public string UnlockScreenshotSuffixWithToast
+        {
+            get => _unlockScreenshotSuffixWithToast;
+            set => SetValue(ref _unlockScreenshotSuffixWithToast, value);
+        }
+
+        /// <summary>
+        /// Filename suffix appended to framed-variant screenshots. Blank means no suffix.
+        /// </summary>
+        public string UnlockScreenshotSuffixFramed
+        {
+            get => _unlockScreenshotSuffixFramed;
+            set => SetValue(ref _unlockScreenshotSuffixFramed, value);
         }
 
         // Frame appearance toggles: which fields the screenshot frame renders. Independent of
@@ -2338,6 +2368,9 @@ namespace PlayniteAchievements.Models.Settings
                 UnlockScreenshotClean = this.UnlockScreenshotClean,
                 UnlockScreenshotWithToast = this.UnlockScreenshotWithToast,
                 UnlockScreenshotFramed = this.UnlockScreenshotFramed,
+                UnlockScreenshotSuffixClean = this.UnlockScreenshotSuffixClean,
+                UnlockScreenshotSuffixWithToast = this.UnlockScreenshotSuffixWithToast,
+                UnlockScreenshotSuffixFramed = this.UnlockScreenshotSuffixFramed,
                 FrameShowHeader = this.FrameShowHeader,
                 FrameShowName = this.FrameShowName,
                 FrameShowDescription = this.FrameShowDescription,
