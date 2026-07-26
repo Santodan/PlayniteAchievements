@@ -44,6 +44,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Type">類型</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">最後解鎖</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">未解鎖</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Merge">Merge</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NewLabel">新標籤</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">此遊戲沒有可用的快取成就。</sys:String>
     <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">此遊戲尚未追蹤成就。點擊「重新整理」按鈕檢查成就數據。</sys:String>
@@ -133,6 +134,7 @@
     <sys:String x:Key="LOCPlayAch_Column_Recordings">Recordings</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_CategoryArt">Category Art</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">Use for Game Summaries</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Merge">Merge</sys:String>
 
     <!-- ================================================================= -->
     <!-- 04 Buttons -->
@@ -250,6 +252,10 @@ This removes the manual link and deletes its unlock times and this game's cached
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Hint">為此遊戲的成就設定分類。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">已選成就的分類標籤</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_ManageHint">Rename categories, choose category images, and drag categories into their display order.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Hint">Move all achievements from this category into another. Group-based types (Base, DLC, Update, Subset) are inherited from the target; other types are kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Target">Merge into</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Title">Merge Category</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeTooltip">Merge this category into another, moving its achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_RenameDialog_Hint">選取現有標籤並提供新的標籤文字。</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_SummaryArtTooltip">Use this category's art as this game's image in game summary grids. Click again to clear.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Tab_Assign">Assign Achievements</sys:String>
@@ -264,6 +270,8 @@ This removes the manual link and deletes its unlock times and this game's cached
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Singleplayer">單人</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Softcore">Softcore</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Stackable">可堆疊</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Subset">Subset</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Update">Update</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel">分類類型</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_Header">自訂成就圖示</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_Hint">Set optional unlocked and locked icon overrides for this game's achievements. Drag in image links or files, or browse for a file.</sys:String>

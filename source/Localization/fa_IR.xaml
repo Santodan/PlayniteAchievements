@@ -44,6 +44,7 @@
     <sys:String x:Key="LOCPlayAch_Common_Label_Type">نوع</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_LastUnlock">آخرین بازگشایی</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_Locked">قفل شده</sys:String>
+    <sys:String x:Key="LOCPlayAch_Common_Merge">Merge</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NewLabel">برچسب جدید</sys:String>
     <sys:String x:Key="LOCPlayAch_Common_NoCachedAchievementsForGame">هیچ دستاورد ذخیره‌شده‌ای برای این بازی موجود نیست.</sys:String>
     <sys:String x:Key="LOCPlayAch_NoAchievementsMessage">این بازی تاکنون دستاورد پیگیری‌شده‌ای ندارد. جهت بررسی داده‌های موفقیت، روی دکمه رفرش کلیک کنید.</sys:String>
@@ -133,6 +134,7 @@
     <sys:String x:Key="LOCPlayAch_Column_Recordings">ضبط‌شده‌ها</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_CategoryArt">تصویر دسته‌بندی</sys:String>
     <sys:String x:Key="LOCPlayAch_Column_UseForGameSummaries">مورد استفاده برای خلاصه‌های بازی</sys:String>
+    <sys:String x:Key="LOCPlayAch_Column_Merge">Merge</sys:String>
 
     <!-- ================================================================= -->
     <!-- 04 Buttons -->
@@ -250,6 +252,10 @@ It is fetched again on the next friend refresh.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Hint">کالکشن برای دستاوردهای این بازی را مشخص کنید.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_InputPlaceholder">برچسب دسته‌بندی برای دستاوردهای انتخاب‌شده</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_ManageHint">نام طبقه‌ها را تغییر دهید، عکس‌هایشان را انتخاب کنید و با کشیدن و رها کردن، ترتیب نمایش را تنظیم کنید.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Hint">Move all achievements from this category into another. Group-based types (Base, DLC, Update, Subset) are inherited from the target; other types are kept.</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Target">Merge into</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeDialog_Title">Merge Category</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_MergeTooltip">Merge this category into another, moving its achievements.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_RenameDialog_Hint">برچسب فعلی را انتخاب کنید و متن برچسب جدید را وارد نمایید.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_SummaryArtTooltip">از تصویر این دسته‌بندی، به‌عنوان تصویر بازی در جدول‌های خلاصهٔ بازی، استفاده کن. برای پاک‌سازی دوباره، کلیک کنید.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Tab_Assign">تعیین دستاوردها</sys:String>
@@ -264,6 +270,8 @@ It is fetched again on the next friend refresh.</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Singleplayer">تک نفره</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Softcore">سطح آسان</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Stackable">قابل روی‌هم‌گذاری</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Subset">Subset</sys:String>
+    <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_Type_Update">Update</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_Category_TypeSelectorLabel">نوع دسته‌بندی</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_Header">آیکون‌های سفارشی دستاوردها</sys:String>
     <sys:String x:Key="LOCPlayAch_ManageAchievements_CustomIcons_Hint">آیکون‌های سفارشی اختیاری برای وضعیت باز و بستهٔ دستاوردهای این بازی تعیین کنید. لینک یا فایل تصویر را بکشید و بیندازید، یا فایلی را جستجو کنید.</sys:String>
