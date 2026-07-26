@@ -102,6 +102,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     SetValue(ref _totalAchievements, value);
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
+                    OnPropertyChanged(nameof(ProgressionCountText));
                 }
             } 
         }
@@ -117,6 +118,7 @@ namespace PlayniteAchievements.ViewModels.Items
                     SetValue(ref _unlockedAchievements, value);
                     OnPropertyChanged(nameof(Progression));
                     OnPropertyChanged(nameof(ProgressionText));
+                    OnPropertyChanged(nameof(ProgressionCountText));
                 }
             } 
         }
@@ -292,6 +294,8 @@ namespace PlayniteAchievements.ViewModels.Items
         public int Progression => AchievementCompletionPercentCalculator.ComputeRoundedPercent(UnlockedAchievements, TotalAchievements);
 
         public string ProgressionText => PercentFormatter.FormatWhole(Progression);
+
+        public string ProgressionCountText => FormatScoreFraction(UnlockedAchievements, TotalAchievements);
 
         public string CollectionScoreFractionText => FormatScoreFraction(CollectionScore, CollectionScoreTotal);
 
