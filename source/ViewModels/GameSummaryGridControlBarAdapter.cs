@@ -117,75 +117,10 @@ namespace PlayniteAchievements.ViewModels
 
         public void UpdateOptions(IEnumerable<GameSummaryItem> source)
         {
-            var gameList = (source ?? Enumerable.Empty<GameSummaryItem>())
-                .Where(item => item != null)
-                .ToList();
-
-            var priorSelections = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
-            var priorExpanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var existing in ProviderFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>())
-            {
-                var selected = existing.SelectedPlatformNames.ToList();
-                if (selected.Count > 0)
-                {
-                    priorSelections[existing.ProviderKey] =
-                        new HashSet<string>(selected, StringComparer.OrdinalIgnoreCase);
-                }
-
-                if (existing.IsExpanded)
-                {
-                    priorExpanded.Add(existing.ProviderKey);
-                }
-            }
-
-            var platformsByProvider = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var game in gameList)
-            {
-                var providerKey = game?.ProviderKey;
-                if (string.IsNullOrWhiteSpace(providerKey))
-                {
-                    continue;
-                }
-
-                providerKey = providerKey.Trim();
-                if (!platformsByProvider.TryGetValue(providerKey, out var platforms))
-                {
-                    platforms = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
-                    platformsByProvider[providerKey] = platforms;
-                }
-
-                foreach (var platform in game.Platforms ?? Array.Empty<string>())
-                {
-                    if (!string.IsNullOrWhiteSpace(platform))
-                    {
-                        platforms.Add(platform.Trim());
-                    }
-                }
-            }
-
-            var groups = new List<ProviderFilterGroup>();
-            foreach (var providerKey in platformsByProvider.Keys
-                .OrderBy(GetProviderFilterDisplayName, StringComparer.CurrentCultureIgnoreCase))
-            {
-                var platformNames = platformsByProvider[providerKey].ToList();
-                if (platformNames.Count == 0)
-                {
-                    platformNames.Add(GetProviderFilterDisplayName(providerKey));
-                }
-
-                priorSelections.TryGetValue(providerKey, out var selectedSet);
-                groups.Add(new ProviderFilterGroup(
-                    providerKey,
-                    GetProviderFilterDisplayName(providerKey),
-                    platformNames,
-                    name => selectedSet != null && selectedSet.Contains(name),
-                    OnProviderFilterSelectionChanged)
-                {
-                    IsExpanded = priorExpanded.Contains(providerKey)
-                });
-            }
-
-            ProviderFilterGroups = new ObservableCollection<ProviderFilterGroup>(groups);
+            ProviderFilterGroups = ProviderFilterGroupBuilder.Rebuild(
+                source,
+                ProviderFilterGroups,
+                OnProviderFilterSelectionChanged);
             OnPropertyChanged(nameof(SelectedProviderFilterText));
             ControlBar.Refresh();
         }
@@ -292,18 +227,6 @@ namespace PlayniteAchievements.ViewModels
         private void RaiseFilterChanged()
         {
             FilterChanged?.Invoke(this, EventArgs.Empty);
-        }
-
-        private static string GetProviderFilterDisplayName(string providerKey)
-        {
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                return string.Empty;
-            }
-
-            var normalized = providerKey.Trim();
-            var localized = PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(normalized);
-            return string.IsNullOrWhiteSpace(localized) ? normalized : localized;
         }
 
         private static bool IsFilterSelected(HashSet<string> selectedValues, string value)
