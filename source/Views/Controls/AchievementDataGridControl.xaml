@@ -411,6 +411,7 @@
                     <DataTemplate>
                         <TextBlock Text="{Binding GlobalPercentText}"
                                    FontWeight="SemiBold"
+                                   ToolTip="{Binding RarityDetailText}"
                                    Opacity="{StaticResource PlayAch.Opacity.Secondary}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource WrappedCenteredDataGridTextStyle}">

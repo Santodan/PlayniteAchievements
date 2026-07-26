@@ -152,6 +152,8 @@
     <!-- Achievement Rarity Template -->
     <DataTemplate x:Key="AchievementRarityTemplate">
         <StackPanel Orientation="Horizontal"
+                    Background="Transparent"
+                    ToolTip="{Binding RarityDetailText}"
                     VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                     HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
             <Image Width="16" Height="16" Margin="0,0,4,0"
@@ -197,6 +199,7 @@
     <DataTemplate x:Key="AchievementRarityTierTemplate">
         <Image HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+               ToolTip="{Binding RarityDetailText}"
                Effect="{StaticResource BadgeShadow}">
             <Image.Width>
                 <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
@@ -258,15 +261,19 @@
                             </DataTrigger>
                             <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
                                 <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Platinum}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding TrophyType}" Value="gold">
                                 <Setter Property="Source" Value="{DynamicResource TrophyGold}"/>
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Gold}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding TrophyType}" Value="silver">
                                 <Setter Property="Source" Value="{DynamicResource TrophySilver}"/>
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Silver}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
                                 <Setter Property="Source" Value="{DynamicResource TrophyBronze}"/>
+                                <Setter Property="ToolTip" Value="{DynamicResource LOCPlayAch_Trophy_Bronze}"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
