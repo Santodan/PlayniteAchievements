@@ -186,21 +186,6 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Maps a single screenshot variant to its default filename suffix
-        /// ("clean"/"notification"/"framed"). Returns null for None or combined flags.
-        /// </summary>
-        internal static string VariantSuffix(ScreenshotVariants variant)
-        {
-            switch (variant)
-            {
-                case ScreenshotVariants.Clean: return "clean";
-                case ScreenshotVariants.WithToast: return "notification";
-                case ScreenshotVariants.Framed: return "framed";
-                default: return null;
-            }
-        }
-
-        /// <summary>
         /// Saves an already-captured bitmap to
         /// &lt;baseDir&gt;\Game\NNN_AchievementName_&lt;variant&gt;.png. Creates directories as
         /// needed and avoids clobbering an existing file by appending " (2)", " (3)"...
