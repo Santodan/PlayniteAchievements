@@ -105,6 +105,9 @@ namespace PlayniteAchievements.Models.Settings
             target.UnlockScreenshotClean = source.UnlockScreenshotClean;
             target.UnlockScreenshotWithToast = source.UnlockScreenshotWithToast;
             target.UnlockScreenshotFramed = source.UnlockScreenshotFramed;
+            target.UnlockScreenshotSuffixClean = source.UnlockScreenshotSuffixClean;
+            target.UnlockScreenshotSuffixWithToast = source.UnlockScreenshotSuffixWithToast;
+            target.UnlockScreenshotSuffixFramed = source.UnlockScreenshotSuffixFramed;
             target.FrameShowHeader = source.FrameShowHeader;
             target.FrameShowName = source.FrameShowName;
             target.FrameShowDescription = source.FrameShowDescription;
