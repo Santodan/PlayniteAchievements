@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Playnite.SDK;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Models.Settings;
@@ -870,6 +871,115 @@ namespace PlayniteAchievements.Tests.ViewModels
             CollectionAssert.AreEqual(
                 new[] { "Alice" },
                 viewModel.FilteredFriends.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
+        public void GamePlatformFilterComposesFullAndPartialSelections()
+        {
+            var data = CreateData();
+            data.Games[0].Platforms = new[] { "PC" };
+            data.Games[1].Platforms = new[] { "Steam Deck" };
+            data.Games.Add(new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 999,
+                GameName = "Provider Only"
+            });
+            var viewModel = CreateViewModel(data);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            // Fully selecting the GOG group keeps only GOG games.
+            var gogGroup = viewModel.GamePlatformFilterGroups.Single(group => group.ProviderKey == "GOG");
+            gogGroup.SetAll(true);
+            CollectionAssert.AreEqual(
+                new[] { "GOG Game" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+            gogGroup.SetAll(false);
+
+            // A partial Steam selection keeps only games whose platforms overlap; the unowned
+            // Steam game carries no platform metadata so it needs the full Steam group.
+            var steamGroup = viewModel.GamePlatformFilterGroups.Single(group => group.ProviderKey == "Steam");
+            steamGroup.Platforms.Single(option => option.PlatformName == "PC").IsSelected = true;
+            CollectionAssert.AreEqual(
+                new[] { "Game One" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+
+            steamGroup.SetAll(true);
+            CollectionAssert.AreEquivalent(
+                new[] { "Game One", "Game Two", "Provider Only" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+        }
+
+        [TestMethod]
+        public void OwnershipFilterOffersOptionsOnlyWhenOwnedAndUnownedMix()
+        {
+            var allOwned = CreateViewModel(CreateData());
+            allOwned.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.AreEqual(0, allOwned.OwnershipFilterOptions.Count);
+
+            var mixedData = CreateData();
+            mixedData.Games.Add(new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 999,
+                GameName = "Provider Only"
+            });
+            var mixed = CreateViewModel(mixedData);
+            mixed.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.AreEqual(2, mixed.OwnershipFilterOptions.Count);
+        }
+
+        [TestMethod]
+        public void OwnershipFilterSelectsOwnedOrUnownedGames()
+        {
+            var data = CreateData();
+            data.Games.Add(new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 999,
+                GameName = "Provider Only"
+            });
+            var viewModel = CreateViewModel(data);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            var unownedLabel = ResourceProvider.GetString("LOCPlayAch_Filter_Unowned");
+            viewModel.SetOwnershipFilterSelected(unownedLabel, true);
+            CollectionAssert.AreEqual(
+                new[] { "Provider Only" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+
+            viewModel.SetOwnershipFilterSelected(unownedLabel, false);
+            viewModel.SetOwnershipFilterSelected(ResourceProvider.GetString("LOCPlayAch_Column_Owned"), true);
+            CollectionAssert.AreEquivalent(
+                new[] { "Game One", "Game Two", "GOG Game" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+        }
+
+        [TestMethod]
+        public void GameFilterOptionsRescopeToSelectedFriend()
+        {
+            var data = CreateData();
+            data.Games.Add(new FriendGameSummaryItem
+            {
+                ProviderKey = "Steam",
+                AppId = 999,
+                GameName = "Provider Only"
+            });
+            var viewModel = CreateViewModel(data);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.AreEqual(2, viewModel.OwnershipFilterOptions.Count);
+
+            // Alice's projected games are all owned Steam games, so the ownership dropdown
+            // loses its options (auto-hiding) and platform groups rescope to her provider.
+            viewModel.SelectedFriend = viewModel.FilteredFriends.Single(friend => friend.DisplayName == "Alice");
+            Assert.AreEqual(0, viewModel.OwnershipFilterOptions.Count);
+            Assert.IsTrue(viewModel.GamePlatformFilterGroups.All(group => group.ProviderKey == "Steam"));
+
+            viewModel.SelectedFriend = null;
+            Assert.AreEqual(2, viewModel.OwnershipFilterOptions.Count);
         }
 
         [TestMethod]
