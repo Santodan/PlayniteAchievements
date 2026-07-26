@@ -1390,7 +1390,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         /// <summary>
         /// Finds the npcommid for a game using multiple strategies:
-        /// 1. Extract PS3 ID from the install path (e.g., BLUS12345)
+        /// 1. Extract the trophy set from an installed game's on-disk TROPHY.TRP
         /// 2. Extract npcommid from PS3 ISO file
         /// 3. Match by game name against TROPCONF.SFM titles
         /// Also returns the TROPHY.TRP path for pre-launch fallback.
@@ -1407,25 +1407,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
                 var gameDirectory = candidate.Path;
 
-                // Strategy 1: Extract PS3 ID from the path and look it up in cache
-                if (!string.IsNullOrWhiteSpace(gameDirectory))
-                {
-                    var match = Ps3IdPattern.Match(gameDirectory);
-
-                    if (match.Success)
-                    {
-                        var ps3Id = match.Groups[1].Value.ToUpperInvariant();
-
-                        if (trophyFolderCache.ContainsKey(ps3Id))
-                        {
-                            var trpPath = FindTrpPathForGameDirectory(gameDirectory);
-                            _logger?.Info($"[RPCS3-DIAG] FindSingleNpCommId: game='{game?.Name}' matched via PS3 serial '{ps3Id}' in path '{gameDirectory}'");
-                            return new GameTrophySource { NpCommId = ps3Id, TrpPath = trpPath };
-                        }
-                    }
-                }
-
-                // Strategy 1.5: For installed PKG games, check for TROPHY.TRP in game directory
+                // Strategy 1: For installed games, check for TROPHY.TRP in game directory
                 if (!string.IsNullOrWhiteSpace(gameDirectory))
                 {
                     var (npcommid, trpPath) = FindNpCommIdAndTrpFromInstalledGame(gameDirectory, trophyFolderCache);
@@ -1458,7 +1440,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return new GameTrophySource { NpCommId = npcommidFromName, TrpPath = null };
             }
 
-            _logger?.Info($"[RPCS3-DIAG] FindSingleNpCommId: game='{game?.Name}' - no strategy matched (serial-in-path, installed TROPHY.TRP, ISO, name)");
+            _logger?.Info($"[RPCS3-DIAG] FindSingleNpCommId: game='{game?.Name}' - no strategy matched (installed TROPHY.TRP, ISO, name)");
             return null;
         }
 
