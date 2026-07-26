@@ -251,6 +251,12 @@ PlayniteAchievements tables and visualizations can be added to [StartPage](https
 
 Coming soon!
 
+## Acknowledgements
+- @Synkro for the help creating this great updated README!
+- @Ammz for the beautiful new icons and branding package, as well as new Discord feedback form.
+- All other Discord testers, this would not be possible without your feedback and help!
+- My Ko-Fi supporters! The coffee has kept me going throughout all this development!
+
 ## Support / Contributing / Credits
 
 - Issues: [GitHub Issue Tracker](https://github.com/justin-delano/PlayniteAchievements/issues)
