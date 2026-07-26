@@ -6,6 +6,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Friends;
+using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
 using PlayniteAchievements.ViewModels.Items;
@@ -79,6 +80,11 @@ namespace PlayniteAchievements.ViewModels
         private FriendOverviewProjection _projection = new FriendOverviewProjection(null);
         private readonly HashSet<string> _selectedTypeFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
+            new ObservableCollection<ProviderFilterGroup>();
+        private FriendSummaryItem _gameFilterOptionsFriend;
+        private bool _gameFilterOptionsBuilt;
         private FriendSummaryItem _selectedFriend;
         private FriendGameSummaryItem _selectedGame;
         private bool _isApplyingFilters;
@@ -156,6 +162,7 @@ namespace PlayniteAchievements.ViewModels
             ProviderFilterOptions = new ObservableCollection<string>();
             TypeFilterOptions = new ObservableCollection<string>();
             CategoryFilterOptions = new ObservableCollection<string>();
+            OwnershipFilterOptions = new ObservableCollection<string>();
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             GameSummariesControlBar = CreateGameSummariesControlBar();
             AchievementsControlBar = CreateAchievementsControlBar();
@@ -229,6 +236,13 @@ namespace PlayniteAchievements.ViewModels
         public ObservableCollection<string> ProviderFilterOptions { get; }
         public ObservableCollection<string> TypeFilterOptions { get; }
         public ObservableCollection<string> CategoryFilterOptions { get; }
+        public ObservableCollection<string> OwnershipFilterOptions { get; }
+
+        public ObservableCollection<ProviderFilterGroup> GamePlatformFilterGroups
+        {
+            get => _gamePlatformFilterGroups;
+            private set => SetValue(ref _gamePlatformFilterGroups, value ?? new ObservableCollection<ProviderFilterGroup>());
+        }
         public ObservableCollection<RefreshMode> FriendRefreshModes { get; }
         public ObservableCollection<RefreshMode> RefreshModes => FriendRefreshModes;
 
@@ -484,6 +498,19 @@ namespace PlayniteAchievements.ViewModels
             CategoryFilterOptions,
             ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"));
 
+        public string SelectedGamePlatformFilterText => OverviewGameSummaryFilters.BuildProviderFilterText(
+            GamePlatformFilterGroups,
+            ResourceProvider.GetString("LOCPlayAch_Common_Label_Platform"));
+
+        public string SelectedOwnershipFilterText => GetSelectedFilterText(
+            _selectedOwnershipFilters,
+            OwnershipFilterOptions,
+            ResourceProvider.GetString("LOCPlayAch_Filter_OwnershipSelectorPlaceholder"));
+
+        private static string OwnedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Column_Owned");
+
+        private static string UnownedFilterLabel => ResourceProvider.GetString("LOCPlayAch_Filter_Unowned");
+
         public string AchievementSectionTitle
         {
             get
@@ -553,7 +580,7 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateGameSummariesControlBar()
         {
-            return new GridControlBarViewModel
+            var controlBar = new GridControlBarViewModel
             {
                 Search = new GridSearchControl(
                     this,
@@ -563,6 +590,26 @@ namespace PlayniteAchievements.ViewModels
                     GridControlBarText.Get("LOCPlayAch_Filter_Games", "Search Games"),
                     ClearGameSearch)
             };
+            controlBar.Items.Add(new GridProviderPlatformFilter(
+                this,
+                nameof(SelectedGamePlatformFilterText),
+                () => SelectedGamePlatformFilterText,
+                () => GamePlatformFilterGroups,
+                CollapseUnselectedGamePlatformFilters)
+            {
+                Width = 170
+            });
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedOwnershipFilterText),
+                () => SelectedOwnershipFilterText,
+                () => OwnershipFilterOptions,
+                IsOwnershipFilterSelected,
+                SetOwnershipFilterSelected)
+            {
+                Width = 118
+            });
+            return controlBar;
         }
 
         private GridControlBarViewModel CreateAchievementsControlBar()
@@ -628,6 +675,58 @@ namespace PlayniteAchievements.ViewModels
         public void SetProviderFilter(string providerKey)
         {
             SelectedProviderKey = providerKey;
+        }
+
+        public bool IsOwnershipFilterSelected(string value)
+        {
+            return IsFilterSelected(_selectedOwnershipFilters, value);
+        }
+
+        public void SetOwnershipFilterSelected(string value, bool isSelected)
+        {
+            if (!SetFilterSelection(_selectedOwnershipFilters, value, isSelected))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SelectedOwnershipFilterText));
+            ApplyFilters();
+        }
+
+        /// <summary>
+        /// Invoked by a platform group whenever its selection changes. Refreshes the box text
+        /// immediately and defers the grid filter to avoid interfering with the click that
+        /// triggered it, matching the Overview's platform filter.
+        /// </summary>
+        private void OnGamePlatformFilterSelectionChanged()
+        {
+            OnPropertyChanged(nameof(SelectedGamePlatformFilterText));
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null)
+            {
+                dispatcher.BeginInvoke(
+                    new Action(() => ApplyFilters()),
+                    System.Windows.Threading.DispatcherPriority.ContextIdle);
+            }
+            else
+            {
+                ApplyFilters();
+            }
+        }
+
+        /// <summary>
+        /// Collapses platform sections that have no platform selected. Called when the dropdown
+        /// closes so reopening it shows only the in-use sections expanded.
+        /// </summary>
+        public void CollapseUnselectedGamePlatformFilters()
+        {
+            foreach (var group in GamePlatformFilterGroups ?? Enumerable.Empty<ProviderFilterGroup>())
+            {
+                if (!group.HasAnySelected)
+                {
+                    group.IsExpanded = false;
+                }
+            }
         }
 
         public bool IsTypeFilterSelected(string value)
@@ -1466,6 +1565,11 @@ namespace PlayniteAchievements.ViewModels
 
                 var friendList = friends.ToList();
 
+                // Rescope the platform/ownership dropdowns when the game source changed (data
+                // reload or a different selected friend); a no-op on plain filter passes so an
+                // open dropdown menu keeps its live groups.
+                UpdateGameFilterOptions(force: false);
+
                 var gameSource = SelectedFriend != null
                     ? GetSelectedFriendGames(SelectedFriend)
                     : _allGames;
@@ -1476,6 +1580,18 @@ namespace PlayniteAchievements.ViewModels
                 var games = gameSource
                     .Where(game => MatchesProvider(game?.ProviderKey))
                     .Where(game => _gameSearchIndex.Matches(game, gameQuery));
+
+                games = OverviewGameSummaryFilters.ApplyProviderPlatformFilter(games, GamePlatformFilterGroups);
+
+                if (_selectedOwnershipFilters.Count > 0)
+                {
+                    var includeOwned = _selectedOwnershipFilters.Contains(OwnedFilterLabel);
+                    var includeUnowned = _selectedOwnershipFilters.Contains(UnownedFilterLabel);
+                    if (includeOwned != includeUnowned)
+                    {
+                        games = games.Where(game => includeOwned ? game.Owned : !game.Owned);
+                    }
+                }
 
                 var gameList = games.ToList();
 
@@ -2044,7 +2160,69 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(SelectedProviderFilterText));
             }
 
+            UpdateGameFilterOptions(force: true);
             UpdateScopedFilterOptions();
+        }
+
+        // Platform and ownership options reflect the game grid's unfiltered source (the selected
+        // friend's games, or all games). Rebuilt only when that source changes: forced on data
+        // reloads, and detected via the selected-friend reference on filter passes. Not rebuilt on
+        // plain filter passes because the platform dropdown's open context menu captures the group
+        // collection at open time and would detach from a replacement.
+        private void UpdateGameFilterOptions(bool force)
+        {
+            if (!force && _gameFilterOptionsBuilt && ReferenceEquals(_gameFilterOptionsFriend, SelectedFriend))
+            {
+                return;
+            }
+
+            _gameFilterOptionsBuilt = true;
+            _gameFilterOptionsFriend = SelectedFriend;
+
+            var source = SelectedFriend != null
+                ? GetSelectedFriendGames(SelectedFriend)
+                : _allGames;
+
+            GamePlatformFilterGroups = ProviderFilterGroupBuilder.Rebuild(
+                source,
+                GamePlatformFilterGroups,
+                OnGamePlatformFilterSelectionChanged);
+            OnPropertyChanged(nameof(SelectedGamePlatformFilterText));
+
+            var hasOwned = false;
+            var hasUnowned = false;
+            foreach (var game in source)
+            {
+                if (game == null)
+                {
+                    continue;
+                }
+
+                if (game.Owned)
+                {
+                    hasOwned = true;
+                }
+                else
+                {
+                    hasUnowned = true;
+                }
+
+                if (hasOwned && hasUnowned)
+                {
+                    break;
+                }
+            }
+
+            // Offer the ownership filter only when the source mixes owned and unowned games; an
+            // empty option list auto-hides the dropdown via GridMultiSelectFilter.HasAvailableAction.
+            ReplaceOptions(
+                OwnershipFilterOptions,
+                hasOwned && hasUnowned
+                    ? new[] { OwnedFilterLabel, UnownedFilterLabel }
+                    : Enumerable.Empty<string>());
+            PruneFilterSelections(_selectedOwnershipFilters, OwnershipFilterOptions);
+            OnPropertyChanged(nameof(SelectedOwnershipFilterText));
+            GameSummariesControlBar?.Refresh();
         }
 
         // Type and category options reflect only the achievements currently in scope. They only
