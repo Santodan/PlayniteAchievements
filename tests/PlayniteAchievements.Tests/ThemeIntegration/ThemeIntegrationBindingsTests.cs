@@ -2456,6 +2456,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             settings.ModernTheme.AchievementsOldestFirst = new List<AchievementDetail> { Achievement("Oldest", 25.0, unlocked: true) };
             settings.ModernTheme.AchievementsRarityAsc = new List<AchievementDetail> { Achievement("Rarest", 2.0, unlocked: true) };
             settings.ModernTheme.AchievementsRarityDesc = new List<AchievementDetail> { Achievement("Commonest", 75.0, unlocked: true) };
+            settings.ModernTheme.SelectedGameSummary = new GameSummaryItem { GameName = "Seeded" };
 
             var api = new FakePlayniteApi();
             var refreshRuntime = new RefreshRuntime();
@@ -2481,6 +2482,7 @@ namespace PlayniteAchievements.ThemeIntegration.Tests
             Assert.AreEqual(0, settings.AchievementsRarityAsc.Count);
             Assert.AreEqual(0, settings.AchievementsRarityDesc.Count);
             Assert.IsFalse(settings.ModernTheme.HasCustomAchievementOrder);
+            Assert.IsNull(settings.ModernTheme.SelectedGameSummary);
 
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Common)));
             Assert.IsTrue(changedProperties.Contains(nameof(PlayniteAchievementsSettings.Uncommon)));

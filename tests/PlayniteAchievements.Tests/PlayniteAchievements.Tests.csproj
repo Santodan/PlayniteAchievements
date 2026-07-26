@@ -107,6 +107,7 @@
     <Compile Include="..\..\source\Services\Summaries\AchievementStatsAccumulator.cs" Link="Source\Services\Summaries\AchievementStatsAccumulator.cs" />
     <Compile Include="..\..\source\Services\Summaries\CategorySummaryBuilder.cs" Link="Source\Services\Summaries\CategorySummaryBuilder.cs" />
     <Compile Include="..\..\source\Services\Summaries\GameSummaryArtResolver.cs" Link="Source\Services\Summaries\GameSummaryArtResolver.cs" />
+    <Compile Include="..\..\source\Services\Summaries\GameSummaryItemBuilder.cs" Link="Source\Services\Summaries\GameSummaryItemBuilder.cs" />
     <Compile Include="..\..\source\ViewModels\Items\CategorySummaryItem.cs" Link="Source\ViewModels\Items\CategorySummaryItem.cs" />
     <Compile Include="..\..\source\Services\PlayniteGameMetadataFormatter.cs" Link="Source\Services\PlayniteGameMetadataFormatter.cs" />
     <Compile Include="..\..\source\Services\BackupHelper.cs" Link="Source\Services\BackupHelper.cs" />

@@ -38,6 +38,21 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void DesktopThemeGameSummariesOptionEdit_RaisesFlatPropertyChangedOnPersistedSettings()
+        {
+            var settings = new PersistedSettings();
+            var raised = new List<string>();
+            settings.PropertyChanged += (sender, e) => raised.Add(e.PropertyName);
+
+            var options = settings.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme);
+            options.UseCoverImages = !options.UseCoverImages;
+            options.ShowColumnHeaders = !options.ShowColumnHeaders;
+
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.DesktopThemeGameSummariesUseCoverImages));
+            CollectionAssert.Contains(raised, nameof(PersistedSettings.ShowDesktopThemeGameSummariesGridColumnHeaders));
+        }
+
+        [TestMethod]
         public void FriendSummariesOptionEdit_RaisesFlatPropertyChangedOnPersistedSettings()
         {
             var settings = new PersistedSettings();
