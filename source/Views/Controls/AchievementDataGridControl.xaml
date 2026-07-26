@@ -185,6 +185,7 @@
                     <DataTemplate>
                         <Grid Background="Transparent"
                               helpers:CellToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
+                              helpers:CellToolTipHelper.BodyText="{Binding DescriptionResolved}"
                               helpers:CellToolTipHelper.NoteText="{Binding AchievementNote}">
                             <TextBlock TextWrapping="Wrap"
                                        FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
