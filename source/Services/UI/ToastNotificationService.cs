@@ -653,6 +653,14 @@ namespace PlayniteAchievements.Services.UI
 
             public string BaseDirectory { get; set; }
 
+            // Filename suffixes snapshotted from settings at plan-build time so the
+            // fire-and-forget save uses the values as of capture. Null means no suffix.
+            public string CleanSuffix { get; set; }
+
+            public string WithToastSuffix { get; set; }
+
+            public string FramedSuffix { get; set; }
+
             public bool NeedsCleanCapture => Items.Any(i =>
                 (i.Variants & (ScreenshotVariants.Clean | ScreenshotVariants.Framed)) != 0);
 
@@ -691,7 +699,13 @@ namespace PlayniteAchievements.Services.UI
                 return null;
             }
 
-            var plan = new WaveScreenshotPlan { BaseDirectory = baseDir };
+            var plan = new WaveScreenshotPlan
+            {
+                BaseDirectory = baseDir,
+                CleanSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixClean),
+                WithToastSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixWithToast),
+                FramedSuffix = NormalizeSuffix(persisted.UnlockScreenshotSuffixFramed),
+            };
             foreach (var vm in wave)
             {
                 // The policy ANDs the EnableUnlockScreenshots master switch into each variant flag.
@@ -723,6 +737,15 @@ namespace PlayniteAchievements.Services.UI
             }
 
             return plan.Items.Count > 0 ? plan : null;
+        }
+
+        /// <summary>
+        /// Trims a configured screenshot filename suffix; blank collapses to null so the path
+        /// builder emits no suffix at all.
+        /// </summary>
+        private static string NormalizeSuffix(string suffix)
+        {
+            return string.IsNullOrWhiteSpace(suffix) ? null : suffix.Trim();
         }
 
         /// <summary>
@@ -793,7 +816,7 @@ namespace PlayniteAchievements.Services.UI
                                 _screenshotService.Save(
                                     clean, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
-                                    UnlockScreenshotService.VariantSuffix(ScreenshotVariants.Clean));
+                                    plan.CleanSuffix);
                             }
 
                             if ((item.Variants & ScreenshotVariants.WithToast) != 0 && toast != null)
@@ -801,7 +824,7 @@ namespace PlayniteAchievements.Services.UI
                                 _screenshotService.Save(
                                     toast, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
-                                    UnlockScreenshotService.VariantSuffix(ScreenshotVariants.WithToast));
+                                    plan.WithToastSuffix);
                             }
 
                             if (framedByVm.TryGetValue(vm, out var framed))
@@ -809,7 +832,7 @@ namespace PlayniteAchievements.Services.UI
                                 _screenshotService.Save(
                                     framed, baseDir, vm.ProviderKey, vm.GameName, vm.AchievementName,
                                     vm.AchievementNumber, vm.TotalCount,
-                                    UnlockScreenshotService.VariantSuffix(ScreenshotVariants.Framed));
+                                    plan.FramedSuffix);
                             }
                         }
                     }
