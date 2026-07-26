@@ -1543,6 +1543,16 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return (null, null);
             }
 
+            // Rom paths may point at a file (e.g. USRDIR\EBOOT.BIN); start from its directory.
+            if (File.Exists(gameDirectory))
+            {
+                gameDirectory = Path.GetDirectoryName(gameDirectory);
+                if (string.IsNullOrWhiteSpace(gameDirectory))
+                {
+                    return (null, null);
+                }
+            }
+
             // Build list of directories to check
             // Playnite may point to USRDIR, but TROPHY folder is in the game root
             var directoriesToCheck = new List<string> { gameDirectory };
@@ -1650,6 +1660,16 @@ namespace PlayniteAchievements.Providers.RPCS3
             if (string.IsNullOrWhiteSpace(gameDirectory))
             {
                 return null;
+            }
+
+            // Rom paths may point at a file (e.g. USRDIR\EBOOT.BIN); start from its directory.
+            if (File.Exists(gameDirectory))
+            {
+                gameDirectory = Path.GetDirectoryName(gameDirectory);
+                if (string.IsNullOrWhiteSpace(gameDirectory))
+                {
+                    return null;
+                }
             }
 
             // Build list of directories to check
