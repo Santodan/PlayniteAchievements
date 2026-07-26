@@ -273,9 +273,17 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return Task.FromResult<GameAchievementData>(null);
             }
 
+            // Record the resolved trophy source identity so the refresh pipeline can
+            // detect match changes and overwrite stale cached icons (ApiNames are bare
+            // trophy indexes shared by every RPCS3 game).
+            var providerGameKey = string.Join(
+                "+",
+                sources.Select(source => source.NpCommId).OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+
             return Task.FromResult(new GameAchievementData
             {
                 ProviderKey = "RPCS3",
+                ProviderGameKey = providerGameKey,
                 LibrarySourceName = game?.Source?.Name,
                 GameName = game?.Name,
                 PlayniteGameId = game?.Id,
