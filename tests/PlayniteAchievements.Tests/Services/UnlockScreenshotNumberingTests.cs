@@ -94,13 +94,31 @@ namespace PlayniteAchievements.Services.Tests
         }
 
         [TestMethod]
-        public void VariantSuffix_MapsSingleFlagsOnly()
+        public void BuildRelativePath_WhitespaceSuffixProducesNoSuffix()
         {
-            Assert.AreEqual("clean", UnlockScreenshotService.VariantSuffix(ScreenshotVariants.Clean));
-            Assert.AreEqual("toast", UnlockScreenshotService.VariantSuffix(ScreenshotVariants.WithToast));
-            Assert.AreEqual("framed", UnlockScreenshotService.VariantSuffix(ScreenshotVariants.Framed));
-            Assert.IsNull(UnlockScreenshotService.VariantSuffix(ScreenshotVariants.None));
-            Assert.IsNull(UnlockScreenshotService.VariantSuffix(ScreenshotVariants.Clean | ScreenshotVariants.Framed));
+            var relative = UnlockScreenshotService.BuildRelativePath(
+                providerKey: "Steam",
+                gameName: "Game",
+                achievementName: "First Win",
+                number: 7,
+                total: 123,
+                variantSuffix: "   ");
+
+            Assert.AreEqual("007_First Win.png", relative.FileName);
+        }
+
+        [TestMethod]
+        public void BuildRelativePath_SanitizesUserConfiguredSuffix()
+        {
+            var relative = UnlockScreenshotService.BuildRelativePath(
+                providerKey: "Steam",
+                gameName: "Game",
+                achievementName: "First Win",
+                number: 7,
+                total: 123,
+                variantSuffix: "no:tif*cation");
+
+            Assert.AreEqual("007_First Win_no_tif_cation.png", relative.FileName);
         }
     }
 }
