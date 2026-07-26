@@ -911,6 +911,62 @@ namespace PlayniteAchievements.Tests.ViewModels
         }
 
         [TestMethod]
+        public void GamePlatformFilterGroupsByDisplayProvider()
+        {
+            var data = CreateData();
+            data.Games.Add(new FriendGameSummaryItem
+            {
+                ProviderKey = "Exophase",
+                DisplayProviderKey = "EA",
+                Provider = "EA app",
+                AppId = 555,
+                GameName = "EA Game"
+            });
+            var viewModel = CreateViewModel(data);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            // The aggregator-routed game groups under its display provider, not the raw key.
+            var eaGroup = viewModel.GamePlatformFilterGroups.Single(group => group.ProviderKey == "EA");
+            Assert.AreEqual("EA app", eaGroup.DisplayName);
+            Assert.IsNull(viewModel.GamePlatformFilterGroups.FirstOrDefault(group => group.ProviderKey == "Exophase"));
+
+            eaGroup.SetAll(true);
+            CollectionAssert.AreEqual(
+                new[] { "EA Game" },
+                viewModel.FilteredGames.Select(item => item.GameName).ToArray());
+        }
+
+        [TestMethod]
+        public void FriendProviderFilterMatchesMergedMembership()
+        {
+            var data = CreateData();
+            data.Friends.Add(new FriendSummaryItem
+            {
+                ProviderKey = FriendOverviewProjection.MergedProviderKey,
+                ExternalUserId = "dana",
+                DisplayName = "Dana",
+                MemberProviderKeys = new List<string> { "Steam", "RetroAchievements" }
+            });
+            var viewModel = CreateViewModel(data);
+            viewModel.LoadAsync().GetAwaiter().GetResult();
+
+            // Options carry the raw service keys, including merged members.
+            CollectionAssert.AreEquivalent(
+                new[] { "GOG", "RetroAchievements", "Steam" },
+                viewModel.FriendProviderFilterOptions.ToArray());
+
+            viewModel.SetFriendProviderFilterSelected("RetroAchievements", true);
+            CollectionAssert.AreEqual(
+                new[] { "Dana" },
+                viewModel.FilteredFriends.Select(item => item.DisplayName).ToArray());
+
+            viewModel.SetFriendProviderFilterSelected("GOG", true);
+            CollectionAssert.AreEquivalent(
+                new[] { "Cora", "Dana" },
+                viewModel.FilteredFriends.Select(item => item.DisplayName).ToArray());
+        }
+
+        [TestMethod]
         public void OwnershipFilterOffersOptionsOnlyWhenOwnedAndUnownedMix()
         {
             var allOwned = CreateViewModel(CreateData());
