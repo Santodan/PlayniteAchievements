@@ -199,9 +199,10 @@ namespace PlayniteAchievements.ViewModels.Items
             }
 
             var platformsByProvider = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var displayNamesByProvider = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var game in games ?? Enumerable.Empty<GameSummaryItem>())
             {
-                var providerKey = game?.ProviderKey;
+                var providerKey = game?.ProviderFilterKey;
                 if (string.IsNullOrWhiteSpace(providerKey))
                 {
                     continue;
@@ -214,6 +215,14 @@ namespace PlayniteAchievements.ViewModels.Items
                     platformsByProvider[providerKey] = platforms;
                 }
 
+                // Prefer the item's already-resolved display name so the filter labels match the
+                // grid's provider column (covers display keys with no registry entry).
+                if (!displayNamesByProvider.ContainsKey(providerKey) &&
+                    !string.IsNullOrWhiteSpace(game.Provider))
+                {
+                    displayNamesByProvider[providerKey] = game.Provider.Trim();
+                }
+
                 foreach (var platform in game.Platforms ?? Array.Empty<string>())
                 {
                     if (!string.IsNullOrWhiteSpace(platform))
@@ -223,20 +232,25 @@ namespace PlayniteAchievements.ViewModels.Items
                 }
             }
 
+            string GetDisplayName(string providerKey) =>
+                displayNamesByProvider.TryGetValue(providerKey, out var name)
+                    ? name
+                    : GetProviderFilterDisplayName(providerKey);
+
             var groups = new List<ProviderFilterGroup>();
             foreach (var providerKey in platformsByProvider.Keys
-                .OrderBy(GetProviderFilterDisplayName, StringComparer.CurrentCultureIgnoreCase))
+                .OrderBy(GetDisplayName, StringComparer.CurrentCultureIgnoreCase))
             {
                 var platformNames = platformsByProvider[providerKey].ToList();
                 if (platformNames.Count == 0)
                 {
-                    platformNames.Add(GetProviderFilterDisplayName(providerKey));
+                    platformNames.Add(GetDisplayName(providerKey));
                 }
 
                 priorSelections.TryGetValue(providerKey, out var selectedSet);
                 groups.Add(new ProviderFilterGroup(
                     providerKey,
-                    GetProviderFilterDisplayName(providerKey),
+                    GetDisplayName(providerKey),
                     platformNames,
                     name => selectedSet != null && selectedSet.Contains(name),
                     onSelectionChanged)
