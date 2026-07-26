@@ -29,8 +29,6 @@
 
 ### Playnite Achievements is a modern, performant, and fully customizable achievement extension for Playnite. PlayniteAchievements tracks achievements from you and your friends and provides a deep set of features that allow you to tailor your achievement collection and display to your exact taste.
 
-![Overview window](Images/PlayniteAchievements%20Overview.png)
-
 Playnite Achievements features include:
 
 * PC storefronts, RetroAchievements & emulator support
