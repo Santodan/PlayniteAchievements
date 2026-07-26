@@ -298,12 +298,12 @@ namespace PlayniteAchievements.Providers.RPCS3
         }
 
         /// <summary>
-        /// Gets the trophy folder path using priority order:
+        /// Resolves the RPCS3 emulator root using priority order:
         /// 1. User settings (validated)
         /// 2. Game's emulator config
         /// 3. First RPCS3 emulator in database
         /// </summary>
-        public string GetTrophyFolder(Game game = null)
+        internal string GetEmulatorRoot(Game game = null)
         {
             string emulatorRoot = null;
             string rootSource = null;
@@ -315,7 +315,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                 var settingsRoot = GetEmulatorRootFromExePath(settingsExePath);
                 if (string.IsNullOrWhiteSpace(settingsRoot))
                 {
-                    LogDiag($"[RPCS3-DIAG] GetTrophyFolder: settings ExecutablePath '{settingsExePath}' does not resolve to a directory (file missing?)");
+                    LogDiag($"[RPCS3-DIAG] GetEmulatorRoot: settings ExecutablePath '{settingsExePath}' does not resolve to a directory (file missing?)");
                 }
                 else
                 {
@@ -327,7 +327,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     }
                     else
                     {
-                        LogDiag($"[RPCS3-DIAG] GetTrophyFolder: settings root '{settingsRoot}' failed validation: {validation.ErrorMessage}");
+                        LogDiag($"[RPCS3-DIAG] GetEmulatorRoot: settings root '{settingsRoot}' failed validation: {validation.ErrorMessage}");
                     }
                 }
             }
@@ -354,19 +354,34 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             if (string.IsNullOrWhiteSpace(emulatorRoot))
             {
-                LogDiag("[RPCS3-DIAG] GetTrophyFolder: FAILED - no emulator root resolved (no valid settings path, no RPCS3 emulator action on game, no RPCS3 emulator in DB)");
+                LogDiag("[RPCS3-DIAG] GetEmulatorRoot: FAILED - no emulator root resolved (no valid settings path, no RPCS3 emulator action on game, no RPCS3 emulator in DB)");
+                return null;
+            }
+
+            LogDiag($"[RPCS3-DIAG] GetEmulatorRoot: root='{emulatorRoot}' (via {rootSource})");
+            return emulatorRoot;
+        }
+
+        /// <summary>
+        /// Gets the trophy folder path for the resolved emulator root and user profile.
+        /// </summary>
+        public string GetTrophyFolder(Game game = null)
+        {
+            var emulatorRoot = GetEmulatorRoot(game);
+            if (string.IsNullOrWhiteSpace(emulatorRoot))
+            {
                 return null;
             }
 
             var userId = DiscoverUserId(emulatorRoot);
             if (string.IsNullOrWhiteSpace(userId))
             {
-                LogDiag($"[RPCS3-DIAG] GetTrophyFolder: FAILED - root '{emulatorRoot}' (via {rootSource}) has no discoverable user profile");
+                LogDiag($"[RPCS3-DIAG] GetTrophyFolder: FAILED - root '{emulatorRoot}' has no discoverable user profile");
                 return null;
             }
 
             var trophyFolder = Path.Combine(emulatorRoot, "dev_hdd0", "home", userId, "trophy");
-            LogDiag($"[RPCS3-DIAG] GetTrophyFolder: root='{emulatorRoot}' (via {rootSource}), userId={userId}, trophyFolder='{trophyFolder}', exists={Directory.Exists(trophyFolder)}");
+            LogDiag($"[RPCS3-DIAG] GetTrophyFolder: root='{emulatorRoot}', userId={userId}, trophyFolder='{trophyFolder}', exists={Directory.Exists(trophyFolder)}");
             return trophyFolder;
         }
 
