@@ -764,6 +764,7 @@ namespace PlayniteAchievements.Services.Friends
             var item = new FriendGameSummaryItem
             {
                 ProviderKey = source.ProviderKey,
+                DisplayProviderKey = source.DisplayProviderKey,
                 Provider = source.Provider,
                 ProviderIconKey = source.ProviderIconKey,
                 ProviderColorHex = source.ProviderColorHex,

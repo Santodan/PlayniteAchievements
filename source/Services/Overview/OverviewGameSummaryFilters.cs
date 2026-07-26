@@ -107,21 +107,22 @@ namespace PlayniteAchievements.Services.Overview
             ISet<string> fullySelectedProviders,
             IReadOnlyDictionary<string, HashSet<string>> selectedPlatformsByProvider)
         {
-            if (game == null || string.IsNullOrWhiteSpace(game.ProviderKey))
+            var providerKey = game?.ProviderFilterKey;
+            if (string.IsNullOrWhiteSpace(providerKey))
             {
                 return false;
             }
 
             // Fully-selected provider: every game of that provider passes, even ones with no
             // platform metadata.
-            if (fullySelectedProviders != null && fullySelectedProviders.Contains(game.ProviderKey))
+            if (fullySelectedProviders != null && fullySelectedProviders.Contains(providerKey))
             {
                 return true;
             }
 
             // Partially-selected provider: only games whose platforms overlap the selection.
             if (selectedPlatformsByProvider != null &&
-                selectedPlatformsByProvider.TryGetValue(game.ProviderKey, out var selectedPlatforms))
+                selectedPlatformsByProvider.TryGetValue(providerKey, out var selectedPlatforms))
             {
                 return game.Platforms != null && game.Platforms.Any(selectedPlatforms.Contains);
             }

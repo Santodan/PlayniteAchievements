@@ -269,6 +269,19 @@ namespace PlayniteAchievements.ViewModels.Items
         private string _providerKey;
         public string ProviderKey { get => _providerKey; set => SetValue(ref _providerKey, value); }
 
+        // Runtime-only display identity for surfaces where ProviderKey stays the raw aggregator key
+        // (e.g. friend games routed through Exophase keep ProviderKey = "Exophase" for refresh
+        // targeting while displaying the underlying provider such as EA). Never persisted.
+        private string _displayProviderKey;
+        public string DisplayProviderKey { get => _displayProviderKey; set => SetValue(ref _displayProviderKey, value); }
+
+        /// <summary>
+        /// Provider identity used by the provider/platform filter: the display provider when one is
+        /// set, otherwise the raw provider key.
+        /// </summary>
+        public string ProviderFilterKey =>
+            string.IsNullOrWhiteSpace(DisplayProviderKey) ? ProviderKey : DisplayProviderKey;
+
         private string _providerIconKey;
         public string ProviderIconKey { get => _providerIconKey; set => SetValue(ref _providerIconKey, value); }
 

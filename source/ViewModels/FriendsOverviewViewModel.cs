@@ -6,6 +6,7 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.Services.Friends;
+using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services.Overview;
 using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.Search;
@@ -81,6 +82,7 @@ namespace PlayniteAchievements.ViewModels
         private readonly HashSet<string> _selectedTypeFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedCategoryFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _selectedOwnershipFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _selectedFriendProviderFilters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private ObservableCollection<ProviderFilterGroup> _gamePlatformFilterGroups =
             new ObservableCollection<ProviderFilterGroup>();
         private FriendSummaryItem _gameFilterOptionsFriend;
@@ -163,6 +165,7 @@ namespace PlayniteAchievements.ViewModels
             TypeFilterOptions = new ObservableCollection<string>();
             CategoryFilterOptions = new ObservableCollection<string>();
             OwnershipFilterOptions = new ObservableCollection<string>();
+            FriendProviderFilterOptions = new ObservableCollection<string>();
             FriendSummariesControlBar = CreateFriendSummariesControlBar();
             GameSummariesControlBar = CreateGameSummariesControlBar();
             AchievementsControlBar = CreateAchievementsControlBar();
@@ -237,6 +240,7 @@ namespace PlayniteAchievements.ViewModels
         public ObservableCollection<string> TypeFilterOptions { get; }
         public ObservableCollection<string> CategoryFilterOptions { get; }
         public ObservableCollection<string> OwnershipFilterOptions { get; }
+        public ObservableCollection<string> FriendProviderFilterOptions { get; }
 
         public ObservableCollection<ProviderFilterGroup> GamePlatformFilterGroups
         {
@@ -498,6 +502,16 @@ namespace PlayniteAchievements.ViewModels
             CategoryFilterOptions,
             ResourceProvider.GetString("LOCPlayAch_Common_Label_Category"));
 
+        // Single selection shows the localized provider name (options carry raw provider keys so
+        // merged-friend membership checks stay key-based).
+        public string SelectedFriendProviderFilterText =>
+            _selectedFriendProviderFilters.Count == 1
+                ? ProviderRegistry.GetLocalizedName(_selectedFriendProviderFilters.First())
+                : GetSelectedFilterText(
+                    _selectedFriendProviderFilters,
+                    FriendProviderFilterOptions,
+                    ResourceProvider.GetString("LOCPlayAch_Common_Label_Platform"));
+
         public string SelectedGamePlatformFilterText => OverviewGameSummaryFilters.BuildProviderFilterText(
             GamePlatformFilterGroups,
             ResourceProvider.GetString("LOCPlayAch_Common_Label_Platform"));
@@ -566,7 +580,7 @@ namespace PlayniteAchievements.ViewModels
 
         private GridControlBarViewModel CreateFriendSummariesControlBar()
         {
-            return new GridControlBarViewModel
+            var controlBar = new GridControlBarViewModel
             {
                 Search = new GridSearchControl(
                     this,
@@ -576,6 +590,18 @@ namespace PlayniteAchievements.ViewModels
                     GridControlBarText.Get("LOCPlayAch_FriendsOverview_SearchFriends", "Search Friends"),
                     ClearFriendSearch)
             };
+            controlBar.Items.Add(new GridMultiSelectFilter(
+                this,
+                nameof(SelectedFriendProviderFilterText),
+                () => SelectedFriendProviderFilterText,
+                () => FriendProviderFilterOptions,
+                IsFriendProviderFilterSelected,
+                SetFriendProviderFilterSelected,
+                ProviderRegistry.GetLocalizedName)
+            {
+                Width = 118
+            });
+            return controlBar;
         }
 
         private GridControlBarViewModel CreateGameSummariesControlBar()
@@ -675,6 +701,22 @@ namespace PlayniteAchievements.ViewModels
         public void SetProviderFilter(string providerKey)
         {
             SelectedProviderKey = providerKey;
+        }
+
+        public bool IsFriendProviderFilterSelected(string value)
+        {
+            return IsFilterSelected(_selectedFriendProviderFilters, value);
+        }
+
+        public void SetFriendProviderFilterSelected(string value, bool isSelected)
+        {
+            if (!SetFilterSelection(_selectedFriendProviderFilters, value, isSelected))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(SelectedFriendProviderFilterText));
+            ApplyFilters();
         }
 
         public bool IsOwnershipFilterSelected(string value)
@@ -1558,6 +1600,12 @@ namespace PlayniteAchievements.ViewModels
                 var friends = _allFriends
                     .Where(MatchesProvider)
                     .Where(friend => _friendSearchIndex.Matches(friend, friendQuery));
+                if (_selectedFriendProviderFilters.Count > 0)
+                {
+                    // A merged friend passes when any member account's provider is selected.
+                    friends = friends.Where(friend =>
+                        GetProviderFilterKeys(friend).Any(_selectedFriendProviderFilters.Contains));
+                }
                 if (SelectedGame != null)
                 {
                     friends = friends.Where(friend => HasFriendGamePairData(friend, SelectedGame));
@@ -2159,6 +2207,13 @@ namespace PlayniteAchievements.ViewModels
                 OnPropertyChanged(nameof(SelectedProviderKey));
                 OnPropertyChanged(nameof(SelectedProviderFilterText));
             }
+
+            ReplaceOptions(
+                FriendProviderFilterOptions,
+                _allFriends.SelectMany(GetProviderFilterKeys));
+            PruneFilterSelections(_selectedFriendProviderFilters, FriendProviderFilterOptions);
+            OnPropertyChanged(nameof(SelectedFriendProviderFilterText));
+            FriendSummariesControlBar?.Refresh();
 
             UpdateGameFilterOptions(force: true);
             UpdateScopedFilterOptions();

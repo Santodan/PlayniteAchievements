@@ -4428,6 +4428,7 @@ namespace PlayniteAchievements.Services.Database
                     return new FriendGameSummaryItem
                     {
                         ProviderKey = string.IsNullOrWhiteSpace(row.ProviderKey) ? displayProviderKey : row.ProviderKey.Trim(),
+                        DisplayProviderKey = displayProviderKey,
                         Provider = string.IsNullOrWhiteSpace(providerName) ? displayProviderKey : providerName,
                         ProviderIconKey = providerIconKey,
                         ProviderColorHex = providerColorHex,
