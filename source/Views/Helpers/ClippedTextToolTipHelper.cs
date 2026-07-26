@@ -75,6 +75,8 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             element.ToolTipOpening -= OnToolTipOpening;
+            element.MouseEnter -= OnMouseEnter;
+            element.ClearValue(ToolTipService.IsEnabledProperty);
 
             if (string.IsNullOrWhiteSpace(GetHeaderText(element)) &&
                 string.IsNullOrWhiteSpace(GetBodyText(element)) &&
@@ -85,11 +87,32 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             element.ToolTipOpening += OnToolTipOpening;
+            element.MouseEnter += OnMouseEnter;
             if (!(element.ToolTip is ToolTip))
             {
                 // Lightweight placeholder; its content is built on open.
                 element.ToolTip = new ToolTip();
             }
+        }
+
+        /// <summary>
+        /// Decides on hover-enter whether this cell should act as a tooltip owner at all.
+        /// Cancelling later via ToolTipOpening (e.Handled) makes the tooltip service treat the
+        /// cell as an owner that showed nothing: it consumes the quick-show window that lets
+        /// tooltips chain instantly between adjacent cells, so sweeping across a row stops
+        /// updating the tooltip. Disabling via ToolTipService.IsEnabled instead makes an
+        /// unclipped cell equivalent to a cell with no tooltip. MouseEnter is raised during
+        /// hit-test processing, before the tooltip service inspects the element.
+        /// </summary>
+        private static void OnMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!(sender is FrameworkElement element))
+            {
+                return;
+            }
+
+            var active = !string.IsNullOrWhiteSpace(GetNoteText(element)) || IsAnyTextClipped(element);
+            ToolTipService.SetIsEnabled(element, active);
         }
 
         private static void OnToolTipOpening(object sender, ToolTipEventArgs e)
