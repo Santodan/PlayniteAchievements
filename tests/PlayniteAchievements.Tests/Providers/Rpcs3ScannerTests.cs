@@ -327,6 +327,115 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_SinglePs3GameTropdirMultiSet_AggregatesAsCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Sly Collection");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01341_00", "Sly Minigames", "Minigame Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+
+                // Single-executable collection: one PS3_GAME whose TROPDIR carries all
+                // trophy sets (no PS3_GMxx sub-game directories).
+                Directory.CreateDirectory(gameRoot);
+                File.WriteAllText(Path.Combine(gameRoot, "PS3_DISC.SFB"), "SFB");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01341_00", "TROPHY.TRP"),
+                    "NPWR01341_00",
+                    "Sly Minigames",
+                    "Minigame Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01435_00", "TROPHY.TRP"),
+                    "NPWR01435_00",
+                    "Sly 1",
+                    "Sly 1 Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01433_00", "TROPHY.TRP"),
+                    "NPWR01433_00",
+                    "Sly 2",
+                    "Sly 2 Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Sly Collection",
+                    InstallDirectory = gameRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(3, data.Achievements.Count);
+                CollectionAssert.AreEquivalent(
+                    new[] { "NPWR01341_00:0", "NPWR01435_00:0", "NPWR01433_00:0" },
+                    data.Achievements.Select(achievement => achievement.ApiName).ToArray());
+                CollectionAssert.AreEquivalent(
+                    new[] { "Sly Minigames", "Sly 1", "Sly 2" },
+                    data.Achievements.Select(achievement => achievement.Category).ToArray());
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SinglePs3GameTropdirUsrdirCandidate_AggregatesAsCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Sly Collection");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01341_00", "Sly Minigames", "Minigame Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01341_00", "TROPHY.TRP"),
+                    "NPWR01341_00",
+                    "Sly Minigames",
+                    "Minigame Disc Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPDIR", "NPWR01435_00", "TROPHY.TRP"),
+                    "NPWR01435_00",
+                    "Sly 1",
+                    "Sly 1 Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Sly Collection",
+                    InstallDirectory = Path.Combine(gameRoot, "PS3_GAME", "USRDIR")
+                };
+                Directory.CreateDirectory(game.InstallDirectory);
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(2, data.Achievements.Count);
+                CollectionAssert.AreEquivalent(
+                    new[] { "NPWR01341_00:0", "NPWR01435_00:0" },
+                    data.Achievements.Select(achievement => achievement.ApiName).ToArray());
+                CollectionAssert.AreEquivalent(
+                    new[] { "Sly Minigames", "Sly 1" },
+                    data.Achievements.Select(achievement => achievement.Category).ToArray());
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public async Task RefreshAsync_NpwrOverride_DisablesCollectionExpansion()
         {
             var tempDir = CreateTempDirectory();
