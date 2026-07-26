@@ -543,7 +543,7 @@ namespace PlayniteAchievements.Providers.RPCS3
                     AddStrictTrophySource(sources, seen, source, trophyFolderCache);
                 }
 
-                foreach (var source in FindIsoCollectionSourcesForCandidate(candidate, trophyFolderCache, allowRawIsoScan))
+                foreach (var source in FindIsoCollectionSourcesForCandidate(candidate, game?.Name, trophyFolderCache, allowRawIsoScan))
                 {
                     AddStrictTrophySource(sources, seen, source, trophyFolderCache);
                 }
@@ -761,6 +761,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private IEnumerable<GameTrophySource> FindIsoCollectionSourcesForCandidate(
             GamePathCandidate candidate,
+            string gameName,
             Dictionary<string, string> trophyFolderCache,
             bool allowRawIsoScan)
         {
@@ -771,6 +772,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             foreach (var isoPath in ResolveIsoFilesForCandidate(
                 candidate.Path,
+                gameName,
                 candidate.AllowDirectoryIsoEnumeration))
             {
                 foreach (var source in FindIsoTrophySources(isoPath, trophyFolderCache, allowRawIsoScan))
@@ -1197,6 +1199,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         private IEnumerable<string> ResolveIsoFilesForCandidate(
             string candidatePath,
+            string gameName,
             bool allowDirectoryIsoEnumeration = true)
         {
             if (string.IsNullOrWhiteSpace(candidatePath))
@@ -1216,10 +1219,66 @@ namespace PlayniteAchievements.Providers.RPCS3
                 yield break;
             }
 
-            foreach (var isoPath in FindIsoFiles(candidatePath))
+            var isoFiles = FindIsoFiles(candidatePath);
+            if (isoFiles.Count <= 1)
             {
-                yield return isoPath;
+                foreach (var isoPath in isoFiles)
+                {
+                    yield return isoPath;
+                }
+
+                yield break;
             }
+
+            var selected = SelectIsoMatchingGameName(candidatePath, isoFiles, gameName);
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                yield return selected;
+            }
+        }
+
+        /// <summary>
+        /// Picks the single ISO whose filename uniquely matches the game name from a
+        /// directory holding several ISOs. Directories shared by multiple games would
+        /// otherwise resolve every game to the first ISO with cached trophy data.
+        /// </summary>
+        private string SelectIsoMatchingGameName(string directory, IReadOnlyList<string> isoFiles, string gameName)
+        {
+            var normalizedGameName = NormalizeGameName(gameName);
+            if (string.IsNullOrWhiteSpace(normalizedGameName))
+            {
+                _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs and the game has no usable name; skipping directory ISO scan.");
+                return null;
+            }
+
+            string bestIso = null;
+            var bestScore = 0;
+            var bestIsUnique = true;
+
+            foreach (var isoPath in isoFiles)
+            {
+                var normalizedIsoName = NormalizeGameName(Path.GetFileNameWithoutExtension(isoPath));
+                var score = CalculateNameSimilarity(normalizedGameName, normalizedIsoName);
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestIso = isoPath;
+                    bestIsUnique = true;
+                }
+                else if (score == bestScore && score > 0)
+                {
+                    bestIsUnique = false;
+                }
+            }
+
+            if (bestScore < 80 || !bestIsUnique)
+            {
+                _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs and none uniquely matches '{gameName}' (best score {bestScore}, unique={bestIsUnique}); skipping directory ISO scan.");
+                return null;
+            }
+
+            _logger?.Info($"[RPCS3] Directory '{directory}' contains {isoFiles.Count} ISOs; selected '{Path.GetFileName(bestIso)}' for '{gameName}' (score {bestScore}).");
+            return bestIso;
         }
 
         private string GetRpcs3Root()
@@ -1418,7 +1477,7 @@ namespace PlayniteAchievements.Providers.RPCS3
 
             try
             {
-                var isoFiles = ResolveIsoFilesForCandidate(gameDirectory, allowDirectoryIsoEnumeration).ToList();
+                var isoFiles = ResolveIsoFilesForCandidate(gameDirectory, game?.Name, allowDirectoryIsoEnumeration).ToList();
                 if (isoFiles.Count == 0)
                 {
                     return null;
@@ -1703,7 +1762,7 @@ namespace PlayniteAchievements.Providers.RPCS3
             {
                 // Check if the directory itself is pointing to an ISO
                 var files = Directory.GetFiles(directory, "*.iso");
-                results.AddRange(files);
+                results.AddRange(files.OrderBy(path => path, StringComparer.OrdinalIgnoreCase));
             }
             catch
             {
