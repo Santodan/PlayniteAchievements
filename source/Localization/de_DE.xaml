@@ -577,8 +577,8 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantClean">Unbearbeitet</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantWithToast">Inklusive sichtbarer Benachrichtigung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_ScreenshotVariantFramed">Gerahmt</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixes">Filename suffixes</sys:String>
-    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixesHint">Appended to screenshot filenames. Leave blank for no suffix.</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixes">Dateinamen-Suffix</sys:String>
+    <sys:String x:Key="LOCPlayAch_Settings_ScreenshotSuffixesHint">Wird dem Dateinamen von Screenshots angefügt (leer = kein Suffix).</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_FrameHeader">Screenshot-Umrahmung</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_RecordingsHeader">Video-Clip-Aufnahmen</sys:String>
     <sys:String x:Key="LOCPlayAch_Settings_EnableUnlockRecordings">Video-Clip bei Erfolgsfreischaltung aufnehmen</sys:String>
@@ -937,13 +937,13 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Filter_Complete">Vervollständigt</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_InProgress">Begonnen</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Aktivität</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Ownership</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Besitz</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Games">Spiele filtern...</sys:String>
     <!-- Filter_Hidden: filter label for hidden (secret) achievements, not hidden games -->
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">Verborgen</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_NoProgress">Kein Fortschritt</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Played">Gespielt</sys:String>
-    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Unowned</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Nicht in Besitz</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Ungespielt</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">Sichtbar</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">Vollendungserfolg</sys:String>
