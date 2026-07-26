@@ -186,15 +186,15 @@ namespace PlayniteAchievements.Services.UI
         }
 
         /// <summary>
-        /// Maps a single screenshot variant to its filename suffix ("clean"/"toast"/"framed").
-        /// Returns null for None or combined flags.
+        /// Maps a single screenshot variant to its default filename suffix
+        /// ("clean"/"notification"/"framed"). Returns null for None or combined flags.
         /// </summary>
         internal static string VariantSuffix(ScreenshotVariants variant)
         {
             switch (variant)
             {
                 case ScreenshotVariants.Clean: return "clean";
-                case ScreenshotVariants.WithToast: return "toast";
+                case ScreenshotVariants.WithToast: return "notification";
                 case ScreenshotVariants.Framed: return "framed";
                 default: return null;
             }
@@ -306,7 +306,12 @@ namespace PlayniteAchievements.Services.UI
             var width = Math.Max(3, Math.Max(1, total).ToString(CultureInfo.InvariantCulture).Length);
             var prefix = Math.Max(0, number).ToString(CultureInfo.InvariantCulture).PadLeft(width, '0');
 
-            var suffix = string.IsNullOrWhiteSpace(variantSuffix) ? string.Empty : $"_{variantSuffix}";
+            // Suffix may be user-configured; sanitize it like the other segments. The
+            // whitespace check must come first because SanitizeSegment maps empty input to a
+            // fallback stem, while a blank suffix means "no suffix".
+            var suffix = string.IsNullOrWhiteSpace(variantSuffix)
+                ? string.Empty
+                : $"_{AchievementIconCachePathBuilder.SanitizeSegment(variantSuffix)}";
             return (game, $"{prefix}_{name}{suffix}{extension}");
         }
 
