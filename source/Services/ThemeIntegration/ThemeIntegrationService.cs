@@ -59,6 +59,11 @@ namespace PlayniteAchievements.Services.ThemeIntegration
         private readonly PlayniteAchievementsSettings _settings;
         private readonly FullscreenWindowService _windowService;
         private readonly ThemeRuntimeState _runtimeState = new ThemeRuntimeState();
+        private GameSummaryItemBuilder _gameSummaryItemBuilder;
+
+        private GameSummaryItemBuilder GameSummaryItemBuilder =>
+            _gameSummaryItemBuilder ??
+            (_gameSummaryItemBuilder = new GameSummaryItemBuilder(_refreshService.Providers, _api, _logger));
 
         private readonly object _refreshLock = new object();
         private CancellationTokenSource _refreshCts;
@@ -835,7 +840,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 try
                 {
                     state = await Task.Run(
-                        () => SelectedGameRuntimeStateBuilder.Build(gameId.Value, gameData),
+                        () => SelectedGameRuntimeStateBuilder.Build(gameId.Value, gameData, GameSummaryItemBuilder, _settings),
                         token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -1479,7 +1484,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 var gameData = _achievementDataService.GetVisibleGameAchievementData(gameId);
                 var state = SelectedGameRuntimeStateBuilder.Build(
                     gameId,
-                    gameData);
+                    gameData,
+                    GameSummaryItemBuilder,
+                    _settings);
 
                 if (state != null && state.HasAchievements)
                 {
@@ -1739,6 +1746,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = state.Rare;
             _settings.ModernTheme.UltraRare = state.UltraRare;
             _settings.ModernTheme.RareAndUltraRare = state.RareAndUltraRare;
+            _settings.ModernTheme.SelectedGameSummary = state.SelectedGameSummary;
             _settings.ModernTheme.AchievementDefaultOrder = state.AchievementDefaultOrder;
             _settings.ModernTheme.AllAchievements = state.AllAchievements;
             _settings.ModernTheme.AchievementsNewestFirst = state.AchievementsNewestFirst;
@@ -1795,6 +1803,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             _settings.ModernTheme.Rare = EmptyRarityStats;
             _settings.ModernTheme.UltraRare = EmptyRarityStats;
             _settings.ModernTheme.RareAndUltraRare = EmptyRarityStats;
+            _settings.ModernTheme.SelectedGameSummary = null;
             _settings.LegacyTheme.HasData = false;
             _settings.LegacyTheme.Total = 0;
             _settings.LegacyTheme.Unlocked = 0;

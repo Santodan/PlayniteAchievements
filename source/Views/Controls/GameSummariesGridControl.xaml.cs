@@ -124,6 +124,8 @@ namespace PlayniteAchievements.Views.Controls
                     prestigeScore: false),
                 // Single-game summary: Cover, Game, Progress, Total visible; the rest hidden.
                 ["ViewAchievementsGameSummaries"] = CreateGameSummaryVisibility(),
+                // Theme AchievementDataGrid header row; mirrors the ViewAchievements defaults.
+                ["DesktopThemeGameSummaries"] = CreateGameSummaryVisibility(),
                 // No friend selected: Cover, Game, Platform only.
                 ["FriendsOverviewGameSummaries"] = CreateGameSummaryVisibility(
                     platform: true,
@@ -890,6 +892,8 @@ namespace PlayniteAchievements.Views.Controls
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewFriendsAchievements).Columns;
                 case GridSurface.DesktopThemeCategory:
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.DesktopTheme).Columns;
+                case GridSurface.DesktopTheme:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme).Columns;
                 default:
                     return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview).Columns;
             }
@@ -928,6 +932,8 @@ namespace PlayniteAchievements.Views.Controls
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewFriendsAchievements).ColorRarityColumnsByRarity;
                 case GridSurface.DesktopThemeCategory:
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.DesktopTheme).ColorRarityColumnsByRarity;
+                case GridSurface.DesktopTheme:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme).ColorRarityColumnsByRarity;
                 default:
                     return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview).ColorRarityColumnsByRarity;
             }
@@ -966,6 +972,8 @@ namespace PlayniteAchievements.Views.Controls
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.ViewFriendsAchievements).ShowNameAboveProgress;
                 case GridSurface.DesktopThemeCategory:
                     return persisted.GridOptions.GetCategorySummaries(GridOptionKeys.CategorySummaries.DesktopTheme).ShowNameAboveProgress;
+                case GridSurface.DesktopTheme:
+                    return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.DesktopTheme).ShowNameAboveProgress;
                 default:
                     return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.Overview).ShowNameAboveProgress;
             }
@@ -995,6 +1003,9 @@ namespace PlayniteAchievements.Views.Controls
                 case GridSurface.ViewFriendsAchievementsCategory:
                 case GridSurface.ViewFriendsAchievementsSelectedFriend:
                     return persisted.GridOptions.GetGameSummaries(GridOptionKeys.GameSummaries.ViewFriendsAchievements).LastPlayedDateMode;
+                case GridSurface.DesktopTheme:
+                case GridSurface.DesktopThemeCategory:
+                    return persisted.DesktopThemeGameSummariesLastPlayedDateMode;
                 default:
                     return persisted.OverviewGameSummariesLastPlayedDateMode;
             }
@@ -1032,7 +1043,8 @@ namespace PlayniteAchievements.Views.Controls
             OverviewSelectedGameCategory,
             FriendsOverviewCategory,
             ViewFriendsAchievementsCategory,
-            DesktopThemeCategory
+            DesktopThemeCategory,
+            DesktopTheme
         }
 
         private IReadOnlyDictionary<string, double> ResolveDefaultWidthSeeds()
@@ -1100,6 +1112,11 @@ namespace PlayniteAchievements.Views.Controls
             if (string.Equals(ColumnSettingsKey, "DesktopThemeCategorySummaries", StringComparison.OrdinalIgnoreCase))
             {
                 return GridSurface.DesktopThemeCategory;
+            }
+
+            if (string.Equals(ColumnSettingsKey, "DesktopThemeGameSummaries", StringComparison.OrdinalIgnoreCase))
+            {
+                return GridSurface.DesktopTheme;
             }
 
             return GridSurface.Overview;
@@ -1184,7 +1201,8 @@ namespace PlayniteAchievements.Views.Controls
                 e.PropertyName == nameof(PersistedSettings.OverviewGameSummariesLastPlayedDateMode) ||
                 e.PropertyName == nameof(PersistedSettings.StartPageGameSummariesLastPlayedDateMode) ||
                 e.PropertyName == nameof(PersistedSettings.ViewAchievementsGameSummariesLastPlayedDateMode) ||
-                e.PropertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesLastPlayedDateMode))
+                e.PropertyName == nameof(PersistedSettings.FriendsOverviewGameSummariesLastPlayedDateMode) ||
+                e.PropertyName == nameof(PersistedSettings.DesktopThemeGameSummariesLastPlayedDateMode))
             {
                 UpdateLastPlayedDateMode(PlayniteAchievementsPlugin.Instance?.Settings);
             }

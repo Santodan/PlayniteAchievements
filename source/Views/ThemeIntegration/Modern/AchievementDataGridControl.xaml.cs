@@ -91,12 +91,44 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             set => SetValue(PreviewMinimumMaxHeightProperty, value);
         }
 
+        private static readonly DependencyPropertyKey SummaryItemsPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(SummaryItems), typeof(ObservableCollection<GameSummaryItem>),
+                typeof(AchievementDataGridControl), new PropertyMetadata(null));
+
+        public static readonly DependencyProperty SummaryItemsProperty =
+            SummaryItemsPropertyKey.DependencyProperty;
+
+        /// <summary>
+        /// Single-row collection backing the game summary header grid (empty when no summary).
+        /// </summary>
+        public ObservableCollection<GameSummaryItem> SummaryItems =>
+            (ObservableCollection<GameSummaryItem>)GetValue(SummaryItemsProperty);
+
+        private static readonly DependencyPropertyKey HasSummaryItemPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(HasSummaryItem), typeof(bool),
+                typeof(AchievementDataGridControl), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty HasSummaryItemProperty =
+            HasSummaryItemPropertyKey.DependencyProperty;
+
+        public bool HasSummaryItem => (bool)GetValue(HasSummaryItemProperty);
+
         public AchievementDataGridControl()
         {
             _controlBarAdapter = new AchievementGridControlBarAdapter();
             _controlBarAdapter.FilterChanged += (_, __) => LoadData(forceReload: true);
+            SetValue(SummaryItemsPropertyKey, new ObservableCollection<GameSummaryItem>());
             InitializeComponent();
             Loaded += OnLoaded;
+        }
+
+        private void UpdateSummaryItem(GameSummaryItem item)
+        {
+            var desired = item != null
+                ? new List<GameSummaryItem> { item }
+                : new List<GameSummaryItem>();
+            CollectionHelper.SynchronizeCollection(SummaryItems, desired);
+            SetValue(HasSummaryItemPropertyKey, item != null);
         }
 
         public GridControlBarViewModel ControlBar => _controlBarAdapter.ControlBar;
@@ -238,6 +270,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 
             var sourceItems = theme?.AllAchievementDisplayItems;
             SetValue(GameNamePropertyKey, sourceItems?.FirstOrDefault()?.GameName);
+            UpdateSummaryItem(theme?.SelectedGameSummary);
             var settings = EffectiveSettings?.Persisted;
             var maxRows = settings?.DesktopThemeAchievementGridMaxRows;
             var orderedAchievements = useSourceOrder
@@ -335,6 +368,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             return propertyName == nameof(ModernThemeBindings.SelectedGameId) ||
                    propertyName == nameof(ModernThemeBindings.HasAchievements) ||
                    propertyName == nameof(ModernThemeBindings.AllAchievementDisplayItems) ||
+                   propertyName == nameof(ModernThemeBindings.SelectedGameSummary) ||
                    AchievementSortHelper.IsSelectedGameAchievementsPropertyName(propertyName) ||
                    propertyName == nameof(ModernThemeBindings.HasCustomAchievementOrder);
         }
@@ -508,6 +542,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern
             _lastOrderedAchievements = null;
             _lastMaxRows = null;
             SetValue(GameNamePropertyKey, null);
+            UpdateSummaryItem(null);
             if (resetSortState)
             {
                 ResetSortState();

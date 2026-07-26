@@ -1,3 +1,4 @@
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services.Achievements;
@@ -18,7 +19,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
     {
         public static SelectedGameRuntimeState Build(
             Guid gameId,
-            GameAchievementData data)
+            GameAchievementData data,
+            GameSummaryItemBuilder summaryBuilder = null,
+            PlayniteAchievementsSettings settings = null)
         {
             if (data == null || !data.HasAchievements)
             {
@@ -95,6 +98,7 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             var rare = stats.RareStats;
             var ultra = stats.UltraRareStats;
             var rareAndUltra = AchievementRarityStatsCombiner.Combine(rare, ultra);
+            var selectedGameSummary = summaryBuilder?.Build(data, settings);
 
             return new SelectedGameRuntimeState(
                 gameId,
@@ -116,7 +120,8 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 uncommon,
                 rare,
                 ultra,
-                rareAndUltra);
+                rareAndUltra,
+                selectedGameSummary);
         }
 
         private static void ApplyAchievementPresentation(

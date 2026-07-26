@@ -279,22 +279,6 @@
                     </Style>
                 </Image.Style>
             </Image>
-            <TextBlock Text="—"
-                       Foreground="{DynamicResource PlayAch.Brush.Text}"
-                       Opacity="0.4"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasTrophyType}" Value="False">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
         </Grid>
     </DataTemplate>
 

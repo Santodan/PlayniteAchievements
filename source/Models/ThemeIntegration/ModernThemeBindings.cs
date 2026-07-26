@@ -45,6 +45,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         [DontSerialize]
         private AchievementRarityStats _rareAndUltraRare = new AchievementRarityStats();
         [DontSerialize]
+        private GameSummaryItem _selectedGameSummary;
+        [DontSerialize]
         private List<AchievementDetail> _allAchievements = new List<AchievementDetail>();
         [DontSerialize]
         private List<AchievementDetail> _achievementDefaultOrder = new List<AchievementDetail>();
@@ -512,6 +514,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         {
             get => _rareAndUltraRare;
             set => SetValue(ref _rareAndUltraRare, value);
+        }
+
+        [DontSerialize]
+        public GameSummaryItem SelectedGameSummary
+        {
+            get => _selectedGameSummary;
+            set => SetValue(ref _selectedGameSummary, value);
         }
 
         [DontSerialize]

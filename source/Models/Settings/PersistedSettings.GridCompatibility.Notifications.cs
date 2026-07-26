@@ -266,6 +266,21 @@ namespace PlayniteAchievements.Models.Settings
             Add(G, GridOptionKeys.GameSummaries.ViewFriendsAchievements, nameof(GameSummaryGridOptions.ColorRarityColumnsByRarity), nameof(ViewFriendsAchievementsGameSummariesColorRarityColumnsByRarity));
             Add(G, GridOptionKeys.GameSummaries.ViewFriendsAchievements, nameof(GameSummaryGridOptions.ShowNameAboveProgress), nameof(ViewFriendsAchievementsGameSummariesShowNameAboveProgress));
 
+            // GameSummaries / DesktopTheme
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.UseCoverImages), nameof(DesktopThemeGameSummariesUseCoverImages));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowMetadataPlatform), nameof(DesktopThemeGameSummariesShowMetadataPlatform));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowMetadataPlaytime), nameof(DesktopThemeGameSummariesShowMetadataPlaytime));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowMetadataRegion), nameof(DesktopThemeGameSummariesShowMetadataRegion));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowCompletionGlow), nameof(DesktopThemeGameSummariesShowCompletionGlow));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ColorRarityColumnsByRarity), nameof(DesktopThemeGameSummariesColorRarityColumnsByRarity));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowNameAboveProgress), nameof(DesktopThemeGameSummariesShowNameAboveProgress));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.ShowColumnHeaders), nameof(ShowDesktopThemeGameSummariesGridColumnHeaders));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.LastPlayedDateMode), nameof(DesktopThemeGameSummariesLastPlayedDateMode));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.RowHeight), nameof(DesktopThemeGameSummariesGridRowHeight));
+            Add(G, GridOptionKeys.GameSummaries.DesktopTheme, nameof(GameSummaryGridOptions.Columns),
+                nameof(DesktopThemeGameSummariesColumnVisibility), nameof(DesktopThemeGameSummariesColumnWidths), nameof(DesktopThemeGameSummariesColumnOrder),
+                nameof(DesktopThemeGameSummariesColumnAlignments), nameof(DesktopThemeGameSummariesColumnVerticalAlignments), nameof(DesktopThemeGameSummariesColumnHeaderAlignments));
+
             // GameSummaries / ViewFriendsAchievementsSelectedFriend
             Add(G, GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend, nameof(GameSummaryGridOptions.ColorRarityColumnsByRarity), nameof(ViewFriendsAchievementsSelectedFriendGameSummariesColorRarityColumnsByRarity));
             Add(G, GridOptionKeys.GameSummaries.ViewFriendsAchievementsSelectedFriend, nameof(GameSummaryGridOptions.ShowNameAboveProgress), nameof(ViewFriendsAchievementsSelectedFriendGameSummariesShowNameAboveProgress));

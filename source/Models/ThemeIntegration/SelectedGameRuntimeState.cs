@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.ViewModels.Items;
 
 namespace PlayniteAchievements.Models.ThemeIntegration
 {
@@ -28,6 +29,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public AchievementRarityStats Rare { get; }
         public AchievementRarityStats UltraRare { get; }
         public AchievementRarityStats RareAndUltraRare { get; }
+        public GameSummaryItem SelectedGameSummary { get; }
 
         public SelectedGameRuntimeState()
             : this(
@@ -74,7 +76,8 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             AchievementRarityStats uncommon,
             AchievementRarityStats rare,
             AchievementRarityStats ultraRare,
-            AchievementRarityStats rareAndUltraRare)
+            AchievementRarityStats rareAndUltraRare,
+            GameSummaryItem selectedGameSummary = null)
         {
             GameId = gameId;
             LastUpdatedUtc = lastUpdatedUtc;
@@ -96,6 +99,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             Rare = rare ?? new AchievementRarityStats();
             UltraRare = ultraRare ?? new AchievementRarityStats();
             RareAndUltraRare = rareAndUltraRare ?? new AchievementRarityStats();
+            SelectedGameSummary = selectedGameSummary;
         }
     }
 }
