@@ -1794,7 +1794,11 @@ namespace PlayniteAchievements.Providers.RPCS3
 
         /// <summary>
         /// Attempts to match a game by name against the titles in TROPCONF.SFM files.
-        /// This is useful for ISO-based games where the PS3 ID cannot be extracted from the path.
+        /// This is useful for ISO-based games where the trophy set cannot be resolved
+        /// from the path. Only exact (100) and prefix (80) score tiers are accepted;
+        /// a best score shared by two distinct titles is treated as ambiguous and
+        /// yields no match. Ties among identical titles (regional duplicates) resolve
+        /// to the ordinal-smallest NPWR id so results are deterministic.
         /// </summary>
         private string FindNpCommIdByName(Game game, Dictionary<string, string> trophyFolderCache)
         {
@@ -1809,16 +1813,11 @@ namespace PlayniteAchievements.Providers.RPCS3
                 return null;
             }
 
-            var candidates = new List<Tuple<string, string>>();
-            string bestMatch = null;
-            int bestScore = 0;
+            var scored = new List<(string NpCommId, string NormalizedTitle, int Score)>();
 
-            foreach (var kvp in trophyFolderCache)
+            foreach (var kvp in trophyFolderCache.OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase))
             {
-                var npcommid = kvp.Key;
-                var trophyFolder = kvp.Value;
-
-                var titleName = ExtractTitleNameFromTropconf(trophyFolder);
+                var titleName = ExtractTitleNameFromTropconf(kvp.Value);
                 if (string.IsNullOrWhiteSpace(titleName))
                 {
                     continue;
@@ -1830,26 +1829,33 @@ namespace PlayniteAchievements.Providers.RPCS3
                     continue;
                 }
 
-                if (string.Equals(normalizedGameName, normalizedTitle, StringComparison.OrdinalIgnoreCase))
+                var score = CalculateNameSimilarity(normalizedGameName, normalizedTitle);
+                if (score >= 80)
                 {
-                    return npcommid;
+                    scored.Add((kvp.Key, normalizedTitle, score));
                 }
-
-                candidates.Add(Tuple.Create(npcommid, normalizedTitle));
             }
 
-            foreach (var candidate in candidates)
+            if (scored.Count == 0)
             {
-                // Check if one name contains the other (handles subtitle differences)
-                var score = CalculateNameSimilarity(normalizedGameName, candidate.Item2);
-                if (score > bestScore && score >= 70) // Require at least 70% similarity
-                {
-                    bestScore = score;
-                    bestMatch = candidate.Item1;
-                }
+                return null;
             }
 
-            return bestMatch;
+            var bestScore = scored.Max(candidate => candidate.Score);
+            var best = scored.Where(candidate => candidate.Score == bestScore).ToList();
+            var distinctTitles = best
+                .Select(candidate => candidate.NormalizedTitle)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            if (distinctTitles > 1)
+            {
+                _logger?.Info($"[RPCS3] Name fallback for '{game.Name}' is ambiguous at score {bestScore}: [{string.Join(", ", best.Select(candidate => $"{candidate.NpCommId} '{candidate.NormalizedTitle}'"))}]; no match selected.");
+                return null;
+            }
+
+            var selected = best[0];
+            _logger?.Info($"[RPCS3] Name fallback matched '{game.Name}' to '{selected.NpCommId}' (title '{selected.NormalizedTitle}', score {selected.Score}).");
+            return selected.NpCommId;
         }
 
         /// <summary>
