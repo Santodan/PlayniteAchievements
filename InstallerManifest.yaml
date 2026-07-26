@@ -17,6 +17,7 @@ Packages:
     - "[New] Added Screenshot and Recording support. When new achievements are unlocked via live achievement polling, screenshots and videos can now be automatically captured."
     - "[New] Added Appearance customization. Now, every color in the theme can be customized, including rarity badges. Presets are available, and colors follow Playnite by default."
     - "[New] Added support for Final Fantasy XIV achievements."
+    - "[Fixed] Greatly improved World of Warcraft achievement support."
     - "[New] Many new column customization options for grids, for various colors and features."
     - "[New] Added Hardcore icon borders for RetroAchievements."
     - "[Fixed] Too many things to count."
