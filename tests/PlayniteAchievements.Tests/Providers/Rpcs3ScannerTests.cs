@@ -1093,6 +1093,347 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_SerialBridge_ResolvesPkgInstallUnderDevHdd0Game()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                // Game name and TROPCONF title deliberately differ; only the serial in
+                // the install path and RPCS3's own dev_hdd0\game install can resolve it.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR00001_00", "Bridge Internal Title", "Bridge Trophy");
+                CreateTrpFile(
+                    Path.Combine(rpcs3Root, "dev_hdd0", "game", "NPUB30042", "TROPDIR", "NPWR00001_00", "TROPHY.TRP"),
+                    "NPWR00001_00",
+                    "Bridge Internal Title",
+                    "Bridge Disc Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed PKG Game",
+                    InstallDirectory = Path.Combine(tempDir, "pkg", "NPUB30042")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Bridge Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR00001_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_ResolvesRenamedIsoViaGamesYml()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var isoRoot = Path.Combine(tempDir, "isos");
+
+            try
+            {
+                // Renamed ISOs in a shared folder: filenames and TROPCONF titles match
+                // nothing, so only the games.yml registration can resolve the game.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "DI Internal Title", "Dante Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "FNC Internal Title", "Fight Night Trophy");
+                CreateRawIsoWithNpCommIds(Path.Combine(isoRoot, "disc1.iso"), "NPWR11111_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(isoRoot, "disc2.iso"), "NPWR22222_00");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BLES01039: \"{Path.Combine(isoRoot, "disc2.iso")}\"");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Fight Night Champion Renamed",
+                    InstallDirectory = Path.Combine(tempDir, "lib", "BLES01039")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("Fight Night Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR22222_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_DiscoversSerialFromParamSfoTitleId()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var installDir = Path.Combine(tempDir, "installed", "mygame");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR33333_00", "Yml Internal Title", "Yml Trophy");
+                CreateRawIsoWithNpCommIds(Path.Combine(tempDir, "isos", "weird.iso"), "NPWR33333_00");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BCUS98246: \"{Path.Combine(tempDir, "isos", "weird.iso")}\"");
+
+                Directory.CreateDirectory(installDir);
+                CreateParamSfo(Path.Combine(installDir, "PARAM.SFO"), "Some Param Title", "BCUS98246");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Disc Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Yml Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR33333_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_ConflictingSerials_ReturnsNoMatch()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var isoRoot = Path.Combine(tempDir, "isos");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "First Internal Title", "First Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "Second Internal Title", "Second Trophy");
+                CreateRawIsoWithNpCommIds(Path.Combine(isoRoot, "a.iso"), "NPWR11111_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(isoRoot, "b.iso"), "NPWR22222_00");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BLES01111: \"{Path.Combine(isoRoot, "a.iso")}\"\nBLES02222: \"{Path.Combine(isoRoot, "b.iso")}\"");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Conflicted Game",
+                    InstallDirectory = Path.Combine(tempDir, "lib", "BLES01111-BLES02222")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                // Two serials resolving to different trophy sets is ambiguous; no
+                // payload is produced so cached achievements are preserved.
+                Assert.IsNull(data);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_PrelaunchTropdirTrp_ReturnsLockedTrophies()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                // The trophy set exists only as a dev_hdd0\game TROPDIR TRP; RPCS3 has
+                // not booted the game yet so no trophy cache folder exists.
+                File.WriteAllBytes(Path.Combine(CreateRpcs3Root(rpcs3Root), "rpcs3.exe"), new byte[] { 0 });
+                CreateTrpFile(
+                    Path.Combine(rpcs3Root, "dev_hdd0", "game", "NPUB30099", "TROPDIR", "NPWR00055_00", "TROPHY.TRP"),
+                    "NPWR00055_00",
+                    "Prelaunch Game",
+                    "Prelaunch Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Prelaunch Game",
+                    InstallDirectory = Path.Combine(tempDir, "pkg", "NPUB30099")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Prelaunch Trophy", data.Achievements[0].DisplayName);
+                Assert.IsTrue(data.Achievements.All(achievement => !achievement.Unlocked));
+                Assert.AreEqual("NPWR00055_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_InstalledTrophyTrpTakesPrecedence()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var installDir = Path.Combine(tempDir, "games", "BLES03333");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR44444_00", "Installed Internal Title", "Installed Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR55555_00", "Bridge Internal Title", "Bridge Trophy");
+
+                // The game directory carries its own trophy set; the serial's games.yml
+                // registration points at a different one and must not win.
+                CreateTrpFile(
+                    Path.Combine(installDir, "TROPHY", "TROPHY.TRP"),
+                    "NPWR44444_00",
+                    "Installed Internal Title",
+                    "Installed Disc Trophy");
+                CreateRawIsoWithNpCommIds(Path.Combine(tempDir, "isos", "other.iso"), "NPWR55555_00");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BLES03333: \"{Path.Combine(tempDir, "isos", "other.iso")}\"");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Installed Game",
+                    InstallDirectory = installDir
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Installed Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR44444_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_MultiNpwrYmlIso_AggregatesAsCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+                CreateRawIsoWithNpCommIds(
+                    Path.Combine(tempDir, "isos", "collection.iso"),
+                    "NPWR01435_00",
+                    "NPWR01433_00");
+                File.WriteAllText(
+                    Path.Combine(rpcs3Root, "games.yml"),
+                    $"BLES04444: \"{Path.Combine(tempDir, "isos", "collection.iso")}\"");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "My Renamed Collection",
+                    InstallDirectory = Path.Combine(tempDir, "lib", "BLES04444")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(2, data.Achievements.Count);
+                CollectionAssert.AreEquivalent(
+                    new[] { "NPWR01435_00:0", "NPWR01433_00:0" },
+                    data.Achievements.Select(achievement => achievement.ApiName).ToArray());
+                Assert.AreEqual("NPWR01433_00+NPWR01435_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SerialBridge_UnresolvableSerialToken_FallsThroughToNameMatch()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR66666_00", "Exact Match Game", "Exact Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+
+                // SAVE12345 is serial-shaped but has no dev_hdd0\game install and no
+                // games.yml entry; it must not interfere with name-based matching.
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Exact Match Game",
+                    InstallDirectory = Path.Combine(tempDir, "saves", "SAVE12345")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Exact Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void SerialBridge_TryNormalizeSerial_AcceptsOnlyTitleIdShapes()
+        {
+            Assert.IsTrue(Rpcs3SerialNpwrBridge.TryNormalizeSerial("bles01039", out var lowercase));
+            Assert.AreEqual("BLES01039", lowercase);
+
+            Assert.IsTrue(Rpcs3SerialNpwrBridge.TryNormalizeSerial(" NPUB30042 ", out var padded));
+            Assert.AreEqual("NPUB30042", padded);
+
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial("AB12345", out _));
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial("BLES0103", out _));
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial("BLES010399", out _));
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial("NPWR00476_00", out _));
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial(null, out _));
+            Assert.IsFalse(Rpcs3SerialNpwrBridge.TryNormalizeSerial("   ", out _));
+        }
+
+        [TestMethod]
+        public void SerialBridge_ExtractSerials_FindsNormalizedTokensInPaths()
+        {
+            var serials = Rpcs3SerialNpwrBridge
+                .ExtractSerials(@"D:\PS3\BLES01039\USRDIR\EBOOT.BIN and npub30042 but not SAVES123 or NPWR00476_00")
+                .ToList();
+
+            CollectionAssert.AreEqual(new[] { "BLES01039", "NPUB30042" }, serials);
+        }
+
+        [TestMethod]
         public void Scanner_ReadsConfigGamesYmlPath()
         {
             var tempDir = CreateTempDirectory();
