@@ -698,6 +698,401 @@ namespace PlayniteAchievements.Providers.Tests
         }
 
         [TestMethod]
+        public async Task RefreshAsync_SharedIsoDirectory_PicksIsoMatchingGameName()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var romRoot = Path.Combine(tempDir, "roms", "PS3");
+
+            try
+            {
+                // TROPCONF titles deliberately differ from the game name so only the
+                // ISO filename gate can resolve the match (not the name fallback).
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "DI Internal Title", "Dante Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "FNC Internal Title", "Fight Night Trophy");
+
+                // Alphabetically first ISO belongs to the wrong game.
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "Dantes Inferno.iso"), "NPWR11111_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "Fight Night Champion.iso"), "NPWR22222_00");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Fight Night Champion",
+                    InstallDirectory = romRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("Fight Night Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SharedIsoDirectory_MultipleSingleNpwrIsos_DoesNotMergeAsCollection()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var romRoot = Path.Combine(tempDir, "roms", "PS3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "DI Internal Title", "Dante Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "FNC Internal Title", "Fight Night Trophy");
+
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "Dantes Inferno.iso"), "NPWR11111_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "Fight Night Champion.iso"), "NPWR22222_00");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Fight Night Champion",
+                    InstallDirectory = romRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("0", data.Achievements[0].ApiName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SharedIsoDirectory_NoFilenameMatch_FallsBackToTropconfTitleMatch()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var romRoot = Path.Combine(tempDir, "roms", "PS3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "Dantes Inferno", "Dante Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "Fight Night Champion", "Fight Night Trophy");
+
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "disc1.iso"), "NPWR11111_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "disc2.iso"), "NPWR22222_00");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Fight Night Champion",
+                    InstallDirectory = romRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(1, data.Achievements.Count);
+                Assert.AreEqual("Fight Night Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SingleIsoInDirectory_StillMatchesWithoutNameGate()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var romRoot = Path.Combine(tempDir, "roms", "PS3");
+
+            try
+            {
+                // Neither the ISO filename nor the TROPCONF title matches the game name;
+                // a lone ISO in the directory must still resolve via its embedded NPWR id.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "Some Title", "Solo Trophy");
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "randomname.iso"), "NPWR11111_00");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Totally Different Game",
+                    InstallDirectory = romRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Solo Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_MultiIsoDirectory_CollectionIsoStillExpandsWhenNameMatched()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var romRoot = Path.Combine(tempDir, "roms", "PS3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR05636_00", "Minecraft", "Minecraft Trophy");
+
+                CreateRawIsoWithNpCommIds(
+                    Path.Combine(romRoot, "The Sly Collection.iso"),
+                    "NPWR01435_00",
+                    "NPWR01433_00");
+                CreateRawIsoWithNpCommIds(Path.Combine(romRoot, "Unrelated Game.iso"), "NPWR05636_00");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Sly Collection",
+                    InstallDirectory = romRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual(2, data.Achievements.Count);
+                CollectionAssert.AreEquivalent(
+                    new[] { "NPWR01435_00:0", "NPWR01433_00:0" },
+                    data.Achievements.Select(achievement => achievement.ApiName).ToArray());
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NameFallback_AmbiguousPrefixMatches_ReturnsNoMatch()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "God of War III", "GoW3 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR22222_00", "God of War Ascension", "Ascension Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "God of War",
+                    InstallDirectory = Path.Combine(tempDir, "game-without-id")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                // Two distinct titles tie at the prefix score; picking either would be a
+                // guess, so no payload is produced and cached achievements are preserved.
+                Assert.IsNull(data);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NameFallback_JaroWinklerNearMiss_NoLongerMatches()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR11111_00", "Uncharted 3", "Uncharted 3 Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Uncharted 2",
+                    InstallDirectory = Path.Combine(tempDir, "game-without-id")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNull(data);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_NameFallback_MultipleExactTitles_PicksLowestNpwrDeterministically()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                // Regional duplicates of the same game share the title; created in
+                // descending id order to prove selection does not depend on enumeration.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR00033_00", "Demon's Souls", "EUR Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR00011_00", "Demon's Souls", "JAP Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Demon's Souls",
+                    InstallDirectory = Path.Combine(tempDir, "game-without-id")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("JAP Trophy", data.Achievements[0].DisplayName);
+                Assert.AreEqual("NPWR00011_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_RomPathPointsAtEbootBin_FindsSiblingTrophyFolder()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var gameRoot = Path.Combine(tempDir, "Installed Game");
+
+            try
+            {
+                // Neither the game name nor any candidate directory matches the title;
+                // only the TROPHY.TRP next to the rom's USRDIR can resolve the match.
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR12345_00", "Actual Title", "Cache Trophy");
+                CreateTrpFile(
+                    Path.Combine(gameRoot, "PS3_GAME", "TROPHY", "TROPHY.TRP"),
+                    "NPWR12345_00",
+                    "Actual Title",
+                    "Disc Trophy");
+
+                var ebootPath = Path.Combine(gameRoot, "PS3_GAME", "USRDIR", "EBOOT.BIN");
+                Directory.CreateDirectory(Path.GetDirectoryName(ebootPath));
+                File.WriteAllBytes(ebootPath, new byte[] { 0 });
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Renamed Library Entry",
+                    Roms = new ObservableCollection<GameRom>
+                    {
+                        new GameRom
+                        {
+                            Name = "Installed Game",
+                            Path = ebootPath
+                        }
+                    }
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.IsTrue(data.HasAchievements);
+                Assert.AreEqual("Cache Trophy", data.Achievements[0].DisplayName);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_SingleSource_SetsProviderGameKeyToNpwr()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR12345_00", "Single Game", "Single Trophy");
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Single Game",
+                    InstallDirectory = Path.Combine(tempDir, "game-without-id")
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR12345_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public async Task RefreshAsync_Collection_SetsProviderGameKeyToSortedJoinedNpwrs()
+        {
+            var tempDir = CreateTempDirectory();
+            var rpcs3Root = Path.Combine(tempDir, "rpcs3");
+            var collectionRoot = Path.Combine(tempDir, "Sly Collection");
+
+            try
+            {
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01341_00", "Sly Minigames", "Minigame Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01435_00", "Sly 1", "Sly 1 Trophy");
+                CreateRpcs3TrophyData(rpcs3Root, "NPWR01433_00", "Sly 2", "Sly 2 Trophy");
+
+                CreateFolderCollection(
+                    collectionRoot,
+                    ("PS3_GAME", "NPWR01341_00", "Sly Minigames"),
+                    ("PS3_GM01", "NPWR01435_00", "Sly 1"),
+                    ("PS3_GM02", "NPWR01433_00", "Sly 2"));
+
+                var provider = CreateProvider(rpcs3Root);
+                var game = new Game
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "The Sly Collection",
+                    InstallDirectory = collectionRoot
+                };
+
+                var data = await RefreshSingleGameAsync(provider, game).ConfigureAwait(false);
+
+                Assert.IsNotNull(data);
+                Assert.AreEqual("NPWR01341_00+NPWR01433_00+NPWR01435_00", data.ProviderGameKey);
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
         public void Scanner_ReadsConfigGamesYmlPath()
         {
             var tempDir = CreateTempDirectory();
