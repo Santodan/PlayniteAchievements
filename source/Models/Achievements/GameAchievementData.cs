@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
+using PlayniteAchievements.Models.Settings;
 using Playnite.SDK.Models;
 
 namespace PlayniteAchievements.Models.Achievements
@@ -78,6 +79,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public int AppId { get; set; }
 
+        public string ProviderGameKey { get; set; }
+
         public Guid? PlayniteGameId { get; set; }
 
         /// <summary>
@@ -100,6 +103,15 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         [IgnoreDataMember]
         public List<string> AchievementOrder { get; set; }
+
+        [IgnoreDataMember]
+        public List<string> AchievementCategoryOrder { get; set; }
+
+        [IgnoreDataMember]
+        public Dictionary<string, CategoryImageOverrideData> AchievementCategoryImageOverrides { get; set; }
+
+        [IgnoreDataMember]
+        public GameSummaryCategoryData GameSummaryCategory { get; set; }
 
         /// <summary>
         /// Runtime-only exclusion flag for summary surfaces such as the overview/theme views.

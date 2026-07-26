@@ -73,9 +73,48 @@ namespace PlayniteAchievements.Services.UI
             }
         }
 
+        public AchievementHotkeyTargetResolution ResolveRunningGame()
+        {
+            try
+            {
+                var runningGames = _api?.Database?.Games?
+                    .Where(game => game != null && game.Id != Guid.Empty && game.IsRunning)
+                    .ToList() ?? new List<Game>();
+
+                List<Guid> priority;
+                lock (_sync)
+                {
+                    priority = _runningGamePriority.ToList();
+                }
+
+                return ResolveRunningGame(runningGames, priority);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, "Failed to resolve running achievement hotkey target.");
+                return AchievementHotkeyTargetResolution.NoTarget;
+            }
+        }
+
         public static AchievementHotkeyTargetResolution Resolve(
             IEnumerable<Game> runningGames,
             IEnumerable<Game> selectedGames,
+            IReadOnlyList<Guid> runningGamePriority)
+        {
+            var runningTarget = ResolveRunningGame(runningGames, runningGamePriority);
+            if (runningTarget.HasTarget)
+            {
+                return runningTarget;
+            }
+
+            var selected = GetDistinctValidGames(selectedGames).ToList();
+            return selected.Count == 1
+                ? AchievementHotkeyTargetResolution.ForGame(selected[0].Id)
+                : AchievementHotkeyTargetResolution.NoTarget;
+        }
+
+        public static AchievementHotkeyTargetResolution ResolveRunningGame(
+            IEnumerable<Game> runningGames,
             IReadOnlyList<Guid> runningGamePriority)
         {
             var running = GetDistinctValidGames(runningGames).ToList();
@@ -106,10 +145,7 @@ namespace PlayniteAchievements.Services.UI
                 return AchievementHotkeyTargetResolution.ForGame(running[0].Id);
             }
 
-            var selected = GetDistinctValidGames(selectedGames).ToList();
-            return selected.Count == 1
-                ? AchievementHotkeyTargetResolution.ForGame(selected[0].Id)
-                : AchievementHotkeyTargetResolution.NoTarget;
+            return AchievementHotkeyTargetResolution.NoTarget;
         }
 
         private static IEnumerable<Game> GetDistinctValidGames(IEnumerable<Game> games)

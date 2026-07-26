@@ -8,7 +8,7 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using Playnite.SDK;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Cache
 {
     // Legacy JSON cache helper used only for one-time DB migration and cleanup paths.
     public sealed class CacheStorage

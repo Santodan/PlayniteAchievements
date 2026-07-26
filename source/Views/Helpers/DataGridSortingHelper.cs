@@ -1,5 +1,7 @@
+using System;
 using System.ComponentModel;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace PlayniteAchievements.Views.Helpers
 {
@@ -9,9 +11,10 @@ namespace PlayniteAchievements.Views.Helpers
     public static class DataGridSortingHelper
     {
         /// <summary>
-        /// Handles the DataGrid.Sorting event with uniform sort direction toggling.
+        /// Handles the DataGrid.Sorting event with uniform tri-state sort direction toggling.
         /// Sets e.Handled to true, toggles the sort direction, clears other columns' sort indicators,
-        /// and returns the computed sort direction for the caller to apply.
+        /// and returns the computed sort direction for the caller to apply. The cycle is
+        /// unsorted -> ascending -> descending -> unsorted.
         /// </summary>
         /// <param name="sender">The object that raised the Sorting event (typically a DataGrid or wrapper control).</param>
         /// <param name="e">The DataGridSortingEventArgs.</param>
@@ -28,26 +31,84 @@ namespace PlayniteAchievements.Views.Helpers
                 return null;
             }
 
-            var sortDirection = ListSortDirection.Ascending;
+            ListSortDirection? sortDirection = ListSortDirection.Ascending;
             if (column.SortDirection == ListSortDirection.Ascending)
             {
                 sortDirection = ListSortDirection.Descending;
             }
+            else if (column.SortDirection == ListSortDirection.Descending)
+            {
+                sortDirection = null;
+            }
 
             // Clear all columns' sort direction on the DataGrid if provided
             var targetGrid = dataGrid ?? (sender as DataGrid);
-            if (targetGrid != null)
+            ClearSortIndicators(targetGrid);
+
+            if (sortDirection.HasValue)
             {
-                foreach (var c in targetGrid.Columns)
-                {
-                    c.SortDirection = null;
-                }
+                column.SortDirection = sortDirection;
             }
 
-            // Always set the sort direction on the column that was clicked
-            column.SortDirection = sortDirection;
-
             return sortDirection;
+        }
+
+        public static ListSortDirection? ApplyCollectionViewSorting(
+            object sender,
+            DataGridSortingEventArgs e,
+            DataGrid dataGrid)
+        {
+            var sortDirection = HandleSorting(sender, e, dataGrid);
+            var view = CollectionViewSource.GetDefaultView(dataGrid?.ItemsSource);
+            if (view == null)
+            {
+                return sortDirection;
+            }
+
+            view.SortDescriptions.Clear();
+            if (sortDirection.HasValue && !string.IsNullOrWhiteSpace(e.Column?.SortMemberPath))
+            {
+                view.SortDescriptions.Add(new SortDescription(e.Column.SortMemberPath, sortDirection.Value));
+            }
+
+            view.Refresh();
+            return sortDirection;
+        }
+
+        public static void ClearSortIndicators(DataGrid dataGrid)
+        {
+            if (dataGrid?.Columns == null)
+            {
+                return;
+            }
+
+            foreach (var column in dataGrid.Columns)
+            {
+                column.SortDirection = null;
+            }
+        }
+
+        public static void SetSortIndicator(
+            DataGrid dataGrid,
+            string sortMemberPath,
+            ListSortDirection? direction)
+        {
+            ClearSortIndicators(dataGrid);
+            if (dataGrid?.Columns == null ||
+                direction == null ||
+                string.IsNullOrWhiteSpace(sortMemberPath))
+            {
+                return;
+            }
+
+            foreach (var column in dataGrid.Columns)
+            {
+                if (string.Equals(column?.SortMemberPath, sortMemberPath, StringComparison.Ordinal))
+                {
+                    column.SortDirection = direction;
+                    return;
+                }
+            }
         }
     }
 }

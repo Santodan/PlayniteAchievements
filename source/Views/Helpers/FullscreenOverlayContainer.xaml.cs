@@ -42,8 +42,8 @@ namespace PlayniteAchievements.Views.Helpers
         public FullscreenOverlayContainer(string title, FrameworkElement content, FullscreenSizeMode sizeMode)
             : this()
         {
-            Title = title;
             SizeMode = sizeMode;
+            Title = title;
             HostedContent = content;
         }
 
@@ -61,13 +61,25 @@ namespace PlayniteAchievements.Views.Helpers
 
             if (SizeMode == FullscreenSizeMode.Dialog)
             {
+                ContentPanel.HorizontalAlignment = HorizontalAlignment.Center;
+                ContentPanel.VerticalAlignment = VerticalAlignment.Center;
+                ContentPanel.CornerRadius = new CornerRadius(3);
+                ContentPanel.Margin = new Thickness(0);
+                ContentHost.Margin = new Thickness(12, 0, 12, 12);
                 ContentPanel.Width = Math.Min(640, availWidth * 0.85);
                 ContentPanel.Height = Math.Min(400, availHeight * 0.85);
             }
             else
             {
-                ContentPanel.Width = availWidth * 0.92;
-                ContentPanel.Height = availHeight * 0.92;
+                ContentPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
+                ContentPanel.VerticalAlignment = VerticalAlignment.Stretch;
+                ContentPanel.CornerRadius = new CornerRadius(0);
+                ContentPanel.Margin = new Thickness(0);
+                ContentPanel.Width = double.NaN;
+                ContentPanel.Height = double.NaN;
+                ContentHost.Margin = new Thickness(0);
+                TitleBar.Visibility = Visibility.Collapsed;
+                CloseButton.Visibility = Visibility.Collapsed;
             }
         }
 

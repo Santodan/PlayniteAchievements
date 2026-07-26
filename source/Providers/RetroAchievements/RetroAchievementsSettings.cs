@@ -45,7 +45,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
         }
 
         /// <summary>
-        /// RetroAchievements rarity stats mode: "casual", "hardcore", or "combined".
+        /// RetroAchievements rarity stats mode for locked achievements: "casual" or "hardcore".
+        /// Unlocked achievements derive rarity from their own unlock mode instead.
         /// </summary>
         public string RaRarityStats
         {
@@ -54,7 +55,6 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             {
                 var mode = (value ?? string.Empty).Trim();
                 if (string.Equals(mode, "hardcore", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(mode, "combined", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(mode, "casual", StringComparison.OrdinalIgnoreCase))
                 {
                     SetValue(ref _raRarityStats, mode.ToLowerInvariant());

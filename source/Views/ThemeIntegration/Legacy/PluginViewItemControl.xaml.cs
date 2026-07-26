@@ -1,13 +1,20 @@
 // --SUCCESSSTORY--
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Playnite.SDK;
 using Playnite.SDK.Controls;
 using Playnite.SDK.Models;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
+using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Views.ThemeIntegration.Base;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
@@ -23,6 +30,10 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         private PlayniteAchievementsPlugin Plugin => PlayniteAchievementsPlugin.Instance;
         private bool _isCacheEventSubscribed;
         private bool _cacheRefreshQueued;
+
+        // Game id of the current DataContext, written on the UI thread and read on cache-event
+        // threads so per-game events can be filtered without a dispatcher round-trip per event.
+        private volatile string _currentGameIdText;
 
         #region IntegrationViewItemWithProgressBar Property
 
@@ -63,6 +74,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
         public PluginViewItemControl()
         {
             InitializeComponent();
+            FormattingCulture.Apply(this);
             DataContextChanged += OnDataContextChanged;
             Loaded += OnLoaded;
             Unloaded += OnUnloaded;
@@ -136,10 +148,18 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             _isCacheEventSubscribed = false;
         }
 
-        private void RefreshService_CacheInvalidated(object sender, EventArgs e)
+        private void RefreshService_CacheInvalidated(object sender, CacheInvalidatedEventArgs e)
         {
+            // Scoped invalidations name the changed games; skip on the event thread when none
+            // of them is this control's game (mirrors the GameCacheUpdated filter). Unscoped
+            // invalidations still refresh unconditionally.
+            if (e != null && !e.IsFull &&
+                !e.ChangedGameIds.Any(gameId => IsCurrentGame(gameId.ToString())))
+            {
+                return;
+            }
+
             // CacheInvalidated fires when any cache change occurs (throttled).
-            // Always refresh this control since we don't know which game changed.
             // Must dispatch to UI thread first before accessing IsLoaded
             var dispatcher = Dispatcher;
             if (dispatcher == null)
@@ -166,13 +186,13 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                             QueueRefresh();
                         }
                     }),
-                    DispatcherPriority.Render);
+                    DispatcherPriority.Background);
             }
         }
 
         private void GameCustomDataStore_CustomDataChanged(object sender, GameCustomDataChangedEventArgs e)
         {
-            if (e == null || e.PlayniteGameId == Guid.Empty)
+            if (e == null || e.PlayniteGameId == Guid.Empty || !IsCurrentGame(e.PlayniteGameId.ToString()))
             {
                 return;
             }
@@ -182,6 +202,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
         private void RefreshService_GameCacheUpdated(object sender, GameCacheUpdatedEventArgs e)
         {
+            // Filter on the event thread so a library-wide refresh does not queue one UI
+            // dispatch per saved game on every visible item; the dispatched match below
+            // re-checks against the live DataContext in case the container was recycled.
+            if (!IsCurrentGame(e?.GameId))
+            {
+                return;
+            }
+
             var updatedGameId = ParseUpdatedGameId(e);
             if (!updatedGameId.HasValue)
             {
@@ -189,6 +217,14 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             }
 
             DispatchRefreshIfLoaded(() => QueueRefreshIfMatches(updatedGameId.Value));
+        }
+
+        private bool IsCurrentGame(string gameIdText)
+        {
+            var current = _currentGameIdText;
+            return !string.IsNullOrWhiteSpace(gameIdText) &&
+                   !string.IsNullOrEmpty(current) &&
+                   string.Equals(current, gameIdText.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         private void DispatchRefreshIfLoaded(Action refresh)
@@ -216,7 +252,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                         refresh();
                     }
                 }),
-                DispatcherPriority.Render);
+                DispatcherPriority.Background);
         }
 
         private Guid? GetCurrentGameIdFromDataContext()
@@ -273,7 +309,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
 
             dispatcher.BeginInvoke(
                 new Action(RunQueuedRefresh),
-                DispatcherPriority.Render);
+                DispatcherPriority.Background);
         }
 
         private void RunQueuedRefresh()
@@ -294,6 +330,7 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             // GameContext can be used if DataContext doesn't provide a game
             if (newContext != null && newContext.Id != Guid.Empty)
             {
+                _currentGameIdText = newContext.Id.ToString();
                 UpdateForGame(newContext.Id);
             }
             else
@@ -307,18 +344,33 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
             var game = ThemeViewItemGameResolver.GetGame(DataContext);
             if (game != null && game.Id != Guid.Empty)
             {
+                _currentGameIdText = game.Id.ToString();
                 UpdateForGame(game.Id);
             }
             else
             {
+                _currentGameIdText = null;
                 ClearData();
             }
         }
 
         private void UpdateForGame(Guid gameId)
         {
-            var gameData = Plugin?.AchievementDataService?.GetVisibleGameAchievementData(gameId);
+            // Fetch off the UI thread: the cache read can wait multiple seconds behind
+            // whole-library loads (projection warms, friends overview snapshots) holding
+            // the cache lock, and this runs once per visible grid item.
+            var gameIdText = gameId.ToString();
+            ViewItemAchievementDataLoader.LoadAsync(
+                Plugin?.AchievementDataService,
+                gameId,
+                Dispatcher,
+                isStale: () => !string.Equals(_currentGameIdText, gameIdText, StringComparison.OrdinalIgnoreCase),
+                apply: ApplyGameData,
+                logger: _logger);
+        }
 
+        private void ApplyGameData(GameAchievementData gameData)
+        {
             if (gameData == null || !gameData.HasAchievements || (gameData.Achievements?.Count ?? 0) == 0)
             {
                 ClearData();

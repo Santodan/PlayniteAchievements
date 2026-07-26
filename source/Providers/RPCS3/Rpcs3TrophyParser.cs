@@ -41,29 +41,40 @@ namespace PlayniteAchievements.Providers.RPCS3
             try
             {
                 var doc = XDocument.Load(tropconfPath);
-                var groupNames = BuildGroupNamesDictionary(doc);
-
-                foreach (var trophyElement in doc.Descendants("trophy"))
-                {
-                    try
-                    {
-                        var trophy = ParseTrophyElement(trophyElement, groupNames, language);
-                        if (trophy.Id >= 0)
-                        {
-                            trophies.Add(trophy);
-                        }
-                    }
-                    catch
-                    {
-                        // Skip malformed trophy elements
-                    }
-                }
+                trophies = ParseTrophyConfDocument(doc, language);
 
                 logger?.Info($"[RPCS3] Parsed {trophies.Count} trophy definitions from '{Path.GetFileName(Path.GetDirectoryName(tropconfPath))}'");
             }
             catch (Exception ex)
             {
                 logger?.Error(ex, $"[RPCS3] Failed to parse TROPCONF.SFM at '{tropconfPath}'");
+            }
+
+            return trophies;
+        }
+
+        /// <summary>
+        /// Parses all trophy elements from a trophyconf XML document.
+        /// </summary>
+        private static List<Rpcs3Trophy> ParseTrophyConfDocument(XDocument doc, string language)
+        {
+            var trophies = new List<Rpcs3Trophy>();
+            var groupNames = BuildGroupNamesDictionary(doc);
+
+            foreach (var trophyElement in doc.Descendants("trophy"))
+            {
+                try
+                {
+                    var trophy = ParseTrophyElement(trophyElement, groupNames, language);
+                    if (trophy.Id >= 0)
+                    {
+                        trophies.Add(trophy);
+                    }
+                }
+                catch
+                {
+                    // Skip malformed trophy elements
+                }
             }
 
             return trophies;
@@ -183,41 +194,65 @@ namespace PlayniteAchievements.Providers.RPCS3
             try
             {
                 var bytes = File.ReadAllBytes(trophyTrpPath);
-                var content = Encoding.UTF8.GetString(bytes);
 
-                // Look for <npcommid>...</npcommid> pattern
-                var tagStart = content.IndexOf("<npcommid>", StringComparison.OrdinalIgnoreCase);
-
-                if (tagStart < 0)
+                // Binary TRP archive: search only the TROPCONF.SFM entry.
+                if (Rpcs3TrpArchiveReader.HasTrpMagic(bytes))
                 {
-                    // Try alternate format: npcommid="..."
-                    var attrStart = content.IndexOf("npcommid=", StringComparison.OrdinalIgnoreCase);
-                    if (attrStart >= 0)
+                    var entries = Rpcs3TrpArchiveReader.ReadEntries(bytes, logger);
+                    var tropconfXml = entries == null
+                        ? null
+                        : Rpcs3TrpArchiveReader.ExtractEntryText(bytes, entries, "TROPCONF.SFM");
+                    if (!string.IsNullOrWhiteSpace(tropconfXml))
                     {
-                        var valueStart = attrStart + "npcommid=".Length;
-                        var quoteStart = content.IndexOf("\"", valueStart);
-                        if (quoteStart >= 0)
+                        var idFromEntry = ExtractNpCommIdFromText(tropconfXml);
+                        if (!string.IsNullOrWhiteSpace(idFromEntry))
                         {
-                            var quoteEnd = content.IndexOf("\"", quoteStart + 1);
-                            if (quoteEnd > quoteStart)
-                            {
-                                return content.Substring(quoteStart + 1, quoteEnd - quoteStart - 1).Trim();
-                            }
+                            return idFromEntry;
                         }
                     }
-                    return null;
                 }
 
-                var tagEnd = content.IndexOf("</npcommid>", tagStart, StringComparison.OrdinalIgnoreCase);
-                if (tagEnd < 0) return null;
-
-                return content.Substring(tagStart + "<npcommid>".Length, tagEnd - tagStart - "<npcommid>".Length).Trim();
+                return ExtractNpCommIdFromText(Encoding.UTF8.GetString(bytes));
             }
             catch (Exception ex)
             {
                 logger?.Debug(ex, $"[RPCS3] Failed to extract npcommid from '{trophyTrpPath}'");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Finds the npcommid in trophyconf XML text, via element or attribute form.
+        /// </summary>
+        private static string ExtractNpCommIdFromText(string content)
+        {
+            // Look for <npcommid>...</npcommid> pattern
+            var tagStart = content.IndexOf("<npcommid>", StringComparison.OrdinalIgnoreCase);
+
+            if (tagStart < 0)
+            {
+                // Try alternate format: npcommid="..."
+                var attrStart = content.IndexOf("npcommid=", StringComparison.OrdinalIgnoreCase);
+                if (attrStart >= 0)
+                {
+                    var valueStart = attrStart + "npcommid=".Length;
+                    var quoteStart = content.IndexOf("\"", valueStart);
+                    if (quoteStart >= 0)
+                    {
+                        var quoteEnd = content.IndexOf("\"", quoteStart + 1);
+                        if (quoteEnd > quoteStart)
+                        {
+                            return content.Substring(quoteStart + 1, quoteEnd - quoteStart - 1).Trim();
+                        }
+                    }
+                }
+                return null;
+            }
+
+            var tagEnd = content.IndexOf("</npcommid>", tagStart, StringComparison.OrdinalIgnoreCase);
+            if (tagEnd < 0) return null;
+
+            return content.Substring(tagStart + "<npcommid>".Length, tagEnd - tagStart - "<npcommid>".Length).Trim();
         }
 
         /// <summary>
@@ -324,36 +359,17 @@ namespace PlayniteAchievements.Providers.RPCS3
             try
             {
                 var bytes = File.ReadAllBytes(trophyTrpPath);
-                var content = Encoding.UTF8.GetString(bytes);
 
-                // Search for <trophyconf> start and end tags to extract XML content
-                var tagStart = content.IndexOf("<trophyconf>", StringComparison.OrdinalIgnoreCase);
-                if (tagStart < 0) return trophies;
-
-                var tagEnd = content.IndexOf("</trophyconf>", tagStart, StringComparison.OrdinalIgnoreCase);
-                if (tagEnd < 0) return trophies;
-
-                var xmlContent = content.Substring(tagStart, tagEnd - tagStart + "</trophyconf>".Length);
-                var doc = XDocument.Parse(xmlContent);
-                var groupNames = BuildGroupNamesDictionary(doc);
-
-                foreach (var trophyElement in doc.Descendants("trophy"))
+                trophies = ParseTrophiesFromTrpContainer(bytes, language, logger);
+                if (trophies.Count == 0)
                 {
-                    try
-                    {
-                        var trophy = ParseTrophyElement(trophyElement, groupNames, language);
-                        trophy.Unlocked = false; // Pre-launch: all locked
-                        trophy.UnlockTimeUtc = null;
+                    trophies = ParseTrophiesFromPlaintext(bytes, language);
+                }
 
-                        if (trophy.Id >= 0)
-                        {
-                            trophies.Add(trophy);
-                        }
-                    }
-                    catch
-                    {
-                        // Skip malformed trophy elements
-                    }
+                foreach (var trophy in trophies)
+                {
+                    trophy.Unlocked = false; // Pre-launch: all locked
+                    trophy.UnlockTimeUtc = null;
                 }
 
                 logger?.Info($"[RPCS3] Parsed {trophies.Count} trophy definitions from TROPHY.TRP (pre-launch)");
@@ -364,6 +380,181 @@ namespace PlayniteAchievements.Providers.RPCS3
             }
 
             return trophies;
+        }
+
+        /// <summary>
+        /// Parses trophy definitions from a binary TRP archive: structure from
+        /// TROPCONF.SFM, display text overlaid from the locale-specific
+        /// TROP_XX.SFM (falling back to TROP.SFM).
+        /// </summary>
+        private static List<Rpcs3Trophy> ParseTrophiesFromTrpContainer(byte[] bytes, string language, ILogger logger)
+        {
+            var trophies = new List<Rpcs3Trophy>();
+
+            if (!Rpcs3TrpArchiveReader.HasTrpMagic(bytes))
+            {
+                return trophies;
+            }
+
+            var entries = Rpcs3TrpArchiveReader.ReadEntries(bytes, logger);
+            if (entries == null)
+            {
+                return trophies;
+            }
+
+            var tropconfXml = Rpcs3TrpArchiveReader.ExtractEntryText(bytes, entries, "TROPCONF.SFM");
+            if (string.IsNullOrWhiteSpace(tropconfXml))
+            {
+                return trophies;
+            }
+
+            try
+            {
+                trophies = ParseTrophyConfDocument(XDocument.Parse(tropconfXml), language);
+            }
+            catch (Exception ex)
+            {
+                logger?.Debug(ex, "[RPCS3] Failed to parse TROPCONF.SFM entry inside TROPHY.TRP");
+                return new List<Rpcs3Trophy>();
+            }
+
+            if (trophies.Count == 0)
+            {
+                return trophies;
+            }
+
+            var localizedXml = ResolveLocalizedSfmText(bytes, entries, language);
+            if (!string.IsNullOrWhiteSpace(localizedXml))
+            {
+                try
+                {
+                    ApplyLocalizedText(trophies, XDocument.Parse(localizedXml));
+                }
+                catch (Exception ex)
+                {
+                    logger?.Debug(ex, "[RPCS3] Failed to parse localized SFM entry inside TROPHY.TRP");
+                }
+            }
+
+            return trophies;
+        }
+
+        /// <summary>
+        /// Picks the display-text SFM matching the requested locale
+        /// (TROP_XX.SFM), falling back to the default TROP.SFM.
+        /// </summary>
+        private static string ResolveLocalizedSfmText(byte[] bytes, IReadOnlyList<Rpcs3TrpEntry> entries, string language)
+        {
+            var tropIndex = MapPs3LocaleToTropIndex(language);
+            if (tropIndex.HasValue)
+            {
+                var localized = Rpcs3TrpArchiveReader.ExtractEntryText(bytes, entries, $"TROP_{tropIndex.Value:00}.SFM");
+                if (!string.IsNullOrWhiteSpace(localized))
+                {
+                    return localized;
+                }
+            }
+
+            return Rpcs3TrpArchiveReader.ExtractEntryText(bytes, entries, "TROP.SFM");
+        }
+
+        /// <summary>
+        /// Overlays trophy display names, descriptions, and group names from a
+        /// localized trophyconf document onto already-parsed definitions.
+        /// </summary>
+        private static void ApplyLocalizedText(List<Rpcs3Trophy> trophies, XDocument localizedDoc)
+        {
+            var groupNames = BuildGroupNamesDictionary(localizedDoc);
+            var localizedById = new Dictionary<int, XElement>();
+
+            foreach (var trophyElement in localizedDoc.Descendants("trophy"))
+            {
+                var id = ParseIntAttribute(trophyElement, "id", -1);
+                if (id >= 0 && !localizedById.ContainsKey(id))
+                {
+                    localizedById[id] = trophyElement;
+                }
+            }
+
+            foreach (var trophy in trophies)
+            {
+                if (localizedById.TryGetValue(trophy.Id, out var element))
+                {
+                    var name = element.Element("name")?.Value?.Trim();
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        trophy.Name = name;
+                    }
+
+                    var detail = element.Element("detail")?.Value?.Trim();
+                    if (!string.IsNullOrWhiteSpace(detail))
+                    {
+                        trophy.Description = detail;
+                    }
+                }
+
+                if (groupNames.TryGetValue(trophy.GroupId ?? "0", out var groupName) &&
+                    !string.IsNullOrWhiteSpace(groupName))
+                {
+                    trophy.GroupName = groupName;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Legacy fallback for TRP-like files that are plain XML rather than a
+        /// binary archive: extracts the first trophyconf document by text search.
+        /// </summary>
+        private static List<Rpcs3Trophy> ParseTrophiesFromPlaintext(byte[] bytes, string language)
+        {
+            var content = Encoding.UTF8.GetString(bytes);
+
+            // The root tag may carry attributes (e.g. <trophyconf version="1.1">),
+            // so match on the tag prefix only.
+            var tagStart = content.IndexOf("<trophyconf", StringComparison.OrdinalIgnoreCase);
+            if (tagStart < 0) return new List<Rpcs3Trophy>();
+
+            var tagEnd = content.IndexOf("</trophyconf>", tagStart, StringComparison.OrdinalIgnoreCase);
+            if (tagEnd < 0) return new List<Rpcs3Trophy>();
+
+            var xmlContent = content.Substring(tagStart, tagEnd - tagStart + "</trophyconf>".Length);
+            return ParseTrophyConfDocument(XDocument.Parse(xmlContent), language);
+        }
+
+        /// <summary>
+        /// Maps a PS3 locale code (as returned by MapGlobalLanguageToPs3Locale)
+        /// to the SCE numeric language id used in TROP_XX.SFM entry names.
+        /// Returns null when the locale has no PS3 language id (falls back to TROP.SFM).
+        /// </summary>
+        private static int? MapPs3LocaleToTropIndex(string ps3Locale)
+        {
+            if (string.IsNullOrWhiteSpace(ps3Locale))
+            {
+                return null;
+            }
+
+            switch (ps3Locale.Trim().ToLowerInvariant())
+            {
+                case "ja": return 0;
+                case "en": return 1;
+                case "fr": return 2;
+                case "es": return 3;
+                case "de": return 4;
+                case "it": return 5;
+                case "nl": return 6;
+                case "pt": return 7;
+                case "ru": return 8;
+                case "ko": return 9;
+                case "zh": return 11; // Simplified Chinese; 10 is Traditional
+                case "fi": return 12;
+                case "sv": return 13;
+                case "da": return 14;
+                case "no": return 15;
+                case "pl": return 16;
+                case "pt-br": return 17;
+                case "tr": return 19;
+                default: return null;
+            }
         }
 
         /// <summary>

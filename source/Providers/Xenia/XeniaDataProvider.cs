@@ -4,8 +4,11 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Providers.EmuLibrary;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,13 +18,19 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Xenia
 {
-    internal sealed class XeniaDataProvider : IDataProvider
+    internal sealed class XeniaDataProvider : DataProviderBase<XeniaSettings>, IDataProvider, IProviderOverride
     {
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xenia",
+            raw => XeniaTitleIdHelper.TryNormalize(raw, out var titleId)
+                ? ProviderOverrideValidation.Valid(titleId)
+                : ProviderOverrideValidation.Invalid(
+                    "LOCPlayAch_Menu_XeniaTitleId_InvalidId"));
+
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly string _pluginUserDataPath;
-        private XeniaSettings _providerSettings;
 
         public XeniaDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi, string pluginUserDataPath)
         {
@@ -29,7 +38,6 @@ namespace PlayniteAchievements.Providers.Xenia
             _playniteApi = playniteApi;
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
-            _providerSettings = ProviderRegistry.Settings<XeniaSettings>();
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xenia");
@@ -37,6 +45,8 @@ namespace PlayniteAchievements.Providers.Xenia
         public string ProviderIconKey => "ProviderIconXenia";
         public string ProviderColorHex => "#92C83E";
         public ISessionManager AuthSession => null;
+
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
         public bool IsAuthenticated
         {
@@ -109,13 +119,13 @@ namespace PlayniteAchievements.Providers.Xenia
             Func<Game, GameAchievementData, Task> onGameCompleted,
             CancellationToken cancel)
         {
-            return new XeniaScanner(_logger, _playniteApi, _providerSettings, _pluginUserDataPath, _settings)
+            return new XeniaScanner(_logger, _playniteApi, ProviderSettings, _pluginUserDataPath, _settings)
                 .RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
         }
 
         private string GetAccountPath()
         {
-            return (_providerSettings?.AccountPath ?? string.Empty).Trim();
+            return (ProviderSettings?.AccountPath ?? string.Empty).Trim();
         }
 
         private static bool IsXeniaEmulator(Emulator emulator)
@@ -137,30 +147,35 @@ namespace PlayniteAchievements.Providers.Xenia
         private bool HasSupportedRom(Game game)
         {
             var roms = game?.Roms;
-            if (roms == null)
+            if (roms != null)
+            {
+                foreach (var rom in roms)
+                {
+                    if (IsSupportedRomPath(PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path)))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // Uninstalled EmuLibrary games carry no rom entries; check the source file
+            // decoded from the serialized EmuLibrary game id instead.
+            return EmuLibraryPathResolver.TryResolveSourceFilePath(_playniteApi, game, out var emuLibrarySourceFile) &&
+                   IsSupportedRomPath(emuLibrarySourceFile);
+        }
+
+        private static bool IsSupportedRomPath(string path)
+        {
+            path = (path ?? string.Empty).Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return false;
             }
 
-            foreach (var rom in roms)
-            {
-                var path = PathExpansion.ExpandGamePath(_playniteApi, game, rom?.Path);
-                path = (path ?? string.Empty).Trim().Trim('"');
-                if (string.IsNullOrWhiteSpace(path))
-                {
-                    continue;
-                }
-
-                var extension = Path.GetExtension(path) ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(extension) ||
-                    extension.Equals(".iso", StringComparison.OrdinalIgnoreCase) ||
-                    extension.Equals(".xex", StringComparison.OrdinalIgnoreCase))
-                {
-                    return true;
-                }
-            }
-
-            return false;
+            var extension = Path.GetExtension(path) ?? string.Empty;
+            return string.IsNullOrWhiteSpace(extension) ||
+                   extension.Equals(".iso", StringComparison.OrdinalIgnoreCase) ||
+                   extension.Equals(".xex", StringComparison.OrdinalIgnoreCase);
         }
 
         internal static bool TryGetTitleIdOverride(Guid gameId, out string titleIdOverride)
@@ -222,19 +237,7 @@ namespace PlayniteAchievements.Providers.Xenia
         }
 
         /// <inheritdoc />
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        /// <inheritdoc />
         public IProviderSettings CreateDefaultSettings() => new XeniaSettings();
-
-        /// <inheritdoc />
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is XeniaSettings xeniaSettings)
-            {
-                _providerSettings.CopyFrom(xeniaSettings);
-            }
-        }
 
         /// <inheritdoc />
         public ProviderSettingsViewBase CreateSettingsView() => new XeniaSettingsView(_playniteApi);

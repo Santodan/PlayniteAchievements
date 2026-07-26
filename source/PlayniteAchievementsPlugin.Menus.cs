@@ -7,6 +7,8 @@ using System.Windows;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Views;
 using Playnite.SDK;
@@ -17,8 +19,8 @@ namespace PlayniteAchievements
 {
     public partial class PlayniteAchievementsPlugin
     {
-        private const string PluginGameMenuSection = "Playnite Achievements";
-        private const string PluginMainMenuSection = "@Playnite Achievements";
+        private static string PluginGameMenuSection => ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
+        private static string PluginMainMenuSection => "@" + ResourceProvider.GetString("LOCPlayAch_Title_PluginName");
         private int _fullscreenMenuGlobalProgressActive;
 
         private bool IsRefreshInProgress()
@@ -127,7 +129,7 @@ namespace PlayniteAchievements
             {
                 yield return new GameMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewRefreshProgress"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Common_View"),
                     MenuSection = PluginGameMenuSection,
                     Action = (a) =>
                     {
@@ -165,7 +167,7 @@ namespace PlayniteAchievements
             {
                 yield return new MainMenuItem
                 {
-                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewRefreshProgress"),
+                    Description = ResourceProvider.GetString("LOCPlayAch_Common_View"),
                     MenuSection = PluginMainMenuSection,
                     Action = (a) =>
                     {
@@ -306,6 +308,19 @@ namespace PlayniteAchievements
                     OpenViewAchievementsWindow(game.Id);
                 }
             };
+
+            if (_settingsViewModel?.Settings?.Persisted?.EnableFriendsFeatures == true)
+            {
+                yield return new GameMenuItem
+                {
+                    Description = ResourceProvider.GetString("LOCPlayAch_Menu_ViewFriendsAchievements"),
+                    MenuSection = PluginGameMenuSection,
+                    Action = (a) =>
+                    {
+                        OpenViewFriendsAchievementsWindow(game.Id);
+                    }
+                };
+            }
 
             if (!refreshInProgress)
             {
@@ -805,9 +820,39 @@ namespace PlayniteAchievements
                             new RefreshRequest
                             {
                                 Mode = RefreshModeType.Custom,
-                                CustomOptions = customOptions
+                                Options = RefreshOptions.FromCustom(customOptions)
                             });
                     }
+                };
+            }
+
+            // Developer-only diagnostic, hidden unless the hardcoded PerfScope.PerfTracingEnabled
+            // flag is on (never shown in a tracing-off build). Deliberately not localized.
+            // Available mid-refresh: capturing memory state during and after large scans is the
+            // point. The compacting collect logs a managed-vs-native breakdown of residual memory.
+            if (Common.MemoryDiagnostics.Enabled)
+            {
+                yield return new MainMenuItem
+                {
+                    Description = "Log Memory Diagnostics",
+                    MenuSection = PluginMainMenuSection,
+                    Action = (a) => _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            var before = Common.MemoryDiagnostics.Log(_logger, "manual", "trigger=menu");
+                            System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                                System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                            GC.Collect();
+                            GC.WaitForPendingFinalizers();
+                            GC.Collect();
+                            Common.MemoryDiagnostics.Log(_logger, "manual.afterGC", before, "trigger=menu");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.Debug(ex, "Manual memory diagnostics failed.");
+                        }
+                    })
                 };
             }
         }

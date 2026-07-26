@@ -21,6 +21,7 @@ namespace PlayniteAchievements.Services.StartPage
         public const string GameSummariesGridViewId = "PlayniteAchievements_GameSummariesGrid";
         public const string LegacyGamesOverviewGridViewId = "PlayniteAchievements_GamesOverviewGrid";
         public const string RecentUnlocksGridViewId = "PlayniteAchievements_RecentUnlocksGrid";
+        public const string FriendsRecentUnlocksGridViewId = "PlayniteAchievements_FriendsRecentUnlocksGrid";
         public const string CompletedGamesPieViewId = "PlayniteAchievements_CompletedGamesPie";
         public const string ProviderPieViewId = "PlayniteAchievements_ProviderPie";
         public const string RarityPieViewId = "PlayniteAchievements_RarityPie";
@@ -43,6 +44,13 @@ namespace PlayniteAchievements.Services.StartPage
                     ViewId = RecentUnlocksGridViewId,
                     WidgetKind = StartPageWidgetKind.RecentUnlocksGrid,
                     NameKey = "LOCPlayAch_RecentAchievements",
+                    DescriptionKey = null
+                },
+                new StartPageViewDefinition
+                {
+                    ViewId = FriendsRecentUnlocksGridViewId,
+                    WidgetKind = StartPageWidgetKind.FriendsRecentUnlocksGrid,
+                    NameKey = "LOCPlayAch_StartPage_FriendsRecentAchievements",
                     DescriptionKey = null
                 },
                 new StartPageViewDefinition

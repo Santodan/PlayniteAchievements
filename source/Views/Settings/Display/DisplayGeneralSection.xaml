@@ -1,0 +1,229 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.DisplayGeneralSection"
+             x:Name="DisplayGeneralSectionRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+             xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="PreviewThemeControlStyle"
+                   TargetType="{x:Type base:ThemeControlBase}">
+                <Setter Property="SettingsOverride"
+                        Value="{Binding DataContext, ElementName=DisplayGeneralSectionRoot}"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <TextBlock Text="{DynamicResource LOCPlayAch_Common_General}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="0"/>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Display_GridDefaults}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridColumnHeaderAlignment}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.GridColumnHeaderAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridCellAlignment}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.GridCellAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Left}" Tag="{x:Static settings:GridAlignment.Left}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Center}" Tag="{x:Static settings:GridAlignment.Center}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridAlignment_Right}" Tag="{x:Static settings:GridAlignment.Right}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_GridCellVerticalAlignment}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.GridCellVerticalAlignment, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Top}" Tag="{x:Static settings:GridVerticalAlignment.Top}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Center}" Tag="{x:Static settings:GridVerticalAlignment.Center}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_GridVerticalAlignment_Bottom}" Tag="{x:Static settings:GridVerticalAlignment.Bottom}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UnlockDateDisplay}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.UnlockDateDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateAndTime}" Tag="{x:Static settings:DateDisplayMode.DateAndTime}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_DateOnly}" Tag="{x:Static settings:DateDisplayMode.DateOnly}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_DateDisplayMode_Relative}" Tag="{x:Static settings:DateDisplayMode.Relative}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplay}"
+                                           VerticalAlignment="Center"/>
+                                <ComboBox SelectedValue="{Binding Persisted.PlaytimeDisplayMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          SelectedValuePath="Tag"
+                                          MinWidth="140"
+                                          Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursMinutes}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursAndMinutes}"/>
+                                    <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_PlaytimeDisplayMode_HoursOnly}" Tag="{x:Static settings:PlaytimeDisplayMode.HoursOnly}"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages}"
+                                      IsChecked="{Binding Persisted.RoundRarityPercentages}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_RoundRarityPercentages_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
+                                       TextWrapping="Wrap"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring}"
+                                      IsChecked="{Binding Persisted.ShowCompletedProgressColoring}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ShowCompletedProgressColoring_Help}"
+                                       Style="{StaticResource MutedTextStyle}"
+                                       Margin="24,0,0,10"
+                                       TextWrapping="Wrap"/>
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowTopMenuBarButton}"
+                                      IsChecked="{Binding Persisted.ShowTopMenuBarButton}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Achievements}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <!-- Achievement Visibility -->
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_HiddenAchievements_Description}"
+                                       Style="{StaticResource MutedTextStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Preview}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <modern:AchievementDataGridControl
+                                Style="{StaticResource PreviewThemeControlStyle}"
+                                ThemeDataOverride="{Binding AchievementVisibilityPreviewThemeData, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                PreviewMaxHeightOverride="220"
+                                Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Context_Settings}"
+                                       Style="{StaticResource ContextLabelStyle}"/>
+                            <StackPanel>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealLockedIcon}"
+                                          IsChecked="{Binding Persisted.ShowLockedIcon}"
+                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenIcon}"
+                                          IsChecked="{Binding Persisted.ShowHiddenIcon}" Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenTitle}"
+                                          IsChecked="{Binding Persisted.ShowHiddenTitle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_RevealHiddenDescription}"
+                                          IsChecked="{Binding Persisted.ShowHiddenDescription}" Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowHiddenSuffix}"
+                                          IsChecked="{Binding Persisted.ShowHiddenSuffix}"
+                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Compact}"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ShowFriendSpoilers}"
+                                          IsChecked="{Binding Persisted.ShowFriendSpoilers}"
+                                          Visibility="{Binding Persisted.EnableFriendsFeatures, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Advanced -->
+            <Expander IsExpanded="False"
+                      Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                      BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                      BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                      Margin="0,16,0,0"
+                      Padding="12,10,12,12">
+                <Expander.Header>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               FontWeight="SemiBold"/>
+                </Expander.Header>
+
+                <StackPanel>
+                        <Border Style="{StaticResource SettingGroupCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Title}"
+                                           Style="{StaticResource SubSectionHeaderStyle}"
+                                           Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_AchievementIconCache_Description}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"
+                                           TextWrapping="Wrap"/>
+                                <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable}"
+                                          IsChecked="{Binding Persisted.UseSeparateLockedIconsWhenAvailable}"
+                                          Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_UseSeparateLockedIconsWhenAvailable_Help}"
+                                           Style="{StaticResource MutedTextStyle}"
+                                           Margin="24,0,0,0"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SettingGroupCardStyle}">
+                            <DockPanel LastChildFill="True">
+                                <Button DockPanel.Dock="Right"
+                                        Content="{DynamicResource LOCPlayAch_Settings_ResetDisplaySettings}"
+                                        Click="ResetDisplaySettings_Click"
+                                        MinWidth="160"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Center"/>
+                                <StackPanel>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ResetDisplaySettings}"
+                                               Style="{StaticResource SubSectionHeaderStyle}"
+                                               Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
+                                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ResetDisplaySettings_Help}"
+                                               Style="{StaticResource MutedTextStyle}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

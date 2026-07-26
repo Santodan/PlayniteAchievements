@@ -3,6 +3,7 @@ using Newtonsoft.Json.Linq;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.IO;

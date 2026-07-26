@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,10 +66,70 @@ namespace PlayniteAchievements.Providers.Steam
                     return achievements != null && achievements.Count > 0;
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API availability check failed for appId={appId}");
+                return null;
+            }
+        }
+
+        public async Task<IReadOnlyList<SteamOwnedGame>> GetOwnedGamesAsync(
+            string accessToken,
+            string steamId64,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(accessToken) || string.IsNullOrWhiteSpace(steamId64))
+            {
+                return null;
+            }
+
+            try
+            {
+                var url = $"https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/" +
+                          $"?access_token={Uri.EscapeDataString(accessToken)}" +
+                          $"&steamid={Uri.EscapeDataString(steamId64.Trim())}" +
+                          $"&include_appinfo=true" +
+                          $"&include_played_free_games=true" +
+                          $"&format=json";
+
+                using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+                using (var resp = await _apiHttp.SendAsync(req, ct).ConfigureAwait(false))
+                {
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        return null;
+                    }
+
+                    var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return null;
+                    }
+
+                    var root = JsonConvert.DeserializeObject<GetOwnedGamesRoot>(json);
+                    var response = root?.Response;
+                    if (response == null)
+                    {
+                        return null;
+                    }
+
+                    if (response.Games != null)
+                    {
+                        return response.Games
+                            .Where(game => game != null && game.AppId > 0)
+                            .ToList();
+                    }
+
+                    return response.GameCount.GetValueOrDefault() == 0
+                        ? (IReadOnlyList<SteamOwnedGame>)Array.Empty<SteamOwnedGame>()
+                        : null;
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"GetOwnedGames API request failed for steamId={steamId64}");
                 return null;
             }
         }
@@ -145,7 +206,7 @@ namespace PlayniteAchievements.Providers.Steam
                     };
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger?.Debug(ex, "GetGameAchievements API request failed for appId={appId}");
@@ -160,7 +221,7 @@ namespace PlayniteAchievements.Providers.Steam
                 : value.Trim();
         }
 
-        private static string BuildAchievementIconUrl(int appId, string iconFile)
+        internal static string BuildAchievementIconUrl(int appId, string iconFile)
         {
             var normalizedIconFile = NormalizeApiText(iconFile);
             if (string.IsNullOrWhiteSpace(normalizedIconFile))
@@ -168,7 +229,7 @@ namespace PlayniteAchievements.Providers.Steam
                 return string.Empty;
             }
 
-            return $"https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/{appId}/{normalizedIconFile}";
+            return $"https://shared.akamai.steamstatic.com/community_assets/images/apps/{appId}/{normalizedIconFile}";
         }
     }
 }

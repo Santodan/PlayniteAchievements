@@ -8,6 +8,28 @@ namespace PlayniteAchievements.Common
     public static class CollectionHelper
     {
         /// <summary>
+        /// Replaces the contents of a collection with the given items, using
+        /// BulkObservableCollection.ReplaceAll when available (single reset event)
+        /// and falling back to an in-place diffing synchronization otherwise.
+        /// </summary>
+        public static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            if (target is BulkObservableCollection<T> bulk)
+            {
+                bulk.ReplaceAll(items);
+            }
+            else
+            {
+                SynchronizeCollection(target, items);
+            }
+        }
+
+        /// <summary>
         /// Efficiently synchronizes an ObservableCollection with an IEnumerable source.
         /// Avoids clearing and re-adding, which causes UI flicker.
         /// </summary>

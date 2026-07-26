@@ -66,12 +66,16 @@ namespace PlayniteAchievements.Common
                     consecutiveErrors = 0;
                     return result;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (cancel.IsCancellationRequested)
                 {
                     throw;
                 }
-                catch (Exception ex) when (isTransientError(ex))
+                catch (Exception ex) when (isTransientError(ex) ||
+                                           (ex is OperationCanceledException && !cancel.IsCancellationRequested))
                 {
+                    // The second filter arm catches timeout-shaped cancellations (e.g. HttpClient's
+                    // TaskCanceledException) that arrive without the caller's token being cancelled;
+                    // they retry like any other transient failure instead of aborting as a cancel.
                     consecutiveErrors++;
                     attempt++;
 

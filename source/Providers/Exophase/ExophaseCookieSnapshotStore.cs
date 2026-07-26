@@ -15,6 +15,14 @@ namespace PlayniteAchievements.Providers.Exophase
         private readonly ILogger _logger;
         private readonly string _snapshotPath;
 
+        // In-memory cache of the decrypted snapshot so repeated fetches across a refresh don't re-decrypt
+        // cookies.json.enc (a DPAPI + JSON round-trip) and re-log per call. This store is the single reader
+        // and writer of the file (Save/Delete are the only mutators, both here), so invalidating the cache
+        // in Save/Delete keeps it exact without probing the file's timestamp. Cache holds a clone; callers
+        // receive independent clones so they can't mutate the cached list.
+        private readonly object _cacheLock = new object();
+        private List<HttpCookie> _cachedCookies;
+
         public ExophaseCookieSnapshotStore(string pluginUserDataPath, ILogger logger)
         {
             if (string.IsNullOrWhiteSpace(pluginUserDataPath))
@@ -52,6 +60,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
                 var json = JsonConvert.SerializeObject(snapshot);
                 Encryption.EncryptToFile(_snapshotPath, json, Encoding.UTF8, GetCurrentUserSid());
+                InvalidateCache();
                 return true;
             }
             catch (Exception ex)
@@ -73,6 +82,15 @@ namespace PlayniteAchievements.Providers.Exophase
         public bool TryLoad(out List<HttpCookie> cookies)
         {
             cookies = new List<HttpCookie>();
+
+            lock (_cacheLock)
+            {
+                if (_cachedCookies != null)
+                {
+                    cookies = _cachedCookies.Select(CloneCookie).ToList();
+                    return cookies.Count > 0;
+                }
+            }
 
             try
             {
@@ -112,6 +130,11 @@ namespace PlayniteAchievements.Providers.Exophase
                 else
                 {
                     _logger?.Info($"[ExophaseAuth] Snapshot validated: {cookies.Count} cookies, all critical cookies present");
+                }
+
+                lock (_cacheLock)
+                {
+                    _cachedCookies = cookies.Select(CloneCookie).ToList();
                 }
 
                 return cookies.Count > 0;
@@ -157,6 +180,7 @@ namespace PlayniteAchievements.Providers.Exophase
 
         public void Delete()
         {
+            InvalidateCache();
             try
             {
                 if (File.Exists(_snapshotPath))
@@ -167,6 +191,14 @@ namespace PlayniteAchievements.Providers.Exophase
             catch (Exception ex)
             {
                 _logger?.Warn(ex, "[ExophaseAuth] Failed to delete encrypted Exophase cookie snapshot.");
+            }
+        }
+
+        private void InvalidateCache()
+        {
+            lock (_cacheLock)
+            {
+                _cachedCookies = null;
             }
         }
 

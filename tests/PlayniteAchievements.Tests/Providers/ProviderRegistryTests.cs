@@ -190,6 +190,7 @@ namespace PlayniteAchievements.Providers.Tests
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public XeniaSettings Settings { get; }
 
@@ -232,6 +233,7 @@ namespace PlayniteAchievements.Providers.Tests
             public bool IsAuthenticated => true;
 
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public ProviderSettingsBase Settings { get; }
 

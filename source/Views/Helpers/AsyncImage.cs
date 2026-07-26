@@ -458,6 +458,14 @@ namespace PlayniteAchievements.Views.Helpers
         private static int ResolveDecodePixel(DependencyObject d)
         {
             var explicitDecode = GetDecodePixel(d);
+            if (explicitDecode < 0)
+            {
+                // Negative opt-out: decode at native resolution (no DecodePixelWidth
+                // downscale and no size-inferred reloads). Passed through negative so
+                // MemoryImageService can distinguish it from "unset".
+                return -1;
+            }
+
             if (!(d is FrameworkElement fe))
             {
                 return explicitDecode > 0 ? explicitDecode : DefaultDecodePixel;

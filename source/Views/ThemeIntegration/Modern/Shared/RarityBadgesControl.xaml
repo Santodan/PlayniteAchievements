@@ -11,6 +11,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
@@ -25,7 +26,7 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
             <DataTemplate>
-                <StackPanel Orientation="Horizontal" Margin="0,0,6,0" ClipToBounds="False">
+                <StackPanel Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Right.Compact}" ClipToBounds="False">
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">
                             <Setter Property="Visibility" Value="Visible"/>
@@ -42,11 +43,12 @@
                            Effect="{StaticResource BadgeShadow}"
                            VerticalAlignment="Center"
                            Style="{StaticResource RarityIcon}"/>
-                    <TextBlock Text="{Binding Count}"
+                    <TextBlock Text="{Binding Count, StringFormat={}{0:N0}}"
+                               Style="{StaticResource PlayAch.TextBlock.BaseStyle}"
                                VerticalAlignment="Center"
-                               Margin="4,0,0,0"
-                               FontSize="{DynamicResource FontSizeSmall}"
-                               Foreground="{DynamicResource TextBrush}"
+                               Margin="{StaticResource PlayAch.Thickness.Left.Xs}"
+                               FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
                                Opacity="0.85"/>
                 </StackPanel>
             </DataTemplate>

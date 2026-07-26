@@ -1,7 +1,13 @@
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Settings;
+using PlayniteAchievements.Services.Achievements;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Images;
+using PlayniteAchievements.Services.Summaries;
+using PlayniteAchievements.ViewModels.Items;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -13,7 +19,9 @@ namespace PlayniteAchievements.Services.ThemeIntegration
     {
         public static SelectedGameRuntimeState Build(
             Guid gameId,
-            GameAchievementData data)
+            GameAchievementData data,
+            GameSummaryItemBuilder summaryBuilder = null,
+            PlayniteAchievementsSettings settings = null)
         {
             if (data == null || !data.HasAchievements)
             {
@@ -46,30 +54,18 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                     new AchievementRarityStats());
             }
 
-            var total = achievements.Count;
             var game = data.Game;
             for (int i = 0; i < achievements.Count; i++)
             {
                 if (achievements[i] != null)
                 {
-                    // Modern compact lists resolve tooltip game name from AchievementDetail.Game.
-                    // Ensure selected-game snapshots always carry this context.
-                    achievements[i].Game = game;
-                    achievements[i].ProviderKey = data.EffectiveProviderKey;
+                    ApplyAchievementPresentation(achievements[i], data);
                 }
             }
 
-            var unlocked = 0;
-            for (int i = 0; i < achievements.Count; i++)
-            {
-                if (achievements[i]?.Unlocked == true)
-                {
-                    unlocked++;
-                }
-            }
-
-            var locked = total - unlocked;
-            var percent = AchievementCompletionPercentCalculator.ComputeRoundedPercent(unlocked, total);
+            var stats = AchievementStatsAccumulator.FromAchievements(achievements);
+            var locked = stats.LockedAchievements;
+            var percent = stats.ProgressPercent;
             var hasCustomOrder = data.AchievementOrder != null && data.AchievementOrder.Count > 0;
             var defaultOrder = hasCustomOrder
                 ? AchievementOrderHelper.ApplyOrder(
@@ -97,46 +93,19 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 nameof(AchievementDisplayItem.RaritySortValue),
                 ListSortDirection.Descending);
 
-            var common = new AchievementRarityStats();
-            var uncommon = new AchievementRarityStats();
-            var rare = new AchievementRarityStats();
-            var ultra = new AchievementRarityStats();
-
-            for (int i = 0; i < all.Count; i++)
-            {
-                var achievement = all[i];
-                if (achievement == null)
-                {
-                    continue;
-                }
-
-                var target = achievement.Rarity switch
-                {
-                    RarityTier.UltraRare => ultra,
-                    RarityTier.Rare => rare,
-                    RarityTier.Uncommon => uncommon,
-                    _ => common
-                };
-
-                target.Total++;
-                if (achievement.Unlocked)
-                {
-                    target.Unlocked++;
-                }
-                else
-                {
-                    target.Locked++;
-                }
-            }
-
+            var common = stats.CommonStats;
+            var uncommon = stats.UncommonStats;
+            var rare = stats.RareStats;
+            var ultra = stats.UltraRareStats;
             var rareAndUltra = AchievementRarityStatsCombiner.Combine(rare, ultra);
+            var selectedGameSummary = summaryBuilder?.Build(data, settings);
 
             return new SelectedGameRuntimeState(
                 gameId,
                 data.LastUpdatedUtc,
                 true,
-                total,
-                unlocked,
+                stats.TotalAchievements,
+                stats.UnlockedAchievements,
                 locked,
                 percent,
                 data.IsCompleted,
@@ -151,7 +120,57 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 uncommon,
                 rare,
                 ultra,
-                rareAndUltra);
+                rareAndUltra,
+                selectedGameSummary);
+        }
+
+        private static void ApplyAchievementPresentation(
+            AchievementDetail achievement,
+            GameAchievementData data)
+        {
+            if (achievement == null)
+            {
+                return;
+            }
+
+            // Modern compact lists resolve tooltip game name from AchievementDetail.Game.
+            // Ensure selected-game snapshots always carry this context.
+            achievement.Game = data?.Game;
+            achievement.ProviderKey = data?.EffectiveProviderKey;
+            ApplyCategoryImagePresentation(achievement, data);
+        }
+
+        private static void ApplyCategoryImagePresentation(
+            AchievementDetail achievement,
+            GameAchievementData data)
+        {
+            if (achievement == null)
+            {
+                return;
+            }
+
+            CategoryImageOverrideData imageOverride = null;
+            var category = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(achievement.Category);
+            achievement.CategoryOrderIndex =
+                AchievementCategoryFilterOrderHelper.ResolveCategoryOrderIndex(category, data?.AchievementCategoryOrder);
+            if (!string.IsNullOrWhiteSpace(category) &&
+                data?.AchievementCategoryImageOverrides != null)
+            {
+                data.AchievementCategoryImageOverrides.TryGetValue(category, out imageOverride);
+            }
+
+            // Default images are keyed by the provider label; renames only change Category.
+            var providerCategory = AchievementCategoryTypeHelper.NormalizeCategoryOrDefault(
+                achievement.ProviderCategory ?? achievement.Category);
+            achievement.CategoryArtPath =
+                NormalizeImageOverridePath(imageOverride?.Art) ??
+                CategoryDefaultImageResolver.Resolve(data?.PlayniteGameId, providerCategory);
+        }
+
+        private static string NormalizeImageOverridePath(string value)
+        {
+            var normalized = (value ?? string.Empty).Trim();
+            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
         }
 
     }

@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 
 namespace PlayniteAchievements.Views.ThemeIntegration.Modern
 {

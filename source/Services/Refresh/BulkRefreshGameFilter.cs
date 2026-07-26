@@ -3,7 +3,7 @@ using System.Linq;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models.Settings;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Refresh
 {
     internal static class BulkRefreshGameFilter
     {

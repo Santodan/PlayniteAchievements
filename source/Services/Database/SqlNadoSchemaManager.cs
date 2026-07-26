@@ -11,7 +11,7 @@ namespace PlayniteAchievements.Services.Database
 {
     internal sealed class SqlNadoSchemaManager
     {
-        public const int SchemaVersion = 10;
+        public const int SchemaVersion = 17;
         private const string LegacyGamesProviderGameIdIndexName = "UX_Games_Provider_GameId";
         private const string GamesProviderGameIdNonRaIndexName = "UX_Games_Provider_GameId_NonRA";
         private const string GamesProviderGameIdLookupIndexName = "IX_Games_Provider_GameId";
@@ -47,6 +47,10 @@ namespace PlayniteAchievements.Services.Database
                 DisplayName TEXT NULL,
                 IsCurrentUser INTEGER NOT NULL DEFAULT 0,
                 FriendSource TEXT NULL,
+                AvatarUrl TEXT NULL,
+                AvatarPath TEXT NULL,
+                LastRefreshedUtc TEXT NULL,
+                IsActiveFriend INTEGER NOT NULL DEFAULT 1,
                 CreatedUtc TEXT NOT NULL,
                 UpdatedUtc TEXT NOT NULL,
                 UNIQUE (ProviderKey, ExternalUserId)
@@ -57,9 +61,12 @@ namespace PlayniteAchievements.Services.Database
                 ProviderKey TEXT NOT NULL COLLATE NOCASE,
                 ProviderPlatformKey TEXT NULL,
                 ProviderGameId INTEGER NULL,
+                ProviderGameKey TEXT NULL COLLATE NOCASE,
                 PlayniteGameId TEXT NULL,
                 GameName TEXT NULL,
                 LibrarySourceName TEXT NULL,
+                IconPath TEXT NULL,
+                CoverPath TEXT NULL,
                 FirstSeenUtc TEXT NOT NULL,
                 LastUpdatedUtc TEXT NOT NULL
             );");
@@ -117,6 +124,9 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_UserGameProgress_User_LastUpdated
                 ON UserGameProgress (UserId, LastUpdatedUtc);");
 
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_UserGameProgress_GameId
+                ON UserGameProgress (GameId);");
+
             ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS UserAchievements (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 UserGameProgressId INTEGER NOT NULL,
@@ -138,6 +148,10 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_UserAchievements_Definition
                 ON UserAchievements (AchievementDefinitionId);");
 
+            EnsureFriendOwnershipTable(db);
+            EnsureProviderGameDefinitionStateTable(db);
+            EnsureAchievementFiltersTable(db);
+
             var storedVersion = GetStoredSchemaVersion(db);
             var verification = VerifyRequiredColumns(db);
 
@@ -151,6 +165,7 @@ namespace PlayniteAchievements.Services.Database
                 // Schema is correct - ensure version is set if needed
                 if (storedVersion < SchemaVersion)
                 {
+                    RunVersionedDataCleanups(db, storedVersion);
                     db.ExecuteNonQuery(
                         "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                         "schema_version",
@@ -189,12 +204,66 @@ namespace PlayniteAchievements.Services.Database
             // Create ProviderKey-dependent indexes after successful migration
             CreateProviderKeyIndexes(db);
 
+            RunVersionedDataCleanups(db, storedVersion);
             db.ExecuteNonQuery(
                 "INSERT OR REPLACE INTO CacheMetadata (Key, Value) VALUES (?, ?);",
                 "schema_version",
                 SchemaVersion.ToString(CultureInfo.InvariantCulture));
 
             BackfillRequiredAchievementCategoryValues(db);
+        }
+
+        // One-time data cleanups tied to schema version upgrades. Runs before the stored version is
+        // advanced; fresh databases (storedVersion 0) have nothing to clean.
+        private void RunVersionedDataCleanups(SQLiteDatabase db, int storedVersion)
+        {
+            if (storedVersion <= 0)
+            {
+                return;
+            }
+
+            if (storedVersion < 16)
+            {
+                CleanupZeroUnlockProviderOnlyFriendOwnership(db);
+            }
+        }
+
+        // v16: friend ownership rows for provider-only games (no PlayniteGameId) are only written once
+        // a probe has confirmed the friend has unlocked achievements. Older caches persisted them
+        // unconditionally; delete the rows whose friend has no unlocked achievement for that game so
+        // the ownership-driven friends overview matches the refresh-side invariant without display
+        // filtering. Mirrors the unlocks predicate of LoadFriendGameSummaryRows (UserGameProgress ->
+        // UserAchievements with Unlocked = 1).
+        private void CleanupZeroUnlockProviderOnlyFriendOwnership(SQLiteDatabase db)
+        {
+            try
+            {
+                db.ExecuteNonQuery(@"DELETE FROM FriendOwnership
+                    WHERE Id IN (
+                        SELECT fo.Id
+                        FROM FriendOwnership fo
+                        INNER JOIN Users u ON u.Id = fo.UserId
+                        INNER JOIN Games g ON g.Id = fo.GameId
+                        WHERE g.PlayniteGameId IS NULL
+                          AND u.IsCurrentUser = 0
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM UserGameProgress ugp
+                              INNER JOIN UserAchievements ua
+                                  ON ua.UserGameProgressId = ugp.Id AND ua.Unlocked = 1
+                              WHERE ugp.UserId = fo.UserId AND ugp.GameId = fo.GameId
+                          )
+                    );");
+                var deleted = db.ExecuteScalar<long>("SELECT changes();");
+                if (deleted > 0)
+                {
+                    _logger?.Info($"[Schema] v16 cleanup removed {deleted} zero-unlock provider-only friend ownership row(s).");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                _logger?.Error(ex, "[Schema] v16 zero-unlock provider-only friend ownership cleanup failed.");
+            }
         }
 
         private void ExecuteSafe(SQLiteDatabase db, string sql)
@@ -225,6 +294,9 @@ namespace PlayniteAchievements.Services.Database
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Users_CurrentUser_Id
                 ON Users (IsCurrentUser, Id);");
 
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_UserGameProgress_GameId
+                ON UserGameProgress (GameId);");
+
             ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_Games_Provider_Playnite
                 ON Games (ProviderKey, PlayniteGameId)
                 WHERE PlayniteGameId IS NOT NULL;");
@@ -233,11 +305,112 @@ namespace PlayniteAchievements.Services.Database
                 ON Games (ProviderKey, ProviderGameId)
                 WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0;");
 
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Games_Provider_GameKey
+                ON Games (ProviderKey, ProviderGameKey)
+                WHERE ProviderGameKey IS NOT NULL AND TRIM(ProviderGameKey) <> '';");
+
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Games_PlayniteGameId
                 ON Games (PlayniteGameId);");
 
             ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Games_LastUpdatedUtc
                 ON Games (LastUpdatedUtc);");
+
+            // Covering indexes for the friends-overview summary aggregates (schema v14): the
+            // friend-user set is filtered by (IsActiveFriend, IsCurrentUser) in every friend
+            // CTE, and the unlocked-achievement joins probe UserAchievements by
+            // (UserGameProgressId, Unlocked).
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_Users_ActiveFriend
+                ON Users (IsActiveFriend, IsCurrentUser)
+                WHERE IsActiveFriend = 1 AND IsCurrentUser = 0;");
+
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_UserAchievements_Progress_Unlocked
+                ON UserAchievements (UserGameProgressId, Unlocked);");
+
+            EnsureFriendOwnershipTable(db);
+            EnsureFriendOwnershipIndexes(db);
+            EnsureProviderGameDefinitionStateTable(db);
+            EnsureProviderGameDefinitionStateIndexes(db);
+            EnsureAchievementFiltersTable(db);
+        }
+
+        private void EnsureFriendOwnershipTable(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS FriendOwnership (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                UserId INTEGER NOT NULL,
+                GameId INTEGER NOT NULL,
+                PlaytimeForeverMinutes INTEGER NOT NULL DEFAULT 0,
+                Playtime2WeeksMinutes INTEGER NULL,
+                LastPlayedUtc TEXT NULL,
+                LastOwnershipRefreshUtc TEXT NULL,
+                LastScrapedUtc TEXT NULL,
+                LastScrapeStatus TEXT NULL,
+                LastScrapeDetail TEXT NULL,
+                CreatedUtc TEXT NOT NULL,
+                UpdatedUtc TEXT NOT NULL,
+                FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
+                FOREIGN KEY (GameId) REFERENCES Games(Id) ON DELETE CASCADE,
+                UNIQUE (UserId, GameId)
+            );");
+        }
+
+        private void EnsureFriendOwnershipIndexes(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_FriendOwnership_Game_User
+                ON FriendOwnership (GameId, UserId);");
+
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_FriendOwnership_User
+                ON FriendOwnership (UserId);");
+
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_FriendOwnership_LastScraped
+                ON FriendOwnership (LastScrapedUtc, LastScrapeStatus);");
+        }
+
+        // Derived mirror of the per-game achievement filter lists stored in game_custom_data.db
+        // (a separate SQLite file the summary queries cannot join to). Fully resynced from
+        // custom data at startup and on every CustomDataChanged; refresh saves never touch it.
+        // The UNIQUE index prefix-covers the summary queries' (PlayniteGameId, ApiName)
+        // anti-join probe.
+        private void EnsureAchievementFiltersTable(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS AchievementFilters (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlayniteGameId TEXT NOT NULL COLLATE NOCASE,
+                ApiName TEXT NOT NULL COLLATE NOCASE,
+                Kind TEXT NOT NULL COLLATE NOCASE,
+                CreatedUtc TEXT NOT NULL,
+                UNIQUE (PlayniteGameId, ApiName, Kind)
+            );");
+        }
+
+        private void EnsureProviderGameDefinitionStateTable(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE TABLE IF NOT EXISTS ProviderGameDefinitionState (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ProviderKey TEXT NOT NULL COLLATE NOCASE,
+                ProviderGameId INTEGER NULL,
+                ProviderGameKey TEXT NULL COLLATE NOCASE,
+                GameName TEXT NULL,
+                IconUrl TEXT NULL,
+                Status TEXT NOT NULL,
+                LastCheckedUtc TEXT NOT NULL,
+                CreatedUtc TEXT NOT NULL,
+                UpdatedUtc TEXT NOT NULL
+            );");
+        }
+
+        private void EnsureProviderGameDefinitionStateIndexes(SQLiteDatabase db)
+        {
+            ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_ProviderGameDefinitionState_GameId
+                ON ProviderGameDefinitionState (ProviderKey, ProviderGameId)
+                WHERE ProviderGameId IS NOT NULL AND ProviderGameId > 0;");
+
+            ExecuteSafe(db, @"CREATE UNIQUE INDEX IF NOT EXISTS UX_ProviderGameDefinitionState_GameKey
+                ON ProviderGameDefinitionState (ProviderKey, ProviderGameKey)
+                WHERE ProviderGameKey IS NOT NULL AND TRIM(ProviderGameKey) <> '';");
+
+            ExecuteSafe(db, @"CREATE INDEX IF NOT EXISTS IX_ProviderGameDefinitionState_Status_Checked
+                ON ProviderGameDefinitionState (Status, LastCheckedUtc);");
         }
 
         private void BackfillRequiredAchievementCategoryValues(SQLiteDatabase db)
@@ -357,6 +530,7 @@ namespace PlayniteAchievements.Services.Database
                                 ProviderKey TEXT NOT NULL COLLATE NOCASE,
                                 ProviderPlatformKey TEXT NULL,
                                 ProviderGameId INTEGER NULL,
+                                ProviderGameKey TEXT NULL COLLATE NOCASE,
                                 PlayniteGameId TEXT NULL,
                                 GameName TEXT NULL,
                                 LibrarySourceName TEXT NULL,
@@ -367,7 +541,7 @@ namespace PlayniteAchievements.Services.Database
 
                         // Migrate data with value transformation (INSERT OR IGNORE to handle duplicates)
                         ExecuteSafe(db,
-                                                        @"INSERT OR IGNORE INTO Games_New (Id, ProviderKey, ProviderPlatformKey, ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
+                                                        @"INSERT OR IGNORE INTO Games_New (Id, ProviderKey, ProviderPlatformKey, ProviderGameId, ProviderGameKey, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc)
                               SELECT
                                 Id,
                                 CASE
@@ -390,7 +564,7 @@ namespace PlayniteAchievements.Services.Database
                                     ELSE 'Unmapped'
                                 END,
                                                                 NULL,
-                                ProviderGameId, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
+                                ProviderGameId, NULL, PlayniteGameId, GameName, LibrarySourceName, FirstSeenUtc, LastUpdatedUtc
                               FROM Games;");
                         _logger?.Info("[Schema] Migrated Games data to ProviderKey");
 
@@ -436,6 +610,9 @@ namespace PlayniteAchievements.Services.Database
                                 DisplayName TEXT NULL,
                                 IsCurrentUser INTEGER NOT NULL DEFAULT 0,
                                 FriendSource TEXT NULL,
+                                AvatarUrl TEXT NULL,
+                                LastRefreshedUtc TEXT NULL,
+                                IsActiveFriend INTEGER NOT NULL DEFAULT 1,
                                 CreatedUtc TEXT NOT NULL,
                                 UpdatedUtc TEXT NOT NULL,
                                 UNIQUE (ProviderKey, ExternalUserId)
@@ -444,7 +621,7 @@ namespace PlayniteAchievements.Services.Database
 
                         // Migrate data with value transformation (INSERT OR IGNORE to handle duplicates)
                         ExecuteSafe(db,
-                            @"INSERT OR IGNORE INTO Users_New (Id, ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, CreatedUtc, UpdatedUtc)
+                            @"INSERT OR IGNORE INTO Users_New (Id, ProviderKey, ExternalUserId, DisplayName, IsCurrentUser, FriendSource, AvatarUrl, LastRefreshedUtc, IsActiveFriend, CreatedUtc, UpdatedUtc)
                               SELECT
                                 Id,
                                 CASE
@@ -466,7 +643,7 @@ namespace PlayniteAchievements.Services.Database
                                     WHEN LOWER(ProviderName) = 'unmapped' THEN 'Unmapped'
                                     ELSE 'Unmapped'
                                 END,
-                                ExternalUserId, DisplayName, IsCurrentUser, FriendSource, CreatedUtc, UpdatedUtc
+                                ExternalUserId, DisplayName, IsCurrentUser, FriendSource, NULL, NULL, 1, CreatedUtc, UpdatedUtc
                               FROM Users;");
                         _logger?.Info("[Schema] Migrated Users data to ProviderKey");
 
@@ -499,8 +676,55 @@ namespace PlayniteAchievements.Services.Database
 
             gamesColumns = GetColumnNames(db, "Games");
             EnsureColumn(db, "Games", "ProviderPlatformKey", "TEXT NULL", gamesColumns, ref backupPath);
+            EnsureColumn(db, "Games", "ProviderGameKey", "TEXT NULL COLLATE NOCASE", gamesColumns, ref backupPath);
+            EnsureColumn(db, "Games", "IconPath", "TEXT NULL", gamesColumns, ref backupPath);
+            EnsureColumn(db, "Games", "CoverPath", "TEXT NULL", gamesColumns, ref backupPath);
+
+            usersColumns = GetColumnNames(db, "Users");
+            EnsureColumn(db, "Users", "AvatarUrl", "TEXT NULL", usersColumns, ref backupPath);
+            EnsureColumn(db, "Users", "AvatarPath", "TEXT NULL", usersColumns, ref backupPath);
+            EnsureColumn(db, "Users", "LastRefreshedUtc", "TEXT NULL", usersColumns, ref backupPath);
+            EnsureColumn(db, "Users", "IsActiveFriend", "INTEGER NOT NULL DEFAULT 1", usersColumns, ref backupPath);
+
+            EnsureFriendOwnershipTable(db);
+            ReconcileFriendOwnershipColumns(db, ref backupPath);
+            ReconcileProviderGameDefinitionStateTable(db, ref backupPath);
+            EnsureProviderGameDefinitionStateTable(db);
+            EnsureProviderGameDefinitionStateIndexes(db);
+            EnsureAchievementFiltersTable(db);
 
             return backupPath;
+        }
+
+        private void ReconcileProviderGameDefinitionStateTable(SQLiteDatabase db, ref string backupPath)
+        {
+            var columns = GetColumnNames(db, "ProviderGameDefinitionState");
+            if (columns.Count == 0)
+            {
+                return;
+            }
+
+            if (!columns.Contains("providergamekey"))
+            {
+                ExecuteSchemaChangeWithBackup(
+                    db,
+                    "DROP TABLE IF EXISTS ProviderGameDefinitionState;",
+                    ref backupPath,
+                    "Recreated ProviderGameDefinitionState for string provider game keys.");
+            }
+        }
+
+        private void ReconcileFriendOwnershipColumns(SQLiteDatabase db, ref string backupPath)
+        {
+            var columns = GetColumnNames(db, "FriendOwnership");
+            EnsureColumn(db, "FriendOwnership", "Playtime2WeeksMinutes", "INTEGER NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "LastPlayedUtc", "TEXT NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "LastOwnershipRefreshUtc", "TEXT NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "LastScrapedUtc", "TEXT NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "LastScrapeStatus", "TEXT NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "LastScrapeDetail", "TEXT NULL", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "CreatedUtc", "TEXT NOT NULL DEFAULT ''", columns, ref backupPath);
+            EnsureColumn(db, "FriendOwnership", "UpdatedUtc", "TEXT NOT NULL DEFAULT ''", columns, ref backupPath);
         }
 
         private void ReconcileGamesProviderGameIdIndexes(SQLiteDatabase db, ref string backupPath)
@@ -689,9 +913,46 @@ namespace PlayniteAchievements.Services.Database
             var gamesColumns = GetColumnNames(db, "Games");
             EnsureRequiredColumn(gamesColumns, "ProviderKey", "Games", missing);
             EnsureRequiredColumn(gamesColumns, "ProviderPlatformKey", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "ProviderGameKey", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "IconPath", "Games", missing);
+            EnsureRequiredColumn(gamesColumns, "CoverPath", "Games", missing);
 
             var usersColumns = GetColumnNames(db, "Users");
             EnsureRequiredColumn(usersColumns, "ProviderKey", "Users", missing);
+            EnsureRequiredColumn(usersColumns, "AvatarUrl", "Users", missing);
+            EnsureRequiredColumn(usersColumns, "AvatarPath", "Users", missing);
+            EnsureRequiredColumn(usersColumns, "LastRefreshedUtc", "Users", missing);
+            EnsureRequiredColumn(usersColumns, "IsActiveFriend", "Users", missing);
+
+            var friendOwnershipColumns = GetColumnNames(db, "FriendOwnership");
+            EnsureRequiredColumn(friendOwnershipColumns, "UserId", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "GameId", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "PlaytimeForeverMinutes", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "Playtime2WeeksMinutes", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "LastPlayedUtc", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "LastOwnershipRefreshUtc", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "LastScrapedUtc", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "LastScrapeStatus", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "LastScrapeDetail", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "CreatedUtc", "FriendOwnership", missing);
+            EnsureRequiredColumn(friendOwnershipColumns, "UpdatedUtc", "FriendOwnership", missing);
+
+            var achievementFilterColumns = GetColumnNames(db, "AchievementFilters");
+            EnsureRequiredColumn(achievementFilterColumns, "PlayniteGameId", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "ApiName", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "Kind", "AchievementFilters", missing);
+            EnsureRequiredColumn(achievementFilterColumns, "CreatedUtc", "AchievementFilters", missing);
+
+            var providerGameDefinitionStateColumns = GetColumnNames(db, "ProviderGameDefinitionState");
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderKey", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderGameId", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "ProviderGameKey", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "GameName", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "IconUrl", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "Status", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "LastCheckedUtc", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "CreatedUtc", "ProviderGameDefinitionState", missing);
+            EnsureRequiredColumn(providerGameDefinitionStateColumns, "UpdatedUtc", "ProviderGameDefinitionState", missing);
 
             // Note: Index verification is intentionally NOT done here because indexes are
             // created in CreateProviderKeyIndexes which runs AFTER this verification passes.

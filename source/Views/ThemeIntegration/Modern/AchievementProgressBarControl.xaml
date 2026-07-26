@@ -5,15 +5,17 @@
                    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
                    xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
                    xmlns:shared="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern.Shared"
+                   xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
                    mc:Ignorable="d"
                    d:DesignHeight="50" d:DesignWidth="300">
 
     <base:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <converters:WholePercentToTextConverter x:Key="WholePercentToText"/>
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
@@ -30,18 +32,18 @@
             </Style>
         </Grid.Style>
         <Grid.Resources>
-            <Style x:Key="DesktopProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource GameProgressBar}">
+            <Style x:Key="DesktopProgressBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
                 <Setter Property="Height" Value="20"/>
             </Style>
 
-            <Style x:Key="DesktopProgressPercentTextStyle" TargetType="TextBlock">
+            <Style x:Key="DesktopProgressPercentTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
                 <Setter Property="HorizontalAlignment" Value="Center"/>
                 <Setter Property="TextAlignment" Value="Center"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
                 <Setter Property="Margin" Value="0"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
-                <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+                <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
             </Style>
 
             <Style x:Key="ProgressFooterStyle" TargetType="Grid">
@@ -64,7 +66,7 @@
             <ProgressBar Value="{Binding ProgressPercentage, Mode=OneWay}"
                          Maximum="100"
                          Style="{StaticResource DesktopProgressBarStyle}"/>
-            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay, StringFormat={}{0:F0}%}"
+            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay, Converter={StaticResource WholePercentToText}}"
                        Style="{StaticResource DesktopProgressPercentTextStyle}"
                        TextWrapping="NoWrap"
                        IsHitTestVisible="False"
@@ -79,7 +81,7 @@
             </Grid.ColumnDefinitions>
 
             <Image Grid.Column="0"
-                   Source="{StaticResource BadgeCompletedGame}"
+                   Source="{DynamicResource BadgeRarityCompleted}"
                    Style="{StaticResource ProgressFooterCompletedIconStyle}"
                    ToolTip="{DynamicResource LOCPlayAch_Completed}"
                    Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
@@ -88,7 +90,7 @@
                                         Grid.Column="1"
                                         BadgeSize="14"
                                         UseUniformRarityBadges="{Binding DataContext.Persisted.UseUniformRarityBadges, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                                        Margin="8,0,0,0"
+                                        Margin="{StaticResource PlayAch.Thickness.Left.Sm}"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"/>
         </Grid>

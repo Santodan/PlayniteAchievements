@@ -37,6 +37,42 @@ namespace PlayniteAchievements.Tests.Localization
             CollectionAssert.AreEqual(Array.Empty<string>(), missing);
         }
 
+        [TestMethod]
+        public void EnUsContainsProviderOverrideKeys()
+        {
+            var enUsPath = FindRepoFile("source", "Localization", "en_US.xaml");
+            XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+            var keys = new HashSet<string>(
+                XDocument.Load(enUsPath)
+                    .Descendants()
+                    .Select(element => (string)element.Attribute(xaml + "Key"))
+                    .Where(key => !string.IsNullOrWhiteSpace(key)),
+                StringComparer.Ordinal);
+
+            var expected = new[]
+            {
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Epic",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_GOG",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_PSN",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xbox",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_EA",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Hoyoverse",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_BattleNet",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderValueRequired",
+                "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice",
+                "LOCPlayAch_Menu_PsnNpCommId_InvalidId",
+                "LOCPlayAch_Menu_XboxTitleId_InvalidId"
+            };
+
+            var missing = expected
+                .Where(key => !keys.Contains(key))
+                .OrderBy(key => key, StringComparer.Ordinal)
+                .ToList();
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), missing);
+        }
+
         private static string FindRepoFile(params string[] parts)
         {
             var directory = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);

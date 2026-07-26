@@ -4,6 +4,11 @@ using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
+using PlayniteAchievements.Services.UI;
+using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 using System;
 using System.Collections.Generic;
@@ -15,6 +20,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 
 namespace PlayniteAchievements.Views
 {
@@ -156,6 +162,16 @@ namespace PlayniteAchievements.Views
         private readonly Dictionary<Guid, Game> _gamesById = new Dictionary<Guid, Game>();
         private readonly HashSet<string> _cachedGameIds;
 
+        // Provider capability results are stable while the dialog is open, but IsCapable can be
+        // expensive (custom-data lookups, emulator file probing), so cache per provider+game.
+        // Guarded by a lock because estimates run on background threads.
+        private readonly object _capabilityCacheSync = new object();
+        private readonly Dictionary<string, Dictionary<Guid, bool>> _capabilityCacheByProvider =
+            new Dictionary<string, Dictionary<Guid, bool>>(StringComparer.OrdinalIgnoreCase);
+
+        // UI-thread-only generation counter; stale background estimate results are dropped.
+        private int _summaryGeneration;
+
         private string _includeSearchText = string.Empty;
         private string _excludeSearchText = string.Empty;
         private CustomGameScope _selectedScope = CustomGameScope.All;
@@ -171,6 +187,7 @@ namespace PlayniteAchievements.Views
         private bool _canRun;
         private CustomRefreshPreset _selectedPreset;
         private CustomRefreshPreset _placeholderPreset;
+        private DispatcherTimer _summaryDebounceTimer;
 
         public event EventHandler RequestClose;
         public event PropertyChangedEventHandler PropertyChanged;
@@ -180,7 +197,7 @@ namespace PlayniteAchievements.Views
 
         public ObservableCollection<ProviderOptionItem> ProviderOptions { get; } = new ObservableCollection<ProviderOptionItem>();
         public ObservableCollection<ScopeOptionItem> ScopeOptions { get; } = new ObservableCollection<ScopeOptionItem>();
-        public ObservableCollection<GameOptionItem> GameOptions { get; } = new ObservableCollection<GameOptionItem>();
+        public BulkObservableCollection<GameOptionItem> GameOptions { get; } = new BulkObservableCollection<GameOptionItem>();
         public ObservableCollection<CustomRefreshPreset> PresetOptions { get; } = new ObservableCollection<CustomRefreshPreset>();
 
         public ICollectionView IncludeGameView { get; }
@@ -201,6 +218,13 @@ namespace PlayniteAchievements.Views
                 OnPropertyChanged(nameof(CanLoadPreset));
                 OnPropertyChanged(nameof(CanSavePreset));
                 OnPropertyChanged(nameof(CanDeletePreset));
+
+                // Selecting a preset applies it immediately; the Load button remains as an
+                // explicit way to re-apply the preset after tweaking individual options.
+                if (_selectedPreset?.Options != null)
+                {
+                    ApplySelectedPreset();
+                }
             }
         }
 
@@ -252,7 +276,7 @@ namespace PlayniteAchievements.Views
 
                 _selectedScope = value;
                 OnPropertyChanged(nameof(SelectedScope));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -268,7 +292,7 @@ namespace PlayniteAchievements.Views
 
                 _useRecentLimitOverride = value;
                 OnPropertyChanged(nameof(UseRecentLimitOverride));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -284,7 +308,7 @@ namespace PlayniteAchievements.Views
 
                 _recentLimitOverrideText = value;
                 OnPropertyChanged(nameof(RecentLimitOverrideText));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -300,7 +324,7 @@ namespace PlayniteAchievements.Views
 
                 _useIncludeUnplayedOverride = value;
                 OnPropertyChanged(nameof(UseIncludeUnplayedOverride));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -316,7 +340,7 @@ namespace PlayniteAchievements.Views
 
                 _includeUnplayedOverrideValue = value;
                 OnPropertyChanged(nameof(IncludeUnplayedOverrideValue));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -332,7 +356,7 @@ namespace PlayniteAchievements.Views
 
                 _respectUserExclusions = value;
                 OnPropertyChanged(nameof(RespectUserExclusions));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -348,7 +372,7 @@ namespace PlayniteAchievements.Views
 
                 _forceBypassExclusionsForExplicitIncludes = value;
                 OnPropertyChanged(nameof(ForceBypassExclusionsForExplicitIncludes));
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -438,7 +462,7 @@ namespace PlayniteAchievements.Views
             _recentLimitOverrideText = (_settings?.Persisted?.RecentRefreshGamesCount ?? 10).ToString();
             _placeholderPreset = new CustomRefreshPreset
             {
-                Name = L("LOCPlayAch_CustomRefresh_None", " "),
+                Name = L("LOCPlayAch_Common_None"),
                 Options = null
             };
 
@@ -449,6 +473,9 @@ namespace PlayniteAchievements.Views
             _ = RefreshProviderOptionsAsync();
             InitializeGames();
             InitializePresets();
+
+            // Kicks off the estimate on a background thread; the window opens without
+            // waiting for the full library capability walk.
             RecalculateSummary();
         }
 
@@ -461,6 +488,8 @@ namespace PlayniteAchievements.Views
             out CustomRefreshOptions options)
         {
             options = null;
+
+            EnsureThemeResources(settings);
 
             var control = new CustomRefreshControl(api, refreshRuntime, persistSettingsForUi, settings, logger);
             var window = PlayniteUiProvider.CreateExtensionWindow(
@@ -496,16 +525,28 @@ namespace PlayniteAchievements.Views
             return false;
         }
 
+        private static void EnsureThemeResources(PlayniteAchievementsSettings settings)
+        {
+            var resources = Application.Current?.Resources;
+            if (resources != null)
+            {
+                PlayAchResourceService.Apply(
+                    resources,
+                    settings?.Persisted?.ResourceOverrides,
+                    settings?.Persisted);
+            }
+        }
+
         private void InitializeScopeOptions()
         {
             ScopeOptions.Clear();
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.All, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_All", "All games") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Installed, DisplayName = L("LOCPlayAch_RefreshModeShort_Installed", "Installed") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Favorites, DisplayName = L("LOCPlayAch_RefreshModeShort_Favorites", "Favorites") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Recent, DisplayName = L("LOCPlayAch_RefreshModeShort_Recent", "Recent") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.LibrarySelected, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_LibrarySelected", "Library selected") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Missing, DisplayName = L("LOCPlayAch_RefreshModeShort_Missing", "Missing") });
-            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Explicit, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Explicit", "Explicit only") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.All, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_All") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Installed, DisplayName = L("LOCPlayAch_RefreshModeShort_Installed") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Favorites, DisplayName = L("LOCPlayAch_RefreshModeShort_Favorites") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Recent, DisplayName = L("LOCPlayAch_RefreshModeShort_Recent") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.LibrarySelected, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_LibrarySelected") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Missing, DisplayName = L("LOCPlayAch_RefreshModeShort_Missing") });
+            ScopeOptions.Add(new ScopeOptionItem { Scope = CustomGameScope.Explicit, DisplayName = L("LOCPlayAch_CustomRefresh_Scope_Explicit") });
         }
 
         private void InitializeProviders()
@@ -513,9 +554,9 @@ namespace PlayniteAchievements.Views
             ProviderOptions.Clear();
             _providersByKey.Clear();
 
-            var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready", "Ready");
-            var disabledText = L("LOCPlayAch_Common_Status_Disabled", "Disabled");
-            var noAuthText = L("LOCPlayAch_Common_NotAuthenticated", "Not authenticated");
+            var readyText = L("LOCPlayAch_CustomRefresh_ProviderStatus_Ready");
+            var disabledText = L("LOCPlayAch_Common_Status_Disabled");
+            var noAuthText = L("LOCPlayAch_Common_NotAuthenticated");
 
             foreach (var provider in _refreshService.Providers)
             {
@@ -557,16 +598,27 @@ namespace PlayniteAchievements.Views
                 option.IsEnabled = isEnabled;
                 option.IsAuthenticated = isEnabled &&
                     await _refreshService.IsProviderAuthenticatedAsync(provider, CancellationToken.None).ConfigureAwait(true);
+
+                // Settle any selection made while this probe was pending (e.g. a preset applied at
+                // window open): a provider confirmed unavailable cannot stay selected.
+                if (!option.IsSelectable && option.IsSelected)
+                {
+                    option.IsSelected = false;
+                }
             }
 
-            RecalculateSummary();
+            ScheduleSummaryRecalculation();
         }
 
         private void InitializeGames()
         {
-            GameOptions.Clear();
             _gamesById.Clear();
 
+            // Both collection views observe GameOptions; ReplaceAll raises a single
+            // Reset so bulk population runs one filter pass per view instead of two
+            // per added game. (DeferRefresh cannot be used here: mutating the source
+            // collection while a ListCollectionView refresh is deferred throws.)
+            var gameItems = new List<GameOptionItem>();
             foreach (var game in _api.Database.Games
                 .Where(game => game != null && game.Id != Guid.Empty)
                 .OrderBy(game => game.Name, StringComparer.OrdinalIgnoreCase))
@@ -575,8 +627,10 @@ namespace PlayniteAchievements.Views
 
                 var gameItem = new GameOptionItem(game.Id, BuildGameDisplayName(game));
                 gameItem.PropertyChanged += OnGameOptionChanged;
-                GameOptions.Add(gameItem);
+                gameItems.Add(gameItem);
             }
+
+            GameOptions.ReplaceAll(gameItems);
         }
 
         private void InitializePresets()
@@ -654,11 +708,11 @@ namespace PlayniteAchievements.Views
             presetName = null;
 
             var inputDialog = new TextInputDialog(
-                L("LOCPlayAch_CustomRefresh_Presets_NameDialogHint", "Enter a preset name."),
+                L("LOCPlayAch_CustomRefresh_Presets_NameDialogHint"),
                 defaultName ?? string.Empty);
 
             var window = PlayniteUiProvider.CreateExtensionWindow(
-                L("LOCPlayAch_CustomRefresh_Presets_NameDialogTitle", "Save preset"),
+                L("LOCPlayAch_CustomRefresh_Presets_NameDialogTitle"),
                 inputDialog,
                 new WindowOptions
                 {
@@ -694,7 +748,7 @@ namespace PlayniteAchievements.Views
             {
                 _api.Dialogs.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_NameInvalid", "Preset name must be between 1 and {0} characters."),
+                        L("LOCPlayAch_CustomRefresh_Presets_NameInvalid"),
                         CustomRefreshPreset.MaxNameLength),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
@@ -767,7 +821,7 @@ namespace PlayniteAchievements.Views
                 e?.PropertyName == nameof(ProviderOptionItem.IsAuthenticated) ||
                 e?.PropertyName == nameof(ProviderOptionItem.IsEnabled))
             {
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -776,7 +830,7 @@ namespace PlayniteAchievements.Views
             if (e?.PropertyName == nameof(GameOptionItem.IsIncluded) ||
                 e?.PropertyName == nameof(GameOptionItem.IsExcluded))
             {
-                RecalculateSummary();
+                ScheduleSummaryRecalculation();
             }
         }
 
@@ -793,20 +847,64 @@ namespace PlayniteAchievements.Views
                 .ToList();
         }
 
-        private List<Guid> ResolveEstimatedTargets(IReadOnlyList<IDataProvider> providers)
+        /// <summary>
+        /// Immutable snapshot of the UI state an estimate depends on, captured on the UI
+        /// thread so the estimate itself can run on a background thread.
+        /// </summary>
+        private sealed class SummaryEstimateRequest
         {
+            public IReadOnlyList<IDataProvider> Providers { get; set; }
+            public CustomGameScope Scope { get; set; }
+            public bool IncludeUnplayed { get; set; }
+            public int RecentLimit { get; set; }
+            public List<Game> LibrarySelectedGames { get; set; }
+            public List<Guid> IncludeIds { get; set; }
+            public List<Guid> ExcludeIds { get; set; }
+            public bool RespectUserExclusions { get; set; }
+            public bool ForceBypassExclusionsForExplicitIncludes { get; set; }
+        }
+
+        private SummaryEstimateRequest BuildSummaryEstimateRequest(IReadOnlyList<IDataProvider> providers)
+        {
+            return new SummaryEstimateRequest
+            {
+                Providers = providers,
+                Scope = SelectedScope,
+                IncludeUnplayed = UseIncludeUnplayedOverride
+                    ? IncludeUnplayedOverrideValue
+                    : (_settings?.Persisted?.IncludeUnplayedGames ?? true),
+                RecentLimit = ResolveRecentLimitForEstimate(),
+                LibrarySelectedGames = SelectedScope == CustomGameScope.LibrarySelected
+                    ? (_api.MainView.SelectedGames?.Where(game => game != null).ToList() ?? new List<Game>())
+                    : null,
+                IncludeIds = GameOptions
+                    .Where(option => option.IsIncluded)
+                    .Select(option => option.GameId)
+                    .Distinct()
+                    .ToList(),
+                ExcludeIds = GameOptions
+                    .Where(option => option.IsExcluded)
+                    .Select(option => option.GameId)
+                    .Distinct()
+                    .ToList(),
+                RespectUserExclusions = RespectUserExclusions,
+                ForceBypassExclusionsForExplicitIncludes = ForceBypassExclusionsForExplicitIncludes
+            };
+        }
+
+        private List<Guid> ResolveEstimatedTargets(SummaryEstimateRequest request)
+        {
+            var providers = request?.Providers;
             if (providers == null || providers.Count == 0)
             {
                 return new List<Guid>();
             }
 
-            var includeUnplayed = UseIncludeUnplayedOverride
-                ? IncludeUnplayedOverrideValue
-                : (_settings?.Persisted?.IncludeUnplayedGames ?? true);
-            var recentLimit = ResolveRecentLimitForEstimate();
+            var includeUnplayed = request.IncludeUnplayed;
+            var recentLimit = request.RecentLimit;
 
             IEnumerable<Game> scopedGames;
-            switch (SelectedScope)
+            switch (request.Scope)
             {
                 case CustomGameScope.All:
                     scopedGames = _gamesById.Values;
@@ -845,7 +943,7 @@ namespace PlayniteAchievements.Views
                     break;
 
                 case CustomGameScope.LibrarySelected:
-                    scopedGames = _api.MainView.SelectedGames?.Where(game => game != null) ?? Enumerable.Empty<Game>();
+                    scopedGames = request.LibrarySelectedGames ?? Enumerable.Empty<Game>();
                     break;
 
                 case CustomGameScope.Missing:
@@ -863,21 +961,13 @@ namespace PlayniteAchievements.Views
                     break;
             }
 
-            if (ShouldApplyHiddenFilter(SelectedScope))
+            if (ShouldApplyHiddenFilter(request.Scope))
             {
                 scopedGames = BulkRefreshGameFilter.ApplyHiddenFilter(scopedGames, _settings?.Persisted);
             }
 
-            var includeIds = GameOptions
-                .Where(option => option.IsIncluded)
-                .Select(option => option.GameId)
-                .Distinct()
-                .ToList();
-            var excludeIds = GameOptions
-                .Where(option => option.IsExcluded)
-                .Select(option => option.GameId)
-                .Distinct()
-                .ToList();
+            var includeIds = request.IncludeIds ?? new List<Guid>();
+            var excludeIds = request.ExcludeIds ?? new List<Guid>();
 
             var explicitIncludeSet = new HashSet<Guid>(includeIds);
             var explicitExcludeSet = new HashSet<Guid>(excludeIds);
@@ -908,7 +998,7 @@ namespace PlayniteAchievements.Views
                 orderedIds = orderedIds.Where(id => !explicitExcludeSet.Contains(id)).ToList();
             }
 
-            if (RespectUserExclusions)
+            if (request.RespectUserExclusions)
             {
                 var excludedByUser = GameCustomDataLookup.GetExcludedRefreshGameIds(_settings?.Persisted);
                 if (excludedByUser != null && excludedByUser.Count > 0)
@@ -921,7 +1011,7 @@ namespace PlayniteAchievements.Views
                                 return true;
                             }
 
-                            return ForceBypassExclusionsForExplicitIncludes &&
+                            return request.ForceBypassExclusionsForExplicitIncludes &&
                                    explicitIncludeSet.Contains(id) &&
                                    !explicitExcludeSet.Contains(id);
                         })
@@ -960,20 +1050,49 @@ namespace PlayniteAchievements.Views
                     continue;
                 }
 
-                try
+                if (IsCapableCached(provider, game))
                 {
-                    if (provider.IsCapable(game))
-                    {
-                        return true;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger?.Debug(ex, $"Provider capability check failed for game '{game?.Name}'.");
+                    return true;
                 }
             }
 
             return false;
+        }
+
+        private bool IsCapableCached(IDataProvider provider, Game game)
+        {
+            Dictionary<Guid, bool> providerCache;
+            lock (_capabilityCacheSync)
+            {
+                if (!_capabilityCacheByProvider.TryGetValue(provider.ProviderKey, out providerCache))
+                {
+                    providerCache = new Dictionary<Guid, bool>();
+                    _capabilityCacheByProvider[provider.ProviderKey] = providerCache;
+                }
+
+                if (providerCache.TryGetValue(game.Id, out var cached))
+                {
+                    return cached;
+                }
+            }
+
+            bool result;
+            try
+            {
+                result = provider.IsCapable(game);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Debug(ex, $"Provider capability check failed for game '{game?.Name}'.");
+                result = false;
+            }
+
+            lock (_capabilityCacheSync)
+            {
+                providerCache[game.Id] = result;
+            }
+
+            return result;
         }
 
         private static bool ShouldApplyHiddenFilter(CustomGameScope scope)
@@ -998,6 +1117,37 @@ namespace PlayniteAchievements.Views
                     GameCustomDataLookup.TryGetProviderOverride(game.Id, out _));
         }
 
+        /// <summary>
+        /// Debounces summary recalculation so bursts of checkbox toggles coalesce into one
+        /// recompute. The recompute itself runs on a background thread (see
+        /// <see cref="RecalculateSummary"/>), so the debounce only limits redundant work.
+        /// </summary>
+        private void ScheduleSummaryRecalculation()
+        {
+            if (_summaryDebounceTimer == null)
+            {
+                _summaryDebounceTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(150)
+                };
+                _summaryDebounceTimer.Tick += (s, e) =>
+                {
+                    _summaryDebounceTimer.Stop();
+                    RecalculateSummary();
+                };
+            }
+
+            _summaryDebounceTimer.Stop();
+            _summaryDebounceTimer.Start();
+        }
+
+        /// <summary>
+        /// Snapshots the estimate inputs on the UI thread, then resolves the estimated-target
+        /// count on a background thread. The estimate walks the library with per-provider
+        /// capability checks (cached per provider+game after first evaluation), which is too
+        /// slow to run on the UI thread for large libraries. Stale results are dropped via a
+        /// generation counter so rapid changes cannot apply out of order.
+        /// </summary>
         private void RecalculateSummary()
         {
             var selectedProviders = GetSelectedProviders();
@@ -1007,16 +1157,40 @@ namespace PlayniteAchievements.Views
                 .ToList();
 
             var providerDisplay = selectedProviderNames.Count == 0
-                ? L("LOCPlayAch_CustomRefresh_None", "None")
+                ? L("LOCPlayAch_Common_None")
                 : string.Join(", ", selectedProviderNames);
 
-            var estimatedTargets = ResolveEstimatedTargets(selectedProviders).Count;
-            SummaryText = string.Format(
-                L("LOCPlayAch_CustomRefresh_SummaryFormat", "Providers: {0} | Estimated targets: {1}"),
-                providerDisplay,
-                estimatedTargets);
+            var request = BuildSummaryEstimateRequest(selectedProviders);
+            var generation = ++_summaryGeneration;
 
-            CanRun = selectedProviders.Count > 0 && estimatedTargets > 0;
+            _ = Task.Run(() =>
+            {
+                int estimatedTargets;
+                try
+                {
+                    estimatedTargets = ResolveEstimatedTargets(request).Count;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed resolving estimated custom refresh targets.");
+                    estimatedTargets = 0;
+                }
+
+                _ = Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (generation != _summaryGeneration)
+                    {
+                        return;
+                    }
+
+                    SummaryText = string.Format(
+                        L("LOCPlayAch_CustomRefresh_SummaryFormat"),
+                        providerDisplay,
+                        estimatedTargets.ToString("N0", FormattingCulture.Current));
+
+                    CanRun = selectedProviders.Count > 0 && estimatedTargets > 0;
+                }));
+            });
         }
 
         private string BuildGameDisplayName(Game game)
@@ -1035,10 +1209,9 @@ namespace PlayniteAchievements.Views
             return $"{game.Name} [{sourceName}]";
         }
 
-        private string L(string key, string fallback)
+        private string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) || value == key ? fallback : value;
+            return ResourceProvider.GetString(key);
         }
 
         private bool TryCreateCurrentOptions(out CustomRefreshOptions options)
@@ -1049,7 +1222,7 @@ namespace PlayniteAchievements.Views
             if (UseRecentLimitOverride && !hasRecentLimit)
             {
                 _api.Dialogs.ShowMessage(
-                    L("LOCPlayAch_CustomRefresh_InvalidRecentLimit", "Recent limit override must be a positive number."),
+                    L("LOCPlayAch_CustomRefresh_InvalidRecentLimit"),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -1098,7 +1271,13 @@ namespace PlayniteAchievements.Views
                 StringComparer.OrdinalIgnoreCase);
             foreach (var providerOption in ProviderOptions)
             {
-                providerOption.IsSelected = providerOption.IsSelectable &&
+                // Gate only on IsEnabled (known synchronously). IsAuthenticated is probed
+                // asynchronously after the window opens and starts pessimistically false for
+                // session-managed providers (e.g. Steam), so gating on IsSelectable here would
+                // silently drop a preset's providers when it is applied before the probe finishes.
+                // RefreshProviderOptionsAsync deselects any provider whose probe confirms it is
+                // unavailable.
+                providerOption.IsSelected = providerOption.IsEnabled &&
                     providerKeys.Contains(providerOption.ProviderKey);
             }
 
@@ -1129,7 +1308,7 @@ namespace PlayniteAchievements.Views
                 gameOption.IsExcluded = excludeIds.Contains(gameOption.GameId);
             }
 
-            RecalculateSummary();
+            ScheduleSummaryRecalculation();
         }
 
         private void UpsertPreset(string presetName, CustomRefreshOptions options)
@@ -1167,13 +1346,22 @@ namespace PlayniteAchievements.Views
 
         private void LoadPresetButton_Click(object sender, RoutedEventArgs e)
         {
+            ApplySelectedPreset();
+        }
+
+        private void ApplySelectedPreset()
+        {
             if (SelectedPreset?.Options == null)
             {
                 return;
             }
 
+            // Prune against providers that are missing or disabled, not against IsSelectable:
+            // authentication is probed asynchronously and starts pessimistically false, so a
+            // selectable provider would otherwise be pruned when the preset is applied right
+            // after the window opens.
             var availableProviderKeys = ProviderOptions
-                .Where(option => option.IsSelectable)
+                .Where(option => option.IsEnabled)
                 .Select(option => option.ProviderKey)
                 .ToList();
             var availableGameIds = _gamesById.Keys.ToList();
@@ -1190,7 +1378,7 @@ namespace PlayniteAchievements.Views
             {
                 _api.Dialogs.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary", "Preset loaded with adjustments: removed {0} unavailable provider(s) and {1} missing game reference(s)."),
+                        L("LOCPlayAch_CustomRefresh_Presets_LoadPrunedSummary"),
                         removedProviderCount,
                         removedGameCount),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
@@ -1213,7 +1401,7 @@ namespace PlayniteAchievements.Views
 
             if (!ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm", "Overwrite preset \"{0}\"?"),
+                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"),
                     SelectedPreset.Name)))
             {
                 return;
@@ -1243,7 +1431,7 @@ namespace PlayniteAchievements.Views
             {
                 _api.Dialogs.ShowMessage(
                     string.Format(
-                        L("LOCPlayAch_CustomRefresh_Presets_MaxReached", "You can save up to {0} presets."),
+                        L("LOCPlayAch_CustomRefresh_Presets_MaxReached"),
                         CustomRefreshPreset.MaxPresetCount),
                     ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
                     MessageBoxButton.OK,
@@ -1253,7 +1441,7 @@ namespace PlayniteAchievements.Views
 
             if (existingPreset != null && !ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm", "Overwrite preset \"{0}\"?"),
+                    L("LOCPlayAch_CustomRefresh_Presets_OverwriteConfirm"),
                     presetName)))
             {
                 return;
@@ -1271,7 +1459,7 @@ namespace PlayniteAchievements.Views
 
             if (!ConfirmDialog(
                 string.Format(
-                    L("LOCPlayAch_CustomRefresh_Presets_DeleteConfirm", "Delete preset \"{0}\"?"),
+                    L("LOCPlayAch_CustomRefresh_Presets_DeleteConfirm"),
                     SelectedPreset.Name)))
             {
                 return;

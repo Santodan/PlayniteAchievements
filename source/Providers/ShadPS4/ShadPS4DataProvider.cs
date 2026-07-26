@@ -2,6 +2,8 @@ using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Providers.EmuLibrary;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
 using Playnite.SDK.Models;
@@ -13,18 +15,25 @@ using System.Threading;
 using System.Threading.Tasks;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using System.Text;
 
 namespace PlayniteAchievements.Providers.ShadPS4
 {
-    internal sealed class ShadPS4DataProvider : IDataProvider
+    internal sealed class ShadPS4DataProvider : DataProviderBase<ShadPS4Settings>, IDataProvider, IProviderOverride
     {
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_ShadPS4",
+            raw => ShadPS4MatchIdHelper.TryNormalize(raw, out var matchId)
+                ? ProviderOverrideValidation.Valid(matchId)
+                : ProviderOverrideValidation.Invalid(
+                    "LOCPlayAch_Menu_ShadPS4MatchId_InvalidId"));
+
         private readonly ShadPS4Scanner _scanner;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
-        private ShadPS4Settings _providerSettings;
 
         private Dictionary<string, string> _titleCache;
         private readonly object _cacheLock = new object();
@@ -46,8 +55,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             _playniteApi = playniteApi;
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
 
-            _providerSettings = ProviderRegistry.Settings<ShadPS4Settings>();
-            _scanner = new ShadPS4Scanner(_logger, _settings, _providerSettings, this, _playniteApi, _pluginUserDataPath);
+            _scanner = new ShadPS4Scanner(_logger, _settings, ProviderSettings, this, _playniteApi, _pluginUserDataPath);
         }
 
         public string ProviderName
@@ -66,6 +74,8 @@ namespace PlayniteAchievements.Providers.ShadPS4
         public string ProviderColorHex => "#752bfd";
 
         public ISessionManager AuthSession => null;
+
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
         public bool IsAuthenticated
         {
@@ -100,7 +110,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
         public string GetGameDataPath(Game game = null)
         {
             // Priority 1: From provider settings
-            var settingsGameDataPath = ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath(_providerSettings?.GameDataPath);
+            var settingsGameDataPath = ShadPS4PathResolver.ResolveConfiguredLegacyGameDataPath(ProviderSettings?.GameDataPath);
             if (!string.IsNullOrWhiteSpace(settingsGameDataPath))
             {
                 return settingsGameDataPath;
@@ -300,7 +310,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
             if (game?.GameActions == null) return false;
 
             // Get settings root for comparison and normalize to likely emulator install folder.
-            var configuredRootPath = ShadPS4PathResolver.ResolveConfiguredRootPath(_providerSettings?.GameDataPath);
+            var configuredRootPath = ShadPS4PathResolver.ResolveConfiguredRootPath(ProviderSettings?.GameDataPath);
             var shadps4InstallFolder = ResolveInstallFolderFromConfiguredRoot(configuredRootPath);
 
             foreach (var action in game.GameActions)
@@ -364,15 +374,16 @@ namespace PlayniteAchievements.Providers.ShadPS4
         }
 
         /// <summary>
-        /// Extracts the PS4 title ID from the game's install directory path.
+        /// Extracts the PS4 title ID from the game's install directory path,
+        /// falling back to the EmuLibrary source path for uninstalled EmuLibrary games.
         /// PS4 title IDs follow pattern: AAAA12345 (e.g., CUSA00432)
         /// </summary>
         private string ExtractTitleIdFromGame(Game game)
         {
-            var rawInstallDir = game?.InstallDirectory;
-            var installDir = ExpandGamePath(game, rawInstallDir);
+            var installDir = ExpandGamePath(game, game?.InstallDirectory);
 
-            if (string.IsNullOrWhiteSpace(installDir))
+            if (string.IsNullOrWhiteSpace(installDir) &&
+                !EmuLibraryPathResolver.TryResolveSourcePath(_playniteApi, game, out installDir))
             {
                 return null;
             }
@@ -472,18 +483,6 @@ namespace PlayniteAchievements.Providers.ShadPS4
         }
 
         /// <inheritdoc />
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        /// <inheritdoc />
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is ShadPS4Settings shadps4Settings)
-            {
-                _providerSettings.CopyFrom(shadps4Settings);
-            }
-        }
-
-        /// <inheritdoc />
         public ProviderSettingsViewBase CreateSettingsView() => new ShadPS4SettingsView(_playniteApi);
 
         /// <summary>
@@ -491,7 +490,7 @@ namespace PlayniteAchievements.Providers.ShadPS4
         /// </summary>
         internal string GetAppDataPath()
         {
-            return ShadPS4PathResolver.ResolveConfiguredAppDataPath(_providerSettings?.GameDataPath);
+            return ShadPS4PathResolver.ResolveConfiguredAppDataPath(ProviderSettings?.GameDataPath);
         }
 
         /// <summary>
@@ -581,12 +580,16 @@ namespace PlayniteAchievements.Providers.ShadPS4
 
         /// <summary>
         /// Resolves the npcommid for a game by parsing its sce_sys/npbind.dat file.
+        /// Falls back to the EmuLibrary source directory for uninstalled EmuLibrary games.
         /// </summary>
         internal string ResolveNpCommIdForGame(Game game)
         {
-            var rawInstallDir = game?.InstallDirectory;
-            var installDir = ExpandGamePath(game, rawInstallDir);
-            if (string.IsNullOrWhiteSpace(installDir)) return null;
+            var installDir = ExpandGamePath(game, game?.InstallDirectory);
+            if (string.IsNullOrWhiteSpace(installDir) &&
+                !EmuLibraryPathResolver.TryResolveSourceDirectory(_playniteApi, game, out installDir))
+            {
+                return null;
+            }
 
             var searchDirs = new List<string> { installDir };
 

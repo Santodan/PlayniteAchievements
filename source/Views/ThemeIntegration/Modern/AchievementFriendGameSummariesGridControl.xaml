@@ -1,0 +1,21 @@
+<base:ThemeControlBase x:Class="PlayniteAchievements.Views.ThemeIntegration.Modern.AchievementFriendGameSummariesGridControl"
+                       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                       xmlns:base="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Base"
+                       xmlns:modern="clr-namespace:PlayniteAchievements.Views.ThemeIntegration.Modern"
+                       xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls"
+                       mc:Ignorable="d"
+                       d:DesignHeight="300" d:DesignWidth="700">
+    <controls:GameSummariesGridControl ItemsSource="{Binding DisplayItems, RelativeSource={RelativeSource AncestorType=modern:AchievementFriendGameSummariesGridControl}}"
+                                       ColumnSettingsKey="{Binding ColumnSettingsKey, RelativeSource={RelativeSource AncestorType=modern:AchievementFriendGameSummariesGridControl}}"
+                                       UseCoverImages="{Binding DataContext.Persisted.FriendsOverviewGameSummariesUseCoverImages, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       ShowMetadataPlatform="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataPlatform, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       ShowMetadataPlaytime="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataPlaytime, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       ShowMetadataRegion="{Binding DataContext.Persisted.FriendsOverviewGameSummariesShowMetadataRegion, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       ShowCompletionGlow="False"
+                                       ShowColumnHeaders="{Binding DataContext.Persisted.ShowFriendsOverviewGameSummariesGridColumnHeaders, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       FixedRowHeight="{Binding DataContext.Persisted.FriendsOverviewGameSummariesGridRowHeight, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
+                                       DelayInitialRenderUntilNormalized="True"/>
+</base:ThemeControlBase>

@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -149,19 +150,27 @@ namespace PlayniteAchievements.Models.Tests
         {
             var source = new PersistedSettings
             {
-                ShowOverviewGameMetadata = false
+                ShowOverviewGameMetadataPlatform = false,
+                ShowOverviewGameMetadataPlaytime = false,
+                ShowOverviewGameMetadataRegion = false
             };
 
             var target = new PersistedSettings
             {
-                ShowOverviewGameMetadata = true
+                ShowOverviewGameMetadataPlatform = true,
+                ShowOverviewGameMetadataPlaytime = true,
+                ShowOverviewGameMetadataRegion = true
             };
 
             target.CopyFrom(source);
-            Assert.IsFalse(target.ShowOverviewGameMetadata);
+            Assert.IsFalse(target.ShowOverviewGameMetadataPlatform);
+            Assert.IsFalse(target.ShowOverviewGameMetadataPlaytime);
+            Assert.IsFalse(target.ShowOverviewGameMetadataRegion);
 
             var clone = SettingsExtensions.Clone(source);
-            Assert.IsFalse(clone.ShowOverviewGameMetadata);
+            Assert.IsFalse(clone.ShowOverviewGameMetadataPlatform);
+            Assert.IsFalse(clone.ShowOverviewGameMetadataPlaytime);
+            Assert.IsFalse(clone.ShowOverviewGameMetadataRegion);
         }
 
         [TestMethod]

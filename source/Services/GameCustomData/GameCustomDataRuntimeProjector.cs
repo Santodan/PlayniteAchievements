@@ -3,7 +3,7 @@ using PlayniteAchievements.Models.Settings;
 using System;
 using System.Collections.Generic;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.GameCustomData
 {
     internal sealed class GameCustomDataRuntimeProjector
     {

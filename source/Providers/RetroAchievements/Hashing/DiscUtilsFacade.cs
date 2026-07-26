@@ -15,8 +15,23 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Hashing
         {
             if (string.IsNullOrWhiteSpace(isoPath)) throw new ArgumentException("ISO path is required.", nameof(isoPath));
 
-            _image = DiscImageReader.Open(isoPath);
-            _cd = new CDReader(_image.Stream, true);
+            DiscImageReader image = null;
+            CDReader cd = null;
+
+            try
+            {
+                image = DiscImageReader.Open(isoPath);
+                cd = new CDReader(image.Stream, true);
+            }
+            catch
+            {
+                cd?.Dispose();
+                image?.Dispose();
+                throw;
+            }
+
+            _image = image;
+            _cd = cd;
         }
 
         public void Dispose()

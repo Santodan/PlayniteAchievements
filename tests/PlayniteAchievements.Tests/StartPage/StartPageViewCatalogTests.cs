@@ -9,16 +9,17 @@ namespace PlayniteAchievements.Tests.StartPage
     public class StartPageViewCatalogTests
     {
         [TestMethod]
-        public void Views_RegisterEightWidgetsWithExistingLocalizationKeys()
+        public void Views_RegisterNineWidgetsWithExpectedLocalizationKeys()
         {
             var views = StartPageViewCatalog.Views;
 
-            Assert.AreEqual(8, views.Count);
+            Assert.AreEqual(9, views.Count);
             CollectionAssert.AreEquivalent(
                 new[]
                 {
                     StartPageWidgetKind.GameSummariesGrid,
                     StartPageWidgetKind.RecentUnlocksGrid,
+                    StartPageWidgetKind.FriendsRecentUnlocksGrid,
                     StartPageWidgetKind.CompletedGamesPie,
                     StartPageWidgetKind.ProviderPie,
                     StartPageWidgetKind.RarityPie,
@@ -28,7 +29,10 @@ namespace PlayniteAchievements.Tests.StartPage
                 },
                 views.Select(view => view.WidgetKind).ToArray());
 
-            Assert.IsTrue(views.All(view => !view.NameKey.Contains("StartPage")));
+            Assert.IsTrue(views.Any(view =>
+                view.ViewId == StartPageViewCatalog.FriendsRecentUnlocksGridViewId &&
+                view.WidgetKind == StartPageWidgetKind.FriendsRecentUnlocksGrid &&
+                view.NameKey == "LOCPlayAch_StartPage_FriendsRecentAchievements"));
             Assert.IsTrue(views.All(view => string.IsNullOrWhiteSpace(view.DescriptionKey)));
             Assert.AreEqual(views.Count, views.Select(view => view.ViewId).Distinct().Count());
         }

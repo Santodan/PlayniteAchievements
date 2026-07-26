@@ -25,6 +25,13 @@ namespace PlayniteAchievements.Models
             set => SetValue(ref _iconKey, value);
         }
 
+        private int _iconRefreshKey;
+        public int IconRefreshKey
+        {
+            get => _iconRefreshKey;
+            set => SetValue(ref _iconRefreshKey, value);
+        }
+
         private string _colorHex;
         public string ColorHex
         {

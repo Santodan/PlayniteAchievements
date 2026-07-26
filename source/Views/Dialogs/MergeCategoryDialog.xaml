@@ -1,0 +1,88 @@
+<UserControl x:Class="PlayniteAchievements.Views.Dialogs.MergeCategoryDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="220"
+             d:DesignWidth="500"
+             FocusManager.FocusedElement="{Binding ElementName=TargetComboBox}">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/PlayAchImplicitControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PlayAch.Brush.Window.Background}" Padding="16">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeDialog_Hint}"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                   Opacity="{StaticResource PlayAch.Opacity.Secondary}"
+                   TextWrapping="Wrap"
+                   Margin="{StaticResource PlayAch.Thickness.Bottom.Md}" />
+
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{DynamicResource LOCPlayAch_Common_Label_Category}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding SourceLabel}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{DynamicResource LOCPlayAch_ManageAchievements_Category_MergeDialog_Target}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       VerticalAlignment="Center" />
+            <ComboBox x:Name="TargetComboBox"
+                      Grid.Column="1"
+                      ItemsSource="{Binding TargetOptions}"
+                      SelectedItem="{Binding SelectedTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      MinHeight="{StaticResource PlayAch.Size.Control.Height}"
+                      KeyDown="TargetComboBox_KeyDown" />
+        </Grid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,14,0,0">
+            <Button Content="{DynamicResource LOCPlayAch_Common_Merge}"
+                    Click="OkButton_Click"
+                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                    MinWidth="80"
+                    Margin="{StaticResource PlayAch.Thickness.Right.Sm}"
+                    IsDefault="True" />
+            <Button Content="{DynamicResource LOCPlayAch_Button_Cancel}"
+                    Click="CancelButton_Click"
+                    Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                    MinWidth="80"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+    </Border>
+</UserControl>

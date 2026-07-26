@@ -44,6 +44,18 @@ namespace PlayniteAchievements.Services.Images
                 relativePath);
         }
 
+        public string GetCategoryCustomImagePath(
+            string gameId,
+            string fileStem)
+        {
+            var relativePath = AchievementIconCachePathBuilder.BuildCustomCategoryRelativePath(
+                gameId,
+                fileStem);
+            return Path.Combine(
+                Path.GetDirectoryName(_diskImageService.GetCacheDirectoryPath()) ?? string.Empty,
+                relativePath);
+        }
+
         public bool IsManagedCustomIconPath(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -188,6 +200,70 @@ namespace PlayniteAchievements.Services.Images
             }
 
             var targetPath = GetAchievementCustomIconPath(gameId, fileStem, variant);
+            if (string.Equals(sourcePath.Trim(), targetPath, StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(targetPath))
+            {
+                return targetPath;
+            }
+
+            if (IsHttpUrl(sourcePath))
+            {
+                return await _diskImageService
+                    .GetOrDownloadIconToPathAsync(
+                        sourcePath,
+                        targetPath,
+                        decodeSize: 0,
+                        cancel,
+                        overwriteExistingTarget: overwriteExistingTarget)
+                    .ConfigureAwait(false);
+            }
+
+            if (!File.Exists(sourcePath))
+            {
+                return null;
+            }
+
+            return await _diskImageService
+                .GetOrCopyLocalIconToPathAsync(
+                    sourcePath,
+                    targetPath,
+                    decodeSize: 0,
+                    cancel,
+                    overwriteExistingTarget: overwriteExistingTarget)
+                .ConfigureAwait(false);
+        }
+
+        public Task<string> MaterializeCategoryImageAsync(
+            string sourcePath,
+            string gameId,
+            string fileStem,
+            CancellationToken cancel,
+            bool overwriteExistingTarget = false)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(fileStem))
+            {
+                return Task.FromResult<string>(null);
+            }
+
+            var targetPath = GetCategoryCustomImagePath(gameId, fileStem);
+            return MaterializeImageToPathAsync(
+                sourcePath,
+                targetPath,
+                cancel,
+                overwriteExistingTarget);
+        }
+
+        private async Task<string> MaterializeImageToPathAsync(
+            string sourcePath,
+            string targetPath,
+            CancellationToken cancel,
+            bool overwriteExistingTarget)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(targetPath))
+            {
+                return null;
+            }
+
             if (string.Equals(sourcePath.Trim(), targetPath, StringComparison.OrdinalIgnoreCase) &&
                 File.Exists(targetPath))
             {

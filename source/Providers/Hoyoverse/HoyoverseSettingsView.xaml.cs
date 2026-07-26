@@ -199,10 +199,5 @@ namespace PlayniteAchievements.Providers.Hoyoverse
             parent?.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
         }
 
-        private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
-        {
-            Process.Start(e.Uri.AbsoluteUri);
-            e.Handled = true;
-        }
     }
 }

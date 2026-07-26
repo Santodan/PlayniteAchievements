@@ -2,7 +2,7 @@ using PlayniteAchievements.Models.Achievements;
 using System;
 using System.Collections.Generic;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Cache
 {
     internal sealed class CachedSummaryData
     {
@@ -31,6 +31,8 @@ namespace PlayniteAchievements.Services
 
         public int AppId { get; set; }
 
+        public string ProviderGameKey { get; set; }
+
         public string GameName { get; set; }
 
         public bool HasAchievements { get; set; }
@@ -48,6 +50,8 @@ namespace PlayniteAchievements.Services
         public int PrestigeScore { get; set; }
 
         public int PrestigeScoreTotal { get; set; }
+
+        public int Points { get; set; }
 
         public int CommonCount { get; set; }
 
@@ -82,6 +86,8 @@ namespace PlayniteAchievements.Services
         public int TrophyBronzeTotal { get; set; }
 
         public bool IsCompleted { get; set; }
+
+        public DateTime? LastUnlockUtc { get; set; }
     }
 
     internal sealed class CachedRecentUnlockData
@@ -95,6 +101,8 @@ namespace PlayniteAchievements.Services
         public string ProviderPlatformKey { get; set; }
 
         public int AppId { get; set; }
+
+        public string ProviderGameKey { get; set; }
 
         public string GameName { get; set; }
 

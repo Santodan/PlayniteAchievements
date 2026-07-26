@@ -8,6 +8,15 @@
              d:DesignHeight="700"
              d:DesignWidth="1000">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -18,14 +27,14 @@
         <Border Grid.Row="0"
                 Padding="16"
                 CornerRadius="8"
-                Background="{DynamicResource ControlBackgroundBrush}">
+                Background="{DynamicResource PlayAch.Brush.Surface}">
             <StackPanel>
                 <TextBlock FontSize="20"
                            FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextBrush}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Text="PlayniteAchievements — Modern Theme Controls" />
-                <TextBlock Margin="0,8,0,0"
-                           Foreground="{DynamicResource TextBrush}"
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
                            Opacity="0.85">
                     <Run Text="Game: " />
                     <Run Text="{Binding GameName, Mode=OneWay}" FontWeight="SemiBold" />
@@ -33,9 +42,9 @@
                     <Run Text="{Binding GameId, Mode=OneWay}" />
                     <Run Text=")" />
                 </TextBlock>
-                <TextBlock Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextBrush}"
-                           Opacity="0.75">
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}"
+                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                           Opacity="{StaticResource PlayAch.Opacity.Hint}">
                     <Run Text="Achievements: " />
                     <Run Text="{Binding Settings.UnlockedCount, Mode=OneWay}" FontWeight="SemiBold" />
                     <Run Text="/" />
@@ -54,6 +63,21 @@
                       Margin="0,12,0,0">
             <StackPanel>
 
+                <!-- Row 0: Toast -->
+                <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                        Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="AchievementToast"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
+                        <local:GameViewControlHost ControlName="AchievementToast"
+                                                   HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+
                 <!-- Row 1: Small Controls Side by Side -->
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -64,64 +88,64 @@
 
                     <!-- AchievementViewItem -->
                     <Border Grid.Column="0"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="0,0,8,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
                             <TextBlock Text="AchievementViewItem"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,4"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}"/>
                             <TextBlock Text="Shows X/Y count in game list views"
-                                       Foreground="{DynamicResource TextBrush}" Opacity="0.6"
-                                       FontSize="{DynamicResource FontSizeSmall}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}" Opacity="{StaticResource PlayAch.Opacity.Muted}"
+                                       FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementViewItem" />
                         </StackPanel>
                     </Border>
 
                     <!-- AchievementButton -->
                     <Border Grid.Column="1"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="4,0">
                         <StackPanel>
                             <TextBlock Text="AchievementButton"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementButton" />
                         </StackPanel>
                     </Border>
 
                     <!-- AchievementProgressBar -->
                     <Border Grid.Column="2"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="8,0,0,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
                             <TextBlock Text="AchievementProgressBar"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementProgressBar" />
                         </StackPanel>
                     </Border>
                 </Grid>
 
                 <!-- Row 2: Stats -->
-                <Border Background="{DynamicResource ControlBackgroundBrush}"
-                        CornerRadius="6"
-                        Padding="12"
+                <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="AchievementStats"
                                    FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Margin="0,0,0,8"/>
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                         <local:GameViewControlHost ControlName="AchievementStats" />
                     </StackPanel>
                 </Border>
@@ -135,30 +159,30 @@
 
                     <!-- AchievementBarChart -->
                     <Border Grid.Column="0"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="0,0,8,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
                             <TextBlock Text="AchievementBarChart"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementBarChart" Height="240" />
                         </StackPanel>
                     </Border>
 
                     <!-- AchievementPieChart -->
                     <Border Grid.Column="1"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="8,0,0,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
                             <TextBlock Text="AchievementPieChart"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementPieChart" Height="240" />
                         </StackPanel>
                     </Border>
@@ -174,60 +198,60 @@
 
                     <!-- AchievementCompactList -->
                     <Border Grid.Column="0"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="0,0,8,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                         <StackPanel>
                             <TextBlock Text="AchievementCompactList"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementCompactList" Height="220" />
                         </StackPanel>
                     </Border>
 
                     <!-- AchievementCompactLockedList -->
                     <Border Grid.Column="1"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                             Margin="4,0">
                         <StackPanel>
                             <TextBlock Text="CompactLocked"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementCompactLockedList" Height="220" />
                         </StackPanel>
                     </Border>
 
                     <!-- AchievementCompactUnlockedList -->
                     <Border Grid.Column="2"
-                            Background="{DynamicResource ControlBackgroundBrush}"
-                            CornerRadius="6"
-                            Padding="12"
-                            Margin="8,0,0,0">
+                            Background="{DynamicResource PlayAch.Brush.Surface}"
+                            CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                            Padding="{StaticResource PlayAch.Thickness.CardPadding}"
+                            Margin="{StaticResource PlayAch.Thickness.Left.Sm}">
                         <StackPanel>
                             <TextBlock Text="CompactUnlocked"
                                        FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextBrush}"
-                                       Margin="0,0,0,8"/>
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                             <local:GameViewControlHost ControlName="AchievementCompactUnlockedList" Height="220" />
                         </StackPanel>
                     </Border>
                 </Grid>
 
                 <!-- Row 5: Full Achievement List -->
-                <Border Background="{DynamicResource ControlBackgroundBrush}"
-                        CornerRadius="6"
-                        Padding="12"
+                <Border Background="{DynamicResource PlayAch.Brush.Surface}"
+                        CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                        Padding="{StaticResource PlayAch.Thickness.CardPadding}"
                         Margin="0,12,0,0">
                     <StackPanel>
                         <TextBlock Text="AchievementDataGrid"
                                    FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextBrush}"
-                                   Margin="0,0,0,8"/>
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
                         <local:GameViewControlHost ControlName="AchievementDataGrid" Height="400" />
                     </StackPanel>
                 </Border>

@@ -1,0 +1,448 @@
+<UserControl x:Class="PlayniteAchievements.Views.FriendsSettingsTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             mc:Ignorable="d"
+             d:DesignHeight="520"
+             d:DesignWidth="720">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Uniform height for a single account entry, shared by every per-account column so
+                 account rows line up across the grid. Adjust here to retune row density. -->
+            <sys:Double x:Key="FriendAccountItemHeight">38</sys:Double>
+
+            <!-- Themed like the achievement grids, but with a compact settings-row height and no
+                 achievement-style hand cursor. -->
+            <Style x:Key="FriendsSettingsGridRowStyle"
+                   TargetType="DataGridRow"
+                   BasedOn="{StaticResource AchievementRowStyle}">
+                <Setter Property="MinHeight" Value="40"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource SectionBorderStyle}" Margin="0,0,10,20">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource LOCPlayAch_Settings_RefreshFriendsList}"
+                                Command="{Binding RefreshAutoDiscoverCommand}"
+                                VerticalAlignment="Top"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscover}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_AutoDiscoverHint}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,10"/>
+
+                    <ItemsControl ItemsSource="{Binding AutoDiscoverProviders}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox Content="{Binding DisplayName}"
+                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding IsAvailable}"
+                                          Margin="0,0,16,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnership}"
+                              IsChecked="{Binding UseExophaseForSteamFriendOwnership, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              IsEnabled="{Binding IsExophaseProviderEnabled}"
+                              ToolTip="{DynamicResource LOCPlayAch_FriendsSettings_UseExophaseForSteamOwnershipHint}"
+                              ToolTipService.ShowOnDisabled="True"
+                              Margin="0,6,0,0"/>
+
+                    <CheckBox Content="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGames}"
+                              IsChecked="{Binding IncludeUnownedFriendGames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              ToolTip="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint}"
+                              Margin="0,6,0,0"/>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_IncludeUnownedGamesHint}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="18,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_FriendsSettings_ManualAdd}"
+                               Style="{StaticResource SectionHeaderStyle}"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Text="{DynamicResource LOCPlayAch_Provider_Exophase}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,12,0"/>
+
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding ManualExophaseUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalAlignment="Center"
+                                 MinWidth="160"
+                                 Margin="0,0,12,0"/>
+
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Add}"
+                                Command="{Binding AddManualFriendCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource SectionBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right"
+                                Content="{DynamicResource LOCPlayAch_FriendsSettings_MergeSelected}"
+                                Command="{Binding MergeSelectedCommand}"
+                                VerticalAlignment="Top"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"/>
+                        <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Friends}"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="1"
+                               Text="{DynamicResource LOCPlayAch_Settings_FriendsTableHint}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+
+                    <DataGrid Grid.Row="2"
+                              Style="{StaticResource PlayAch.DataGrid.BaseStyle}"
+                              ItemsSource="{Binding Friends}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="False"
+                              GridLinesVisibility="None"
+                              BorderThickness="0"
+                              Background="{DynamicResource PlayAch.Brush.Grid.Background}"
+                              RowBackground="{DynamicResource PlayAch.Brush.Grid.RowBackground}"
+                              Foreground="{DynamicResource PlayAch.Brush.Text}"
+                              ColumnHeaderStyle="{StaticResource AchievementColumnHeaderStyle}"
+                              CellStyle="{StaticResource AchievementCellStyle}"
+                              RowStyle="{StaticResource FriendsSettingsGridRowStyle}"
+                              MinHeight="420"
+                              MaxHeight="600"
+                              VerticalAlignment="Stretch"
+                              VirtualizingPanel.ScrollUnit="Item"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header=""
+                                                    Width="Auto"
+                                                    MinWidth="36">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,4"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Name}"
+                                                    Width="*"
+                                                    MinWidth="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="56"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Width="48"
+                                                    Height="48"
+                                                    CornerRadius="4"
+                                                    Background="{DynamicResource PlayAch.Brush.ControlSurface}"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="1"
+                                                    VerticalAlignment="Center">
+                                                <Image helpers:AsyncImage.Uri="{Binding AvatarSource}"
+                                                       helpers:AsyncImage.DecodePixel="96"
+                                                       Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            </Border>
+
+                                            <Grid Grid.Column="1"
+                                                  VerticalAlignment="Center">
+                                                <TextBox x:Name="NicknameTextBox"
+                                                         Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         MinWidth="120"
+                                                         Padding="6,4"
+                                                         VerticalContentAlignment="Center"/>
+                                                <TextBlock Text="{Binding DefaultDisplayName}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="9,0,0,0"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           Opacity="{StaticResource PlayAch.Opacity.Placeholder}"
+                                                           IsHitTestVisible="False">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ElementName=NicknameTextBox, Path=Text}" Value="">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding ElementName=NicknameTextBox, Path=Text}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Accounts}"
+                                                    Width="Auto"
+                                                    MinWidth="170"
+                                                    MaxWidth="300">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Accounts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
+                                                          Margin="0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="28"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Width="24"
+                                                                Height="24"
+                                                                CornerRadius="3"
+                                                                Background="{DynamicResource PlayAch.Brush.ControlSurface}"
+                                                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                                BorderThickness="1"
+                                                                VerticalAlignment="Center">
+                                                            <Image helpers:AsyncImage.Uri="{Binding AvatarSource}"
+                                                                   helpers:AsyncImage.DecodePixel="48"
+                                                                   Stretch="Uniform"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    VerticalAlignment="Center"
+                                                                    Margin="6,0,0,0">
+                                                            <TextBlock Text="{Binding ProviderDisplayName}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Foreground="{DynamicResource PlayAch.Brush.Text}"/>
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       Style="{StaticResource MutedTextStyle}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Avatar}"
+                                                    Width="Auto"
+                                                    MinWidth="110"
+                                                    MaxWidth="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Accounts}"
+                                                      HorizontalAlignment="Center">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
+                                                          Margin="0,2">
+                                                        <RadioButton IsChecked="{Binding IsAvatarSource, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                     ToolTip="{Binding ProviderDisplayName}"
+                                                                     HorizontalAlignment="Center"
+                                                                     VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Common_Label_Platform}"
+                                                    Width="Auto"
+                                                    MinWidth="130"
+                                                    MaxWidth="180">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Accounts}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
+                                                          Margin="0,2">
+                                                        <Grid VerticalAlignment="Center">
+                                                            <ToggleButton x:Name="PlatformSelectorButton"
+                                                                          Content="{Binding PlatformText}"
+                                                                          IsEnabled="{Binding SupportsPlatformSelection}"
+                                                                          HorizontalAlignment="Stretch"
+                                                                          VerticalAlignment="Center"
+                                                                          Padding="8,3"/>
+                                                            <Popup PlacementTarget="{Binding ElementName=PlatformSelectorButton}"
+                                                                   Placement="Bottom"
+                                                                   StaysOpen="False"
+                                                                   AllowsTransparency="True"
+                                                                   IsOpen="{Binding IsChecked, ElementName=PlatformSelectorButton}">
+                                                                <Border Background="{DynamicResource PlayAch.Brush.PopupSurface}"
+                                                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                                        BorderThickness="1"
+                                                                        Padding="10"
+                                                                        MinWidth="180">
+                                                                    <ItemsControl ItemsSource="{Binding Platforms}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate>
+                                                                                <CheckBox Content="{Binding Label}"
+                                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                                          IsEnabled="{Binding IsEnabled}"
+                                                                                          Margin="0,0,0,6"/>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </Border>
+                                                            </Popup>
+                                                        </Grid>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Column_Ignore}"
+                                                    Width="Auto"
+                                                    MinWidth="60">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Accounts}"
+                                                      HorizontalAlignment="Center">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
+                                                          Margin="0,2">
+                                                        <CheckBox IsChecked="{Binding IsIgnored, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                  ToolTip="{Binding ProviderDisplayName}"
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_Button_Remove}"
+                                                    Width="Auto"
+                                                    MinWidth="84">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ItemsControl ItemsSource="{Binding Accounts}"
+                                                      HorizontalAlignment="Center">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Height="{StaticResource FriendAccountItemHeight}"
+                                                          Margin="0,2">
+                                                        <Button Content="{DynamicResource LOCPlayAch_Button_Remove}"
+                                                                Command="{Binding DataContext.RemoveFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                                CommandParameter="{Binding}"
+                                                                IsEnabled="{Binding CanRemove}"
+                                                                VerticalAlignment="Center"
+                                                                Padding="8,3"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
+                                                    Width="Auto"
+                                                    MinWidth="84">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="{DynamicResource LOCPlayAch_FriendsSettings_Unmerge}"
+                                                Command="{Binding DataContext.UnmergeFriendCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                CommandParameter="{Binding}"
+                                                IsEnabled="{Binding CanUnmerge}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Padding="8,3"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <TextBlock Grid.Row="3"
+                               Text="{Binding StatusText}"
+                               Style="{StaticResource MutedTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,10,0,0"/>
+                </Grid>
+            </Border>
+    </Grid>
+    </ScrollViewer>
+</UserControl>

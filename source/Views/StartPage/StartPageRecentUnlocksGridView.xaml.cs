@@ -62,6 +62,7 @@ namespace PlayniteAchievements.Views.StartPage
                 return false;
             }
 
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(RecentUnlocksGrid, menu);
             row.ContextMenu = menu;
             menu.Placement = PlacementMode.MousePoint;
             menu.PlacementTarget = row;

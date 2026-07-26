@@ -8,6 +8,8 @@ using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Manual;
 using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameCustomData;
 using PlayniteAchievements.Services.Images;
 using System;
 using System.Collections.Generic;
@@ -116,6 +118,46 @@ namespace PlayniteAchievements.Services.Tests
 
                 Assert.IsTrue(store.TryLoad(gameId, out var loaded));
                 Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+            }
+            finally
+            {
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void Save_GameSummaryCategoryOnly_RoundTripsAndIsVisibleCustomization()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                store.Update(gameId, customData =>
+                {
+                    customData.GameSummaryCategory = new GameSummaryCategoryData
+                    {
+                        Label = " My Renamed DLC ",
+                        ProviderLabel = "Phantom Liberty"
+                    };
+                });
+
+                Assert.IsTrue(store.TryLoad(gameId, out var loaded));
+                Assert.IsNotNull(loaded.GameSummaryCategory);
+                Assert.AreEqual("My Renamed DLC", loaded.GameSummaryCategory.Label);
+                Assert.AreEqual("Phantom Liberty", loaded.GameSummaryCategory.ProviderLabel);
+                Assert.IsTrue(GameCustomDataNormalizer.HasVisibleCustomization(loaded));
+
+                store.Update(gameId, customData =>
+                {
+                    customData.GameSummaryCategory = null;
+                });
+
+                if (store.TryLoad(gameId, out var cleared))
+                {
+                    Assert.IsNull(cleared.GameSummaryCategory);
+                }
             }
             finally
             {

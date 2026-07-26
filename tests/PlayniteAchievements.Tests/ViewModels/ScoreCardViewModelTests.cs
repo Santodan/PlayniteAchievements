@@ -38,10 +38,10 @@ namespace PlayniteAchievements.Tests.ViewModels
             var card = new ScoreCardViewModel(ScoreCardType.Prestige);
 
             card.Apply(12345, 42, 67, "Gold5", useUniformRarityBadges: false);
-            Assert.AreEqual("BadgeGoldPentagon", card.BadgeIconKey);
+            Assert.AreEqual("ScoreBadgeGoldPentagon", card.BadgeIconKey);
 
             card.RefreshBadgeStyle(useUniformRarityBadges: true);
-            Assert.AreEqual("BadgeGoldHexagon", card.BadgeIconKey);
+            Assert.AreEqual("ScoreBadgeGoldHexagon", card.BadgeIconKey);
         }
 
         [TestMethod]

@@ -11,6 +11,9 @@ using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 
 namespace PlayniteAchievements.Providers.Manual
 {
@@ -18,13 +21,16 @@ namespace PlayniteAchievements.Providers.Manual
     /// Data provider for manually linked achievements.
     /// Implements IDataProvider to integrate with the achievement refresh system.
     /// </summary>
-    public sealed class ManualAchievementsProvider : IDataProvider
+    public sealed class ManualAchievementsProvider : DataProviderBase<ManualSettings>, IDataProvider, IRefreshAuthContextReceiver
     {
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly IPlayniteAPI _playniteApi;
         private readonly ManualSourceRegistry _manualSourceRegistry;
-        private ManualSettings _providerSettings;
+        private readonly Dictionary<string, AuthProbeResult> _sourceAuthProbeCache =
+            new Dictionary<string, AuthProbeResult>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<IRefreshAuthContextReceiver> _sourceAuthContextReceivers =
+            new List<IRefreshAuthContextReceiver>();
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Manual");
         public string ProviderKey => "Manual";
@@ -38,6 +44,8 @@ namespace PlayniteAchievements.Providers.Manual
 
         public ISessionManager AuthSession => null;
 
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
+
         public ManualAchievementsProvider(
             ILogger logger,
             PlayniteAchievementsSettings settings,
@@ -48,7 +56,6 @@ namespace PlayniteAchievements.Providers.Manual
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _playniteApi = playniteApi ?? throw new ArgumentNullException(nameof(playniteApi));
             _manualSourceRegistry = manualSourceRegistry ?? throw new ArgumentNullException(nameof(manualSourceRegistry));
-            _providerSettings = ProviderRegistry.Settings<ManualSettings>();
         }
 
         /// <summary>
@@ -139,9 +146,10 @@ namespace PlayniteAchievements.Providers.Manual
                 return null;
             }
 
-            await ManualSourceAuthentication
-                .EnsureAuthenticatedIfRequiredAsync(source, _providerSettings.RequireExophaseAuthentication, link, cancel)
-                .ConfigureAwait(false);
+            await EnsureManualSourceAuthenticatedAsync(source, link, cancel).ConfigureAwait(false);
+
+            // Null when the source cannot resolve a platform; the game then displays as Manual.
+            var providerPlatformKey = source.ResolveProviderPlatformKey(link.SourceGameId);
 
             // Fetch achievements directly as AchievementDetail list
             var achievements = await source.GetAchievementsAsync(link.SourceGameId, language, cancel);
@@ -152,6 +160,7 @@ namespace PlayniteAchievements.Providers.Manual
                 {
                     LastUpdatedUtc = DateTime.UtcNow,
                     ProviderKey = ProviderKey,
+                    ProviderPlatformKey = providerPlatformKey,
                     LibrarySourceName = game.PluginId.ToString(),
                     HasAchievements = false,
                     GameName = game.Name,
@@ -163,42 +172,15 @@ namespace PlayniteAchievements.Providers.Manual
 
             _manualSourceRegistry.GetPostProcessorByKey(link.SourceKey)?.Invoke(link, achievements);
 
-            var unlockStateLookup = BuildCaseInsensitiveLookup(link.UnlockStates);
-            var unlockTimeLookup = BuildCaseInsensitiveLookup(link.UnlockTimes);
-
-            // Apply unlock times from link to each achievement
-            foreach (var detail in achievements)
-            {
-                if (detail == null || string.IsNullOrWhiteSpace(detail.ApiName))
-                {
-                    continue;
-                }
-
-                var lookupKeys = BuildUnlockLookupKeys(link, detail);
-
-                var unlockedState = false;
-                var hasState = TryGetLookupValue(unlockStateLookup, lookupKeys, out unlockedState);
-
-                DateTime? unlockTime = null;
-                var hasTime = TryGetLookupValue(unlockTimeLookup, lookupKeys, out unlockTime);
-
-                var isUnlocked = hasState
-                    ? unlockedState
-                    : (hasTime && unlockTime.HasValue);
-
-                if (isUnlocked)
-                {
-                    detail.Unlocked = true;
-                    detail.UnlockTimeUtc = hasTime && unlockTime.HasValue
-                        ? unlockTime
-                        : null;
-                }
-            }
+            // Apply stored unlock state to each achievement via the shared resolver so the
+            // manual-tracking window and this refresh path agree on flexible key matching.
+            new ManualUnlockResolver(link).ApplyUnlockState(achievements);
 
             return new GameAchievementData
             {
                 LastUpdatedUtc = DateTime.UtcNow,
                 ProviderKey = ProviderKey,
+                ProviderPlatformKey = providerPlatformKey,
                 LibrarySourceName = game.PluginId.ToString(),
                 HasAchievements = true,
                 GameName = game.Name,
@@ -210,19 +192,98 @@ namespace PlayniteAchievements.Providers.Manual
         }
 
         /// <inheritdoc />
-        public IProviderSettings GetSettings() => _providerSettings;
+        public ProviderSettingsViewBase CreateSettingsView() => new ManualSettingsView(_playniteApi, _logger, _settings);
 
-        /// <inheritdoc />
-        public void ApplySettings(IProviderSettings settings)
+        public void BeginRefreshAuthContext(RefreshAuthContext context)
         {
-            if (settings is ManualSettings manualSettings)
+            _sourceAuthProbeCache.Clear();
+            _sourceAuthContextReceivers.Clear();
+
+            foreach (var receiver in _manualSourceRegistry
+                .GetAllSources()
+                .OfType<IRefreshAuthContextReceiver>())
             {
-                _providerSettings.CopyFrom(manualSettings);
+                receiver.BeginRefreshAuthContext(context);
+                _sourceAuthContextReceivers.Add(receiver);
             }
         }
 
-        /// <inheritdoc />
-        public ProviderSettingsViewBase CreateSettingsView() => new ManualSettingsView(_playniteApi, _logger, _settings);
+        public void EndRefreshAuthContext(RefreshAuthContext context)
+        {
+            for (var i = _sourceAuthContextReceivers.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    _sourceAuthContextReceivers[i]?.EndRefreshAuthContext(context);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Manual source receiver failed while ending refresh auth context.");
+                }
+            }
+
+            _sourceAuthContextReceivers.Clear();
+            _sourceAuthProbeCache.Clear();
+        }
+
+        private async Task EnsureManualSourceAuthenticatedAsync(
+            IManualSource source,
+            ManualAchievementLink link,
+            CancellationToken ct)
+        {
+            if (!ManualSourceAuthentication.ShouldRequireAuthentication(
+                    source,
+                    ProviderSettings.RequireExophaseAuthentication,
+                    link))
+            {
+                return;
+            }
+
+            var sourceKey = string.IsNullOrWhiteSpace(source.SourceKey)
+                ? source.GetType().FullName
+                : source.SourceKey.Trim();
+
+            if (_sourceAuthProbeCache.TryGetValue(sourceKey, out var cachedProbe))
+            {
+                if (cachedProbe?.IsSuccess == true)
+                {
+                    return;
+                }
+
+                throw ManualSourceAuthentication.CreateException(source, cachedProbe);
+            }
+
+            AuthProbeResult probeResult;
+            if (source.AuthSession != null)
+            {
+                probeResult = await source.AuthSession.ProbeAuthStateAsync(ct).ConfigureAwait(false);
+                _sourceAuthProbeCache[sourceKey] = probeResult;
+
+                if (ct.IsCancellationRequested && probeResult?.Outcome == AuthOutcome.Cancelled)
+                {
+                    ct.ThrowIfCancellationRequested();
+                }
+
+                if (probeResult?.IsSuccess == true)
+                {
+                    return;
+                }
+
+                throw ManualSourceAuthentication.CreateException(source, probeResult);
+            }
+
+            probeResult = source.IsAuthenticated
+                ? AuthProbeResult.AlreadyAuthenticated()
+                : AuthProbeResult.NotAuthenticated();
+            _sourceAuthProbeCache[sourceKey] = probeResult;
+
+            if (probeResult.IsSuccess)
+            {
+                return;
+            }
+
+            throw ManualSourceAuthentication.CreateException(source, probeResult);
+        }
 
         internal static bool IsTrackingOverrideEnabled()
         {
@@ -241,14 +302,14 @@ namespace PlayniteAchievements.Providers.Manual
         {
             if (link == null)
             {
-                return L("LOCPlayAch_ManageAchievements_Manual_LinkSummary_None", "No manual link configured.");
+                return L("LOCPlayAch_ManageAchievements_Manual_LinkSummary_None");
             }
 
             return string.Format(
-                L("LOCPlayAch_ManageAchievements_Manual_LinkSummary", "{0} ({1})"),
+                L("LOCPlayAch_ManageAchievements_Manual_LinkSummary"),
                 string.IsNullOrWhiteSpace(link.SourceKey) ? "Manual" : link.SourceKey,
                 string.IsNullOrWhiteSpace(link.SourceGameId)
-                    ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable", "N/A")
+                    ? L("LOCPlayAch_ManageAchievements_Value_NotAvailable")
                     : link.SourceGameId);
         }
 
@@ -264,8 +325,8 @@ namespace PlayniteAchievements.Providers.Manual
             }
 
             var result = playniteApi?.Dialogs?.ShowMessage(
-                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm", "Remove the manual achievement link for \"{0}\"?"), gameName),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                string.Format(L("LOCPlayAch_Menu_UnlinkAchievements_Confirm"), gameName),
+                L("LOCPlayAch_Title_PluginName"),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Question) ?? System.Windows.MessageBoxResult.None;
             if (result != System.Windows.MessageBoxResult.Yes)
@@ -281,103 +342,17 @@ namespace PlayniteAchievements.Providers.Manual
             achievementOverridesService.ClearGameData(gameId, gameName);
 
             playniteApi?.Dialogs?.ShowMessage(
-                L("LOCPlayAch_Status_Succeeded", "Success!"),
-                L("LOCPlayAch_Title_PluginName", "Playnite Achievements"),
+                L("LOCPlayAch_Status_Succeeded"),
+                L("LOCPlayAch_Title_PluginName"),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
 
             return true;
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            return string.IsNullOrWhiteSpace(value) ? fallback : value;
-        }
-
-        private static Dictionary<string, T> BuildCaseInsensitiveLookup<T>(IReadOnlyDictionary<string, T> source)
-        {
-            if (source == null || source.Count == 0)
-            {
-                return null;
-            }
-
-            var lookup = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
-            foreach (var pair in source)
-            {
-                var key = pair.Key?.Trim();
-                if (string.IsNullOrWhiteSpace(key))
-                {
-                    continue;
-                }
-
-                lookup[key] = pair.Value;
-            }
-
-            return lookup;
-        }
-
-        private static bool TryGetLookupValue<T>(
-            IDictionary<string, T> lookup,
-            IReadOnlyList<string> keys,
-            out T value)
-        {
-            value = default(T);
-            if (lookup == null || keys == null || keys.Count == 0)
-            {
-                return false;
-            }
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                if (lookup.TryGetValue(keys[i], out value))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private static List<string> BuildUnlockLookupKeys(ManualAchievementLink link, AchievementDetail detail)
-        {
-            var keys = new List<string>(5);
-            AddLookupKey(keys, detail?.ApiName);
-
-            if (string.Equals(link?.SourceKey, "Exophase", StringComparison.OrdinalIgnoreCase))
-            {
-                AddLookupKey(keys, ExophaseApiClient.NormalizeLegacyManualApiName(detail?.ApiName));
-                AddLookupKey(keys, detail?.DisplayName);
-                AddLookupKey(keys, ExophaseApiClient.NormalizeLegacyManualApiName(detail?.DisplayName));
-
-                var apiName = detail?.ApiName?.Trim();
-                if (!string.IsNullOrWhiteSpace(apiName) &&
-                    apiName.StartsWith(ExophaseApiClient.ExophaseApiNamePrefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    AddLookupKey(keys, apiName.Substring(ExophaseApiClient.ExophaseApiNamePrefix.Length));
-                }
-            }
-
-            return keys;
-        }
-
-        private static void AddLookupKey(IList<string> keys, string value)
-        {
-            var normalized = value?.Trim();
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return;
-            }
-
-            for (var i = 0; i < keys.Count; i++)
-            {
-                if (string.Equals(keys[i], normalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-            }
-
-            keys.Add(normalized);
+            return ResourceProvider.GetString(key);
         }
     }
 }

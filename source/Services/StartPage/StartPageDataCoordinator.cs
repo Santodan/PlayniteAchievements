@@ -6,6 +6,8 @@ using Playnite.SDK;
 #if !TEST
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Library;
 #endif
 using PlayniteAchievements.Services.Overview;
 
@@ -22,8 +24,9 @@ namespace PlayniteAchievements.Services.StartPage
         private bool _disposed;
 
 #if !TEST
-        public StartPageDataCoordinator(
+        internal StartPageDataCoordinator(
             AchievementDataService achievementDataService,
+            LibraryProjectionService libraryProjectionService,
             IReadOnlyList<IDataProvider> providers,
             IPlayniteAPI playniteApi,
             ILogger logger,
@@ -31,15 +34,19 @@ namespace PlayniteAchievements.Services.StartPage
             : this(
                 () =>
                 {
+                    if (libraryProjectionService != null)
+                    {
+                        return libraryProjectionService.GetOverviewSnapshot(
+                            settings,
+                            CancellationToken.None);
+                    }
+
                     var builder = new OverviewDataBuilder(
                         achievementDataService,
                         providers,
                         playniteApi,
                         logger);
-                    return builder.Build(
-                        settings,
-                        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                        CancellationToken.None);
+                    return builder.Build(settings, CancellationToken.None);
                 },
                 logger)
         {

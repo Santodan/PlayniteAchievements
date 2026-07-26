@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK.Models;
 using System;
@@ -30,6 +31,12 @@ namespace PlayniteAchievements.Providers
         /// Providers with no external auth return null.
         /// </summary>
         ISessionManager AuthSession { get; }
+
+        /// <summary>
+        /// Gets the optional provider-owned friends capability.
+        /// Providers that do not support friends return null.
+        /// </summary>
+        IFriendsProvider Friends { get; }
 
         Task<RebuildPayload> RefreshAsync(
             IReadOnlyList<Game> gamesToRefresh,

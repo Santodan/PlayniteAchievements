@@ -11,16 +11,8 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderSettingsScopedControlStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-
-            <Style x:Key="AuthActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
-                    <Setter Property="IsEnabled" Value="False"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -28,47 +20,34 @@
         <StackPanel Margin="20">
 
             <!-- Provider Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <Viewbox Width="28" Height="28" Margin="0,0,12,0" VerticalAlignment="Center">
-                    <Path Data="{StaticResource GeoPSN}" Fill="#0070D1"/>
+            <StackPanel Style="{StaticResource ProviderHeaderPanelStyle}">
+                <Viewbox Style="{StaticResource ProviderHeaderIconStyle}">
+                    <Path Data="{StaticResource GeoPSN}" Fill="{StaticResource PlayAch.Brush.ProviderPsn}"/>
                 </Viewbox>
-                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_PSN}"
-                           FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrush}"/>
+                <TextBlock Text="{DynamicResource LOCPlayAch_Provider_PSN}" Style="{StaticResource ProviderTitleTextStyle}"/>
             </StackPanel>
 
-            <Border Style="{StaticResource SectionBorderStyle}" Margin="0,0,0,12">
+            <Border Style="{StaticResource ProviderEnableToggleBorderStyle}">
                 <CheckBox Content="{DynamicResource LOCPlayAch_Settings_ProviderEnabled}"
                           IsChecked="{Binding Settings.IsEnabled, Mode=TwoWay}"
-                          FontWeight="SemiBold" FontSize="{DynamicResource FontSize}"/>
+                          FontWeight="SemiBold" FontSize="{DynamicResource PlayAch.FontSize.Body}"/>
             </Border>
 
-            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Margin="0,0,0,16">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_ProviderDisabledMessage}" Style="{StaticResource ProviderDisabledMessageStyle}"/>
 
             <Border Style="{StaticResource SectionBorderStyle}" IsEnabled="{Binding Settings.IsEnabled}">
                 <StackPanel>
                     <TextBlock x:Name="ConnectionLabel"
                                Style="{StaticResource SectionHeaderStyle}"/>
 
-                    <StackPanel Margin="0,0,0,16">
-                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,4">
-                            <Run Text="1. "/><Hyperlink NavigateUri="https://www.playstation.com" RequestNavigate="Hyperlink_RequestNavigate" TextDecorations="Underline" FontWeight="SemiBold"><TextBlock Foreground="#4CC9F0" Text="{DynamicResource LOCPlayAch_Settings_Psn_Step1}"/></Hyperlink><Run Text=" "/><Run Text="{DynamicResource LOCPlayAch_Settings_Psn_Step1Note}"/>
+                    <StackPanel Margin="{StaticResource PlayAch.Thickness.Bottom.Lg}">
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
+                            <Run Text="1. "/><Hyperlink NavigateUri="https://www.playstation.com" RequestNavigate="Hyperlink_RequestNavigate" TextDecorations="Underline" FontWeight="SemiBold"><TextBlock Foreground="{StaticResource PlayAch.Brush.ActionLink}" Text="{DynamicResource LOCPlayAch_Settings_Psn_Step1}"/></Hyperlink><Run Text=" "/><Run Text="{DynamicResource LOCPlayAch_Settings_Psn_Step1Note}"/>
                         </TextBlock>
-                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextBrush}" Margin="0,0,0,4">
-                            <Run Text="2. "/><Hyperlink NavigateUri="https://ca.account.sony.com/api/v1/ssocookie" RequestNavigate="Hyperlink_RequestNavigate" TextDecorations="Underline" FontWeight="SemiBold"><TextBlock Foreground="#4CC9F0" Text="{DynamicResource LOCPlayAch_Settings_Psn_Step2}"/></Hyperlink><Run Text=" "/><Run Text="{DynamicResource LOCPlayAch_Settings_Psn_Step2Note}"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource PlayAch.Brush.Text}" Margin="{StaticResource PlayAch.Thickness.Bottom.Xs}">
+                            <Run Text="2. "/><Hyperlink NavigateUri="https://ca.account.sony.com/api/v1/ssocookie" RequestNavigate="Hyperlink_RequestNavigate" TextDecorations="Underline" FontWeight="SemiBold"><TextBlock Foreground="{StaticResource PlayAch.Brush.ActionLink}" Text="{DynamicResource LOCPlayAch_Settings_Psn_Step2}"/></Hyperlink><Run Text=" "/><Run Text="{DynamicResource LOCPlayAch_Settings_Psn_Step2Note}"/>
                         </TextBlock>
-                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextBrush}">
+                        <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource PlayAch.Brush.Text}">
                             <Run Text="3. "/><Run Text="{DynamicResource LOCPlayAch_Settings_Psn_Step3}"/>
                         </TextBlock>
                     </StackPanel>
@@ -80,7 +59,7 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Grid.Column="0" x:Name="AuthLabel"
-                                   Foreground="{DynamicResource TextBrush}" VerticalAlignment="Top" Margin="0,8,0,0"/>
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}" VerticalAlignment="Top" Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
 
                         <Border Grid.Column="1"
                                 Style="{StaticResource AuthStatusBorderStyle}">
@@ -98,12 +77,12 @@
                                     <Button Content="{DynamicResource LOCPlayAch_Button_Login}"
                                             Click="PsnAuth_Login_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="0,0,8,0"/>
+                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
                                     <Button Content="{DynamicResource LOCPlayAch_Common_Check}"
                                             Click="PsnAuth_Check_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                            Margin="{StaticResource PlayAch.Thickness.Right.Sm}"/>
+                                    <Button Content="{DynamicResource LOCPlayAch_Button_SignOut}"
                                             Click="PsnAuth_Clear_Click"
                                             Style="{StaticResource AuthActionButtonStyle}"/>
                                 </StackPanel>
@@ -114,8 +93,8 @@
                                         Margin="0,12,0,0">
                                     <StackPanel>
                                         <TextBlock Text="{DynamicResource LOCPlayAch_Settings_PsnNpsso}"
-                                                   Foreground="{DynamicResource TextBrush}"
-                                                   Margin="0,0,0,8"/>
+                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                   Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}"/>
 
                                         <TextBox Text="{Binding Settings.Npsso, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  x:Name="PsnNpssoTextBox"
@@ -128,7 +107,7 @@
                                                  KeyDown="PsnNpsso_KeyDown"/>
 
                                         <TextBlock Style="{StaticResource MutedTextStyle}"
-                                                   Margin="0,8,0,0"
+                                                   Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
                                                    Text="{DynamicResource LOCPlayAch_Settings_PsnNpssoHint}"/>
                                     </StackPanel>
                                 </Border>

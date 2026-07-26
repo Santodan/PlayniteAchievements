@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Playnite.SDK;
+using PlayniteAchievements.Models.Settings;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -38,20 +39,20 @@ namespace PlayniteAchievements.Models.Achievements
         /// </summary>
         public static SolidColorBrush ToBrush(this RarityTier tier) => tier switch
         {
-            RarityTier.UltraRare => PercentRarityHelper.UltraRareBrush,
-            RarityTier.Rare => PercentRarityHelper.RareBrush,
-            RarityTier.Uncommon => PercentRarityHelper.UncommonBrush,
-            _ => PercentRarityHelper.CommonBrush
+            RarityTier.UltraRare => RarityAppearanceHelper.GetBrush(RarityTier.UltraRare),
+            RarityTier.Rare => RarityAppearanceHelper.GetBrush(RarityTier.Rare),
+            RarityTier.Uncommon => RarityAppearanceHelper.GetBrush(RarityTier.Uncommon),
+            _ => RarityAppearanceHelper.GetBrush(RarityTier.Common)
         };
 
         public static string ToDisplayText(this RarityTier tier)
         {
             return tier switch
             {
-                RarityTier.UltraRare => ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare") ?? "Ultra Rare",
-                RarityTier.Rare => ResourceProvider.GetString("LOCPlayAch_Rarity_Rare") ?? "Rare",
-                RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon") ?? "Uncommon",
-                _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common") ?? "Common"
+                RarityTier.UltraRare => ResourceProvider.GetString("LOCPlayAch_Rarity_UltraRare"),
+                RarityTier.Rare => ResourceProvider.GetString("LOCPlayAch_Rarity_Rare"),
+                RarityTier.Uncommon => ResourceProvider.GetString("LOCPlayAch_Rarity_Uncommon"),
+                _ => ResourceProvider.GetString("LOCPlayAch_Rarity_Common")
             };
         }
 
@@ -97,28 +98,8 @@ namespace PlayniteAchievements.Models.Achievements
 
         public static void ApplyBadgeApplicationResources(bool useUniformRarityBadges)
         {
-            var app = Application.Current;
-            if (app == null)
-            {
-                return;
-            }
-
-            void apply()
-            {
-                ApplyBadgeAlias(app.Resources, RarityTier.Common, useUniformRarityBadges);
-                ApplyBadgeAlias(app.Resources, RarityTier.Uncommon, useUniformRarityBadges);
-                ApplyBadgeAlias(app.Resources, RarityTier.Rare, useUniformRarityBadges);
-                ApplyBadgeAlias(app.Resources, RarityTier.UltraRare, useUniformRarityBadges);
-            }
-
-            var dispatcher = app.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-            {
-                dispatcher.BeginInvoke(new Action(apply), DispatcherPriority.Normal);
-                return;
-            }
-
-            apply();
+            var fallback = new PersistedSettings { UseUniformRarityBadges = useUniformRarityBadges };
+            RarityAppearanceHelper.ApplyBadgeApplicationResources(fallback);
         }
 
         /// <summary>
@@ -132,36 +113,6 @@ namespace PlayniteAchievements.Models.Achievements
             return RarityTier.Common;
         }
 
-        private static void ApplyBadgeAlias(ResourceDictionary resources, RarityTier tier, bool useUniformRarityBadges)
-        {
-            if (resources == null)
-            {
-                return;
-            }
-
-            var source = TryFindResource(tier.ToIconKey(useUniformRarityBadges));
-            if (source != null)
-            {
-                resources[tier.ToDynamicIconKey()] = source;
-            }
-        }
-
-        private static object TryFindResource(string resourceKey)
-        {
-            if (string.IsNullOrWhiteSpace(resourceKey))
-            {
-                return null;
-            }
-
-            try
-            {
-                return Application.Current?.TryFindResource(resourceKey);
-            }
-            catch
-            {
-                return null;
-            }
-        }
     }
 
     public enum RarityTier

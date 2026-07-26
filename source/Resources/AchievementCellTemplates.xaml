@@ -1,0 +1,534 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:models="clr-namespace:PlayniteAchievements.Models.Achievements"
+                    xmlns:helpers="clr-namespace:PlayniteAchievements.Views.Helpers"
+                    xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+                    xmlns:controls="clr-namespace:PlayniteAchievements.Views.Controls">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/TrophyBadges.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- =======================
+         ACHIEVEMENT TEMPLATES
+         ======================= -->
+
+    <!-- Achievement Status Template: Checkmark, padlock, or capstone badge -->
+    <DataTemplate x:Key="AchievementStatusTemplate">
+        <Viewbox Stretch="Uniform"
+                 VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                 HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                 ClipToBounds="False"
+                 UseLayoutRounding="True"
+                 SnapsToDevicePixels="True">
+            <Viewbox.Width>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,8,12,18">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Viewbox.Width>
+            <Viewbox.Height>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,8,12,18">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Viewbox.Height>
+
+            <Grid Width="18" Height="18">
+                <Path Data="{StaticResource GeoCheck}"
+                      Stroke="{DynamicResource PlayAch.Brush.Glyph}"
+                      StrokeThickness="2.3"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Path.Style>
+                        <Style TargetType="Path">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Path.Style>
+                </Path>
+
+                <Image Source="{DynamicResource BadgeRarityCompleted}"
+                       Effect="{StaticResource BadgeShadow}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center">
+                    <Image.Style>
+                        <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+
+                <Grid Opacity="0.65"
+                      UseLayoutRounding="True"
+                      SnapsToDevicePixels="True"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Path Stretch="None"
+                          Fill="{DynamicResource PlayAch.Brush.Glyph}"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                        <Path.Data>
+                            <CombinedGeometry GeometryCombineMode="Exclude">
+                                <CombinedGeometry.Geometry1>
+                                    <PathGeometry Figures="M 9,1 L 16,5 L 16,13 L 9,17 L 2,13 L 2,5 Z"/>
+                                </CombinedGeometry.Geometry1>
+                                <CombinedGeometry.Geometry2>
+                                    <PathGeometry Figures="M 68.9792,102.7712 H 57.344 L 59.0848,85.568 C 56.9216,84.224 55.488,81.8432 55.488,79.0912 C 55.488,74.8672 58.9184,71.4368 63.1552,71.4368 C 67.3792,71.4368 70.8096,74.8672 70.8096,79.0912 C 70.8096,81.8304 69.376,84.2368 67.1872,85.568 L 68.9792,102.7712 Z">
+                                        <PathGeometry.Transform>
+                                            <MatrixTransform Matrix="0.22,0,0,0.22,-4.893,-10.163"/>
+                                        </PathGeometry.Transform>
+                                    </PathGeometry>
+                                </CombinedGeometry.Geometry2>
+                            </CombinedGeometry>
+                        </Path.Data>
+                    </Path>
+                </Grid>
+
+                <Path Data="{StaticResource GeoLock}"
+                      Fill="{DynamicResource PlayAch.Brush.Glyph}"
+                      Stretch="Uniform"
+                      Width="18"
+                      Height="18"
+                      Opacity="0.65"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Path.Style>
+                        <Style TargetType="Path">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="False"/>
+                                        <Condition Binding="{Binding IsCapstone}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Path.Style>
+                </Path>
+            </Grid>
+        </Viewbox>
+    </DataTemplate>
+
+    <!-- Achievement Rarity Template -->
+    <DataTemplate x:Key="AchievementRarityTemplate">
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+            <Image Width="16" Height="16" Margin="0,0,4,0"
+                   Effect="{StaticResource BadgeShadow}"
+                   VerticalAlignment="Center">
+                <Image.Style>
+                    <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.UltraRare}">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityUltraRare}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Rare}">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityRare}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Uncommon}">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityUncommon}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Common}">
+                                <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+            <TextBlock Text="{Binding GlobalPercentText}"
+                       FontWeight="SemiBold"
+                       Opacity="{StaticResource PlayAch.Opacity.Secondary}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ColorRarityColumnsByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="Foreground" Value="{Binding RarityBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="AchievementRarityTierTemplate">
+        <Image HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+               VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+               Effect="{StaticResource BadgeShadow}">
+            <Image.Width>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Image.Width>
+            <Image.Height>
+                <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                    <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                </MultiBinding>
+            </Image.Height>
+            <Image.Style>
+                <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.UltraRare}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityUltraRare}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Rare}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityRare}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Uncommon}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityUncommon}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Rarity}" Value="{x:Static models:RarityTier.Common}">
+                            <Setter Property="Source" Value="{DynamicResource BadgeRarityCommon}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Image.Style>
+        </Image>
+    </DataTemplate>
+
+    <!-- Achievement Trophy Template -->
+    <DataTemplate x:Key="AchievementTrophyTemplate">
+        <Grid VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+              HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}">
+            <Image Effect="{StaticResource BadgeShadow}">
+                <Image.Width>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,width,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Image.Width>
+                <Image.Height>
+                    <MultiBinding Converter="{StaticResource ImageFitDimension}" ConverterParameter="platform,height,24,18,20">
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridRow}" Path="ActualHeight"/>
+                        <Binding RelativeSource="{RelativeSource AncestorType=DataGridCell}" Path="ActualWidth"/>
+                    </MultiBinding>
+                </Image.Height>
+                <Image.Style>
+                    <Style TargetType="Image" BasedOn="{StaticResource RarityIcon}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasTrophyType}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyType}" Value="platinum">
+                                <Setter Property="Source" Value="{DynamicResource TrophyPlatinum}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyType}" Value="gold">
+                                <Setter Property="Source" Value="{DynamicResource TrophyGold}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyType}" Value="silver">
+                                <Setter Property="Source" Value="{DynamicResource TrophySilver}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding TrophyType}" Value="bronze">
+                                <Setter Property="Source" Value="{DynamicResource TrophyBronze}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Achievement Points Template -->
+    <DataTemplate x:Key="AchievementPointsTemplate">
+        <TextBlock Text="{Binding PointsText}"
+                   HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                   VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                   TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                   Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                   Opacity="{StaticResource PlayAch.Opacity.Secondary}"/>
+    </DataTemplate>
+
+    <!-- Achievement Game Column Template - Icon or Cover with toggle support.
+         Sizing is width-driven: the Uniform image fills the column width, so
+         resizing the column grows the art and auto rows grow to match. When a
+         fixed row height is configured it bounds the layout, and Uniform
+         stretch fits the art inside both cell dimensions without clipping. -->
+    <DataTemplate x:Key="AchievementGameColumnTemplate">
+        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                ClipToBounds="True"
+                Margin="2"
+                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                RenderOptions.BitmapScalingMode="HighQuality"
+                UseLayoutRounding="True"
+                SnapsToDevicePixels="True">
+            <Image Stretch="Uniform">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameIconPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
+                        <Setter Property="helpers:AsyncImage.DecodePixel" Value="96"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                         Value="True">
+                                <Setter Property="helpers:AsyncImage.Uri" Value="{Binding GameCoverPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"/>
+                                <Setter Property="helpers:AsyncImage.DecodePixel" Value="128"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </Border>
+    </DataTemplate>
+
+    <!-- Achievement Category Column Template - category art, falling back to the game icon
+         or cover per the grid's UseCoverImages setting. Bounded like the game column so
+         banner-shaped art fills the constraining cell dimension without being clipped. -->
+    <DataTemplate x:Key="AchievementCategoryColumnTemplate">
+        <Border CornerRadius="{StaticResource PlayAch.Radius.Card}"
+                ClipToBounds="True"
+                Margin="2"
+                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                RenderOptions.BitmapScalingMode="HighQuality"
+                UseLayoutRounding="True"
+                SnapsToDevicePixels="True">
+            <Image Stretch="Uniform">
+                <Image.Style>
+                    <Style TargetType="Image">
+                        <Setter Property="helpers:AsyncImage.Uri" Value="{Binding CategoryIconDisplayPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=icon}"/>
+                        <Setter Property="helpers:AsyncImage.DecodePixel" Value="-1"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UseCoverImages, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}"
+                                         Value="True">
+                                <Setter Property="helpers:AsyncImage.Uri" Value="{Binding CategoryCoverDisplayPath, Converter={StaticResource DefaultGameImage}, ConverterParameter=cover}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Image.Style>
+            </Image>
+        </Border>
+    </DataTemplate>
+
+    <!-- Achievement Icon Template - glow is isolated behind an unaffected front icon -->
+    <DataTemplate x:Key="AchievementIconTemplate">
+        <Grid HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+              VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+              ClipToBounds="False"
+              UseLayoutRounding="True"
+              SnapsToDevicePixels="True">
+
+            <!-- BitmapCache stores the blurred glow output so scrolling composites a
+                 cached texture instead of re-rasterizing the DropShadowEffect per frame. -->
+            <Border IsHitTestVisible="False">
+                <Border.CacheMode>
+                    <BitmapCache/>
+                </Border.CacheMode>
+                <Image Stretch="Uniform"
+                       Margin="2"
+                       RenderOptions.BitmapScalingMode="HighQuality"
+                       SnapsToDevicePixels="True"
+                       IsHitTestVisible="False"
+                       helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                       helpers:AsyncImage.DecodePixel="128">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Effect" Value="{x:Null}"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Effect" Value="{Binding Rarity, Converter={StaticResource PercentToRarityGlow}}"/>
+                                </MultiDataTrigger>
+                                <!-- Hardcore achievements use a solid border instead of the soft glow. -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                        <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                        <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="Effect" Value="{x:Null}"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+            </Border>
+
+            <Image Stretch="Uniform"
+                   Margin="2"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   SnapsToDevicePixels="True"
+                   helpers:AsyncImage.Uri="{Binding DisplayIcon}"
+                   helpers:AsyncImage.DecodePixel="128"/>
+
+            <!-- Solid rarity border for Hardcore achievements (replaces the glow).
+                 Negative margin draws the border just OUTSIDE the icon (icon margin 2 - thickness 3)
+                 so it never covers or shrinks the icon, matching how the glow extended outward. -->
+            <Border Margin="-1"
+                    BorderThickness="3"
+                    Background="Transparent"
+                    IsHitTestVisible="False"
+                    SnapsToDevicePixels="True"
+                    BorderBrush="{Binding Rarity, Converter={StaticResource RarityToShineBrush}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Unlocked}" Value="True"/>
+                                    <Condition Binding="{Binding ShowRarityGlow, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True"/>
+                                    <Condition Binding="{Binding IsHardcore}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+        </Grid>
+    </DataTemplate>
+
+    <!-- Achievement Info Template with Hidden Styling -->
+    <DataTemplate x:Key="AchievementInfoTemplate">
+        <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                    Background="Transparent">
+            <TextBlock FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="FontFamily" Value="{DynamicResource PlayAch.FontFamily.Body}"/>
+                        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
+                        <Setter Property="Opacity" Value="0.7"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Unlocked}" Value="True">
+                                <Setter Property="Opacity" Value="1"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsTitleHidden}" Value="True">
+                                <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ColorNamesByRarity, RelativeSource={RelativeSource AncestorType=controls:AchievementDataGridControl}}" Value="True">
+                                <Setter Property="Foreground" Value="{Binding RarityNameBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+                <Run Text="{Binding DisplayNameResolved, Mode=OneWay}"/>
+                <Run Text="{Binding HiddenTitleSuffix, Mode=OneWay}"
+                     FontStyle="Italic"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+                <Run Text="{Binding AchievementNoteInlineMarker, Mode=OneWay}"
+                     FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
+                     Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}"/>
+            </TextBlock>
+            <TextBlock Text="{Binding DescriptionResolved}"
+                       FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
+                       FontSize="{DynamicResource PlayAch.FontSize.Body}"
+                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                       Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                       TextWrapping="Wrap"
+                       TextTrimming="CharacterEllipsis"
+                       TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Margin" Value="0,3,0,0"/>
+                        <Setter Property="MaxHeight" Value="44"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDescriptionHidden}" Value="True">
+                                <Setter Property="FontStyle" Value="Italic"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- Unlock Date / Progress Template -->
+    <DataTemplate x:Key="AchievementUnlockDateTemplate">
+        <Grid HorizontalAlignment="Stretch">
+            <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
+                    VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
+                    Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                    Foreground="{DynamicResource PlayAch.Brush.Text}"
+                    Opacity="{StaticResource PlayAch.Opacity.Subtle}"
+                    TextWrapping="Wrap"
+                    TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}"
+                    Visibility="{Binding ShowUnlockDate, Converter={StaticResource BoolToVis}}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource DateDisplayMode}">
+                        <Binding Path="UnlockTimeLocal"/>
+                        <Binding Path="UnlockDateMode" RelativeSource="{RelativeSource AncestorType=controls:AchievementDataGridControl}"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+
+            <Grid Visibility="{Binding ShowLockedProgress, Converter={StaticResource BoolToVis}}"
+                Margin="4,0"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}">
+
+                <ProgressBar Style="{StaticResource GameProgressBar}"
+                            Value="{Binding ProgressPercent, Mode=OneWay}"
+                            Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+
+                <TextBlock Text="{Binding ProgressText, Mode=OneWay}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Style="{DynamicResource PlayAch.TextBlock.BaseStyle}"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource PlayAch.Brush.Text}"
+                        Visibility="{Binding HasProgress, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+
+</ResourceDictionary>

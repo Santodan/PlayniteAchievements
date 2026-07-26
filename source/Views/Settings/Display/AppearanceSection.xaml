@@ -1,0 +1,454 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.AppearanceSection"
+             x:Name="AppearanceSectionRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:settings="clr-namespace:PlayniteAchievements.Models.Settings"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/RarityBadges.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}"
+                    Background="{DynamicResource PlayAch.Brush.Panel}"
+                    BorderBrush="{DynamicResource PlayAch.Brush.Border}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_Presets}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{DynamicResource LOCPlayAch_Settings_Appearance_Preset}"
+                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,10,0"/>
+
+                                <ComboBox x:Name="RarityPalettePresetComboBox"
+                                          Grid.Column="1"
+                                          MinWidth="240"
+                                          ItemsSource="{Binding RarityPalettePresets, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Width="16" Height="16" Margin="0,0,1,0"
+                                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                        Background="{Binding CommonBrush}"/>
+                                                <Border Width="16" Height="16" Margin="0,0,1,0"
+                                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                        Background="{Binding UncommonBrush}"/>
+                                                <Border Width="16" Height="16" Margin="0,0,1,0"
+                                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                        Background="{Binding RareBrush}"/>
+                                                <Border Width="16" Height="16"
+                                                        BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                        BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                        Background="{Binding UltraRareBrush}"/>
+                                                <TextBlock Text="{Binding DisplayLabel}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <Button Grid.Column="2"
+                                        Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                        Margin="8,0,0,0"
+                                        MinWidth="58"
+                                        Click="ApplySelectedRarityPalettePreset_Click"/>
+
+                                <Button Grid.Column="3"
+                                        Content="{DynamicResource LOCPlayAch_Button_ResetAll}"
+                                        Margin="8,0,0,0"
+                                        MinWidth="78"
+                                        Click="ResetAllRarityColors_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_BadgeColors}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                    <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                    <Border Style="{StaticResource SettingGroupCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Rarity}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"
+                                       Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseUniformRarityBadges}"
+                                      IsChecked="{Binding Persisted.UseUniformRarityBadges}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <CheckBox Content="{DynamicResource LOCPlayAch_Settings_UseTrophiesForRarity}"
+                                      IsChecked="{Binding Persisted.UseTrophiesForRarity}"
+                                      Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                            <ItemsControl ItemsSource="{Binding RarityAppearanceItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Image Source="{Binding PreviewBadge}"
+                                                       Width="24"
+                                                       Height="24"
+                                                       Effect="{StaticResource BadgeShadow}"
+                                                       Style="{StaticResource RarityIcon}"
+                                                       Margin="0,0,10,0"/>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Border Grid.Column="1"
+                                                    Width="26"
+                                                    Height="26"
+                                                    Margin="14,0"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                    Background="{Binding PreviewBrush}"
+                                                    VerticalAlignment="Center"/>
+
+                                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                                         MinWidth="120"
+                                                         Text="{Binding BaseColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                <Button Grid.Column="1"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="PickRarityColor_Click"/>
+
+                                                <Button Grid.Column="2"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="ResetRarityColor_Click"/>
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_CompletedBadge}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+
+                            <ItemsControl ItemsSource="{Binding CompletedBadgeAppearanceItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Image Source="{Binding PreviewBadge}"
+                                                       Width="24"
+                                                       Height="24"
+                                                       Effect="{StaticResource BadgeShadow}"
+                                                       Style="{StaticResource RarityIcon}"
+                                                       Margin="0,0,10,0"/>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Border Grid.Column="1"
+                                                    Width="26"
+                                                    Height="26"
+                                                    Margin="14,0"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                    Background="{Binding PreviewBrush}"
+                                                    VerticalAlignment="Center"/>
+
+                                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                                         MinWidth="120"
+                                                         Text="{Binding BaseColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                <Button Grid.Column="1"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="PickRarityColor_Click"/>
+
+                                                <Button Grid.Column="2"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="ResetRarityColor_Click"/>
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Column_Trophy}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Sm}"/>
+
+                            <ItemsControl ItemsSource="{Binding TrophyAppearanceItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Image Source="{Binding PreviewBadge}"
+                                                       Width="24"
+                                                       Height="24"
+                                                       Effect="{StaticResource BadgeShadow}"
+                                                       Style="{StaticResource RarityIcon}"
+                                                       Margin="0,0,10,0"/>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Border Grid.Column="1"
+                                                    Width="26"
+                                                    Height="26"
+                                                    Margin="14,0"
+                                                    BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                    BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                    Background="{Binding PreviewBrush}"
+                                                    VerticalAlignment="Center"/>
+
+                                            <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Column="0"
+                                                         MinWidth="120"
+                                                         Text="{Binding BaseColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                <Button Grid.Column="1"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="PickRarityColor_Click"/>
+
+                                                <Button Grid.Column="2"
+                                                        Content="{DynamicResource LOCPlayAch_Button_Reset}"
+                                                        Margin="8,0,0,0"
+                                                        MinWidth="58"
+                                                        Click="ResetRarityColor_Click"/>
+                                            </Grid>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Advanced -->
+                    <Expander IsExpanded="False"
+                              Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}"
+                              BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                              BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                              Margin="0,16,0,0"
+                              Padding="12,10,12,12">
+                        <Expander.Header>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Advanced}"
+                                       Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                       FontWeight="SemiBold"/>
+                        </Expander.Header>
+
+                        <StackPanel>
+                                <TextBlock Text="{DynamicResource LOCPlayAch_Settings_Appearance_AdvancedResources}"
+                                           Style="{StaticResource SectionHeaderStyle}"
+                                           Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+                                <Border Style="{StaticResource SectionAccentRuleStyle}"/>
+
+                                <ItemsControl ItemsSource="{Binding ResourceAppearanceItems, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource SettingGroupCardStyle}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="2*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Style="{StaticResource MutedTextStyle}"
+                                                                   TextTrimming="CharacterEllipsis">
+                                                            <Run Text="{DynamicResource LOCPlayAch_Settings_Appearance_PlayniteResourceLabel}"/><Run Text=" "/><Run Text="{Binding PlayniteResourceKey, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                    </StackPanel>
+
+                                                    <ComboBox Grid.Column="1"
+                                                              Width="140"
+                                                              Margin="14,0"
+                                                              VerticalAlignment="Center"
+                                                              SelectedValue="{Binding Mode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              SelectedValuePath="Tag">
+                                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Settings_Appearance_FollowPlaynite}" Tag="{x:Static settings:ResourceOverrideMode.FollowPlaynite}"/>
+                                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Custom}" Tag="{x:Static settings:ResourceOverrideMode.Custom}"/>
+                                                        <ComboBoxItem Content="{DynamicResource LOCPlayAch_Common_Transparent}" Tag="{x:Static settings:ResourceOverrideMode.Transparent}">
+                                                            <ComboBoxItem.Style>
+                                                                <Style TargetType="ComboBoxItem">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsBrush}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ComboBoxItem.Style>
+                                                        </ComboBoxItem>
+                                                    </ComboBox>
+
+                                                    <Grid Grid.Column="2" VerticalAlignment="Center">
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <Setter Property="IsEnabled" Value="False"/>
+                                                                <Setter Property="Opacity" Value="{StaticResource PlayAch.Opacity.Disabled}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsCustom}" Value="True">
+                                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                                        <Setter Property="Opacity" Value="1"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
+
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Grid.Column="0"
+                                                                Width="26"
+                                                                Height="26"
+                                                                Margin="0,0,8,0"
+                                                                BorderBrush="{DynamicResource PlayAch.Brush.Border}"
+                                                                BorderThickness="{StaticResource PlayAch.Thickness.Border}"
+                                                                Background="{Binding PreviewBrush}">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsBrush}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                        </Border>
+
+                                                        <TextBox Grid.Column="1"
+                                                                 MinWidth="120"
+                                                                 Text="{Binding DisplayValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                                        <Button Grid.Column="2"
+                                                                Content="{DynamicResource LOCPlayAch_Button_Pick}"
+                                                                Margin="8,0,0,0"
+                                                                MinWidth="58"
+                                                                Click="PickResourceColor_Click">
+                                                            <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsBrush}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -2,53 +2,86 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
         <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Providers/ProviderIcons.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
-    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="16"/>
+    <Style x:Key="ProviderHeaderIconStyle" TargetType="Viewbox">
+        <Setter Property="Width" Value="{StaticResource PlayAch.Size.Icon.Large}"/>
+        <Setter Property="Height" Value="{StaticResource PlayAch.Size.Icon.Large}"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Md}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="ProviderHeaderPanelStyle" TargetType="StackPanel">
+        <Setter Property="Orientation" Value="Horizontal"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+    </Style>
+
+    <Style x:Key="ProviderTitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.TextBlock.BaseStyle}">
+        <Setter Property="FontSize" Value="{StaticResource PlayAch.FontSize.ProviderTitle}"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="Margin" Value="0,0,0,12"/>
-        <Setter Property="Opacity" Value="1"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource PlayAch.Brush.Text}"/>
     </Style>
 
-    <Style x:Key="SettingRowStyle" TargetType="Grid">
-        <Setter Property="Margin" Value="0,0,0,14"/>
+    <Style x:Key="ProviderTitleOnlyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource ProviderTitleTextStyle}">
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
     </Style>
 
-    <!-- Section container style with shadow -->
-    <Style x:Key="SectionBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="18"/>
-        <Setter Property="Margin" Value="0,0,0,20"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="BorderThickness" Value="1"/>
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.SectionHeaderTextStyle}"/>
+
+    <Style x:Key="SettingRowStyle" TargetType="Grid" BasedOn="{StaticResource PlayAch.SettingRowStyle}"/>
+
+    <Style x:Key="SectionBorderStyle" TargetType="Border" BasedOn="{StaticResource PlayAch.SectionBorderStyle}"/>
+
+    <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PlayAch.MutedTextStyle}"/>
+
+    <Style x:Key="ProviderEnableToggleBorderStyle" TargetType="Border" BasedOn="{StaticResource SectionBorderStyle}">
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
     </Style>
 
-    <!-- Muted text style -->
-    <Style x:Key="MutedTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="Opacity" Value="0.6"/>
-        <Setter Property="FontSize" Value="{DynamicResource FontSizeSmall}"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
+    <Style x:Key="ProviderHelpTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+    </Style>
+
+    <Style x:Key="ProviderDisabledMessageStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Bottom.Lg}"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Settings.IsEnabled}" Value="False">
+                <Setter Property="Visibility" Value="Visible"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="AuthActionButtonStyle" TargetType="Button" BasedOn="{StaticResource PlayAch.Button.BaseStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding AuthBusy, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="IsEnabled" Value="False"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="AuthStatusBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="16"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="BorderBrush" Value="#F72585"/>
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
+        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.StatusPadding}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
                          Value="True">
-                <Setter Property="BorderBrush" Value="#FBBF24"/>
+                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding IsAuthStatusSuccess, RelativeSource={RelativeSource AncestorType=UserControl}}"
                          Value="True">
-                <Setter Property="BorderBrush" Value="#06FFA5"/>
+                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -56,25 +89,86 @@
     <Style x:Key="AuthStatusIconStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
         <Setter Property="FontSize" Value="20"/>
-        <Setter Property="Width" Value="24"/>
-        <Setter Property="Height" Value="24"/>
-        <Setter Property="LineHeight" Value="24"/>
+        <Setter Property="Width" Value="{StaticResource PlayAch.Size.Icon.Medium}"/>
+        <Setter Property="Height" Value="{StaticResource PlayAch.Size.Icon.Medium}"/>
+        <Setter Property="LineHeight" Value="{StaticResource PlayAch.Size.Icon.Medium}"/>
         <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
-        <Setter Property="Margin" Value="0,0,12,0"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Md}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="Text" Value="&#xE783;"/>
-        <Setter Property="Foreground" Value="#F72585"/>
+        <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthError}"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <RotateTransform Angle="0"/>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsAuthStatusPending, RelativeSource={RelativeSource AncestorType=UserControl}}"
                          Value="True">
                 <Setter Property="Text" Value="&#xE9CE;"/>
-                <Setter Property="Foreground" Value="#FBBF24"/>
+                <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding IsAuthStatusSuccess, RelativeSource={RelativeSource AncestorType=UserControl}}"
                          Value="True">
                 <Setter Property="Text" Value="&#xE930;"/>
-                <Setter Property="Foreground" Value="#06FFA5"/>
+                <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding IsAuthStatusChecking, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="Text" Value="&#xE895;"/>
+                <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthPending}"/>
+                <!-- Segoe MDL2 glyphs fill the em square with no descent, so the element
+                     bounds only match the glyph (making center rotation true) when
+                     FontSize == Width == Height == LineHeight. The margin re-centers the
+                     smaller box within the 24px icon slot so neighboring text stays put. -->
+                <Setter Property="FontSize" Value="16"/>
+                <Setter Property="Width" Value="16"/>
+                <Setter Property="Height" Value="16"/>
+                <Setter Property="LineHeight" Value="16"/>
+                <Setter Property="Margin" Value="4,0,16,0"/>
+                <DataTrigger.EnterActions>
+                    <BeginStoryboard x:Name="AuthCheckingSpinStoryboard">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                             From="0" To="360" Duration="0:0:1.2" RepeatBehavior="Forever"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </DataTrigger.EnterActions>
+                <DataTrigger.ExitActions>
+                    <StopStoryboard BeginStoryboardName="AuthCheckingSpinStoryboard"/>
+                </DataTrigger.ExitActions>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ProviderConfigStatusBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PlayAch.Brush.Panel}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource PlayAch.Radius.Section}"/>
+        <Setter Property="Padding" Value="{StaticResource PlayAch.Thickness.StatusPadding}"/>
+        <Setter Property="BorderThickness" Value="{StaticResource PlayAch.Thickness.Border}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthError}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ProviderConfigStatusIconStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+        <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Body}"/>
+        <Setter Property="Margin" Value="{StaticResource PlayAch.Thickness.Right.Md}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Text" Value="&#xE783;"/>
+        <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthError}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsAuthenticated, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                         Value="True">
+                <Setter Property="Text" Value="&#xE73E;"/>
+                <Setter Property="Foreground" Value="{StaticResource PlayAch.Brush.AuthSuccess}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>

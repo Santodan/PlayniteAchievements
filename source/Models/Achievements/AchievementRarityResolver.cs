@@ -1,4 +1,5 @@
 using System;
+using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Models.Achievements
 {
@@ -7,11 +8,57 @@ namespace PlayniteAchievements.Models.Achievements
     /// </summary>
     public static class AchievementRarityResolver
     {
+        /// <summary>
+        /// Display-only rounding option mirrored from PersistedSettings.RoundRarityPercentages at
+        /// plugin startup and on settings changes. When true, rarity percentages render as whole
+        /// percents and values under 1% render as "&lt;1%". Stored percent values and sort
+        /// ordering are unaffected.
+        /// </summary>
+        public static bool RoundDisplayPercentages { get; set; }
+
+        /// <summary>
+        /// Formats a rarity percent for display. Default format is one decimal place; when
+        /// RoundDisplayPercentages is enabled, rounds to the nearest whole percent.
+        /// </summary>
+        public static string FormatPercent(double rawPercent)
+        {
+            if (!RoundDisplayPercentages)
+            {
+                return PercentFormatter.Format(rawPercent, 1);
+            }
+
+            return FormatRoundedPercent(rawPercent);
+        }
+
+        /// <summary>
+        /// Formats a rarity percent for compact surfaces that always show whole percents.
+        /// When RoundDisplayPercentages is enabled, values under 1% render as "&lt;1%".
+        /// </summary>
+        public static string FormatWholePercent(double rawPercent)
+        {
+            if (!RoundDisplayPercentages)
+            {
+                return PercentFormatter.FormatWhole(rawPercent);
+            }
+
+            return FormatRoundedPercent(rawPercent);
+        }
+
+        private static string FormatRoundedPercent(double rawPercent)
+        {
+            if (rawPercent < 1)
+            {
+                return PercentFormatter.FormatLessThanWhole(1);
+            }
+
+            return PercentFormatter.FormatWhole(Math.Round(rawPercent, MidpointRounding.AwayFromZero));
+        }
+
         public static string GetDisplayText(double? rawPercent, RarityTier rarity)
         {
             if (rawPercent.HasValue)
             {
-                return $"{rawPercent.Value:F1}%";
+                return FormatPercent(rawPercent.Value);
             }
 
             return rarity.ToDisplayText();
@@ -21,7 +68,7 @@ namespace PlayniteAchievements.Models.Achievements
         {
             if (rawPercent.HasValue)
             {
-                return $"{rawPercent.Value:F1}% - {rarity.ToDisplayText()}";
+                return $"{FormatPercent(rawPercent.Value)} - {rarity.ToDisplayText()}";
             }
 
             return rarity.ToDisplayText();

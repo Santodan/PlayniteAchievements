@@ -26,6 +26,11 @@ namespace PlayniteAchievements.Providers.Hoyoverse
     internal sealed class HoyoverseDefinitionClient : IHoyoverseDefinitionClient, IDisposable
     {
         private static readonly TimeSpan DefinitionTtl = TimeSpan.FromHours(24);
+        private static readonly Regex IndexAssetPathRegex = new Regex(@"/assets/index-[^""']+\.js", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex HtmlTagRegex = new Regex(@"<[^>]+>", RegexOptions.Compiled);
+        private static readonly Regex MarkupTokenRegex = new Regex(@"\{[A-Z]+#([^}]*)\}", RegexOptions.Compiled);
+        private static readonly Regex WhitespaceRunRegex = new Regex(@"\s+", RegexOptions.Compiled);
+        private static readonly Regex ExponentNumberRegex = new Regex(@"\b(\d+)e(\d+)\b", RegexOptions.Compiled);
         private readonly HttpClient _httpClient;
         private readonly bool _ownsHttpClient;
         private readonly ILogger _logger;
@@ -115,7 +120,7 @@ namespace PlayniteAchievements.Providers.Hoyoverse
         {
             var locale = MapGlobalLanguageToZzzLocale(globalLanguage);
             var html = await GetStringWithCacheAsync("zzz-index.html", "https://zzz.seelie.me/", cancel).ConfigureAwait(false);
-            var indexAsset = Regex.Match(html ?? string.Empty, @"/assets/index-[^""']+\.js", RegexOptions.IgnoreCase).Value;
+            var indexAsset = IndexAssetPathRegex.Match(html ?? string.Empty).Value;
             if (string.IsNullOrWhiteSpace(indexAsset))
             {
                 throw new InvalidDataException("Could not find zzz.seelie.me index asset.");
@@ -854,9 +859,9 @@ namespace PlayniteAchievements.Providers.Hoyoverse
             }
 
             var text = value.Replace("\\n", " ").Replace("\n", " ").Replace("\r", " ");
-            text = Regex.Replace(text, @"<[^>]+>", string.Empty);
-            text = Regex.Replace(text, @"\{[A-Z]+#([^}]*)\}", "$1");
-            text = Regex.Replace(text, @"\s+", " ");
+            text = HtmlTagRegex.Replace(text, string.Empty);
+            text = MarkupTokenRegex.Replace(text, "$1");
+            text = WhitespaceRunRegex.Replace(text, " ");
             return text.Trim();
         }
 
@@ -886,7 +891,7 @@ namespace PlayniteAchievements.Providers.Hoyoverse
 
             text = NormalizeJsStringLiterals(text);
             text = QuoteUnquotedObjectKeys(text);
-            text = Regex.Replace(text, @"\b(\d+)e(\d+)\b", match =>
+            text = ExponentNumberRegex.Replace(text, match =>
             {
                 if (!double.TryParse(match.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
                 {

@@ -11,11 +11,8 @@
     <base:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <converters:BooleanConverter x:Key="BooleanToVisibilityConverter" Mode="ToVisibility" />
-            <converters:BooleanConverter x:Key="InverseBoolToVisConverter" Mode="InvertedToVisibility" />
-            <converters:HeightToFontSizeConverter x:Key="HeightToFontSizeConverter" />
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
@@ -38,7 +35,7 @@
 
             <!-- Trophy icon (shown when DisplayDetails=False) -->
             <TextBlock Grid.Column="0"
-                       Text="&#xedd7;" FontFamily="{DynamicResource FontIcoFont}"
+                       Text="&#xedd7;" FontFamily="{DynamicResource PlayAch.FontFamily.Icon}"
                        VerticalAlignment="Center"
                        Visibility="{Binding DisplayDetails, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, Converter={StaticResource InverseBoolToVisConverter}}"
                        FontSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}, FallbackValue=14}"/>
@@ -76,7 +73,7 @@
                            Margin="0,-3,0,-3" Padding="5,3,5,5"
                            FontSize="{Binding ActualHeight, RelativeSource={RelativeSource Self}, Converter={StaticResource HeightToFontSizeConverter}, FallbackValue=12}">
                     <TextBlock.Text>
-                        <MultiBinding StringFormat="{}{0}/{1}">
+                        <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
                             <Binding Path="UnlockedCount" FallbackValue="0"/>
                             <Binding Path="AchievementCount" FallbackValue="0"/>
                         </MultiBinding>

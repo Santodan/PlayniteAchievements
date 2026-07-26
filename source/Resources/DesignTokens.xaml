@@ -1,0 +1,202 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- App-owned colors. Playnite theme colors continue to come from host keys. -->
+    <Color x:Key="PlayAch.Color.Overlay.Transparent">#00FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.08">#08FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.10">#10FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.12">#12FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.14">#14FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.18">#18FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.1C">#1CFFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.1E">#1EFFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.1F">#1FFFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.20">#20FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.22">#22FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.2F">#2FFFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.30">#30FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.40">#40FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.45">#45FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Tint.50">#50FFFFFF</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.08">#08000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.10">#10000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.12">#12000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.14">#14000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.18">#18000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.1E">#1E000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.20">#20000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.22">#22000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.32">#32000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.42">#42000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.54">#54000000</Color>
+    <Color x:Key="PlayAch.Color.Overlay.Shade.80">#80000000</Color>
+    <Color x:Key="PlayAch.Color.DialogBackdrop">#E0222222</Color>
+    <Color x:Key="PlayAch.Color.Shadow">#000000</Color>
+    <Color x:Key="PlayAch.Color.AuthError">#F72585</Color>
+    <Color x:Key="PlayAch.Color.AuthPending">#FBBF24</Color>
+    <Color x:Key="PlayAch.Color.AuthSuccess">#06FFA5</Color>
+    <Color x:Key="PlayAch.Color.ActionLink">#4CC9F0</Color>
+    <Color x:Key="PlayAch.Color.CompletedGame">#2196F3</Color>
+    <Color x:Key="PlayAch.Color.ErrorText">#FFE07070</Color>
+    <Color x:Key="PlayAch.Color.ProviderSteam">#B0B0B0</Color>
+    <Color x:Key="PlayAch.Color.ProviderBattleNet">#14B8A6</Color>
+    <Color x:Key="PlayAch.Color.ProviderEA">#E11D48</Color>
+    <Color x:Key="PlayAch.Color.ProviderEpic">#26BBFF</Color>
+    <Color x:Key="PlayAch.Color.ProviderGog">#A855F7</Color>
+    <Color x:Key="PlayAch.Color.ProviderGooglePlay">#0F9D58</Color>
+    <Color x:Key="PlayAch.Color.ProviderHoyoverse">#D4ACF8</Color>
+    <Color x:Key="PlayAch.Color.ProviderManual">#FF652C</Color>
+    <Color x:Key="PlayAch.Color.ProviderPsn">#0070D1</Color>
+    <Color x:Key="PlayAch.Color.ProviderRetroAchievements">#FFD700</Color>
+    <Color x:Key="PlayAch.Color.ProviderRpcs3">#686DE0</Color>
+    <Color x:Key="PlayAch.Color.ProviderShadPS4">#752BFD</Color>
+    <Color x:Key="PlayAch.Color.ProviderUbisoft">#0044AA</Color>
+    <Color x:Key="PlayAch.Color.ProviderXbox">#107C10</Color>
+    <Color x:Key="PlayAch.Color.ProviderXenia">#92C83E</Color>
+    <Color x:Key="PlayAch.Color.ProviderApple">#E5E5E5</Color>
+    <Color x:Key="PlayAch.Color.ProviderFFXIV">#C0392B</Color>
+    <Color x:Key="PlayAch.Color.MigrationAccent">#FF37A7C8</Color>
+    <Color x:Key="PlayAch.Color.MigrationAccentPressed">#FF2D8FAB</Color>
+
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Transparent" Color="{StaticResource PlayAch.Color.Overlay.Transparent}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.08" Color="{StaticResource PlayAch.Color.Overlay.Tint.08}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.10" Color="{StaticResource PlayAch.Color.Overlay.Tint.10}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.12" Color="{StaticResource PlayAch.Color.Overlay.Tint.12}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.14" Color="{StaticResource PlayAch.Color.Overlay.Tint.14}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.18" Color="{StaticResource PlayAch.Color.Overlay.Tint.18}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.1C" Color="{StaticResource PlayAch.Color.Overlay.Tint.1C}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.1E" Color="{StaticResource PlayAch.Color.Overlay.Tint.1E}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.1F" Color="{StaticResource PlayAch.Color.Overlay.Tint.1F}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.20" Color="{StaticResource PlayAch.Color.Overlay.Tint.20}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.22" Color="{StaticResource PlayAch.Color.Overlay.Tint.22}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.2F" Color="{StaticResource PlayAch.Color.Overlay.Tint.2F}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.30" Color="{StaticResource PlayAch.Color.Overlay.Tint.30}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.40" Color="{StaticResource PlayAch.Color.Overlay.Tint.40}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.45" Color="{StaticResource PlayAch.Color.Overlay.Tint.45}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Tint.50" Color="{StaticResource PlayAch.Color.Overlay.Tint.50}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.08" Color="{StaticResource PlayAch.Color.Overlay.Shade.08}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.10" Color="{StaticResource PlayAch.Color.Overlay.Shade.10}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.12" Color="{StaticResource PlayAch.Color.Overlay.Shade.12}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.14" Color="{StaticResource PlayAch.Color.Overlay.Shade.14}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.18" Color="{StaticResource PlayAch.Color.Overlay.Shade.18}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.1E" Color="{StaticResource PlayAch.Color.Overlay.Shade.1E}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.20" Color="{StaticResource PlayAch.Color.Overlay.Shade.20}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.22" Color="{StaticResource PlayAch.Color.Overlay.Shade.22}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.32" Color="{StaticResource PlayAch.Color.Overlay.Shade.32}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.42" Color="{StaticResource PlayAch.Color.Overlay.Shade.42}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.54" Color="{StaticResource PlayAch.Color.Overlay.Shade.54}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.Overlay.Shade.80" Color="{StaticResource PlayAch.Color.Overlay.Shade.80}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.DialogBackdrop" Color="{StaticResource PlayAch.Color.DialogBackdrop}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.AuthError" Color="{StaticResource PlayAch.Color.AuthError}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.AuthPending" Color="{StaticResource PlayAch.Color.AuthPending}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.AuthSuccess" Color="{StaticResource PlayAch.Color.AuthSuccess}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ActionLink" Color="{StaticResource PlayAch.Color.ActionLink}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.CompletedGame" Color="{StaticResource PlayAch.Color.CompletedGame}"/>
+
+    <!-- Completion glow defaults; PlayAchResourceService replaces these with the user's
+         configured completed-game gradient colors at runtime. -->
+    <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowStart" BlurRadius="14" ShadowDepth="2" Direction="135" Color="#9C27B0" Opacity="1"/>
+    <DropShadowEffect x:Key="PlayAch.Effect.CompletedGlowEnd" BlurRadius="14" ShadowDepth="2" Direction="315" Color="#2196F3" Opacity="1"/>
+
+    <!-- Completed progress fill default; PlayAchResourceService replaces this with the user's
+         configured completed-game gradient colors at runtime. The fill is a plain horizontal
+         CompletedStart -> CompletedEnd sweep. -->
+    <LinearGradientBrush x:Key="PlayAch.Brush.Progress.CompletedFill" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Offset="0.00" Color="#9C27B0"/>
+        <GradientStop Offset="1.00" Color="#2196F3"/>
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="PlayAch.Brush.ErrorText" Color="{StaticResource PlayAch.Color.ErrorText}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderSteam" Color="{StaticResource PlayAch.Color.ProviderSteam}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderBattleNet" Color="{StaticResource PlayAch.Color.ProviderBattleNet}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderEA" Color="{StaticResource PlayAch.Color.ProviderEA}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderEpic" Color="{StaticResource PlayAch.Color.ProviderEpic}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderGog" Color="{StaticResource PlayAch.Color.ProviderGog}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderGooglePlay" Color="{StaticResource PlayAch.Color.ProviderGooglePlay}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderHoyoverse" Color="{StaticResource PlayAch.Color.ProviderHoyoverse}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderManual" Color="{StaticResource PlayAch.Color.ProviderManual}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderPsn" Color="{StaticResource PlayAch.Color.ProviderPsn}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderRetroAchievements" Color="{StaticResource PlayAch.Color.ProviderRetroAchievements}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderRpcs3" Color="{StaticResource PlayAch.Color.ProviderRpcs3}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderShadPS4" Color="{StaticResource PlayAch.Color.ProviderShadPS4}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderUbisoft" Color="{StaticResource PlayAch.Color.ProviderUbisoft}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderXbox" Color="{StaticResource PlayAch.Color.ProviderXbox}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderXenia" Color="{StaticResource PlayAch.Color.ProviderXenia}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderApple" Color="{StaticResource PlayAch.Color.ProviderApple}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.ProviderFFXIV" Color="{StaticResource PlayAch.Color.ProviderFFXIV}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccent" Color="{StaticResource PlayAch.Color.MigrationAccent}"/>
+    <SolidColorBrush x:Key="PlayAch.Brush.MigrationAccentPressed" Color="{StaticResource PlayAch.Color.MigrationAccentPressed}"/>
+
+    <!-- Common scalar values. -->
+    <sys:Double x:Key="PlayAch.Opacity.Disabled">0.55</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Muted">0.6</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Subtle">0.7</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Hint">0.75</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Secondary">0.8</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Emphasis">0.95</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Placeholder">0.5</sys:Double>
+    <sys:Double x:Key="PlayAch.Opacity.Full">1</sys:Double>
+
+    <sys:Double x:Key="PlayAch.FontSize.SectionHeader">16</sys:Double>
+    <sys:Double x:Key="PlayAch.FontSize.ProviderTitle">20</sys:Double>
+    <sys:Double x:Key="PlayAch.FontSize.InlineIcon">16</sys:Double>
+
+    <sys:Double x:Key="PlayAch.Size.Icon.Tiny">18</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Icon.Small">22</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Icon.Medium">24</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Icon.Large">28</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Control.SmallHeight">24</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Control.Height">30</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Control.LargeHeight">34</sys:Double>
+    <!-- Constant height for overview header rows so toggling game selection cannot
+         resize the (Auto) header row and cause layout jitter. Content is centered. -->
+    <sys:Double x:Key="PlayAch.Size.Header.Height">39</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Input.NarrowWidth">50</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Button.ResetMinWidth">74</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.AuthColumnWidth">180</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.ProviderPageWidth">700</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.ProviderPageHeight">600</sys:Double>
+    <sys:Double x:Key="PlayAch.Size.Text.DescriptionPreviewMaxHeight">44</sys:Double>
+
+    <CornerRadius x:Key="PlayAch.Radius.Tiny">2</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Small">4</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Card">6</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Section">8</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.PillSmall">11</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Circle18">9</CornerRadius>
+    <CornerRadius x:Key="PlayAch.Radius.Circle34">17</CornerRadius>
+
+    <Thickness x:Key="PlayAch.Thickness.None">0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Border">1</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.CardPadding">12</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.SectionPadding">18</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.StatusPadding">16</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.ProviderPageMargin">20</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Xs">0,0,0,4</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Compact">0,0,0,6</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Sm">0,0,0,8</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Md">0,0,0,12</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.SettingRow">0,0,0,14</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Lg">0,0,0,16</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Bottom.Xl">0,0,0,20</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Top.Compact">0,6,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Top.Xs">0,4,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Top.Sm">0,8,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Top.Md">0,12,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Right.Xs">0,0,4,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Right.Compact">0,0,6,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Right.Sm">0,0,8,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Right.Md">0,0,12,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Left.Xs">4,0,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Left.Sm">8,0,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.Left.Md">12,0,0,0</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.ButtonPadding">12,6</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.ButtonPadding.Compact">10,4</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.ButtonPadding.Wide">14,6</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.EditorTextBoxPadding">10,6,30,6</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.InfoCellPadding">12,10</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.ChipMargin">0,0,8,8</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.IconCardPadding">8,9</Thickness>
+    <Thickness x:Key="PlayAch.Thickness.RowDividerTop">0,1,0,0</Thickness>
+
+</ResourceDictionary>

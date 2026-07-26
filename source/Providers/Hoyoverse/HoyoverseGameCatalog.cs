@@ -1,4 +1,6 @@
 using Playnite.SDK.Models;
+using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -62,12 +64,33 @@ namespace PlayniteAchievements.Providers.Hoyoverse
                 return false;
             }
 
-            if (!TryResolveByName(game.Name, out kind))
+            // A per-game override forces the title, bypassing name matching; the title must still be
+            // enabled (so its export path is configured).
+            if (TryGetForcedKind(game.Id, out var forcedKind))
+            {
+                kind = forcedKind;
+            }
+            else if (!TryResolveByName(game.Name, out kind))
             {
                 return false;
             }
 
             return IsEnabled(kind, settings);
+        }
+
+        public static bool TryGetForcedKind(Guid gameId, out HoyoverseGameKind kind)
+        {
+            kind = HoyoverseGameKind.None;
+            return GameCustomDataLookup.TryGetProviderOverrideValue(gameId, HoyoverseDataProvider.Key, out var value) &&
+                   TryParseKind(value, out kind);
+        }
+
+        private static bool TryParseKind(string value, out HoyoverseGameKind kind)
+        {
+            kind = HoyoverseGameKind.None;
+            return !string.IsNullOrWhiteSpace(value) &&
+                   Enum.TryParse(value.Trim(), ignoreCase: true, out kind) &&
+                   kind != HoyoverseGameKind.None;
         }
 
         public static bool TryResolveByName(string gameName, out HoyoverseGameKind kind)

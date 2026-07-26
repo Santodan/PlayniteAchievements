@@ -1,0 +1,150 @@
+<UserControl x:Class="PlayniteAchievements.Views.ManageAchievements.ManageAchievementsOverridesTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:converters="clr-namespace:PlayniteAchievements.Views.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="800">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/ManageAchievementsScopedControlStyles.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0">
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ExclusionHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <TextBlock Text="{Binding ExclusionStatusText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
+                    <Button Content="{Binding ExclusionActionText}"
+                            Command="{Binding ToggleExclusionCommand}"
+                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                            MinWidth="190"
+                            HorizontalAlignment="Left"
+                            Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_SummaryExclusionHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <TextBlock Text="{Binding SummaryExclusionStatusText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}" />
+                    <Button Content="{Binding SummaryExclusionActionText}"
+                            Command="{Binding ToggleSummaryExclusionCommand}"
+                            Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                            MinWidth="190"
+                            HorizontalAlignment="Left"
+                            Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <TextBlock Text="{Binding SeparateLockedIconsStatusText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                               TextWrapping="Wrap" />
+                    <CheckBox Content="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_LockedIconsCheckbox}"
+                              IsChecked="{Binding UseSeparateLockedIconsOverride}"
+                              FontWeight="SemiBold"
+                              Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardBorderStyle}"
+                    Margin="{StaticResource PlayAch.Thickness.Bottom.Md}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHeader}"
+                               Style="{StaticResource SectionHeaderStyle}" />
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ManageAchievements_Overrides_ProviderHint}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Opacity="{StaticResource PlayAch.Opacity.Hint}"
+                               TextWrapping="Wrap"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    <TextBlock Text="{Binding ProviderOverrideStatusText}"
+                               Foreground="{DynamicResource PlayAch.Brush.Text}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                               TextWrapping="Wrap" />
+
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding ProviderOverrideOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="ProviderKey"
+                                  SelectedValue="{Binding SelectedProviderOverrideKey, Mode=TwoWay}"
+                                  Padding="8,4" />
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_Button_Apply}"
+                                Command="{Binding ApplyProviderOverrideCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                        <Button Grid.Column="2"
+                                Content="{DynamicResource LOCPlayAch_Button_Clear}"
+                                Command="{Binding ClearProviderOverrideCommand}"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding}"
+                                Margin="{StaticResource PlayAch.Thickness.Left.Sm}" />
+                    </Grid>
+
+                    <StackPanel Margin="0,12,0,0"
+                                Visibility="{Binding IsProviderOverrideValueVisible, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding ProviderOverrideInputLabel}"
+                                   Foreground="{DynamicResource PlayAch.Brush.Text}"
+                                   FontWeight="SemiBold" />
+                        <TextBox Text="{Binding ProviderOverrideInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding IsProviderOverrideTextVisible, Converter={StaticResource BoolToVis}}"
+                                 Padding="8,6"
+                                 Width="300"
+                                 HorizontalAlignment="Left"
+                                 Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                        <ComboBox ItemsSource="{Binding ProviderOverrideChoices}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectedValue="{Binding ProviderOverrideInput, Mode=TwoWay}"
+                                  Visibility="{Binding IsProviderOverrideChoiceVisible, Converter={StaticResource BoolToVis}}"
+                                  Padding="8,4"
+                                  Width="300"
+                                  HorizontalAlignment="Left"
+                                  Margin="{StaticResource PlayAch.Thickness.Top.Compact}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

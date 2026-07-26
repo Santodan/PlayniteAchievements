@@ -298,23 +298,13 @@ namespace PlayniteAchievements.Providers.Epic
             _logger?.Info("[EpicAuth] Clearing session.");
 
             // Clear cookies from CEF
-            try
-            {
-                _api.MainView.UIDispatcher.Invoke(() =>
-                {
-                    using (var view = _api.WebViews.CreateOffscreenView())
-                    {
-                        view.DeleteDomainCookies("epicgames.com");
-                        view.DeleteDomainCookies(".epicgames.com");
-                        view.DeleteDomainCookies(".store.epicgames.com");
-                        view.DeleteDomainCookies("account-public-service-prod03.ol.epicgames.com");
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger?.Debug(ex, "[EpicAuth] Failed to clear Epic cookies.");
-            }
+            _api.DeleteDomainCookies(
+                _logger,
+                "[EpicAuth]",
+                "epicgames.com",
+                ".epicgames.com",
+                ".store.epicgames.com",
+                "account-public-service-prod03.ol.epicgames.com");
 
             // Clear persisted tokens
             var epicSettings = GetEpicSettings();
@@ -657,35 +647,29 @@ namespace PlayniteAchievements.Providers.Epic
         {
             using (PerfScope.Start(_logger, "Epic.TryGetAuthorizationCodeFromSessionAsync", thresholdMs: 50))
             {
-                var dispatchOperation = _api.MainView.UIDispatcher.InvokeAsync(async () =>
+                return await _api.WithOffscreenViewAsync(async view =>
                 {
-                    using (var view = _api.WebViews.CreateOffscreenView())
+                    try
                     {
-                        try
-                        {
-                            ct.ThrowIfCancellationRequested();
-                            await view.NavigateAndWaitAsync(UrlAuthCode, timeoutMs: 12000);
+                        ct.ThrowIfCancellationRequested();
+                        await view.NavigateAndWaitAsync(UrlAuthCode, timeoutMs: 12000);
 
-                            var source = await view.GetPageSourceAsync().ConfigureAwait(false);
-                            var code = TryExtractAuthorizationCode(source);
-                            if (!string.IsNullOrWhiteSpace(code))
-                            {
-                                return code;
-                            }
-
-                            var text = await view.GetPageTextAsync().ConfigureAwait(false);
-                            return TryExtractAuthorizationCode(text);
-                        }
-                        catch (Exception ex)
+                        var source = await view.GetPageSourceAsync().ConfigureAwait(false);
+                        var code = TryExtractAuthorizationCode(source);
+                        if (!string.IsNullOrWhiteSpace(code))
                         {
-                            _logger?.Debug(ex, "[EpicAuth] Offscreen auth-code probe failed.");
-                            return null;
+                            return code;
                         }
+
+                        var text = await view.GetPageTextAsync().ConfigureAwait(false);
+                        return TryExtractAuthorizationCode(text);
                     }
-                });
-
-                var operationTask = await dispatchOperation.Task.ConfigureAwait(false);
-                return await operationTask.ConfigureAwait(false);
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, "[EpicAuth] Offscreen auth-code probe failed.");
+                        return null;
+                    }
+                }).ConfigureAwait(false);
             }
         }
 
@@ -779,27 +763,12 @@ namespace PlayniteAchievements.Providers.Epic
                 throw new EpicAuthRequiredException("Epic authorization code is missing.");
             }
 
-            using (var httpClient = new HttpClient())
-            {
-                httpClient.DefaultRequestHeaders.Clear();
-                httpClient.DefaultRequestHeaders.Add("Authorization", "basic " + AuthEncodedString);
+            var body = await PostTokenRequestAsync(
+                $"grant_type=authorization_code&code={authorizationCode}&token_type=eg1",
+                "Epic token exchange",
+                ct).ConfigureAwait(false);
 
-                using (var content = new StringContent(
-                    $"grant_type=authorization_code&code={authorizationCode}&token_type=eg1"))
-                {
-                    content.Headers.Clear();
-                    content.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
-                    var response = await httpClient.PostAsync(UrlAccountAuth, content, ct).ConfigureAwait(false);
-                    var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new EpicAuthRequiredException($"Epic token exchange failed with HTTP {(int)response.StatusCode}.");
-                    }
-
-                    ApplyTokenResponse(body);
-                }
-            }
+            ApplyTokenResponse(body);
         }
 
         private async Task RenewTokensAsync(string refreshToken, CancellationToken ct)
@@ -809,25 +778,33 @@ namespace PlayniteAchievements.Providers.Epic
                 throw new EpicAuthRequiredException("Epic refresh token is missing.");
             }
 
-            using (var httpClient = new HttpClient())
-            {
-                httpClient.DefaultRequestHeaders.Clear();
-                httpClient.DefaultRequestHeaders.Add("Authorization", "basic " + AuthEncodedString);
+            var body = await PostTokenRequestAsync(
+                $"grant_type=refresh_token&refresh_token={refreshToken}&token_type=eg1",
+                "Epic token refresh",
+                ct).ConfigureAwait(false);
 
-                using (var content = new StringContent(
-                    $"grant_type=refresh_token&refresh_token={refreshToken}&token_type=eg1"))
+            ApplyTokenResponse(body);
+        }
+
+        private static async Task<string> PostTokenRequestAsync(string formData, string operation, CancellationToken ct)
+        {
+            using (var content = new StringContent(formData))
+            using (var request = new HttpRequestMessage(HttpMethod.Post, UrlAccountAuth) { Content = content })
+            {
+                content.Headers.Clear();
+                content.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
+                request.Headers.Add("Authorization", "basic " + AuthEncodedString);
+
+                using (var response = await HttpClientFactory.Shared.SendAsync(request, ct).ConfigureAwait(false))
                 {
-                    content.Headers.Clear();
-                    content.Headers.Add("Content-Type", "application/x-www-form-urlencoded");
-                    var response = await httpClient.PostAsync(UrlAccountAuth, content, ct).ConfigureAwait(false);
                     var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 
                     if (!response.IsSuccessStatusCode)
                     {
-                        throw new EpicAuthRequiredException($"Epic token refresh failed with HTTP {(int)response.StatusCode}.");
+                        throw new EpicAuthRequiredException($"{operation} failed with HTTP {(int)response.StatusCode}.");
                     }
 
-                    ApplyTokenResponse(body);
+                    return body;
                 }
             }
         }

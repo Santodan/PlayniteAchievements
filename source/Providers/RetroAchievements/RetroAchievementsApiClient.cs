@@ -62,8 +62,40 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
         public Task<RaGameInfoUserProgress> GetGameInfoAndUserProgressAsync(int gameId, CancellationToken cancel)
         {
-            var uri = new Uri(ApiBase, $"API_GetGameInfoAndUserProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(_username)}&g={gameId}");
+            return GetGameInfoAndUserProgressAsync(gameId, _username, cancel);
+        }
+
+        public Task<RaGameInfoUserProgress> GetGameInfoAndUserProgressAsync(
+            int gameId,
+            string usernameOrUlid,
+            CancellationToken cancel)
+        {
+            var user = string.IsNullOrWhiteSpace(usernameOrUlid) ? _username : usernameOrUlid.Trim();
+            var uri = new Uri(ApiBase, $"API_GetGameInfoAndUserProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(user)}&g={gameId}");
             return GetJsonAsync<RaGameInfoUserProgress>(uri, cancel);
+        }
+
+        public Task<RaGameInfoUserProgress> GetGameExtendedAsync(int gameId, CancellationToken cancel)
+        {
+            var uri = new Uri(ApiBase, $"API_GetGameExtended.php?y={Uri.EscapeDataString(_apiKey)}&i={gameId}");
+            return GetJsonAsync<RaGameInfoUserProgress>(uri, cancel);
+        }
+
+        public Task<RaUsersIFollowResponse> GetUsersIFollowAsync(int offset, int count, CancellationToken cancel)
+        {
+            var uri = new Uri(ApiBase, $"API_GetUsersIFollow.php?y={Uri.EscapeDataString(_apiKey)}&o={Math.Max(0, offset)}&c={Math.Max(1, count)}");
+            return GetJsonAsync<RaUsersIFollowResponse>(uri, cancel);
+        }
+
+        public Task<RaUserCompletionProgressResponse> GetUserCompletionProgressAsync(
+            string usernameOrUlid,
+            int offset,
+            int count,
+            CancellationToken cancel)
+        {
+            var user = string.IsNullOrWhiteSpace(usernameOrUlid) ? _username : usernameOrUlid.Trim();
+            var uri = new Uri(ApiBase, $"API_GetUserCompletionProgress.php?y={Uri.EscapeDataString(_apiKey)}&u={Uri.EscapeDataString(user)}&o={Math.Max(0, offset)}&c={Math.Max(1, count)}");
+            return GetJsonAsync<RaUserCompletionProgressResponse>(uri, cancel);
         }
 
         private async Task<T> GetJsonAsync<T>(Uri uri, CancellationToken cancel)

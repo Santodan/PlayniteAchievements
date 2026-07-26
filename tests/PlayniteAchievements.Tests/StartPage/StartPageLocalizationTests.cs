@@ -9,11 +9,11 @@ namespace PlayniteAchievements.Tests.StartPage
     public class StartPageLocalizationTests
     {
         [TestMethod]
-        public void EnglishLocalization_DoesNotAddStartPageSpecificKeys()
+        public void EnglishLocalization_IncludesFriendsRecentAchievementsWidgetKey()
         {
             var content = File.ReadAllText(FindRepoFile("source", "Localization", "en_US.xaml"));
 
-            Assert.IsFalse(content.Contains("LOCPlayAch_" + "StartPage"));
+            Assert.IsTrue(content.Contains("LOCPlayAch_StartPage_FriendsRecentAchievements"));
         }
 
         private static string FindRepoFile(params string[] parts)

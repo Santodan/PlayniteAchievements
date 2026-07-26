@@ -18,7 +18,13 @@ namespace PlayniteAchievements.Models
         Single,
         LibrarySelected,
         Missing,
-        Custom
+        Custom,
+        FriendsRecent,
+        FriendsFull,
+        FriendsShared,
+        FriendsInstalled,
+        FriendsSelectedGame,
+        FriendsCustom
     }
 
     /// <summary>
@@ -48,6 +54,7 @@ namespace PlayniteAchievements.Models
             switch (mode)
             {
                 case RefreshModeType.LibrarySelected:
+                case RefreshModeType.FriendsSelectedGame:
                     return "LOCPlayAch_RefreshModeShort_Selected";
                 default:
                     return $"LOCPlayAch_RefreshModeShort_{mode}";
@@ -58,6 +65,22 @@ namespace PlayniteAchievements.Models
         /// Gets the string key for this refresh mode.
         /// </summary>
         public static string GetKey(this RefreshModeType mode) => mode.ToString();
+
+        public static bool IsFriendRefreshMode(this RefreshModeType mode)
+        {
+            switch (mode)
+            {
+                case RefreshModeType.FriendsRecent:
+                case RefreshModeType.FriendsFull:
+                case RefreshModeType.FriendsShared:
+                case RefreshModeType.FriendsInstalled:
+                case RefreshModeType.FriendsSelectedGame:
+                case RefreshModeType.FriendsCustom:
+                    return true;
+                default:
+                    return false;
+            }
+        }
     }
 
     /// <summary>

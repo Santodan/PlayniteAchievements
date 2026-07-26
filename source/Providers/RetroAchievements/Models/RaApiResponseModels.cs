@@ -17,6 +17,9 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
 
         [JsonProperty("BaseGameToSubsets")]
         public Dictionary<int, List<RaSubsetEntry>> BaseGameToSubsets { get; set; } = new Dictionary<int, List<RaSubsetEntry>>();
+
+        [JsonProperty("BaseGameTitles")]
+        public Dictionary<int, string> BaseGameTitles { get; set; } = new Dictionary<int, string>();
     }
 
     internal sealed class RaSubsetEntry
@@ -26,6 +29,15 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
 
         [JsonProperty("Title")]
         public string Title { get; set; }
+    }
+
+    internal sealed class RaSubsetBaseMapping
+    {
+        public int BaseGameId { get; set; }
+
+        public string BaseGameTitle { get; set; }
+
+        public RaSubsetEntry Subset { get; set; }
     }
 
     internal sealed class RaGameListResponse
@@ -75,11 +87,32 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
         [JsonProperty("ID")]
         public int GameId { get; set; }
 
+        [JsonProperty("GameID")]
+        public int AlternateGameId { get; set; }
+
         [JsonProperty("Title")]
         public string GameTitle { get; set; }
 
         [JsonProperty("ConsoleID")]
         public int ConsoleId { get; set; }
+
+        [JsonProperty("ConsoleName")]
+        public string ConsoleName { get; set; }
+
+        [JsonProperty("ParentGameID")]
+        public int? ParentGameId { get; set; }
+
+        [JsonProperty("ImageIcon")]
+        public string ImageIcon { get; set; }
+
+        [JsonProperty("ImageTitle")]
+        public string ImageTitle { get; set; }
+
+        [JsonProperty("ImageIngame")]
+        public string ImageIngame { get; set; }
+
+        [JsonProperty("ImageBoxArt")]
+        public string ImageBoxArt { get; set; }
 
         [JsonProperty("NumDistinctPlayers")]
         public int NumDistinctPlayers { get; set; }
@@ -92,6 +125,93 @@ namespace PlayniteAchievements.Providers.RetroAchievements.Models
 
         [JsonProperty("Achievements")]
         public Dictionary<string, RaAchievement> Achievements { get; set; }
+    }
+
+    internal sealed class RaUsersIFollowResponse
+    {
+        [JsonProperty("Count")]
+        public int Count { get; set; }
+
+        [JsonProperty("Total")]
+        public int Total { get; set; }
+
+        [JsonProperty("Results")]
+        public List<RaFollowedUser> Results { get; set; }
+    }
+
+    internal sealed class RaFollowedUser
+    {
+        [JsonProperty("User")]
+        public string User { get; set; }
+
+        [JsonProperty("ULID")]
+        public string ULID { get; set; }
+
+        [JsonProperty("Points")]
+        public int Points { get; set; }
+
+        [JsonProperty("PointsSoftcore")]
+        public int PointsSoftcore { get; set; }
+
+        [JsonProperty("IsFollowingMe")]
+        public bool IsFollowingMe { get; set; }
+    }
+
+    internal sealed class RaUserCompletionProgressResponse
+    {
+        [JsonProperty("Count")]
+        public int Count { get; set; }
+
+        [JsonProperty("Total")]
+        public int Total { get; set; }
+
+        [JsonProperty("Results")]
+        public List<RaUserCompletionProgressItem> Results { get; set; }
+    }
+
+    internal sealed class RaUserCompletionProgressItem
+    {
+        [JsonProperty("GameID")]
+        public int GameID { get; set; }
+
+        [JsonProperty("Title")]
+        public string Title { get; set; }
+
+        [JsonProperty("ConsoleID")]
+        public int ConsoleID { get; set; }
+
+        [JsonProperty("ConsoleName")]
+        public string ConsoleName { get; set; }
+
+        [JsonProperty("ImageIcon")]
+        public string ImageIcon { get; set; }
+
+        [JsonProperty("ImageTitle")]
+        public string ImageTitle { get; set; }
+
+        [JsonProperty("ImageIngame")]
+        public string ImageIngame { get; set; }
+
+        [JsonProperty("ImageBoxArt")]
+        public string ImageBoxArt { get; set; }
+
+        [JsonProperty("MaxPossible")]
+        public int MaxPossible { get; set; }
+
+        [JsonProperty("NumAwarded")]
+        public int NumAwarded { get; set; }
+
+        [JsonProperty("NumAwardedHardcore")]
+        public int NumAwardedHardcore { get; set; }
+
+        [JsonProperty("MostRecentAwardedDate")]
+        public string MostRecentAwardedDate { get; set; }
+
+        [JsonProperty("HighestAwardKind")]
+        public string HighestAwardKind { get; set; }
+
+        [JsonProperty("HighestAwardDate")]
+        public string HighestAwardDate { get; set; }
     }
 
     internal sealed class RaAchievement

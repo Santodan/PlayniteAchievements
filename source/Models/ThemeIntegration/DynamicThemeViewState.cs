@@ -36,6 +36,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public const string Provider = "Provider";
         public const string Progress = "Progress";
         public const string AchievementCount = "AchievementCount";
+        public const string SharedGamesCount = "SharedGamesCount";
         public const string Status = "Status";
         public const string RarityPercent = "RarityPercent";
         public const string Points = "Points";
@@ -195,12 +196,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
     {
         private string _gameKey = string.Empty;
         private string _gameLabel = string.Empty;
+        private string _categoryLabelKey = DynamicThemeViewKeys.All;
 
         public SelectedGameAchievementViewState()
             : base(
                 DynamicThemeViewKeys.All,
                 DynamicThemeViewKeys.All,
-                DynamicThemeViewKeys.Default,
+                DynamicThemeViewKeys.UnlockTime,
                 DynamicThemeViewKeys.Descending)
         {
         }
@@ -216,10 +218,27 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             get => _gameLabel;
             set => _gameLabel = value ?? string.Empty;
         }
+
+        // Category labels are per-game and user-renamable, so this scope lives outside the
+        // Current/Default selection quartet (like GameKey) and resets when the selected
+        // game no longer contains the label.
+        public string CategoryLabelKey
+        {
+            get => _categoryLabelKey;
+            set => _categoryLabelKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public void ResetCategoryScope()
+        {
+            CategoryLabelKey = DynamicThemeViewKeys.All;
+        }
     }
 
     internal sealed class LibraryAchievementViewState : DynamicThemeListViewState
     {
+        private string _gameKey = DynamicThemeViewKeys.All;
+        private string _gameLabel = DynamicThemeViewKeys.All;
+
         public LibraryAchievementViewState()
             : base(
                 DynamicThemeViewKeys.All,
@@ -228,15 +247,136 @@ namespace PlayniteAchievements.Models.ThemeIntegration
                 DynamicThemeViewKeys.Descending)
         {
         }
+
+        public string GameKey
+        {
+            get => _gameKey;
+            set => _gameKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public string GameLabel
+        {
+            get => _gameLabel;
+            set => _gameLabel = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public void ResetGameScope()
+        {
+            GameKey = DynamicThemeViewKeys.All;
+            GameLabel = DynamicThemeViewKeys.All;
+        }
+    }
+
+    // Per-category rollup of the selected game's achievements. Default sort preserves the
+    // builder's order, which already honors the game's custom category order.
+    internal sealed class CategorySummaryViewState : DynamicThemeListViewState
+    {
+        public CategorySummaryViewState()
+            : base(
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.Default,
+                DynamicThemeViewKeys.Descending)
+        {
+        }
     }
 
     internal sealed class GameSummaryViewState : DynamicThemeListViewState
     {
+        private string _gameKey = DynamicThemeViewKeys.All;
+        private string _gameLabel = DynamicThemeViewKeys.All;
+
         public GameSummaryViewState()
             : base(
                 DynamicThemeViewKeys.All,
                 DynamicThemeViewKeys.All,
                 DynamicThemeViewKeys.LastUnlock,
+                DynamicThemeViewKeys.Descending)
+        {
+        }
+
+        public string GameKey
+        {
+            get => _gameKey;
+            set => _gameKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public string GameLabel
+        {
+            get => _gameLabel;
+            set => _gameLabel = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public void ResetGameScope()
+        {
+            GameKey = DynamicThemeViewKeys.All;
+            GameLabel = DynamicThemeViewKeys.All;
+        }
+    }
+
+    internal sealed class FriendScopeViewState
+    {
+        private string _providerKey = DynamicThemeViewKeys.All;
+        private string _userKey = DynamicThemeViewKeys.All;
+        private string _gameKey = DynamicThemeViewKeys.All;
+
+        public string ProviderKey
+        {
+            get => _providerKey;
+            set => _providerKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public string UserKey
+        {
+            get => _userKey;
+            set => _userKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public string GameKey
+        {
+            get => _gameKey;
+            set => _gameKey = string.IsNullOrWhiteSpace(value) ? DynamicThemeViewKeys.All : value;
+        }
+
+        public void Reset()
+        {
+            ProviderKey = DynamicThemeViewKeys.All;
+            UserKey = DynamicThemeViewKeys.All;
+            GameKey = DynamicThemeViewKeys.All;
+        }
+    }
+
+    internal sealed class FriendSummaryViewState : DynamicThemeListViewState
+    {
+        public FriendSummaryViewState()
+            : base(
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.LastUnlock,
+                DynamicThemeViewKeys.Descending)
+        {
+        }
+    }
+
+    internal sealed class FriendGameSummaryViewState : DynamicThemeListViewState
+    {
+        public FriendGameSummaryViewState()
+            : base(
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.LastUnlock,
+                DynamicThemeViewKeys.Descending)
+        {
+        }
+    }
+
+    internal sealed class FriendAchievementViewState : DynamicThemeListViewState
+    {
+        public FriendAchievementViewState()
+            : base(
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.All,
+                DynamicThemeViewKeys.UnlockTime,
                 DynamicThemeViewKeys.Descending)
         {
         }

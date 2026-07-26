@@ -29,10 +29,15 @@ namespace PlayniteAchievements.Services.ThemeIntegration
                 { "AchievementCompactList", () => new Views.ThemeIntegration.Modern.AchievementCompactListControl() },
                 { "AchievementCompactLockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactLockedListControl() },
                 { "AchievementCompactUnlockedList", () => new Views.ThemeIntegration.Modern.AchievementCompactUnlockedListControl() },
+                { "AchievementChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
                 { "AchievementBarChart", () => new Views.ThemeIntegration.Modern.AchievementBarChartControl() },
                 { "AchievementPieChart", () => new Views.ThemeIntegration.Modern.AchievementPieChartControl() },
                 { "AchievementStats", () => new Views.ThemeIntegration.Modern.AchievementStatsControl() },
                 { "AchievementDataGrid", () => new Views.ThemeIntegration.Modern.AchievementDataGridControl() },
+                { "AchievementFriendSummariesGrid", () => new Views.ThemeIntegration.Modern.AchievementFriendSummariesGridControl() },
+                { "AchievementFriendGameSummariesGrid", () => new Views.ThemeIntegration.Modern.AchievementFriendGameSummariesGridControl() },
+                { "AchievementFriendAchievementsGrid", () => new Views.ThemeIntegration.Modern.AchievementFriendAchievementsGridControl() },
+                { "AchievementToast", () => new Views.ThemeIntegration.Modern.AchievementToastControl() },
                 { "AchievementViewItem", () => new Views.ThemeIntegration.Modern.AchievementViewItemControl() }
             };
 
@@ -55,9 +60,14 @@ namespace PlayniteAchievements.Services.ThemeIntegration
             "AchievementCompactList",
             "AchievementCompactLockedList",
             "AchievementCompactUnlockedList",
-            "AchievementChart",
+            "AchievementBarChart",
+            "AchievementPieChart",
             "AchievementStats",
             "AchievementDataGrid",
+            "AchievementFriendSummariesGrid",
+            "AchievementFriendGameSummariesGrid",
+            "AchievementFriendAchievementsGrid",
+            "AchievementToast",
             "AchievementViewItem"
         };
 

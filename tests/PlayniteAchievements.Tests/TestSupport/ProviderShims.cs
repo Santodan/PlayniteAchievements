@@ -1,5 +1,6 @@
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Models.Friends;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
 using Playnite.SDK;
@@ -21,6 +22,7 @@ namespace PlayniteAchievements.Providers
         bool IsCapable(Game game);
         bool IsAuthenticated { get; }
         ISessionManager AuthSession { get; }
+        IFriendsProvider Friends { get; }
         Task<RebuildPayload> RefreshAsync(
             IReadOnlyList<Game> gamesToRefresh,
             Action<Game> onGameStarting,
@@ -63,9 +65,13 @@ namespace PlayniteAchievements.Providers.GOG
     {
         public string AccessToken { get; set; }
 
-        public string GetAccessToken()
+        public Task<string> GetAccessTokenAsync(CancellationToken ct)
         {
-            return AccessToken;
+            return Task.FromResult(AccessToken);
+        }
+
+        public void InvalidateAccessToken()
+        {
         }
     }
 }
@@ -83,6 +89,11 @@ namespace PlayniteAchievements.Providers.Exophase
         public static List<string> GetMissingCriticalCookies(IReadOnlyCollection<HttpCookie> cookies)
         {
             return new List<string>();
+        }
+
+        public static bool HasCriticalCookies(IReadOnlyCollection<HttpCookie> cookies)
+        {
+            return GetMissingCriticalCookies(cookies).Count == 0;
         }
     }
 
@@ -159,6 +170,10 @@ namespace PlayniteAchievements.Providers.Exophase
             ExophaseMetadataFields fields = ExophaseMetadataFields.Rarity)
         {
             return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

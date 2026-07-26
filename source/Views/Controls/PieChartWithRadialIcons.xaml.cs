@@ -13,6 +13,7 @@ using System.Windows.Media.Animation;
 using LiveCharts;
 using LiveCharts.Wpf;
 using LiveCharts.Wpf.Points;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 
 namespace PlayniteAchievements.Views.Controls
@@ -599,6 +600,7 @@ namespace PlayniteAchievements.Views.Controls
                         {
                             Label = legend.Label,
                             IconKey = legend.IconKey,
+                            IconRefreshKey = legend.IconRefreshKey,
                             ColorHex = legend.ColorHex,
                             Count = legend.Count,
                             X = x,
@@ -657,7 +659,7 @@ namespace PlayniteAchievements.Views.Controls
             unlockedCount = Math.Max(0, Math.Min(unlockedCount, totalCount));
             var roundedPercent = (int)Math.Round(unlockedCount * 100d / totalCount, MidpointRounding.AwayFromZero);
 
-            CenterPercentageText = $"{roundedPercent}%";
+            CenterPercentageText = PercentFormatter.FormatWhole(roundedPercent);
             CenterPercentageFontSize = Math.Max(11, Math.Min(18, controlSize * 0.13));
             CenterPercentageVisibility = Visibility.Visible;
         }
@@ -763,6 +765,7 @@ namespace PlayniteAchievements.Views.Controls
                     var existing = IconPositions[i];
                     existing.Label = newPos.Label;
                     existing.IconKey = newPos.IconKey;
+                    existing.IconRefreshKey = newPos.IconRefreshKey;
                     existing.ColorHex = newPos.ColorHex;
                     existing.Count = newPos.Count;
                     existing.X = newPos.X;

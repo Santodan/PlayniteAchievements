@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Playnite.SDK;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.ManageAchievements;
 
 namespace PlayniteAchievements
 {
@@ -9,7 +10,7 @@ namespace PlayniteAchievements
     {
         private void ShowRefreshProgressControlAndRun(Func<Task> refreshTask, Guid? singleGameRefreshId = null)
         {
-            _windowService.ShowRefreshProgressControlAndRun(refreshTask, OpenViewAchievementsWindow, singleGameRefreshId);
+            _windowService.ShowRefreshProgressControlAndRun(refreshTask, gameId => OpenViewAchievementsWindow(gameId), singleGameRefreshId);
         }
 
         private void ShowRefreshProgressControl(
@@ -17,16 +18,23 @@ namespace PlayniteAchievements
             Func<Task> refreshTask = null,
             bool validateCanStart = false)
         {
-            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, OpenViewAchievementsWindow, validateCanStart);
+            _windowService.ShowRefreshProgressControl(singleGameRefreshId, refreshTask, gameId => OpenViewAchievementsWindow(gameId), validateCanStart);
         }
 
         /// <summary>
         /// Opens the View Achievements window for the specified game.
         /// Public for access from theme integration controls.
+        /// When <paramref name="focusAchievementId"/> is provided (ApiName, or DisplayName as a
+        /// fallback), the matching achievement row is selected and scrolled into view.
         /// </summary>
-        public void OpenViewAchievementsWindow(Guid gameId)
+        public void OpenViewAchievementsWindow(Guid gameId, string focusAchievementId = null)
         {
-            _windowService.OpenViewAchievementsWindow(gameId);
+            _windowService.OpenViewAchievementsWindow(gameId, focusAchievementId);
+        }
+
+        public void OpenViewFriendsAchievementsWindow(Guid gameId)
+        {
+            _windowService.OpenViewFriendsAchievementsWindow(gameId);
         }
 
         /// <summary>
@@ -45,9 +53,12 @@ namespace PlayniteAchievements
             _windowService.OpenDynamicThemeCommandTestView(gameId);
         }
 
-        public void OpenManageAchievementsView(Guid gameId, ManageAchievementsTab initialTab = ManageAchievementsTab.Overview)
+        public void OpenManageAchievementsView(
+            Guid gameId,
+            ManageAchievementsTab initialTab = ManageAchievementsTab.Overview,
+            bool selectManageCategoriesSubTab = false)
         {
-            _windowService.OpenManageAchievementsView(gameId, initialTab);
+            _windowService.OpenManageAchievementsView(gameId, initialTab, selectManageCategoriesSubTab);
         }
 
         public void OpenCapstoneView(Guid gameId)
@@ -57,7 +68,7 @@ namespace PlayniteAchievements
 
         private void EnsureAchievementResourcesLoaded()
         {
-            _windowService.EnsureAchievementResourcesLoaded();
+            _resourceService.EnsureAchievementResourcesLoaded(_settingsViewModel.Settings);
         }
 
         private void OpenOverviewWindow()

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
@@ -9,6 +10,8 @@ using PlayniteAchievements.Providers.Epic;
 using PlayniteAchievements.Providers.RetroAchievements;
 using PlayniteAchievements.Providers.Steam;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Refresh;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Views
@@ -44,6 +47,7 @@ namespace PlayniteAchievements.Views
             _plugin = plugin ?? throw new ArgumentNullException(nameof(plugin));
 
             InitializeComponent();
+            FormattingCulture.Apply(this);
 
             Loaded += OverviewHostControl_Loaded;
             Unloaded += OverviewHostControl_Unloaded;

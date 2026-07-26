@@ -18,7 +18,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 {
     internal sealed class RetroAchievementsHashIndexStore
     {
-        private const int CurrentFormatVersion = 3;
+        private const int CurrentFormatVersion = 4;
         private const int PageSize = 5000;
 
         private static readonly JsonSerializerSettings _jsonSettings = new JsonSerializerSettings
@@ -37,6 +37,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
             public DateTime UpdatedUtc { get; set; }
             public Dictionary<string, int> Index { get; set; }
             public Dictionary<int, List<RaSubsetEntry>> Subsets { get; set; }
+            public Dictionary<int, string> BaseTitles { get; set; }
         }
 
         private readonly ConcurrentDictionary<int, CachedIndex> _memory = new ConcurrentDictionary<int, CachedIndex>();
@@ -77,12 +78,12 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (disk != null && !IsStale(disk.UpdatedUtc) && disk.FormatVersion >= CurrentFormatVersion)
                 {
                     _logger?.Info($"[RA] Loaded hash index from disk for consoleId={consoleId} with {disk.HashToGameId.Count} hashes (cached at {disk.UpdatedUtc:yyyy-MM-dd HH:mm:ss} UTC).");
-                    _memory[consoleId] = new CachedIndex { UpdatedUtc = disk.UpdatedUtc, Index = disk.HashToGameId, Subsets = disk.BaseGameToSubsets };
+                    _memory[consoleId] = new CachedIndex { UpdatedUtc = disk.UpdatedUtc, Index = disk.HashToGameId, Subsets = disk.BaseGameToSubsets, BaseTitles = disk.BaseGameTitles };
                     return disk.HashToGameId;
                 }
 
                 var rebuilt = await RebuildIndexAsync(consoleId, cancel).ConfigureAwait(false);
-                _memory[consoleId] = new CachedIndex { UpdatedUtc = rebuilt.UpdatedUtc, Index = rebuilt.HashToGameId, Subsets = rebuilt.BaseGameToSubsets };
+                _memory[consoleId] = new CachedIndex { UpdatedUtc = rebuilt.UpdatedUtc, Index = rebuilt.HashToGameId, Subsets = rebuilt.BaseGameToSubsets, BaseTitles = rebuilt.BaseGameTitles };
                 await SaveToDiskAsync(consoleId, rebuilt, cancel).ConfigureAwait(false);
                 return rebuilt.HashToGameId;
             }
@@ -213,6 +214,7 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
             // Build title-to-ID lookup for base games (non-subset entries).
             var baseTitleToId = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var baseIdToTitle = new Dictionary<int, string>();
             var subsetItems = new List<RaGameListItem>();
 
             foreach (var item in allItems)
@@ -223,13 +225,18 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 if (gameId == 0)
                     continue;
 
-                if (!string.IsNullOrWhiteSpace(item.Title) && IsSubsetLikeTitle(item.Title))
+                if (!string.IsNullOrWhiteSpace(item.Title) && RetroAchievementsSubsetTitleResolver.IsSubsetLikeTitle(item.Title))
                 {
                     subsetItems.Add(item);
                     continue;
                 }
 
-                baseTitleToId[item.Title?.Trim() ?? ""] = gameId;
+                var title = item.Title?.Trim() ?? "";
+                baseTitleToId[title] = gameId;
+                if (!baseIdToTitle.ContainsKey(gameId))
+                {
+                    baseIdToTitle[gameId] = title;
+                }
 
                 foreach (var hash in EnumerateHashes(item.Hashes))
                 {
@@ -302,7 +309,8 @@ namespace PlayniteAchievements.Providers.RetroAchievements
                 FormatVersion = CurrentFormatVersion,
                 UpdatedUtc = DateTime.UtcNow,
                 HashToGameId = index,
-                BaseGameToSubsets = subsets
+                BaseGameToSubsets = subsets,
+                BaseGameTitles = baseIdToTitle
             };
         }
 
@@ -321,20 +329,48 @@ namespace PlayniteAchievements.Providers.RetroAchievements
 
             return new List<RaSubsetEntry>();
         }
-        private static bool IsSubsetLikeTitle(string title)
-        {
-            if (string.IsNullOrWhiteSpace(title))
-                return false;
 
-            var titleLower = title.ToLowerInvariant();
-            return titleLower.Contains("[subset") ||
-                   titleLower.Contains("[tournament") ||
-                   titleLower.Contains("[event") ||
-                   titleLower.Contains("[bonus") ||
-                   titleLower.Contains("[hub") ||
-                   titleLower.Contains("[specialty") ||
-                   titleLower.Contains("[exclusive") ||
-                   titleLower.Contains("(subset");
+        public async Task<List<RaSubsetBaseMapping>> GetBaseGamesForSubsetAsync(
+            int subsetGameId,
+            int consoleId,
+            CancellationToken cancel)
+        {
+            if (subsetGameId <= 0 || consoleId <= 0)
+            {
+                return new List<RaSubsetBaseMapping>();
+            }
+
+            // Ensure index is loaded (triggers build/load if needed).
+            await GetHashIndexAsync(consoleId, cancel).ConfigureAwait(false);
+
+            if (!_memory.TryGetValue(consoleId, out var cached) || cached.Subsets == null)
+            {
+                return new List<RaSubsetBaseMapping>();
+            }
+
+            var result = new List<RaSubsetBaseMapping>();
+            foreach (var pair in cached.Subsets)
+            {
+                var subset = pair.Value?.FirstOrDefault(entry => entry != null && entry.Id == subsetGameId);
+                if (subset == null)
+                {
+                    continue;
+                }
+
+                string baseTitle = null;
+                cached.BaseTitles?.TryGetValue(pair.Key, out baseTitle);
+                result.Add(new RaSubsetBaseMapping
+                {
+                    BaseGameId = pair.Key,
+                    BaseGameTitle = baseTitle,
+                    Subset = subset
+                });
+            }
+
+            return result
+                .OrderBy(mapping => mapping.BaseGameTitle, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(mapping => mapping.BaseGameId)
+                .ToList();
         }
 
         private List<RaGameListItem> EnumerateGameListItems(string json)

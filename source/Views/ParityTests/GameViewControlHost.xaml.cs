@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using Playnite.SDK.Controls;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
+using PlayniteAchievements.Models;
 using PlayniteAchievements.Services.Logging;
+using PlayniteAchievements.ViewModels;
 using Playnite.SDK;
 
 namespace PlayniteAchievements.Views.ParityTests
@@ -123,6 +125,8 @@ namespace PlayniteAchievements.Views.ParityTests
                     return;
                 }
 
+                ApplyPreviewDataIfNeeded(control, name, plugin);
+
                 _createdControl = control;
                 PART_Empty.Visibility = Visibility.Collapsed;
                 PART_Content.Content = control;
@@ -132,6 +136,30 @@ namespace PlayniteAchievements.Views.ParityTests
                 _logger.Error(ex, $"Failed to create GameView control '{name}'.");
                 SetEmpty($"Failed to create control '{name}': {ex.Message}");
             }
+        }
+
+        private static void ApplyPreviewDataIfNeeded(Control control, string name, PlayniteAchievementsPlugin plugin)
+        {
+            if (control is not FrameworkElement element ||
+                !string.Equals(name, "AchievementToast", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            element.DataContext = new AchievementToastViewModel(
+                new AchievementUnlockedEventArgs
+                {
+                    IsPreview = true,
+                    GameName = "Sample Game",
+                    Category = "Sample Category",
+                    DisplayName = "Example Achievement",
+                    Description = "An example achievement description.",
+                    RarityTier = "Rare",
+                    GlobalPercent = 9.3,
+                    UnlockedCount = 27,
+                    TotalCount = 40
+                },
+                plugin?.Settings?.Persisted);
         }
 
         private void ApplyGameContextIfPossible()

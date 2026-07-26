@@ -1,5 +1,6 @@
 using Playnite.SDK;
 using Playnite.SDK.Data;
+using PlayniteAchievements.Common;
 using PlayniteAchievements.Providers.Xbox.Models;
 using System;
 using System.Collections.Generic;
@@ -27,8 +28,7 @@ namespace PlayniteAchievements.Providers.Xbox
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _globalLanguage = globalLanguage;
-            _httpClient = new HttpClient();
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+            _httpClient = HttpClientFactory.Create();
         }
 
         /// <summary>

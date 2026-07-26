@@ -5,7 +5,7 @@ using PlayniteAchievements.Providers.Manual;
 using System;
 using System.Collections.Generic;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.GameCustomData
 {
     internal sealed class GameCustomDataLegacyMigration
     {

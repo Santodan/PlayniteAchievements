@@ -1,138 +1,301 @@
+using System.ComponentModel;
 using PlayniteAchievements.Common;
 
 namespace PlayniteAchievements.Models.Settings
 {
     public sealed class StartPageGameSummariesGridSettings : ObservableObject
     {
-        private bool _showGameMetadata = true;
-        private bool _useCoverImages = true;
-        private bool _showCompletionBorder = true;
-        private bool _showColumnHeaders = true;
-        private double? _rowHeight;
-        private int? _maxRows = PersistedSettings.DefaultStartPageGridMaxRows;
-        private GameSummariesSortMode _sortMode = GameSummariesSortMode.RecentUnlock;
-        private bool _sortDescending = true;
+        private GameSummaryGridOptions _options;
 
-        public bool ShowGameMetadata
+        public StartPageGameSummariesGridSettings()
+            : this(new GameSummaryGridOptions
+            {
+                Columns = GridColumnLayoutOptions.CreateWithProgressRightAlignment(),
+                MaxRows = PersistedSettings.DefaultStartPageGridMaxRows,
+                ShowControlBar = false
+            })
         {
-            get => _showGameMetadata;
-            set => SetValue(ref _showGameMetadata, value);
+        }
+
+        internal StartPageGameSummariesGridSettings(GameSummaryGridOptions options)
+        {
+            SetOptions(options);
+        }
+
+        public bool ShowMetadataPlatform
+        {
+            get => Options.ShowMetadataPlatform;
+            set => Options.ShowMetadataPlatform = value;
+        }
+
+        public bool ShowMetadataPlaytime
+        {
+            get => Options.ShowMetadataPlaytime;
+            set => Options.ShowMetadataPlaytime = value;
+        }
+
+        public bool ShowMetadataRegion
+        {
+            get => Options.ShowMetadataRegion;
+            set => Options.ShowMetadataRegion = value;
         }
 
         public bool UseCoverImages
         {
-            get => _useCoverImages;
-            set => SetValue(ref _useCoverImages, value);
+            get => Options.UseCoverImages;
+            set => Options.UseCoverImages = value;
         }
 
-        public bool ShowCompletionBorder
+        public bool ShowCompletionGlow
         {
-            get => _showCompletionBorder;
-            set => SetValue(ref _showCompletionBorder, value);
+            get => Options.ShowCompletionGlow;
+            set => Options.ShowCompletionGlow = value;
+        }
+
+        public bool ColorRarityColumnsByRarity
+        {
+            get => Options.ColorRarityColumnsByRarity;
+            set => Options.ColorRarityColumnsByRarity = value;
+        }
+
+        public bool ShowNameAboveProgress
+        {
+            get => Options.ShowNameAboveProgress;
+            set => Options.ShowNameAboveProgress = value;
         }
 
         public bool ShowColumnHeaders
         {
-            get => _showColumnHeaders;
-            set => SetValue(ref _showColumnHeaders, value);
+            get => Options.ShowColumnHeaders;
+            set => Options.ShowColumnHeaders = value;
+        }
+
+        public bool ShowControlBar
+        {
+            get => Options.ShowControlBar;
+            set => Options.ShowControlBar = value;
         }
 
         public double? RowHeight
         {
-            get => _rowHeight;
-            set => SetValue(ref _rowHeight, PersistedSettings.NormalizeGridRowHeight(value));
+            get => Options.RowHeight;
+            set => Options.RowHeight = value;
         }
 
         public int? MaxRows
         {
-            get => _maxRows;
-            set => SetValue(ref _maxRows, PersistedSettings.NormalizeGridMaxRows(value));
+            get => Options.MaxRows;
+            set => Options.MaxRows = value;
         }
 
         public GameSummariesSortMode SortMode
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => Options.SortMode;
+            set => Options.SortMode = value;
         }
 
         public bool SortDescending
         {
-            get => _sortDescending;
-            set => SetValue(ref _sortDescending, value);
+            get => Options.SortDescending;
+            set => Options.SortDescending = value;
         }
 
         public StartPageGameSummariesGridSettings Clone()
         {
-            return new StartPageGameSummariesGridSettings
+            return new StartPageGameSummariesGridSettings(Options.Clone());
+        }
+
+        internal void CopyTo(GameSummaryGridOptions target)
+        {
+            if (target == null)
             {
-                ShowGameMetadata = ShowGameMetadata,
-                UseCoverImages = UseCoverImages,
-                ShowCompletionBorder = ShowCompletionBorder,
-                ShowColumnHeaders = ShowColumnHeaders,
-                RowHeight = RowHeight,
-                MaxRows = MaxRows,
-                SortMode = SortMode,
-                SortDescending = SortDescending
-            };
+                return;
+            }
+
+            target.ShowMetadataPlatform = ShowMetadataPlatform;
+            target.ShowMetadataPlaytime = ShowMetadataPlaytime;
+            target.ShowMetadataRegion = ShowMetadataRegion;
+            target.UseCoverImages = UseCoverImages;
+            target.ShowCompletionGlow = ShowCompletionGlow;
+            target.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
+            target.ShowNameAboveProgress = ShowNameAboveProgress;
+            target.ShowColumnHeaders = ShowColumnHeaders;
+            target.ShowControlBar = ShowControlBar;
+            target.RowHeight = RowHeight;
+            target.MaxRows = MaxRows;
+            target.SortMode = SortMode;
+            target.SortDescending = SortDescending;
+        }
+
+        internal void SetOptions(GameSummaryGridOptions options)
+        {
+            if (ReferenceEquals(_options, options))
+            {
+                return;
+            }
+
+            if (_options != null)
+            {
+                _options.PropertyChanged -= OnOptionsPropertyChanged;
+            }
+
+            _options = options ?? new GameSummaryGridOptions();
+            _options.PropertyChanged += OnOptionsPropertyChanged;
+        }
+
+        private GameSummaryGridOptions Options => _options ?? (_options = new GameSummaryGridOptions());
+
+        private void OnOptionsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            OnPropertyChanged(e.PropertyName);
         }
     }
 
-    public sealed class StartPageRecentUnlocksGridSettings : ObservableObject
+    public class StartPageRecentUnlocksGridSettings : ObservableObject
     {
-        private bool _useCoverImages = true;
-        private bool _showColumnHeaders = true;
-        private double? _rowHeight;
-        private int? _maxRows = PersistedSettings.DefaultStartPageGridMaxRows;
-        private CompactListSortMode _sortMode = CompactListSortMode.UnlockTime;
-        private bool _sortDescending = true;
+        private AchievementGridOptions _options;
+
+        public StartPageRecentUnlocksGridSettings()
+            : this(new AchievementGridOptions
+            {
+                MaxRows = PersistedSettings.DefaultStartPageGridMaxRows,
+                ShowControlBar = false
+            })
+        {
+        }
+
+        internal StartPageRecentUnlocksGridSettings(AchievementGridOptions options)
+        {
+            SetOptions(options);
+        }
 
         public bool UseCoverImages
         {
-            get => _useCoverImages;
-            set => SetValue(ref _useCoverImages, value);
+            get => Options.UseCoverImages;
+            set => Options.UseCoverImages = value;
+        }
+
+        public bool ShowRarityGlow
+        {
+            get => Options.ShowRarityGlow;
+            set => Options.ShowRarityGlow = value;
+        }
+
+        public bool ColorNamesByRarity
+        {
+            get => Options.ColorNamesByRarity;
+            set => Options.ColorNamesByRarity = value;
+        }
+
+        public bool ColorRarityColumnsByRarity
+        {
+            get => Options.ColorRarityColumnsByRarity;
+            set => Options.ColorRarityColumnsByRarity = value;
         }
 
         public bool ShowColumnHeaders
         {
-            get => _showColumnHeaders;
-            set => SetValue(ref _showColumnHeaders, value);
+            get => Options.ShowColumnHeaders;
+            set => Options.ShowColumnHeaders = value;
+        }
+
+        public bool ShowControlBar
+        {
+            get => Options.ShowControlBar;
+            set => Options.ShowControlBar = value;
         }
 
         public double? RowHeight
         {
-            get => _rowHeight;
-            set => SetValue(ref _rowHeight, PersistedSettings.NormalizeGridRowHeight(value));
+            get => Options.RowHeight;
+            set => Options.RowHeight = value;
         }
 
         public int? MaxRows
         {
-            get => _maxRows;
-            set => SetValue(ref _maxRows, PersistedSettings.NormalizeGridMaxRows(value));
+            get => Options.MaxRows;
+            set => Options.MaxRows = value;
         }
 
         public CompactListSortMode SortMode
         {
-            get => _sortMode;
-            set => SetValue(ref _sortMode, value);
+            get => Options.SortMode;
+            set => Options.SortMode = value;
         }
 
         public bool SortDescending
         {
-            get => _sortDescending;
-            set => SetValue(ref _sortDescending, value);
+            get => Options.SortDescending;
+            set => Options.SortDescending = value;
         }
 
         public StartPageRecentUnlocksGridSettings Clone()
         {
-            return new StartPageRecentUnlocksGridSettings
+            return new StartPageRecentUnlocksGridSettings(Options.Clone());
+        }
+
+        internal void CopyTo(AchievementGridOptions target)
+        {
+            if (target == null)
             {
-                UseCoverImages = UseCoverImages,
-                ShowColumnHeaders = ShowColumnHeaders,
-                RowHeight = RowHeight,
-                MaxRows = MaxRows,
-                SortMode = SortMode,
-                SortDescending = SortDescending
-            };
+                return;
+            }
+
+            target.UseCoverImages = UseCoverImages;
+            target.ShowRarityGlow = ShowRarityGlow;
+            target.ColorNamesByRarity = ColorNamesByRarity;
+            target.ColorRarityColumnsByRarity = ColorRarityColumnsByRarity;
+            target.ShowColumnHeaders = ShowColumnHeaders;
+            target.ShowControlBar = ShowControlBar;
+            target.RowHeight = RowHeight;
+            target.MaxRows = MaxRows;
+            target.SortMode = SortMode;
+            target.SortDescending = SortDescending;
+        }
+
+        internal void SetOptions(AchievementGridOptions options)
+        {
+            if (ReferenceEquals(_options, options))
+            {
+                return;
+            }
+
+            if (_options != null)
+            {
+                _options.PropertyChanged -= OnOptionsPropertyChanged;
+            }
+
+            _options = options ?? new AchievementGridOptions();
+            _options.PropertyChanged += OnOptionsPropertyChanged;
+        }
+
+        protected AchievementGridOptions Options => _options ?? (_options = new AchievementGridOptions());
+
+        private void OnOptionsPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            OnPropertyChanged(e.PropertyName);
+        }
+    }
+
+    public sealed class StartPageFriendsRecentUnlocksGridSettings : StartPageRecentUnlocksGridSettings
+    {
+        public StartPageFriendsRecentUnlocksGridSettings()
+            : this(new AchievementGridOptions
+            {
+                MaxRows = PersistedSettings.DefaultStartPageGridMaxRows,
+                ShowControlBar = false
+            })
+        {
+        }
+
+        internal StartPageFriendsRecentUnlocksGridSettings(AchievementGridOptions options)
+            : base(options)
+        {
+        }
+
+        public new StartPageFriendsRecentUnlocksGridSettings Clone()
+        {
+            return new StartPageFriendsRecentUnlocksGridSettings(Options.Clone());
         }
     }
 

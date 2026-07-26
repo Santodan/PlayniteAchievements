@@ -1,0 +1,60 @@
+<UserControl x:Class="PlayniteAchievements.Views.Settings.Display.ThemeControls.RevertThemePage"
+             x:Name="RevertThemePageRoot"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="700">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/SettingsScopedControlStyles.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <Border Style="{StaticResource SectionBorderStyle}">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_Revert}"
+                               Style="{StaticResource SectionHeaderStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Bottom.Md}"/>
+
+                    <!-- Revertable Theme Dropdown and Revert Button -->
+                    <Grid Style="{StaticResource SettingRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox Grid.Column="0"
+                                  ItemsSource="{Binding RevertableThemes}"
+                                  DisplayMemberPath="BestDisplayName"
+                                  SelectedValuePath="Path"
+                                  SelectedValue="{Binding SelectedRevertThemePath}"
+                                  VerticalContentAlignment="Center"
+                                  IsEnabled="{Binding HasRevertableThemes}"/>
+
+                        <Button Grid.Column="1"
+                                Content="{DynamicResource LOCPlayAch_ThemeMigration_RevertButton}"
+                                Click="RevertTheme_Click"
+                                Padding="{StaticResource PlayAch.Thickness.ButtonPadding.Wide}"
+                                Margin="16,0,0,0"
+                                MinWidth="100"
+                                IsEnabled="{Binding HasRevertableThemes}"/>
+                    </Grid>
+
+                    <!-- No revertable themes message -->
+                    <TextBlock Text="{DynamicResource LOCPlayAch_ThemeMigration_NoRevertableThemes}"
+                               Style="{StaticResource MutedTextStyle}"
+                               Margin="{StaticResource PlayAch.Thickness.Top.Sm}"
+                               Visibility="{Binding ShowNoRevertableThemesMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

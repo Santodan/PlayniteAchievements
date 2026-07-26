@@ -18,37 +18,6 @@ namespace PlayniteAchievements.Views.Converters
     /// </summary>
     public class PercentToRarityGlowConverter : IValueConverter
     {
-        private static readonly DropShadowEffect UltraRareGlow = new DropShadowEffect
-        {
-            BlurRadius = 20,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0x4F, 0xC3, 0xF7),
-            Opacity = 1.0
-        };
-
-        private static readonly DropShadowEffect RareGlow = new DropShadowEffect
-        {
-            BlurRadius = 20,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0xFF, 0xD7, 0x00),
-            Opacity = 1.0
-        };
-
-        private static readonly DropShadowEffect UncommonGlow = new DropShadowEffect
-        {
-            BlurRadius = 20,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0xC0, 0xC0, 0xC0),
-            Opacity = 1.0
-        };
-
-        static PercentToRarityGlowConverter()
-        {
-            UltraRareGlow.Freeze();
-            RareGlow.Freeze();
-            UncommonGlow.Freeze();
-        }
-
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (!(value is RarityTier tier))
@@ -56,22 +25,7 @@ namespace PlayniteAchievements.Views.Converters
                 return null;
             }
 
-            if (tier == RarityTier.UltraRare)
-            {
-                return UltraRareGlow;
-            }
-
-            if (tier == RarityTier.Rare)
-            {
-                return RareGlow;
-            }
-
-            if (tier == RarityTier.Uncommon)
-            {
-                return UncommonGlow;
-            }
-
-            return null;
+            return RarityAppearanceHelper.GetGlow(tier, 20);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -85,37 +39,6 @@ namespace PlayniteAchievements.Views.Converters
     /// </summary>
     public class PercentToCompactRarityGlowConverter : IValueConverter
     {
-        private static readonly DropShadowEffect UltraRareGlow = new DropShadowEffect
-        {
-            BlurRadius = 8,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0x4F, 0xC3, 0xF7),
-            Opacity = 1.0
-        };
-
-        private static readonly DropShadowEffect RareGlow = new DropShadowEffect
-        {
-            BlurRadius = 8,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0xFF, 0xD7, 0x00),
-            Opacity = 1.0
-        };
-
-        private static readonly DropShadowEffect UncommonGlow = new DropShadowEffect
-        {
-            BlurRadius = 8,
-            ShadowDepth = 0,
-            Color = Color.FromRgb(0xC0, 0xC0, 0xC0),
-            Opacity = 1.0
-        };
-
-        static PercentToCompactRarityGlowConverter()
-        {
-            UltraRareGlow.Freeze();
-            RareGlow.Freeze();
-            UncommonGlow.Freeze();
-        }
-
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (!(value is RarityTier tier))
@@ -123,22 +46,30 @@ namespace PlayniteAchievements.Views.Converters
                 return null;
             }
 
-            if (tier == RarityTier.UltraRare)
+            return RarityAppearanceHelper.GetGlow(tier, 8);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Returns a glossy metallic gradient brush in the rarity color (matching the rarity badge
+    /// sheen), used as a crisp shiny border for Hardcore RetroAchievements icons in place of the
+    /// soft glow. Common has no rarity glow, but still gets a Hardcore border.
+    /// </summary>
+    public class RarityToShineBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!(value is RarityTier tier))
             {
-                return UltraRareGlow;
+                return null;
             }
 
-            if (tier == RarityTier.Rare)
-            {
-                return RareGlow;
-            }
-
-            if (tier == RarityTier.Uncommon)
-            {
-                return UncommonGlow;
-            }
-
-            return null;
+            return RarityAppearanceHelper.GetShineBrush(tier);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -15,8 +15,12 @@
         SuccessStory-compatible compact locked control for theme integration.
         Programmatically creates grid columns to fit achievements, with "+X more" in the last column.
     -->
-<local:CompactAchievementControlBase.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    <local:CompactAchievementControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </local:CompactAchievementControlBase.Resources>
 
     <Grid>
@@ -24,7 +28,7 @@
                 BorderThickness="{DynamicResource ControlBorderThickness}"
                 Background="Transparent"
                 Padding="5"
-                BorderBrush="{DynamicResource NormalBorderBrush}">
+                BorderBrush="{DynamicResource PlayAch.Brush.Border}">
             <Grid Name="PART_GridContener"
                   MinHeight="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IconHeight}"
                   Tag="{Binding RelativeSource={RelativeSource AncestorType=UserControl}, Path=IconHeight}">
@@ -34,7 +38,7 @@
                 <TextBlock Text="{DynamicResource LOCPlayAch_NoLockedAchievements}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextBrushDarker}">
+                           Foreground="{DynamicResource PlayAch.Brush.Text.Secondary}">
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}">
                             <Style.Triggers>

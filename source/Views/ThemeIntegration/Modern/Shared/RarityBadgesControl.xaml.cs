@@ -105,6 +105,25 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
         public RarityBadgesControl()
         {
             InitializeComponent();
+            Loaded += RarityBadgesControl_Loaded;
+            Unloaded += RarityBadgesControl_Unloaded;
+        }
+
+        private void RarityBadgesControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
+            RarityAppearanceHelper.AppearanceChanged += RarityAppearanceHelper_AppearanceChanged;
+            UpdateBadgeIcons();
+        }
+
+        private void RarityBadgesControl_Unloaded(object sender, RoutedEventArgs e)
+        {
+            RarityAppearanceHelper.AppearanceChanged -= RarityAppearanceHelper_AppearanceChanged;
+        }
+
+        private void RarityAppearanceHelper_AppearanceChanged(object sender, EventArgs e)
+        {
+            Dispatcher?.BeginInvoke(new Action(UpdateBadgeIcons));
         }
 
         private static void OnShowZeroCountsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -201,8 +220,8 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Modern.Shared
         private ImageSource GetBadgeIcon(RarityTier tier)
         {
             var resourceKey = tier.ToIconKey(UseUniformRarityBadges);
-            return TryGetImageSource(Resources, resourceKey) ??
-                   TryGetApplicationImageSource(resourceKey) ??
+            return TryGetApplicationImageSource(resourceKey) ??
+                   TryGetImageSource(Resources, resourceKey) ??
                    TryGetImageSource(FallbackBadgeResources.Value, resourceKey);
         }
 

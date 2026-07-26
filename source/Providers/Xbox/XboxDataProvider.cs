@@ -2,9 +2,13 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,15 +18,21 @@ namespace PlayniteAchievements.Providers.Xbox
     /// Data provider for Xbox achievement data.
     /// Supports Xbox One/Series X|S, Xbox 360, and PC Game Pass games.
     /// </summary>
-    internal sealed class XboxDataProvider : IDataProvider, IDisposable
+    internal sealed class XboxDataProvider : DataProviderBase<XboxSettings>, IDataProvider, IProviderOverride, IDisposable
     {
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Text(
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Xbox",
+            raw => XboxTitleIdResolver.TryNormalizeTitleId(raw, out var titleId)
+                ? ProviderOverrideValidation.Valid(titleId)
+                : ProviderOverrideValidation.Invalid(
+                    "LOCPlayAch_Menu_XboxTitleId_InvalidId"));
+
         // Xbox library plugin ID from Playnite
-        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5b-4594-4c5a-8a69-1e3f41b39c52");
+        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5e-2ae3-48d4-8ba0-6b30e7a4e287");
 
         private readonly XboxSessionManager _sessionManager;
         private readonly XboxScanner _scanner;
         private readonly XboxApiClient _apiClient;
-        private XboxSettings _providerSettings;
 
         public XboxDataProvider(
             ILogger logger,
@@ -37,9 +47,8 @@ namespace PlayniteAchievements.Providers.Xbox
 
             _sessionManager = new XboxSessionManager(playniteApi, logger, pluginUserDataPath);
 
-            _providerSettings = ProviderRegistry.Settings<XboxSettings>();
             _apiClient = new XboxApiClient(logger, settings.Persisted.GlobalLanguage);
-            _scanner = new XboxScanner(settings, _providerSettings, _sessionManager, _apiClient, logger, playniteApi, pluginUserDataPath);
+            _scanner = new XboxScanner(settings, ProviderSettings, _sessionManager, _apiClient, logger, playniteApi, pluginUserDataPath);
         }
 
         public string ProviderName => ResourceProvider.GetString("LOCPlayAch_Provider_Xbox");
@@ -54,12 +63,20 @@ namespace PlayniteAchievements.Providers.Xbox
 
         public ISessionManager AuthSession => _sessionManager;
 
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
+
         /// <summary>
         /// Determines if this provider can handle the specified game.
         /// </summary>
         public bool IsCapable(Game game)
         {
             if (game == null) return false;
+
+            // A per-game override forces this game to be treated as Xbox.
+            if (GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "Xbox", out _))
+            {
+                return true;
+            }
 
             // Console games: GameId = "CONSOLE_{titleId}"
             if (game.GameId?.StartsWith("CONSOLE_") == true)
@@ -69,6 +86,15 @@ namespace PlayniteAchievements.Providers.Xbox
 
             // Xbox library plugin
             if (game.PluginId == XboxLibraryPluginId)
+            {
+                return true;
+            }
+
+            // Game Pass platform: catches games from third-party importers (e.g. Game Pass
+            // Catalog Browser) or customized libraries whose Source was renamed away from the
+            // strings below. Title ID still resolves via the PFN GameId in the scanner.
+            if (game.Platforms?.Any(p =>
+                    p?.Name?.IndexOf("Game Pass", StringComparison.OrdinalIgnoreCase) >= 0) == true)
             {
                 return true;
             }
@@ -94,18 +120,6 @@ namespace PlayniteAchievements.Providers.Xbox
         public void Dispose()
         {
             _apiClient?.Dispose();
-        }
-
-        /// <inheritdoc />
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        /// <inheritdoc />
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is XboxSettings xboxSettings)
-            {
-                _providerSettings.CopyFrom(xboxSettings);
-            }
         }
 
         /// <inheritdoc />

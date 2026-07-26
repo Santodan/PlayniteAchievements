@@ -8,6 +8,9 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Providers.Settings;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -577,6 +580,94 @@ namespace PlayniteAchievements.Services.Tests
             }
         }
 
+        [TestMethod]
+        public void ResolveProviderForGame_FfxivBeforeSteam_ClaimsStoreBackedFfxivTitle()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                var store = new GameCustomDataStore(tempDir);
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = store
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Manual", "FFXIV", "Steam" });
+
+                var game = new Game { Id = gameId, Name = "FINAL FANTASY XIV Online" };
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Steam", _ => true),
+                    new FakeProvider("FFXIV", g => (g?.Name ?? string.Empty).IndexOf("Final Fantasy XIV", StringComparison.OrdinalIgnoreCase) >= 0)
+                };
+
+                var resolved = resolver.ResolveProviderForGame(game, providers);
+
+                Assert.IsNotNull(resolved);
+                Assert.AreEqual("FFXIV", resolved.ProviderKey);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
+        [TestMethod]
+        public void ResolveProviderForGame_WithTargetSelectionCache_ReusesCapabilityResult()
+        {
+            var tempDir = CreateTempDirectory();
+            var gameId = Guid.NewGuid();
+            var previousPlugin = PlayniteAchievementsPlugin.Instance;
+
+            try
+            {
+                PlayniteAchievementsPlugin.Instance = new PlayniteAchievementsPlugin
+                {
+                    GameCustomDataStore = new GameCustomDataStore(tempDir)
+                };
+
+                var resolver = new TargetSelectionResolver(
+                    new FakePlayniteApi(),
+                    new PlayniteAchievementsSettings(),
+                    new FakeCacheManager(),
+                    logger: null,
+                    refreshOrder: new[] { "Steam" });
+                var game = new Game { Id = gameId, Name = "Test Game" };
+                var capabilityCalls = 0;
+                var providers = new List<IDataProvider>
+                {
+                    new FakeProvider("Steam", _ =>
+                    {
+                        capabilityCalls++;
+                        return true;
+                    })
+                };
+                var cache = new TargetSelectionCache();
+
+                var first = resolver.ResolveProviderForGame(game, providers, cache);
+                var second = resolver.ResolveProviderForGame(game, providers, cache);
+
+                Assert.IsNotNull(first);
+                Assert.AreSame(first, second);
+                Assert.AreEqual(1, capabilityCalls);
+                Assert.AreEqual(1, cache.CapabilityCheckCount);
+            }
+            finally
+            {
+                PlayniteAchievementsPlugin.Instance = previousPlugin;
+                DeleteDirectory(tempDir);
+            }
+        }
+
         private static string CreateTempDirectory()
         {
             var path = Path.Combine(
@@ -615,6 +706,7 @@ namespace PlayniteAchievements.Services.Tests
             public string ProviderColorHex => "#000000";
             public bool IsAuthenticated => _isAuthenticated;
             public ISessionManager AuthSession => null;
+            public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
 
             public bool IsCapable(Game game) => _isCapable(game);
 
@@ -641,7 +733,7 @@ namespace PlayniteAchievements.Services.Tests
 #pragma warning disable CS0067
             public event EventHandler<GameCacheUpdatedEventArgs> GameCacheUpdated;
             public event EventHandler<CacheDeltaEventArgs> CacheDeltaUpdated;
-            public event EventHandler CacheInvalidated;
+            public event EventHandler<CacheInvalidatedEventArgs> CacheInvalidated;
 #pragma warning restore CS0067
 
             public void EnsureDiskCacheOrClearMemory() { }
@@ -654,6 +746,7 @@ namespace PlayniteAchievements.Services.Tests
             public void RemoveGameData(Guid playniteGameId) { }
             public void RemoveGameCache(Guid playniteGameId) { }
             public void NotifyCacheInvalidated() { }
+            public void NotifyCacheInvalidated(IReadOnlyList<Guid> changedGameIds) { }
             public void ClearCache() { }
             public string ExportDatabaseToCsv(string exportDirectory) => null;
         }

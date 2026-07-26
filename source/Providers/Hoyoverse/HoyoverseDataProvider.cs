@@ -2,6 +2,7 @@ using Playnite.SDK;
 using Playnite.SDK.Models;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Achievements;
+using PlayniteAchievements.Providers.Overrides;
 using PlayniteAchievements.Providers.Settings;
 using System;
 using System.Collections.Generic;
@@ -11,9 +12,25 @@ using System.Threading.Tasks;
 
 namespace PlayniteAchievements.Providers.Hoyoverse
 {
-    internal sealed class HoyoverseDataProvider : IDataProvider, IDisposable
+    internal sealed class HoyoverseDataProvider : DataProviderBase<HoyoverseSettings>, IDataProvider, IProviderOverride, IDisposable
     {
         internal const string Key = "Hoyoverse";
+
+        public ProviderOverrideDescriptor OverrideDescriptor { get; } = ProviderOverrideDescriptor.Choice(
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderValueLabel_Hoyoverse",
+            new[]
+            {
+                new ProviderOverrideChoice(
+                    HoyoverseGameKind.GenshinImpact.ToString(),
+                    HoyoverseGameCatalog.GetCanonicalName(HoyoverseGameKind.GenshinImpact)),
+                new ProviderOverrideChoice(
+                    HoyoverseGameKind.HonkaiStarRail.ToString(),
+                    HoyoverseGameCatalog.GetCanonicalName(HoyoverseGameKind.HonkaiStarRail)),
+                new ProviderOverrideChoice(
+                    HoyoverseGameKind.ZenlessZoneZero.ToString(),
+                    HoyoverseGameCatalog.GetCanonicalName(HoyoverseGameKind.ZenlessZoneZero))
+            },
+            "LOCPlayAch_ManageAchievements_Overrides_ProviderInvalidChoice");
         internal const string IconKey = "ProviderIconHoyoverse";
         internal const string ColorHex = "#D4ACF8";
 
@@ -22,7 +39,6 @@ namespace PlayniteAchievements.Providers.Hoyoverse
         private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
         private readonly HttpClient _httpClient;
-        private HoyoverseSettings _providerSettings;
 
         public HoyoverseDataProvider(ILogger logger, PlayniteAchievementsSettings settings, IPlayniteAPI playniteApi)
             : this(logger, settings, playniteApi, string.Empty)
@@ -35,7 +51,6 @@ namespace PlayniteAchievements.Providers.Hoyoverse
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _playniteApi = playniteApi;
             _pluginUserDataPath = pluginUserDataPath ?? string.Empty;
-            _providerSettings = ProviderRegistry.Settings<HoyoverseSettings>();
             _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         }
 
@@ -58,9 +73,11 @@ namespace PlayniteAchievements.Providers.Hoyoverse
 
         public ISessionManager AuthSession => null;
 
+        public PlayniteAchievements.Models.Friends.IFriendsProvider Friends => null;
+
         public bool IsCapable(Game game)
         {
-            return HoyoverseGameCatalog.TryResolve(game, _providerSettings, out _);
+            return HoyoverseGameCatalog.TryResolve(game, ProviderSettings, out _);
         }
 
         public Task<RebuildPayload> RefreshAsync(
@@ -72,21 +89,11 @@ namespace PlayniteAchievements.Providers.Hoyoverse
             var scanner = new HoyoverseScanner(
                 _logger,
                 _settings,
-                _providerSettings,
+                ProviderSettings,
                 _pluginUserDataPath,
                 new HoyoverseDefinitionClient(_httpClient, _logger, _pluginUserDataPath));
 
             return scanner.RefreshAsync(gamesToRefresh, onGameStarting, onGameCompleted, cancel);
-        }
-
-        public IProviderSettings GetSettings() => _providerSettings;
-
-        public void ApplySettings(IProviderSettings settings)
-        {
-            if (settings is HoyoverseSettings hoyoverseSettings)
-            {
-                _providerSettings.CopyFrom(hoyoverseSettings);
-            }
         }
 
         public ProviderSettingsViewBase CreateSettingsView()

@@ -1,7 +1,7 @@
 using PlayniteAchievements.Models;
 using System;
 
-namespace PlayniteAchievements.Services
+namespace PlayniteAchievements.Services.Refresh
 {
     internal sealed class RefreshRunContext
     {

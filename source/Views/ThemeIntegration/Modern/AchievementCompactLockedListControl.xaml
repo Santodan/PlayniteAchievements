@@ -11,6 +11,15 @@
                    UseLayoutRounding="True"
                    SnapsToDevicePixels="True">
 
+    <modern:AchievementCompactListControlBase.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </modern:AchievementCompactListControlBase.Resources>
+
+    <Grid>
     <!-- Virtualized horizontal compact list -->
     <ItemsControl x:Name="AchievementsList"
                   ItemsSource="{Binding DisplayItems, Mode=OneWay, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
@@ -34,7 +43,7 @@
                 <ScrollViewer CanContentScroll="True"
                               HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Disabled"
-                              Padding="0"
+                              Padding="{StaticResource PlayAch.Thickness.None}"
                               ClipToBounds="False"
                               UseLayoutRounding="True"
                               SnapsToDevicePixels="True">
@@ -71,6 +80,31 @@
             </DataTemplate>
         </ItemsControl.ItemTemplate>
     </ItemsControl>
+
+    <!-- Empty state message, sized to the icon row height like the legacy control -->
+    <Border MinHeight="{Binding IconSize, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+            Margin="4">
+        <Border.Style>
+            <Style TargetType="{x:Type Border}">
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding DisplayItems.Count, RelativeSource={RelativeSource AncestorType=modern:AchievementCompactListControlBase}}"
+                                 Value="0">
+                        <Setter Property="Visibility" Value="Visible"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Persisted.EnableAchievementCompactLockedListControl, RelativeSource={RelativeSource AncestorType=local:ThemeControlBase}}"
+                                 Value="False">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <TextBlock Text="{DynamicResource LOCPlayAch_NoLockedAchievements}"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextBrushDarker}"/>
+    </Border>
+    </Grid>
 </modern:AchievementCompactListControlBase>
 
 

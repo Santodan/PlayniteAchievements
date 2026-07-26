@@ -79,6 +79,50 @@ namespace PlayniteAchievements.Tests.Views
         }
 
         [TestMethod]
+        public void TryBuildNormalizedWidths_UnprotectedViewportResizePreservesColumnProportions()
+        {
+            var keys = new[] { "A", "B", "C" };
+            var seedWidths = new[] { 100d, 200d, 300d };
+            var floorWidths = new[] { 30d, 30d, 30d };
+
+            var result = ColumnWidthNormalization.TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey: null,
+                rescaleAll: false,
+                targetWidth: 1200d,
+                out var normalized);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(200d, normalized["A"]);
+            Assert.AreEqual(400d, normalized["B"]);
+            Assert.AreEqual(600d, normalized["C"]);
+            Assert.AreEqual(1200d, normalized.Values.Sum());
+        }
+
+        [TestMethod]
+        public void TryBuildNormalizedWidths_CrampedViewportShrinksFloorsToAvoidOverflow()
+        {
+            var keys = new[] { "A", "B", "C" };
+            var seedWidths = new[] { 100d, 100d, 100d };
+            var floorWidths = new[] { 80d, 80d, 80d };
+
+            var result = ColumnWidthNormalization.TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey: null,
+                rescaleAll: true,
+                targetWidth: 150d,
+                out var normalized);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(150d, normalized.Values.Sum());
+            Assert.IsTrue(normalized.Values.All(width => width >= 1d));
+        }
+
+        [TestMethod]
         public void TryBuildNormalizedWidths_ProtectedColumnUsesImmediateRightNeighborByDefault()
         {
             var keys = new[] { "A", "B", "C", "D" };
@@ -164,6 +208,27 @@ namespace PlayniteAchievements.Tests.Views
 
             Assert.IsFalse(result);
             Assert.IsNull(normalized);
+        }
+
+        [TestMethod]
+        public void TryBuildNormalizedWidths_RoundingRemainderMatchesRoundedTarget()
+        {
+            var keys = new[] { "A", "B", "C" };
+            var seedWidths = new[] { 10d, 10d, 10d };
+            var floorWidths = new[] { 1d, 1d, 1d };
+
+            var result = ColumnWidthNormalization.TryBuildNormalizedWidths(
+                keys,
+                seedWidths,
+                floorWidths,
+                protectedKey: null,
+                rescaleAll: true,
+                targetWidth: 100d,
+                out var normalized);
+
+            Assert.IsTrue(result);
+            Assert.AreEqual(100d, normalized.Values.Sum());
+            Assert.IsTrue(normalized.Values.All(width => width >= 1d));
         }
     }
 }

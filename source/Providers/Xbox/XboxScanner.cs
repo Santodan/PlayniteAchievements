@@ -6,6 +6,8 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Providers.Exophase;
 using PlayniteAchievements.Providers.Xbox.Models;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Refresh;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,9 +43,6 @@ namespace PlayniteAchievements.Providers.Xbox
         private readonly ILogger _logger;
         private readonly IPlayniteAPI _playniteApi;
         private readonly string _pluginUserDataPath;
-
-        // Xbox library plugin ID from Playnite
-        internal static readonly Guid XboxLibraryPluginId = Guid.Parse("7e4fbb5b-4594-4c5a-8a69-1e3f41b39c52");
 
         public XboxScanner(
             PlayniteAchievementsSettings settings,
@@ -103,30 +102,37 @@ namespace PlayniteAchievements.Providers.Xbox
                     _settings.Persisted.ScanDelayMs,
                     _settings.Persisted.MaxRetryAttempts);
 
-                return await ProviderRefreshExecutor.RunProviderGamesAsync(
-                    gamesToRefresh,
-                    onGameStarting,
-                    async (game, token) =>
-                    {
-                        var data = await rateLimiter.ExecuteWithRetryAsync(
-                            () => FetchGameDataAsync(game, authData, xuid, rarityEnricher, token),
-                            IsTransientError,
-                            token).ConfigureAwait(false);
-
-                        return new ProviderRefreshExecutor.ProviderGameResult
+                try
+                {
+                    return await ProviderRefreshExecutor.RunProviderGamesAsync(
+                        gamesToRefresh,
+                        onGameStarting,
+                        async (game, token) =>
                         {
-                            Data = data
-                        };
-                    },
-                    onGameCompleted,
-                    isAuthRequiredException: ex => ex is XboxAuthRequiredException,
-                    onGameError: (game, ex, consecutiveErrors) =>
-                    {
-                        _logger?.Warn($"[XboxAch] Skipping game after retries: {game?.Name}. Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
-                    },
-                    delayBetweenGamesAsync: null,
-                    delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
-                    cancel).ConfigureAwait(false);
+                            var data = await rateLimiter.ExecuteWithRetryAsync(
+                                () => FetchGameDataAsync(game, authData, xuid, rarityEnricher, token),
+                                IsTransientError,
+                                token).ConfigureAwait(false);
+
+                            return new ProviderRefreshExecutor.ProviderGameResult
+                            {
+                                Data = data
+                            };
+                        },
+                        onGameCompleted,
+                        isAuthRequiredException: ex => ex is XboxAuthRequiredException,
+                        onGameError: (game, ex, consecutiveErrors) =>
+                        {
+                            _logger?.Warn($"[XboxAch] Skipping game after retries: {game?.Name}. Consecutive errors={consecutiveErrors}. {ex.GetType().Name}: {ex.Message}");
+                        },
+                        delayBetweenGamesAsync: null,
+                        delayAfterErrorAsync: (consecutiveErrors, token) => rateLimiter.DelayAfterErrorAsync(consecutiveErrors, token),
+                        cancel).ConfigureAwait(false);
+                }
+                finally
+                {
+                    rarityEnricher?.Dispose();
+                }
             }
             catch (XboxAuthRequiredException)
             {
@@ -143,32 +149,8 @@ namespace PlayniteAchievements.Providers.Xbox
         /// </summary>
         private static bool IsTransientError(Exception ex)
         {
-            if (ex is OperationCanceledException) return false;
-            if (ex is XboxTransientException) return true;
-
-            // WebException with transient status codes
-            if (ex is WebException webEx && webEx.Response is HttpWebResponse response)
-            {
-                var statusCode = (int)response.StatusCode;
-                // 429 Too Many Requests, 503 Service Unavailable, 502 Bad Gateway, 504 Gateway Timeout
-                if (statusCode == 429 || statusCode == 502 || statusCode == 503 || statusCode == 504)
-                    return true;
-            }
-
-            // Network-related exceptions
-            var message = ex.Message ?? string.Empty;
-            if (message.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 &&
-                message.IndexOf("reset", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("temporarily", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            if (message.IndexOf("429", StringComparison.OrdinalIgnoreCase) >= 0) return true;
-
-            if (ex.InnerException != null && !ReferenceEquals(ex.InnerException, ex))
-            {
-                return IsTransientError(ex.InnerException);
-            }
-
-            return false;
+            return TransientErrorClassifier.IsTransient(ex, e =>
+                e is XboxTransientException ? true : (bool?)null);
         }
 
         private async Task<GameAchievementData> FetchGameDataAsync(
@@ -283,6 +265,14 @@ namespace PlayniteAchievements.Providers.Xbox
 
         private async Task<string> ResolveTitleIdAsync(Game game, AuthorizationData authData, CancellationToken cancel)
         {
+            // A per-game override supplies the title ID directly, bypassing all detection strategies.
+            if (game != null &&
+                GameCustomDataLookup.TryGetProviderOverrideValue(game.Id, "Xbox", out var overrideTitleId) &&
+                XboxTitleIdResolver.TryNormalizeTitleId(overrideTitleId, out var normalizedOverride))
+            {
+                return normalizedOverride;
+            }
+
             // Console games: GameId = "CONSOLE_{titleId}"
             if (game.GameId?.StartsWith("CONSOLE_") == true)
             {

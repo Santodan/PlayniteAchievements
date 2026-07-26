@@ -40,6 +40,44 @@ namespace PlayniteAchievements.Tests.Services
         }
 
         [TestMethod]
+        public void ResolveRunningGame_ReturnsSingleRunningGame()
+        {
+            var runningId = Guid.NewGuid();
+
+            var result = AchievementHotkeyTargetResolver.ResolveRunningGame(
+                new[] { Game(runningId) },
+                Array.Empty<Guid>());
+
+            Assert.IsTrue(result.HasTarget);
+            Assert.AreEqual(runningId, result.GameId);
+        }
+
+        [TestMethod]
+        public void ResolveRunningGame_MultipleRunningGamesUsesPriority()
+        {
+            var firstId = Guid.NewGuid();
+            var latestId = Guid.NewGuid();
+
+            var result = AchievementHotkeyTargetResolver.ResolveRunningGame(
+                new[] { Game(firstId), Game(latestId) },
+                new[] { latestId, firstId });
+
+            Assert.IsTrue(result.HasTarget);
+            Assert.AreEqual(latestId, result.GameId);
+        }
+
+        [TestMethod]
+        public void ResolveRunningGame_NoRunningGameReturnsNoTarget()
+        {
+            var result = AchievementHotkeyTargetResolver.ResolveRunningGame(
+                Array.Empty<Game>(),
+                new[] { Guid.NewGuid() });
+
+            Assert.IsFalse(result.HasTarget);
+            Assert.AreEqual(Guid.Empty, result.GameId);
+        }
+
+        [TestMethod]
         public void Resolve_FallsBackToSingleSelectedGame()
         {
             var selectedId = Guid.NewGuid();

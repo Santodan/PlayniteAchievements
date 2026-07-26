@@ -9,6 +9,8 @@ build.txt
 *.zip
 
 AddonDBManifest.yaml
+#internal
+docs/*
 
 # NuGet packages
 packages/

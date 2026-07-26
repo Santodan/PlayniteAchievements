@@ -94,6 +94,11 @@ namespace PlayniteAchievements.Views.ThemeIntegration.Legacy
                     HiddenRevealHelper.SetIsRevealed(fe, !current);
                     e.Handled = true;
                 }
+                else
+                {
+                    e.Handled = true;
+                    OpenViewAchievementsWindowFocused(null, achievement.ApiName, achievement.DisplayName);
+                }
             }
         }
 

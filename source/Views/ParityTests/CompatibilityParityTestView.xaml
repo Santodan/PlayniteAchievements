@@ -8,23 +8,31 @@
              d:DesignHeight="700"
              d:DesignWidth="900">
 
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/CommonResources.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Padding="10" CornerRadius="6" Background="#11000000" BorderThickness="1" BorderBrush="#22000000">
+        <Border Grid.Row="0" Padding="10" CornerRadius="{StaticResource PlayAch.Radius.Card}" Background="{StaticResource PlayAch.Brush.Overlay.Shade.12}" BorderThickness="{StaticResource PlayAch.Thickness.Border}" BorderBrush="{StaticResource PlayAch.Brush.Overlay.Shade.22}">
             <StackPanel>
                 <TextBlock FontSize="18" FontWeight="SemiBold" Text="PlayniteAchievements UI Parity Test — SuccessStory Compatibility" />
-                <TextBlock Margin="0,4,0,0" Opacity="0.85">
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}" Opacity="0.85">
                     <Run Text="Game: " />
                     <Run Text="{Binding GameName, Mode=OneWay}" FontWeight="SemiBold" />
                     <Run Text="  (" />
                     <Run Text="{Binding GameId, Mode=OneWay}" />
                     <Run Text=")" />
                 </TextBlock>
-                <TextBlock Margin="0,6,0,0" Opacity="0.85">
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Compact}" Opacity="0.85">
                     <Run Text="HasData=" />
                     <Run Text="{Binding Settings.HasData}" />
                     <Run Text="  Unlocked=" />
@@ -35,7 +43,7 @@
                     <Run Text="{Binding Settings.Percent, StringFormat={}{0:0.#}}" />
                     <Run Text="%" />
                 </TextBlock>
-                <TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap">
+                <TextBlock Margin="{StaticResource PlayAch.Thickness.Top.Xs}" Opacity="{StaticResource PlayAch.Opacity.Hint}" TextWrapping="Wrap">
                     This window renders all SuccessStory-compatible theme controls provided by PlayniteAchievements.
                 </TextBlock>
             </StackPanel>

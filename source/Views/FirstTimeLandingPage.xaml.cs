@@ -10,8 +10,11 @@ using System.Windows.Input;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Providers;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.ThemeMigration;
 using PlayniteAchievements.Views.Helpers;
+using PlayniteAchievements.Views.Settings.Display.ThemeControls;
 using Playnite.SDK;
 using Playnite.SDK.Models;
 namespace PlayniteAchievements.Views
@@ -120,7 +123,7 @@ namespace PlayniteAchievements.Views
                     if (IsChecking)
                     {
                         return ResourceProvider.GetString("LOCPlayAch_Landing_Status_BadgeChecking")
-                            ?? "CHECKING";
+                            ?? "Checking";
                     }
                     if (!IsEnabled)
                     {
@@ -434,7 +437,7 @@ namespace PlayniteAchievements.Views
                     refreshRequest = new RefreshRequest
                     {
                         Mode = RefreshModeType.Custom,
-                        CustomOptions = customOptions
+                        Options = RefreshOptions.FromCustom(customOptions)
                     };
                 }
                 else
@@ -900,7 +903,7 @@ namespace PlayniteAchievements.Views
 
                 _api?.Dialogs?.ShowMessage(
                     result.Message + "\n\nPlease restart Playnite to apply the theme changes.",
-                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert") ?? "Revert Theme",
+                    ResourceProvider.GetString("LOCPlayAch_ThemeMigration_Revert"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -964,50 +967,40 @@ namespace PlayniteAchievements.Views
 
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginButton",
-                "LOCPlayAch_Settings_ButtonPreview",
-                "Button"));
+                "LOCPlayAch_Settings_ButtonPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginChart",
-                "LOCPlayAch_Settings_BarChartPreview",
-                "Bar Chart"));
+                "LOCPlayAch_Settings_BarChartPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactList",
-                "LOCPlayAch_Settings_CompactListPreview",
-                "Compact List"));
+                "LOCPlayAch_Settings_CompactListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactLocked",
-                "LOCPlayAch_Settings_CompactLockedListPreview",
-                "Compact Locked List"));
+                "LOCPlayAch_Settings_CompactLockedListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginCompactUnlocked",
-                "LOCPlayAch_Settings_CompactUnlockedListPreview",
-                "Compact Unlocked List"));
+                "LOCPlayAch_Settings_CompactUnlockedListPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginList",
-                "LOCPlayAch_Settings_AchievementDataGridPreview",
-                "Achievement DataGrid"));
+                "LOCPlayAch_Settings_AchievementDataGridPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginProgressBar",
-                "LOCPlayAch_Settings_ProgressBarPreview",
-                "Progress Bar"));
+                "LOCPlayAch_Settings_ProgressBarPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginUserStats",
-                "LOCPlayAch_Settings_StatsPreview",
-                "Stats"));
+                "LOCPlayAch_Settings_StatsPreview"));
             _themeMigrationCustomOptions.Add(CreateThemeMigrationControlOption(
                 "PluginViewItem",
-                "LOCPlayAch_Settings_ViewItemPreview",
-                "View Item"));
+                "LOCPlayAch_Settings_ViewItemPreview"));
         }
 
         private ThemeMigrationElementOption CreateThemeMigrationControlOption(
             string key,
-            string resourceKey,
-            string fallback)
+            string resourceKey)
         {
             return new ThemeMigrationElementOption(
                 key,
-                ResourceProvider.GetString(resourceKey) ?? fallback,
+                ResourceProvider.GetString(resourceKey),
                 isBindingOption: false,
                 isModern: true);
         }

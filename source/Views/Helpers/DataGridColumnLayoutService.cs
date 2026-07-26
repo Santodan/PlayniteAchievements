@@ -34,6 +34,7 @@ namespace PlayniteAchievements.Views.Helpers
         private readonly Dictionary<DataGridColumn, EventHandler> _columnWidthChangedHandlers = new Dictionary<DataGridColumn, EventHandler>();
         private readonly Dictionary<string, double> _pendingWidthUpdates = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, double> _resizeObservedWidths = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, double> _normalizedWidthOverrides = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         private readonly Func<Dictionary<string, int>> _getOrder;
         private readonly Action<Dictionary<string, int>> _setOrder;
         private readonly Func<Dictionary<string, GridAlignment>> _getCellAlignments;
@@ -62,12 +63,14 @@ namespace PlayniteAchievements.Views.Helpers
         private bool _initialNormalizationActive;
         private bool _initialNormalizationCompleted;
         private int _initialNormalizationAttempts;
+        private bool _hasSuccessfulNormalization;
         private bool _isInitialRenderSuppressed;
         private object _initialOpacityLocalValue = DependencyProperty.UnsetValue;
         private object _initialHitTestVisibleLocalValue = DependencyProperty.UnsetValue;
         private ScrollViewer _normalizationScrollViewer;
         private bool _scrollViewerAttachQueued;
         private double _lastObservedScrollViewerWidth;
+        private DispatcherOperation _queuedNormalizationOperation;
 
         /// <summary>
         /// Column keys that should be excluded from the visibility toggle menu.
@@ -196,8 +199,10 @@ namespace PlayniteAchievements.Views.Helpers
             _columnWidthChangedHandlers.Clear();
             _pendingWidthUpdates.Clear();
             _resizeObservedWidths.Clear();
+            _normalizedWidthOverrides.Clear();
             DetachNormalizationHandlers();
             DetachScrollViewerHandlers();
+            CancelQueuedNormalization();
 
             if (_saveTimer != null)
             {
@@ -212,6 +217,7 @@ namespace PlayniteAchievements.Views.Helpers
             _initialNormalizationActive = false;
             _initialNormalizationCompleted = false;
             _initialNormalizationAttempts = 0;
+            _hasSuccessfulNormalization = false;
             _scrollViewerAttachQueued = false;
             _lastObservedScrollViewerWidth = 0;
             _lastResizedColumnKey = null;
@@ -477,7 +483,7 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _lastObservedScrollViewerWidth = width;
-            ApplyCurrentLayoutMode(rescaleAll: true, priority: DispatcherPriority.Render);
+            ApplyViewportLayoutChange(DispatcherPriority.Render);
         }
 
         private static double ResolveScrollViewerObservedWidth(ScrollViewer scrollViewer)
@@ -574,13 +580,14 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             QueueScrollViewerAttach(DispatcherPriority.Render);
-            ApplyCurrentLayoutMode(rescaleAll: true);
+            ApplyViewportLayoutChange(DispatcherPriority.Render);
         }
 
         private void Grid_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (VisualTreeHelpers.TryFindColumnResizeThumb(e.OriginalSource as DependencyObject, out var resizeThumb))
             {
+                CancelQueuedNormalization();
                 _isResizeInProgress = true;
                 CaptureResizeBoundary(resizeThumb);
                 CaptureResizeObservedWidths();
@@ -766,6 +773,7 @@ namespace PlayniteAchievements.Views.Helpers
             if (TryBuildNormalizedWidths(_lastResizedColumnKey, false, out normalized))
             {
                 ApplyWidthsByKey(normalized);
+                StoreNormalizedWidthOverrides(normalized);
                 PersistVisibleWidths(normalized);
                 _pendingWidthUpdates.Clear();
                 ClearResizeTracking();
@@ -797,9 +805,6 @@ namespace PlayniteAchievements.Views.Helpers
                 if (ForcedCollapsedKeys.Contains(key))
                 {
                     column.Visibility = Visibility.Collapsed;
-                    column.MinWidth = 0;
-                    column.MaxWidth = 0;
-                    column.Width = new DataGridLength(0, DataGridLengthUnitType.Pixel);
                     continue;
                 }
 
@@ -879,6 +884,7 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
+            _normalizedWidthOverrides.Clear();
             var preferredWidths = BuildEffectivePreferredWidths(includePending: false);
             if (preferredWidths.Count == 0)
             {
@@ -927,6 +933,8 @@ namespace PlayniteAchievements.Views.Helpers
             if (TryBuildNormalizedWidths(_lastResizedColumnKey, rescaleAll, out var normalized))
             {
                 ApplyWidthsByKey(normalized);
+                StoreNormalizedWidthOverrides(normalized);
+                _hasSuccessfulNormalization = true;
                 CompleteInitialNormalization();
                 return true;
             }
@@ -971,17 +979,46 @@ namespace PlayniteAchievements.Views.Helpers
             }
         }
 
-        private bool TryBuildNormalizedWidths(string protectedKey, bool rescaleAll, out Dictionary<string, double> normalized)
+        private bool TryBuildNormalizedWidths(
+            string protectedKey,
+            bool rescaleAll,
+            out Dictionary<string, double> normalized)
         {
+            var effectiveProtectedKey = protectedKey;
+            var effectiveAbsorberKey = _lastResizeAbsorberColumnKey;
+
             return ColumnWidthNormalization.TryBuildNormalizedWidths(
                 _grid,
-                protectedKey,
-                _lastResizeAbsorberColumnKey,
+                effectiveProtectedKey,
+                effectiveAbsorberKey,
                 rescaleAll,
                 BuildNormalizationPreferredWidths(includePending: true),
                 fallbackAvailableWidth: 0,
                 useEqualWidthForMissing: true,
                 out normalized);
+        }
+
+        private string ResolveDefaultProtectedColumnKey(out string absorberKey)
+        {
+            absorberKey = null;
+            var columns = GetVisibleResizableColumns();
+            if (columns.Count == 0)
+            {
+                return null;
+            }
+
+            absorberKey = GetColumnKey(columns[columns.Count - 1]);
+            for (var i = 0; i < columns.Count; i++)
+            {
+                var key = GetColumnKey(columns[i]);
+                if (!string.IsNullOrWhiteSpace(key) &&
+                    !ColumnWidthNormalization.KeysEqual(key, absorberKey))
+                {
+                    return key;
+                }
+            }
+
+            return absorberKey;
         }
 
         private void CaptureResizeBoundary(Thumb resizeThumb)
@@ -1219,12 +1256,31 @@ namespace PlayniteAchievements.Views.Helpers
                 return;
             }
 
-            NormalizeOrQueue(rescaleAll, priority);
+            NormalizeOrQueue(ShouldRescaleAll(rescaleAll), priority);
         }
 
-        private void QueueNormalization(
-            bool rescaleAll,
-            DispatcherPriority priority = DispatcherPriority.Render)
+        private void ApplyViewportLayoutChange(DispatcherPriority priority)
+        {
+            if (_grid == null || (_grid.IsLoaded && !_grid.IsVisible))
+            {
+                return;
+            }
+
+            if (!_hasSuccessfulNormalization || _initialNormalizationActive || !HasUserPersistedWidths())
+            {
+                ApplyCurrentLayoutMode(rescaleAll: true, priority);
+                return;
+            }
+
+            QueueNormalization(rescaleAll: true, DispatcherPriority.Background);
+        }
+
+        private bool ShouldRescaleAll(bool requestedRescaleAll)
+        {
+            return requestedRescaleAll;
+        }
+
+        private void QueueNormalization(bool rescaleAll, DispatcherPriority priority = DispatcherPriority.Render)
         {
             if (_grid == null)
             {
@@ -1238,14 +1294,16 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             _normalizationQueued = true;
-            _grid.Dispatcher.BeginInvoke(
+            _queuedNormalizationOperation = _grid.Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
+                    _queuedNormalizationOperation = null;
                     _normalizationQueued = false;
-                    var shouldRescaleAll = _queuedNormalizationRescaleAll;
+                    var shouldRescaleAll = ShouldRescaleAll(_queuedNormalizationRescaleAll);
                     _queuedNormalizationRescaleAll = false;
 
-                    if (_grid == null ||
+                    if (!_isAttached ||
+                        _grid == null ||
                         (_grid.IsLoaded && !_grid.IsVisible) ||
                         _isResizeInProgress)
                     {
@@ -1258,6 +1316,19 @@ namespace PlayniteAchievements.Views.Helpers
                     }
                 }),
                 priority);
+        }
+
+        private void CancelQueuedNormalization()
+        {
+            if (_queuedNormalizationOperation != null &&
+                _queuedNormalizationOperation.Status == DispatcherOperationStatus.Pending)
+            {
+                _queuedNormalizationOperation.Abort();
+            }
+
+            _queuedNormalizationOperation = null;
+            _normalizationQueued = false;
+            _queuedNormalizationRescaleAll = false;
         }
 
         private void QueueInitialNormalizationRetry(bool rescaleAll)
@@ -1304,7 +1375,15 @@ namespace PlayniteAchievements.Views.Helpers
 
         private Dictionary<string, double> BuildNormalizationPreferredWidths(bool includePending)
         {
-            var result = BuildPreferredWidths(includePending, includeDefaultSeeds: true);
+            var result = BuildPreferredWidths(includePending: false, includeDefaultSeeds: true);
+
+            foreach (var pair in _normalizedWidthOverrides)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                {
+                    result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                }
+            }
 
             if (_defaultWidthSeeds != null)
             {
@@ -1322,7 +1401,35 @@ namespace PlayniteAchievements.Views.Helpers
                 }
             }
 
+            if (includePending)
+            {
+                foreach (var pair in _pendingWidthUpdates)
+                {
+                    if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                    {
+                        result[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                    }
+                }
+            }
+
             return result;
+        }
+
+        private void StoreNormalizedWidthOverrides(IReadOnlyDictionary<string, double> widthsByKey)
+        {
+            _normalizedWidthOverrides.Clear();
+            if (widthsByKey == null)
+            {
+                return;
+            }
+
+            foreach (var pair in widthsByKey)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && IsValidWidth(pair.Value))
+                {
+                    _normalizedWidthOverrides[pair.Key] = ColumnWidthNormalization.RoundPixelWidth(pair.Value);
+                }
+            }
         }
 
         private Dictionary<string, double> BuildPreferredWidths(bool includePending, bool includeDefaultSeeds)
@@ -1467,7 +1574,13 @@ namespace PlayniteAchievements.Views.Helpers
                 menu.Items.Insert(separatorIndex, new Separator { Margin = new Thickness(8, 8, 8, 0) });
             }
 
-            return hasAlignmentSection || hasVisibilitySection ? menu : null;
+            if (!hasAlignmentSection && !hasVisibilitySection)
+            {
+                return null;
+            }
+
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(_grid, menu);
+            return menu;
         }
 
         private bool AddAlignmentSection(ContextMenu menu, DataGridColumn contextColumn)
@@ -1516,6 +1629,22 @@ namespace PlayniteAchievements.Views.Helpers
             };
 
             item.Header = CreateAlignmentButtonRow(contextColumn, refreshRow);
+            KeyboardNavigation.SetIsTabStop(item, false);
+            item.PreviewGotKeyboardFocus += (_, e) =>
+            {
+                if (e.NewFocus is DependencyObject focused &&
+                    item.Header is DependencyObject header &&
+                    IsDescendantOf(focused, header))
+                {
+                    return;
+                }
+
+                if (TryFocusFirstAlignmentButton(item))
+                {
+                    e.Handled = true;
+                }
+            };
+
             return item.Header == null ? null : item;
         }
 
@@ -1652,6 +1781,60 @@ namespace PlayniteAchievements.Views.Helpers
             return button;
         }
 
+        private static bool TryFocusFirstAlignmentButton(MenuItem item)
+        {
+            if (!(item?.Header is DependencyObject header))
+            {
+                return false;
+            }
+
+            var button = FindDescendant<Button>(header);
+            return button != null && button.Focus();
+        }
+
+        private static bool IsDescendantOf(DependencyObject current, DependencyObject ancestor)
+        {
+            while (current != null)
+            {
+                if (ReferenceEquals(current, ancestor))
+                {
+                    return true;
+                }
+
+                current = VisualTreeHelpers.GetParentForHitTesting(current) ??
+                          (current as FrameworkElement)?.Parent;
+            }
+
+            return false;
+        }
+
+        private static T FindDescendant<T>(DependencyObject current)
+            where T : DependencyObject
+        {
+            if (current == null)
+            {
+                return null;
+            }
+
+            if (current is T typed)
+            {
+                return typed;
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(current);
+            for (var i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(current, i);
+                var nested = FindDescendant<T>(child);
+                if (nested != null)
+                {
+                    return nested;
+                }
+            }
+
+            return null;
+        }
+
         private bool AddVisibilitySection(ContextMenu menu)
         {
             if (menu == null)
@@ -1660,6 +1843,19 @@ namespace PlayniteAchievements.Views.Helpers
             }
 
             var visibilityItems = new List<MenuItem>();
+
+            // Guarantee at least one visible column: keep the sole checked item disabled so it cannot
+            // be unchecked. Recomputed on build and after each toggle (the menu stays open across
+            // clicks via StaysOpenOnClick).
+            Action refreshLastColumnGuard = () =>
+            {
+                var lockLastColumn = visibilityItems.Count(i => i.IsChecked) <= 1;
+                foreach (var visibilityItem in visibilityItems)
+                {
+                    visibilityItem.IsEnabled = !(lockLastColumn && visibilityItem.IsChecked);
+                }
+            };
+
             foreach (var column in _grid.Columns
                          .Where(c => c != null)
                          .OrderBy(c => c.DisplayIndex))
@@ -1690,6 +1886,7 @@ namespace PlayniteAchievements.Views.Helpers
                     var isVisible = item.IsChecked;
                     targetColumn.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
                     OnColumnVisibilityChanged(targetColumn, isVisible);
+                    refreshLastColumnGuard();
                 };
 
                 visibilityItems.Add(item);
@@ -1700,7 +1897,9 @@ namespace PlayniteAchievements.Views.Helpers
                 return false;
             }
 
-            menu.Items.Add(CreateSectionHeader("Columns"));
+            refreshLastColumnGuard();
+
+            menu.Items.Add(CreateSectionHeader(ResourceProvider.GetString("LOCColumns")));
             foreach (var item in visibilityItems)
             {
                 menu.Items.Add(item);

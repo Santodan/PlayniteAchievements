@@ -1,5 +1,7 @@
 using System;
+using System.Runtime.Serialization;
 using System.Windows.Input;
+using Playnite.SDK.Data;
 using PlayniteAchievements.Common;
 using PlayniteAchievements.Models.Achievements;
 
@@ -9,7 +11,7 @@ namespace PlayniteAchievements.Models.ThemeIntegration
     /// Summary of achievement progress for a single game, used in library overview displays.
     /// Represents a "trophy card" showing progress, trophy counts, and metadata for one game.
     /// </summary>
-    public sealed class GameAchievementSummary : ObservableObject
+    public class GameAchievementSummary : ObservableObject
     {
         private int _progress;
         private int _goldCount;
@@ -55,6 +57,11 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         /// Game name.
         /// </summary>
         public string Name { get; }
+
+        /// <summary>
+        /// Sort title from Playnite, when it differs from the visible game name.
+        /// </summary>
+        public string SortingName { get; }
 
         /// <summary>
         /// Platform/source name (e.g., "Steam", "GOG").
@@ -135,6 +142,23 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         public bool IsCompleted { get; }
 
         /// <summary>
+        /// True when this summary represents a base-game achievement category (dynamic category cards
+        /// only). The flags below are precomputed from the card's canonical group-type token so themes
+        /// can bind a plain boolean (e.g. IsBaseCategory) instead of string-matching the localized name.
+        /// All false for ordinary per-game summaries.
+        /// </summary>
+        public bool IsBaseCategory { get; }
+
+        /// <summary>True when this summary represents a DLC achievement category.</summary>
+        public bool IsDlcCategory { get; }
+
+        /// <summary>True when this summary represents an update achievement category.</summary>
+        public bool IsUpdateCategory { get; }
+
+        /// <summary>True when this summary represents a subset achievement category.</summary>
+        public bool IsSubsetCategory { get; }
+
+        /// <summary>
         /// Date of the most recent achievement unlock.
         /// </summary>
         public DateTime LastUnlockDate { get; }
@@ -154,20 +178,34 @@ namespace PlayniteAchievements.Models.ThemeIntegration
         /// </summary>
         public int AchievementCount { get; }
 
+        [DontSerialize]
+        [IgnoreDataMember]
+        public ICommand SetDynamicAchievementsGameCommand { get; set; }
+
+        [DontSerialize]
+        [IgnoreDataMember]
+        public ICommand FilterDynamicGameSummariesByProviderCommand { get; set; }
+
         /// <summary>
         /// Command to open the View Achievements window for this game.
         /// Prefer OpenViewAchievementsWindow in new themes.
         /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
         public ICommand OpenAchievementWindow { get; }
 
         /// <summary>
         /// Command to open the View Achievements window for this game.
         /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
         public ICommand OpenViewAchievementsWindow { get; }
 
         /// <summary>
         /// Command to open the Manage Achievements window for this game.
         /// </summary>
+        [DontSerialize]
+        [IgnoreDataMember]
         public ICommand OpenManageAchievementsWindow { get; }
 
         #region Legacy Aliases for Aniki ReMake/Helper Compatibility
@@ -218,10 +256,13 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             int unlockedCount = 0,
             int achievementCount = 0,
             ICommand openViewAchievementsWindow = null,
-            ICommand openManageAchievementsWindow = null)
+            ICommand openManageAchievementsWindow = null,
+            string sortingName = null,
+            string categoryType = null)
         {
             GameId = gameId;
             Name = name ?? string.Empty;
+            SortingName = string.IsNullOrWhiteSpace(sortingName) ? Name : sortingName;
             Platform = platform ?? "Unknown";
             ProviderKey = providerKey ?? string.Empty;
             ProviderName = providerName ?? string.Empty;
@@ -231,6 +272,12 @@ namespace PlayniteAchievements.Models.ThemeIntegration
             _silverCount = Math.Max(0, silverCount);
             _bronzeCount = Math.Max(0, bronzeCount);
             IsCompleted = isCompleted;
+            // categoryType is a single canonical group token from CategorySummaryBuilder
+            // (Base/DLC/Update/Subset, or Default/null for non-category summaries).
+            IsBaseCategory = string.Equals(categoryType, "Base", StringComparison.OrdinalIgnoreCase);
+            IsDlcCategory = string.Equals(categoryType, "DLC", StringComparison.OrdinalIgnoreCase);
+            IsUpdateCategory = string.Equals(categoryType, "Update", StringComparison.OrdinalIgnoreCase);
+            IsSubsetCategory = string.Equals(categoryType, "Subset", StringComparison.OrdinalIgnoreCase);
             LastUnlockDate = lastUnlockDate;
             LastPlayed = lastPlayed;
             UnlockedCount = Math.Max(0, unlockedCount);

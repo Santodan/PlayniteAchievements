@@ -16,7 +16,6 @@ namespace PlayniteAchievements.ViewModels
     public sealed class ScoreCardViewModel : ObservableObject
     {
         private const string DefaultRank = "Bronze5";
-
         private static readonly Brush BronzeScoreAccentBrush = CreateFrozenBrush(Color.FromRgb(0xD6, 0x8A, 0x45));
         private static readonly Brush SilverScoreAccentBrush = CreateFrozenBrush(Color.FromRgb(0xD7, 0xE1, 0xEC));
         private static readonly Brush GoldScoreAccentBrush = CreateFrozenBrush(Color.FromRgb(0xFF, 0xD4, 0x57));
@@ -50,23 +49,24 @@ namespace PlayniteAchievements.ViewModels
         public bool UseUniformRarityBadges => _useUniformRarityBadges;
 
         public string Label => ScoreType == ScoreCardType.Collection
-            ? L("LOCPlayAch_Score_Collection", "Collection Score")
-            : L("LOCPlayAch_Score_Prestige", "Prestige Score");
+            ? L("LOCPlayAch_Score_Collection")
+            : L("LOCPlayAch_Score_Prestige");
 
-        public string ScoreText => Score.ToString("N0");
+        public string ScoreText => Score.ToString("N0", FormattingCulture.Current);
 
         public string PointsText => string.Format(
-            L("LOCPlayAch_Score_PointsFormat", "{0} pts"),
+            L("LOCPlayAch_Score_PointsFormat"),
             ScoreText);
 
         public string LevelText => string.Format(
-            L("LOCPlayAch_Score_LevelFormat", "Lv {0}"),
+            FormattingCulture.Current,
+            L("LOCPlayAch_Score_LevelFormat"),
             Level);
 
         public string TierText => AchievementRankPresentation.FormatRank(Rank);
 
         public string DetailText => string.Format(
-            L("LOCPlayAch_Score_HeaderDetailFormat", "{0} | {1} | {2}"),
+            L("LOCPlayAch_Score_HeaderDetailFormat"),
             TierText,
             LevelText,
             PointsText);
@@ -80,7 +80,7 @@ namespace PlayniteAchievements.ViewModels
         public string NextTierThresholdText => FormatNextTierThreshold(
             AchievementLevelCalculator.CalculateModern(Score));
 
-        public string BadgeIconKey => AchievementRankPresentation.GetBadgeIconKey(
+        public string BadgeIconKey => AchievementRankPresentation.GetScoreCardBadgeIconKey(
             Rank,
             UseUniformRarityBadges);
 
@@ -134,14 +134,16 @@ namespace PlayniteAchievements.ViewModels
 
         public void RefreshBadgeStyle(bool useUniformRarityBadges)
         {
-            if (_useUniformRarityBadges == useUniformRarityBadges)
+            if (_useUniformRarityBadges != useUniformRarityBadges)
             {
-                return;
+                _useUniformRarityBadges = useUniformRarityBadges;
+                OnPropertyChanged(nameof(UseUniformRarityBadges));
+                OnPropertyChanged(nameof(BadgeIconKey));
             }
 
-            _useUniformRarityBadges = useUniformRarityBadges;
-            OnPropertyChanged(nameof(UseUniformRarityBadges));
-            OnPropertyChanged(nameof(BadgeIconKey));
+            OnPropertyChanged(nameof(AccentBrush));
+            OnPropertyChanged(nameof(NextTierAccentBrush));
+            OnPropertyChanged(nameof(AccentBackgroundBrush));
         }
 
         private void RaiseAllPropertiesChanged()
@@ -188,25 +190,30 @@ namespace PlayniteAchievements.ViewModels
 
         private static string FormatCurrentLevelPoints(AchievementLevelSnapshot snapshot)
         {
-            var progressLabel = L("LOCPlayAch_Progress", "Progress");
+            var progressLabel = L("LOCPlayAch_Progress");
             if (snapshot == null || snapshot.CurrentLevelTotalPoints <= 0)
             {
                 return $"{progressLabel}: 0/0";
             }
 
-            return $"{progressLabel}: {snapshot.CurrentLevelPoints:N0}/{snapshot.CurrentLevelTotalPoints:N0}";
+            return string.Format(
+                FormattingCulture.Current,
+                "{0}: {1:N0}/{2:N0}",
+                progressLabel,
+                snapshot.CurrentLevelPoints,
+                snapshot.CurrentLevelTotalPoints);
         }
 
         private static string FormatPointsUntilNextLevel(AchievementLevelSnapshot snapshot)
         {
             if (snapshot?.IsMaxLevel == true)
             {
-                return L("LOCPlayAch_Score_Tooltip_MaxLevel", "Max level reached");
+                return L("LOCPlayAch_Score_Tooltip_MaxLevel");
             }
 
             return string.Format(
-                L("LOCPlayAch_Score_Tooltip_NextLevelRemainingFormat", "{0} until {1}"),
-                Math.Max(0, snapshot?.PointsUntilNextLevel ?? 0).ToString("N0"),
+                L("LOCPlayAch_Score_Tooltip_NextLevelRemainingFormat"),
+                Math.Max(0, snapshot?.PointsUntilNextLevel ?? 0).ToString("N0", FormattingCulture.Current),
                 FormatNextLevel(snapshot));
         }
 
@@ -214,13 +221,13 @@ namespace PlayniteAchievements.ViewModels
         {
             if (snapshot?.IsMaxLevel == true || string.IsNullOrWhiteSpace(snapshot.NextRank))
             {
-                return L("LOCPlayAch_Score_Tooltip_MaxLevel", "Max level reached");
+                return L("LOCPlayAch_Score_Tooltip_MaxLevel");
             }
 
             var nextTier = AchievementRankPresentation.FormatRank(snapshot.NextRank);
             return string.Format(
-                L("LOCPlayAch_Score_Tooltip_NextTierLineFormat", "{0} until {1}"),
-                Math.Max(0, snapshot.PointsUntilNextRank).ToString("N0"),
+                L("LOCPlayAch_Score_Tooltip_NextLevelRemainingFormat"),
+                Math.Max(0, snapshot.PointsUntilNextRank).ToString("N0", FormattingCulture.Current),
                 nextTier);
         }
 
@@ -230,13 +237,15 @@ namespace PlayniteAchievements.ViewModels
                 ? 0
                 : (snapshot.DisplayLevel > 0 ? snapshot.DisplayLevel : snapshot.Level);
             return string.Format(
-                L("LOCPlayAch_Score_LevelFormat", "Lv {0}"),
+                FormattingCulture.Current,
+                L("LOCPlayAch_Score_LevelFormat"),
                 Math.Max(0, currentLevel + 1));
         }
 
         private static Brush GetScoreAccentBrush(string rank)
         {
-            switch (AchievementRankPresentation.GetRarityTier(rank))
+            var tier = AchievementRankPresentation.GetRarityTier(rank);
+            switch (tier)
             {
                 case RarityTier.UltraRare:
                     return PlatinumScoreAccentBrush;
@@ -258,7 +267,8 @@ namespace PlayniteAchievements.ViewModels
 
         private static Brush GetScoreAccentBackgroundBrush(string rank)
         {
-            switch (AchievementRankPresentation.GetRarityTier(rank))
+            var tier = AchievementRankPresentation.GetRarityTier(rank);
+            switch (tier)
             {
                 case RarityTier.UltraRare:
                     return PlatinumScoreBackgroundBrush;
@@ -278,22 +288,9 @@ namespace PlayniteAchievements.ViewModels
             return brush;
         }
 
-        private static string L(string key, string fallback)
+        private static string L(string key)
         {
-            var value = ResourceProvider.GetString(key);
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return fallback;
-            }
-
-            if (value.Length > 4 &&
-                value.StartsWith("<!", StringComparison.Ordinal) &&
-                value.EndsWith("!>", StringComparison.Ordinal))
-            {
-                return fallback;
-            }
-
-            return value;
+            return ResourceProvider.GetString(key);
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using Playnite.SDK;
 using PlayniteAchievements.Providers.Settings;
 using PlayniteAchievements.Services.Logging;
@@ -101,6 +102,8 @@ namespace PlayniteAchievements.Providers.Steam
         {
             try
             {
+                SetAuthStatusChecking();
+                WebAuthStatus = ResourceProvider.GetString("LOCPlayAch_Auth_Checking");
                 var result = await _sessionManager.ProbeAuthStateAsync(CancellationToken.None);
                 UpdateAuthStatusFromResult(result);
             }

@@ -1,0 +1,138 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Plugin logo, converted from the crest SVG in
+        BrandingPackage/01 Logo (dark backgrounds)/02 Crest Icon/SVG/pa-crest-gold-master-icon.svg
+        (viewBox 278x257). The crest is seven pieces: an outer ring, the center trophy, and five
+        surrounding badges. Each geometry key holds one SVG path; PlayAch.Image.Logo redraws them
+        with the master gradients (LinearGradientBrush MappingMode="Absolute", Start/EndPoint taken
+        from each SVG userSpaceOnUse gradient's x1,y1/x2,y2).
+
+        Alignment: the trophy center (x 138.141, y 144.300) sits ~16 units below the crest bounds
+        center, so a naive image would render the trophy low relative to vertically-centered text.
+        The final transparent GeometryDrawing pads the DrawingImage bounds to a box symmetric about
+        the trophy center (Rect 2.566,0,271.150,288.6: left = 2*138.141-273.716, bottom = 2*144.300),
+        so every <Image VerticalAlignment="Center"> centers the trophy on the adjacent text midline.
+        The visible crest is then 256.5/288.6 of the image height; usage sites size up accordingly.
+
+        PlayAch.Geometry.TrophyIcon is the flat trophy silhouette (from
+        BrandingPackage/01 Logo (dark backgrounds)/01 Trophy Icon/SVG/pa-trophy-flat-white-icon.svg,
+        viewBox 181x169), used by the sidebar/top-panel icons which supply their own foreground brush.
+    -->
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.Ring"
+                  FillRule="Nonzero"
+                  Figures="M197.266 240.684C179.725 250.741 159.348 256.5 137.61 256.5L136.84 256.498C119.785 256.39 103.582 252.74 88.9447 246.252L94.1875 230.3C107.367 236.422 122.084 239.844 137.61 239.844C154.658 239.844 170.73 235.718 184.863 228.422L197.266 240.684ZM35.5322 133.257C35.4324 135.087 35.3817 136.93 35.3817 138.785C35.3817 164.818 45.3396 188.552 61.6948 206.468L47.9974 216.305C29.8088 195.774 18.724 168.938 18.5357 139.546L18.5332 138.785C18.5332 137.19 18.5655 135.602 18.629 134.023L25.1463 137.742L26.41 138.464L27.6736 137.742L35.5322 133.257ZM256.329 129.603C256.565 132.633 256.686 135.695 256.686 138.785L256.684 139.546C256.502 167.824 246.235 193.737 229.258 213.944L217.285 202.108C231.393 184.782 239.838 162.758 239.838 138.785C239.838 135.69 239.697 132.627 239.421 129.603H256.329ZM35.7408 130.253L26.41 135.579L26.4095 135.579L35.7408 130.252V130.253ZM165.415 24.2968C198.302 32.0738 225.888 53.3391 241.855 81.8477L231.707 99.2234C219.686 71.317 195.334 49.8501 165.415 41.5089V24.2968ZM109.802 41.5097C82.4593 49.1331 59.7652 67.7193 46.8854 92.1643L32.2798 83.828C48.0635 54.3259 76.1592 32.2537 109.802 24.2972V41.5097Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.Trophy"
+                  FillRule="Nonzero"
+                  Figures="M138.997 87.2916H177.127L177.188 87.3512C177.679 87.8292 178.16 88.699 178.011 89.7617C177.877 90.7123 177.246 91.7733 175.757 92.8197H200.045V93.0279C200.045 100.505 197.857 112.054 191.292 122.426C184.73 132.793 173.795 141.982 156.321 144.745L153.154 147.37C153.891 147.711 154.625 148.155 155.176 148.675C155.801 149.266 156.226 149.989 156.089 150.792C155.954 151.589 155.278 152.379 153.913 153.138C152.571 153.885 150.522 154.625 147.542 155.322C148.17 160.438 149.497 168.07 151.47 174.579C152.468 177.874 153.628 180.87 154.941 183.105C156.261 185.352 157.702 186.772 159.236 187.021L159.413 187.049V193.197C159.413 193.719 159.771 194.936 161.251 195.432L161.261 195.435L161.271 195.439C161.674 195.619 162.344 196.259 162.138 197.415V201.365H138.179V201.328H114.696V197.378C114.486 196.219 115.168 195.579 115.576 195.4L115.584 195.396L115.594 195.393C117.099 194.896 117.461 193.678 117.461 193.157V187.009L117.638 186.981C119.197 186.731 120.659 185.31 121.999 183.063C123.33 180.828 124.507 177.832 125.52 174.536C127.521 168.027 128.867 160.394 129.505 155.277C126.481 154.58 124.402 153.841 123.04 153.093C121.657 152.334 120.97 151.544 120.833 150.746C120.694 149.942 121.126 149.218 121.76 148.628C122.319 148.108 123.062 147.664 123.81 147.323L120.598 144.699C102.87 141.935 91.7758 132.746 85.1177 122.377C78.457 112.003 76.2368 100.451 76.2368 92.9721V92.7639H100.877C99.3685 91.7179 98.7279 90.6573 98.5918 89.7063C98.4402 88.642 98.9292 87.7713 99.4266 87.2941L99.4877 87.235H138.997V87.2916ZM86.1117 100.546C89.283 123.543 106.097 134.009 114.108 136.368C106.577 128.938 102.381 109.391 101.225 100.546H86.1117ZM175.057 100.546C173.902 109.391 169.706 128.938 162.174 136.368C170.185 134.009 186.999 123.542 190.17 100.546H175.057Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.BottomLeftBadge"
+                  FillRule="Nonzero"
+                  Figures="M69.0353 204.284L94.1526 222.324L84.5586 251.514H53.5119L43.918 222.324L69.0353 204.284Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.LeftBadge"
+                  FillRule="Nonzero"
+                  Figures="M26.4098 83.3625L49.2816 96.4166V122.525L26.4098 135.579L3.53809 122.525V96.4166L26.4098 83.3625Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.TopBadge"
+                  FillRule="Nonzero"
+                  Figures="M137.609 0L162.889 14.4281V43.2844L137.609 57.7125L112.33 43.2844V14.4281L137.609 0Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.BottomRightBadge"
+                  FillRule="Nonzero"
+                  Figures="M208.499 196.955L234.446 222.605L208.499 248.255L182.552 222.605L208.499 196.955Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.Logo.RightBadge"
+                  FillRule="Nonzero"
+                  Figures="M246.028 79.6982L273.716 127.105H218.342L246.028 79.6982Z"/>
+
+    <PathGeometry x:Key="PlayAch.Geometry.TrophyIcon"
+                  FillRule="Nonzero"
+                  Figures="M147.414 0.143555C148.162 0.880654 148.897 2.22099 148.669 3.86035C148.48 5.21999 147.641 6.696 145.775 8.14746H180.774V8.64746C180.774 19.6984 177.578 36.7586 167.991 52.0811C158.411 67.3927 142.448 80.9631 116.958 85.0566L112.611 88.7002C113.607 89.1904 114.585 89.808 115.34 90.5283C116.27 91.4168 116.943 92.544 116.729 93.8193C116.516 95.0802 115.466 96.2851 113.462 97.4141C111.509 98.5138 108.556 99.5939 104.298 100.611C105.22 108.143 107.143 119.284 109.991 128.792C111.444 133.642 113.13 138.042 115.031 141.316C116.951 144.622 119.011 146.642 121.153 146.994L121.572 147.063V156.288C121.573 156.996 122.06 158.702 124.121 159.399L124.144 159.407L124.166 159.417C124.818 159.712 125.846 160.725 125.544 162.509V168.521H55.2305V162.509C54.9287 160.725 55.9562 159.712 56.6084 159.417L56.6309 159.407L56.6533 159.399C58.7141 158.702 59.2018 156.996 59.2021 156.288V147.063L59.6211 146.994C61.7639 146.642 63.8235 144.622 65.7432 141.316C67.6446 138.042 69.3304 133.642 70.7832 128.792C73.6311 119.284 75.554 108.143 76.4766 100.611C72.2184 99.5939 69.2654 98.5138 67.3125 97.4141C65.308 96.2851 64.2584 95.0802 64.0459 93.8193C63.8312 92.544 64.5043 91.4168 65.4346 90.5283C66.1889 89.808 67.1672 89.1904 68.1631 88.7002L63.8164 85.0566C38.3265 80.9631 22.3639 67.3927 12.7832 52.0811C3.19612 36.7586 8.02726e-05 19.6984 0 8.64746V8.14746H34.999C33.1336 6.69601 32.2945 5.21998 32.1055 3.86035C31.8778 2.22105 32.6121 0.880716 33.3604 0.143555L33.5059 0H147.269L147.414 0.143555ZM14.5811 19.7285C19.2018 53.6234 43.7002 69.0509 55.3721 72.5273C44.3982 61.5767 38.2853 32.7653 36.6006 19.7285H14.5811ZM144.174 19.7285C142.489 32.7653 136.376 61.5767 125.402 72.5273C137.074 69.0509 161.574 53.6235 166.194 19.7285H144.174ZM91.3896 19.0156C91.2531 18.9357 91.088 18.9264 90.9443 18.9863L90.8838 19.0156L74.6729 28.5312C74.52 28.621 74.4259 28.7857 74.4258 28.9629V47.9941C74.4258 48.1715 74.5199 48.336 74.6729 48.4258L90.8838 57.9414C91.0399 58.0329 91.2335 58.0328 91.3896 57.9414L107.602 48.4258C107.754 48.336 107.848 48.1714 107.848 47.9941V28.9629C107.848 28.7857 107.754 28.621 107.602 28.5312L91.3896 19.0156Z"/>
+
+    <DrawingImage x:Key="PlayAch.Image.Logo">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.Ring}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="18.5332,140.398" EndPoint="256.686,140.398">
+                            <GradientStop Color="#D9A748" Offset="0"/>
+                            <GradientStop Color="#D3C7B1" Offset="0.216346"/>
+                            <GradientStop Color="#FE9F00" Offset="0.504808"/>
+                            <GradientStop Color="#D3C7B1" Offset="0.774038"/>
+                            <GradientStop Color="#D9A748" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.Trophy}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="76.2368,144.3" EndPoint="200.045,144.3">
+                            <GradientStop Color="#D9A748" Offset="0"/>
+                            <GradientStop Color="#D3C7B1" Offset="0.216346"/>
+                            <GradientStop Color="#FE9F00" Offset="0.504808"/>
+                            <GradientStop Color="#D3C7B1" Offset="0.774038"/>
+                            <GradientStop Color="#D9A748" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.BottomLeftBadge}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="42.6253,230.392" EndPoint="95.4453,230.392">
+                            <GradientStop Color="#8B7913" Offset="0"/>
+                            <GradientStop Color="#C7B75E" Offset="0.5"/>
+                            <GradientStop Color="#EDE19C" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.LeftBadge}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="-0.00018,109.471" EndPoint="52.8198,109.471">
+                            <GradientStop Color="#3F8BBC" Offset="0"/>
+                            <GradientStop Color="#5B9FCC" Offset="0.25"/>
+                            <GradientStop Color="#76B4DB" Offset="0.485577"/>
+                            <GradientStop Color="#A6D6F5" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.TopBadge}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="108.419,28.8562" EndPoint="166.799,28.8562">
+                            <GradientStop Color="#7841C5" Offset="0"/>
+                            <GradientStop Color="#505DC8" Offset="0.5"/>
+                            <GradientStop Color="#2879CB" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.BottomRightBadge}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="182.552,222.605" EndPoint="234.446,222.605">
+                            <GradientStop Color="#606B7C" Offset="0"/>
+                            <GradientStop Color="#828A95" Offset="0.5"/>
+                            <GradientStop Color="#B5C4DC" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <GeometryDrawing Geometry="{StaticResource PlayAch.Geometry.Logo.RightBadge}">
+                    <GeometryDrawing.Brush>
+                        <LinearGradientBrush MappingMode="Absolute" StartPoint="214.058,111.303" EndPoint="277.998,111.303">
+                            <GradientStop Color="#894917" Offset="0"/>
+                            <GradientStop Color="#AB6834" Offset="0.5"/>
+                            <GradientStop Color="#DDA171" Offset="1"/>
+                        </LinearGradientBrush>
+                    </GeometryDrawing.Brush>
+                </GeometryDrawing>
+                <!-- Transparent bounds padding: makes the image box symmetric about the trophy
+                     center so VerticalAlignment="Center" lands the trophy on the text midline. -->
+                <GeometryDrawing Brush="Transparent">
+                    <GeometryDrawing.Geometry>
+                        <RectangleGeometry Rect="2.566,0,271.150,288.6"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+</ResourceDictionary>

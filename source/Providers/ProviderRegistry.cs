@@ -203,6 +203,24 @@ namespace PlayniteAchievements.Providers
             return string.IsNullOrWhiteSpace(value) ? providerKey : value;
         }
 
+        // ===================== PROVIDER ENUMERATION =====================
+
+        /// <summary>
+        /// Returns all registered providers ordered by the configured display order.
+        /// </summary>
+        public IReadOnlyList<IDataProvider> GetAllProviders()
+            => OrderProviderKeys(_providersByKey.Keys)
+                .Select(key => _providersByKey[key])
+                .ToList();
+
+        public bool TryGetProvider(string providerKey, out IDataProvider provider)
+        {
+            provider = null;
+            return !string.IsNullOrWhiteSpace(providerKey) &&
+                   _providersByKey.TryGetValue(providerKey, out provider) &&
+                   provider != null;
+        }
+
         public bool TryGetProviderVisuals(string providerKey, out string iconKey, out string colorHex)
         {
             iconKey = null;
@@ -221,6 +239,25 @@ namespace PlayniteAchievements.Providers
             }
 
             return false;
+        }
+
+        // Static convenience wrappers so view models and cache projections can resolve provider
+        // visuals off the shared instance without threading a registry reference, mirroring
+        // GetLocalizedName.
+        public static bool TryResolveProviderVisuals(string providerKey, out string iconKey, out string colorHex)
+        {
+            iconKey = null;
+            colorHex = null;
+            var instance = Instance;
+            return instance != null && instance.TryGetProviderVisuals(providerKey, out iconKey, out colorHex);
+        }
+
+        public static string GetProviderColorHex(string providerKey, string fallback = "#888888")
+        {
+            return TryResolveProviderVisuals(providerKey, out _, out var colorHex) &&
+                   !string.IsNullOrWhiteSpace(colorHex)
+                ? colorHex
+                : fallback;
         }
 
         // ===================== ENABLED STATE =====================

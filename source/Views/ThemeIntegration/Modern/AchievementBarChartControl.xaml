@@ -15,9 +15,16 @@
     <base:ThemeControlBase.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementTemplates.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/PlayniteAchievements;component/Resources/AchievementResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <converters:EnumToBoolConverter x:Key="EnumToBool"/>
+
+            <!-- Shadows the plugin-branded chip style from AchievementControlStyles.xaml so the
+                 range selectors use the active Playnite theme's ToggleButton chrome. -->
+            <Style x:Key="TimeRangeButtonStyle" TargetType="RadioButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+                <Setter Property="FontSize" Value="{DynamicResource PlayAch.FontSize.Caption}"/>
+            </Style>
         </ResourceDictionary>
     </base:ThemeControlBase.Resources>
 
@@ -38,7 +45,7 @@
         </Grid.RowDefinitions>
 
         <!-- Time range toggle buttons -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="{StaticResource PlayAch.Thickness.Bottom.Sm}">
             <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_7D}"
                          GroupName="DesktopTimeRange"
                          Style="{StaticResource TimeRangeButtonStyle}"
@@ -69,7 +76,7 @@
                          IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=OneYear, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          Command="{Binding TimelineViewModel.SetTimeRangeCommand, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                          CommandParameter="OneYear"/>
-            <RadioButton Content="{DynamicResource LOCPlayAch_TimeRange_All}"
+            <RadioButton Content="{DynamicResource LOCPlayAch_Common_All}"
                          GroupName="DesktopTimeRange"
                          Style="{StaticResource TimeRangeButtonStyle}"
                          IsChecked="{Binding TimelineViewModel.TimelineRange, Converter={StaticResource EnumToBool}, ConverterParameter=All, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
@@ -84,16 +91,14 @@
                             Hoverable="True"
                             DisableAnimations="True">
             <lvc:CartesianChart.Resources>
-                <Style TargetType="lvc:ColumnSeries">
-                    <Setter Property="Fill" Value="{DynamicResource HighlightGlyphBrush}" />
-                </Style>
+                <Style TargetType="lvc:ColumnSeries" BasedOn="{StaticResource PlayAch.ChartColumnSeriesStyle}"/>
             </lvc:CartesianChart.Resources>
             <lvc:CartesianChart.AxisX>
                 <lvc:Axis Labels="{Binding TimelineViewModel.TimelineLabels, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
                           ShowLabels="True"
                           LabelsRotation="45"
-                          FontSize="{DynamicResource FontSizeSmall}"
-                          Foreground="{DynamicResource TextBrush}">
+                          FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                          Foreground="{DynamicResource PlayAch.Brush.Text}">
                     <lvc:Axis.Separator>
                         <lvc:Separator Step="1" IsEnabled="False"/>
                     </lvc:Axis.Separator>
@@ -102,10 +107,10 @@
             <lvc:CartesianChart.AxisY>
                 <lvc:Axis MinValue="0"
                           LabelFormatter="{Binding TimelineViewModel.YAxisFormatter, RelativeSource={RelativeSource AncestorType=base:ThemeControlBase}}"
-                          FontSize="{DynamicResource FontSizeSmall}"
-                          Foreground="{DynamicResource TextBrush}">
+                          FontSize="{DynamicResource PlayAch.FontSize.Caption}"
+                          Foreground="{DynamicResource PlayAch.Brush.Text}">
                     <lvc:Axis.Separator>
-                        <lvc:Separator Stroke="{DynamicResource NormalBorderBrush}" Opacity="0.2"/>
+                        <lvc:Separator Stroke="{DynamicResource PlayAch.Brush.Border}" Opacity="0.2"/>
                     </lvc:Axis.Separator>
                 </lvc:Axis>
             </lvc:CartesianChart.AxisY>

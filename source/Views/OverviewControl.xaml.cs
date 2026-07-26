@@ -13,28 +13,65 @@ using Playnite.SDK.Events;
 using PlayniteAchievements.Models;
 using PlayniteAchievements.Models.Settings;
 using PlayniteAchievements.Services;
+using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Cache;
+using PlayniteAchievements.Services.Friends;
+using PlayniteAchievements.Services.GameCustomData;
+using PlayniteAchievements.Services.Library;
+using PlayniteAchievements.Services.Refresh;
 using PlayniteAchievements.Services.UI;
 using PlayniteAchievements.ViewModels;
+using PlayniteAchievements.ViewModels.Items;
+using PlayniteAchievements.Views.Dialogs;
 using PlayniteAchievements.Views.Helpers;
 
 namespace PlayniteAchievements.Views
 {
     public partial class OverviewControl : UserControl, IDisposable, IFullscreenControllerNavigable
     {
+        public static readonly DependencyProperty ActiveSubViewProperty =
+            DependencyProperty.Register(
+                nameof(ActiveSubView),
+                typeof(OverviewSubView),
+                typeof(OverviewControl),
+                new PropertyMetadata(OverviewSubView.Overview, OnActiveSubViewChanged));
+
+        public static readonly DependencyProperty ActiveRefreshHeaderProperty =
+            DependencyProperty.Register(
+                nameof(ActiveRefreshHeader),
+                typeof(IOverviewRefreshHeaderViewModel),
+                typeof(OverviewControl),
+                new PropertyMetadata(null));
+
+        public static readonly DependencyProperty ShowFriendsClearSelectionProperty =
+            DependencyProperty.Register(
+                nameof(ShowFriendsClearSelection),
+                typeof(bool),
+                typeof(OverviewControl),
+                new PropertyMetadata(false));
+
+        private static OverviewSubView _lastSelectedSubView = OverviewSubView.Overview;
+
         private readonly OverviewViewModel _viewModel;
         private readonly ILogger _logger;
         private readonly PlayniteAchievementsSettings _settings;
         private readonly RefreshRuntime _refreshService;
         private readonly ICacheManager _cacheManager;
+        private readonly IFriendCacheManager _friendCache;
         private readonly Action _persistSettingsForUi;
         private readonly AchievementOverridesService _achievementOverridesService;
         private readonly AchievementDataService _achievementDataService;
+        private readonly LibraryProjectionService _libraryProjectionService;
         private readonly IPlayniteAPI _playniteApi;
+        private readonly RefreshEntryPoint _refreshEntryPoint;
+        private readonly FriendsOverviewDataCoordinator _friendsOverviewDataCoordinator;
+        private readonly OverviewLaunchContext _launchContext;
         private const double OverviewColumnRatioChangeThreshold = 0.001d;
         private bool _isActive;
         private Guid? _lastSelectedOverviewGameId;
         private DataGridRow _pendingRightClickRow;
         private bool _committingOverviewSelection;
+        private FriendsOverviewControl _friendsOverview;
         private DataGrid GameSummariesGrid => GameSummariesGridControl?.InternalDataGrid;
 
         public OverviewControl()
@@ -42,7 +79,7 @@ namespace PlayniteAchievements.Views
             InitializeComponent();
         }
 
-        public OverviewControl(
+        internal OverviewControl(
             IPlayniteAPI api,
             ILogger logger,
             RefreshRuntime refreshRuntime,
@@ -50,9 +87,12 @@ namespace PlayniteAchievements.Views
             Action persistSettingsForUi,
             AchievementOverridesService achievementOverridesService,
             AchievementDataService achievementDataService,
+            LibraryProjectionService libraryProjectionService,
             GameCustomDataStore gameCustomDataStore,
             RefreshEntryPoint refreshEntryPoint,
-            PlayniteAchievementsSettings settings)
+            PlayniteAchievementsSettings settings,
+            OverviewLaunchContext launchContext = OverviewLaunchContext.Sidebar,
+            FriendsOverviewDataCoordinator friendsOverviewDataCoordinator = null)
         {
             InitializeComponent();
 
@@ -60,24 +100,154 @@ namespace PlayniteAchievements.Views
             _settings = settings;
             _refreshService = refreshRuntime ?? throw new ArgumentNullException(nameof(refreshRuntime));
             _cacheManager = cacheManager ?? throw new ArgumentNullException(nameof(cacheManager));
+            _friendCache = cacheManager as IFriendCacheManager;
             _persistSettingsForUi = persistSettingsForUi ?? throw new ArgumentNullException(nameof(persistSettingsForUi));
             _achievementOverridesService = achievementOverridesService ?? throw new ArgumentNullException(nameof(achievementOverridesService));
             _achievementDataService = achievementDataService ?? throw new ArgumentNullException(nameof(achievementDataService));
+            _libraryProjectionService = libraryProjectionService;
             _playniteApi = api ?? throw new ArgumentNullException(nameof(api));
+            _refreshEntryPoint = refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint));
+            _friendsOverviewDataCoordinator = friendsOverviewDataCoordinator;
+            _launchContext = launchContext;
 
             _viewModel = new OverviewViewModel(
                 refreshRuntime,
                 _persistSettingsForUi,
                 _achievementDataService,
+                _libraryProjectionService,
                 gameCustomDataStore,
-                refreshEntryPoint ?? throw new ArgumentNullException(nameof(refreshEntryPoint)),
+                _refreshEntryPoint,
                 api,
                 logger,
-                settings);
+                settings,
+                launchContext);
             DataContext = _viewModel;
             _viewModel.PropertyChanged += ViewModel_PropertyChanged;
             _viewModel.SetActive(false);
+            ActiveRefreshHeader = _viewModel;
+            // Never restore the Friends subview when the feature is disabled; the subview
+            // switch is hidden in that state, which would trap the user in the friends view.
+            ActiveSubView = _settings?.Persisted?.EnableFriendsFeatures == false
+                ? OverviewSubView.Overview
+                : _lastSelectedSubView;
+            ApplyActiveSubView();
             PlayniteAchievementsPlugin.SettingsSaved += Plugin_SettingsSaved;
+            if (_settings?.Persisted != null)
+            {
+                _settings.Persisted.PropertyChanged += Persisted_PropertyChanged;
+            }
+        }
+
+        public OverviewSubView ActiveSubView
+        {
+            get => (OverviewSubView)GetValue(ActiveSubViewProperty);
+            set => SetValue(ActiveSubViewProperty, value);
+        }
+
+        public IOverviewRefreshHeaderViewModel ActiveRefreshHeader
+        {
+            get => (IOverviewRefreshHeaderViewModel)GetValue(ActiveRefreshHeaderProperty);
+            set => SetValue(ActiveRefreshHeaderProperty, value);
+        }
+
+        public bool ShowFriendsClearSelection
+        {
+            get => (bool)GetValue(ShowFriendsClearSelectionProperty);
+            set => SetValue(ShowFriendsClearSelectionProperty, value);
+        }
+
+        private static void OnActiveSubViewChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (sender is OverviewControl control)
+            {
+                control.ApplyActiveSubView();
+            }
+        }
+
+        private void ApplyActiveSubView()
+        {
+            _lastSelectedSubView = ActiveSubView;
+
+            if (ActiveSubView == OverviewSubView.Friends)
+            {
+                EnsureFriendsOverviewCreated();
+                ActiveRefreshHeader = _friendsOverview?.RefreshHeader ?? _viewModel;
+            }
+            else
+            {
+                ActiveRefreshHeader = _viewModel;
+            }
+
+            UpdateFriendsClearSelectionState();
+        }
+
+        private void EnsureFriendsOverviewCreated()
+        {
+            if (_friendsOverview != null)
+            {
+                return;
+            }
+
+            _friendsOverview = new FriendsOverviewControl(
+                _logger,
+                _friendCache,
+                _refreshEntryPoint,
+                _refreshService,
+                _settings,
+                _persistSettingsForUi,
+                _launchContext,
+                _playniteApi,
+                _cacheManager,
+                _achievementOverridesService,
+                _friendsOverviewDataCoordinator)
+            {
+                IsEmbedded = true
+            };
+
+            if (_friendsOverview.ViewModel != null)
+            {
+                _friendsOverview.ViewModel.PropertyChanged += FriendsViewModel_PropertyChanged;
+            }
+
+            FriendsOverviewContentHost.Content = _friendsOverview;
+        }
+
+        private void FriendsViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e == null ||
+                string.IsNullOrEmpty(e.PropertyName) ||
+                e.PropertyName == nameof(FriendsOverviewViewModel.HasAnySelection))
+            {
+                UpdateFriendsClearSelectionState();
+            }
+        }
+
+        private void UpdateFriendsClearSelectionState()
+        {
+            ShowFriendsClearSelection =
+                ActiveSubView == OverviewSubView.Friends &&
+                _friendsOverview?.HasAnySelection == true;
+        }
+
+        private void Persisted_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e?.PropertyName == nameof(PersistedSettings.EnableFriendsFeatures)
+                && !_settings.Persisted.EnableFriendsFeatures
+                && ActiveSubView == OverviewSubView.Friends)
+            {
+                ActiveSubView = OverviewSubView.Overview;
+            }
+        }
+
+        // Invoked by AchievementHotkeyService when F5 is pressed while focus is within this view.
+        // Runs the main refresh, honoring the refresh-mode selector.
+        public void TriggerHotkeyRefresh()
+        {
+            var command = ActiveRefreshHeader?.RefreshCommand;
+            if (command != null && command.CanExecute(null))
+            {
+                command.Execute(null);
+            }
         }
 
         private void ScoreCard_InfoRequested(object sender, RoutedEventArgs e)
@@ -107,6 +277,12 @@ namespace PlayniteAchievements.Views
                 {
                     if (!_isActive || !IsVisible)
                     {
+                        return;
+                    }
+
+                    if (ActiveSubView == OverviewSubView.Friends)
+                    {
+                        FriendsSubViewButton?.Focus();
                         return;
                     }
 
@@ -144,9 +320,18 @@ namespace PlayniteAchievements.Views
                     _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
                 }
                 PlayniteAchievementsPlugin.SettingsSaved -= Plugin_SettingsSaved;
+                if (_settings?.Persisted != null)
+                {
+                    _settings.Persisted.PropertyChanged -= Persisted_PropertyChanged;
+                }
+                if (_friendsOverview?.ViewModel != null)
+                {
+                    _friendsOverview.ViewModel.PropertyChanged -= FriendsViewModel_PropertyChanged;
+                }
                 GameSummariesGridControl?.Dispose();
                 RecentAchievementsDataGrid?.Dispose();
                 GameAchievementsGrid?.Dispose();
+                _friendsOverview?.Dispose();
                 _viewModel?.Dispose();
             }
             catch (Exception ex)
@@ -160,9 +345,6 @@ namespace PlayniteAchievements.Views
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             ApplyOverviewColumnRatio();
-            GameSummariesGridControl?.Refresh();
-            RecentAchievementsDataGrid?.Refresh();
-            GameAchievementsGrid?.Refresh();
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
             UpdatePieChartLayout();
@@ -172,6 +354,15 @@ namespace PlayniteAchievements.Views
         {
             ResetOverviewSortDirection();
             ResetAchievementsSortDirection();
+
+            // The Persisted_PropertyChanged subscription targets the Persisted instance from
+            // construction time, which settings edits can replace (CopyPersistedFrom); this
+            // save-time check leaves the friends view even when that subscription went stale.
+            if (_settings?.Persisted?.EnableFriendsFeatures == false &&
+                ActiveSubView == OverviewSubView.Friends)
+            {
+                ActiveSubView = OverviewSubView.Overview;
+            }
         }
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -221,21 +412,35 @@ namespace PlayniteAchievements.Views
             }), DispatcherPriority.Render);
         }
 
-        private void ClearLeftSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearLeftSearch();
-        private void ClearRightSearch_Click(object sender, RoutedEventArgs e) => _viewModel?.ClearRightSearch();
+        private void OverviewSubViewButton_Click(object sender, RoutedEventArgs e)
+        {
+            ActiveSubView = OverviewSubView.Overview;
+        }
+
+        private void FriendsSubViewButton_Click(object sender, RoutedEventArgs e)
+        {
+            ActiveSubView = OverviewSubView.Friends;
+        }
+
+        private void FriendsClearSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            _friendsOverview?.ClearSelectionFromHost();
+            UpdateFriendsClearSelectionState();
+        }
 
         private void RefreshModeSelectionButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_viewModel == null)
+            var header = ActiveRefreshHeader;
+            if (header == null)
             {
                 return;
             }
 
             OpenSingleSelectRefreshModeContextMenu(
                 RefreshModeSelectionButton,
-                _viewModel.RefreshModes,
-                _viewModel.SelectedRefreshMode,
-                selectedKey => _viewModel.SelectedRefreshMode = selectedKey);
+                header.RefreshModes,
+                header.SelectedRefreshMode,
+                selectedKey => header.SelectedRefreshMode = selectedKey);
         }
 
         private static void OpenSingleSelectRefreshModeContextMenu(
@@ -289,133 +494,6 @@ namespace PlayniteAchievements.Views
             OpenSelectorContextMenu(button, menu);
         }
 
-        private void ProviderFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null)
-            {
-                return;
-            }
-
-            OpenMultiSelectFilterContextMenu(
-                ProviderFilterSelectionButton,
-                _viewModel.ProviderFilterOptions,
-                option => _viewModel.IsProviderFilterSelected(option),
-                (option, isSelected) => _viewModel.SetProviderFilterSelected(option, isSelected),
-                option => _viewModel.GetProviderFilterDisplayName(option));
-        }
-
-        private void CompletenessFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null)
-            {
-                return;
-            }
-
-            OpenMultiSelectFilterContextMenu(
-                CompletenessFilterSelectionButton,
-                _viewModel.CompletenessFilterOptions,
-                option => _viewModel.IsCompletenessFilterSelected(option),
-                (option, isSelected) => _viewModel.SetCompletenessFilterSelected(option, isSelected));
-        }
-
-        private void PlayStatusFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null)
-            {
-                return;
-            }
-
-            OpenMultiSelectFilterContextMenu(
-                PlayStatusFilterSelectionButton,
-                _viewModel.PlayStatusFilterOptions,
-                option => _viewModel.IsPlayStatusFilterSelected(option),
-                (option, isSelected) => _viewModel.SetPlayStatusFilterSelected(option, isSelected));
-        }
-
-        private void SelectedGameTypeFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null)
-            {
-                return;
-            }
-
-            OpenMultiSelectFilterContextMenu(
-                SelectedGameTypeFilterSelectionButton,
-                _viewModel.SelectedGameTypeFilterOptions,
-                option => _viewModel.IsSelectedGameTypeFilterSelected(option),
-                (option, isSelected) => _viewModel.SetSelectedGameTypeFilterSelected(option, isSelected));
-        }
-
-        private void SelectedGameCategoryFilterSelectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewModel == null)
-            {
-                return;
-            }
-
-            OpenMultiSelectFilterContextMenu(
-                SelectedGameCategoryFilterSelectionButton,
-                _viewModel.SelectedGameCategoryFilterOptions,
-                option => _viewModel.IsSelectedGameCategoryFilterSelected(option),
-                (option, isSelected) => _viewModel.SetSelectedGameCategoryFilterSelected(option, isSelected));
-        }
-
-        private void OpenMultiSelectFilterContextMenu(
-            Button button,
-            IEnumerable<string> options,
-            Func<string, bool> isSelected,
-            Action<string, bool> setSelection,
-            Func<string, string> getDisplayLabel = null)
-        {
-            if (button == null || isSelected == null || setSelection == null)
-            {
-                return;
-            }
-
-            var menu = button.ContextMenu;
-            if (menu == null)
-            {
-                return;
-            }
-
-            menu.Items.Clear();
-            if (options == null)
-            {
-                return;
-            }
-
-            var itemStyle = button.TryFindResource("AchievementMultiSelectMenuItemStyle") as Style;
-            foreach (var option in options.Where(value => !string.IsNullOrWhiteSpace(value)))
-            {
-                var displayLabel = getDisplayLabel?.Invoke(option);
-                if (string.IsNullOrWhiteSpace(displayLabel))
-                {
-                    displayLabel = option;
-                }
-
-                var item = new MenuItem
-                {
-                    Header = displayLabel,
-                    IsCheckable = true,
-                    StaysOpenOnClick = true,
-                    IsChecked = isSelected(option)
-                };
-                if (itemStyle != null)
-                {
-                    item.Style = itemStyle;
-                }
-                item.Click += (_, __) => setSelection(option, item.IsChecked);
-                menu.Items.Add(item);
-            }
-
-            if (menu.Items.Count == 0)
-            {
-                return;
-            }
-
-            OpenSelectorContextMenu(button, menu);
-        }
-
         private static void OpenSelectorContextMenu(Button button, ContextMenu menu)
         {
             if (button == null || menu == null)
@@ -451,11 +529,24 @@ namespace PlayniteAchievements.Views
             _lastSelectedOverviewGameId = null;
         }
 
+        private void GameNameBreadcrumb_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel?.IsSelectedGameDrilledIntoCategory == true)
+            {
+                GameAchievementsGrid.ExitDrilledCategory();
+            }
+        }
+
         public bool HandleFullscreenControllerInput(ControllerInput input)
         {
             if (_viewModel == null)
             {
                 return false;
+            }
+
+            if (ActiveSubView == OverviewSubView.Friends)
+            {
+                return HandleFriendsControllerInput(input);
             }
 
             if (FullscreenControllerNavigationService.IsBackInput(input))
@@ -491,6 +582,27 @@ namespace PlayniteAchievements.Views
             if (input == ControllerInput.DPadRight || input == ControllerInput.LeftStickRight)
             {
                 return TryHandleControllerRight();
+            }
+
+            return false;
+        }
+
+        private bool HandleFriendsControllerInput(ControllerInput input)
+        {
+            if (FullscreenControllerNavigationService.IsBackInput(input))
+            {
+                return TryHandleControllerBack();
+            }
+
+            if (FullscreenControllerNavigationService.IsSecondaryClickInput(input))
+            {
+                return _friendsOverview?.OpenFocusedControlBarMenuForController() == true ||
+                       TryOpenFocusedSelectorContextMenu();
+            }
+
+            if (FullscreenControllerNavigationService.IsAcceptInput(input))
+            {
+                return FullscreenControllerNavigationService.ActivateFocusedElement();
             }
 
             return false;
@@ -786,6 +898,13 @@ namespace PlayniteAchievements.Views
 
         private bool TryOpenFocusedSelectorContextMenu()
         {
+            if (GameSummariesGridControl?.OpenFocusedControlBarMenuForController() == true ||
+                RecentAchievementsDataGrid?.OpenFocusedControlBarMenuForController() == true ||
+                GameAchievementsGrid?.OpenFocusedControlBarMenuForController() == true)
+            {
+                return true;
+            }
+
             var focusedButton = VisualTreeHelpers.FindVisualParent<Button>(
                                     Keyboard.FocusedElement as DependencyObject)
                                 ?? Keyboard.FocusedElement as Button;
@@ -798,36 +917,6 @@ namespace PlayniteAchievements.Views
             {
                 RefreshModeSelectionButton_Click(focusedButton, new RoutedEventArgs());
                 return RefreshModeSelectionButton.ContextMenu?.IsOpen == true;
-            }
-
-            if (ReferenceEquals(focusedButton, ProviderFilterSelectionButton))
-            {
-                ProviderFilterSelectionButton_Click(focusedButton, new RoutedEventArgs());
-                return ProviderFilterSelectionButton.ContextMenu?.IsOpen == true;
-            }
-
-            if (ReferenceEquals(focusedButton, CompletenessFilterSelectionButton))
-            {
-                CompletenessFilterSelectionButton_Click(focusedButton, new RoutedEventArgs());
-                return CompletenessFilterSelectionButton.ContextMenu?.IsOpen == true;
-            }
-
-            if (ReferenceEquals(focusedButton, PlayStatusFilterSelectionButton))
-            {
-                PlayStatusFilterSelectionButton_Click(focusedButton, new RoutedEventArgs());
-                return PlayStatusFilterSelectionButton.ContextMenu?.IsOpen == true;
-            }
-
-            if (ReferenceEquals(focusedButton, SelectedGameTypeFilterSelectionButton))
-            {
-                SelectedGameTypeFilterSelectionButton_Click(focusedButton, new RoutedEventArgs());
-                return SelectedGameTypeFilterSelectionButton.ContextMenu?.IsOpen == true;
-            }
-
-            if (ReferenceEquals(focusedButton, SelectedGameCategoryFilterSelectionButton))
-            {
-                SelectedGameCategoryFilterSelectionButton_Click(focusedButton, new RoutedEventArgs());
-                return SelectedGameCategoryFilterSelectionButton.ContextMenu?.IsOpen == true;
             }
 
             return false;
@@ -903,30 +992,24 @@ namespace PlayniteAchievements.Views
 
         private bool IsKeyboardFocusWithinLeftFilterArea()
         {
-            return LeftSearchTextBox?.IsKeyboardFocusWithin == true ||
-                   ClearLeftSearchButton?.IsKeyboardFocusWithin == true ||
-                   ProviderFilterSelectionButton?.IsKeyboardFocusWithin == true ||
-                   CompletenessFilterSelectionButton?.IsKeyboardFocusWithin == true ||
-                   PlayStatusFilterSelectionButton?.IsKeyboardFocusWithin == true;
+            return GameSummariesGridControl?.IsControlBarFocusedForController() == true;
         }
 
         private bool IsKeyboardFocusWithinRightFilterArea()
         {
-            return RightSearchTextBox?.IsKeyboardFocusWithin == true ||
-                   ClearRightSearchButton?.IsKeyboardFocusWithin == true ||
-                   SelectedGameTypeFilterSelectionButton?.IsKeyboardFocusWithin == true ||
-                   SelectedGameCategoryFilterSelectionButton?.IsKeyboardFocusWithin == true ||
-                   SelectedGameUnlockedFilterCheckBox?.IsKeyboardFocusWithin == true ||
-                   SelectedGameLockedFilterCheckBox?.IsKeyboardFocusWithin == true ||
-                   SelectedGameHiddenFilterCheckBox?.IsKeyboardFocusWithin == true ||
+            return RecentAchievementsDataGrid?.IsControlBarFocusedForController() == true ||
+                   GameAchievementsGrid?.IsControlBarFocusedForController() == true ||
                    ClearGameSelectionButton?.IsKeyboardFocusWithin == true;
         }
 
         private bool IsKeyboardFocusWithinHeaderArea()
         {
             return CloseViewButton?.IsKeyboardFocusWithin == true ||
+                   OverviewSubViewButton?.IsKeyboardFocusWithin == true ||
+                   FriendsSubViewButton?.IsKeyboardFocusWithin == true ||
                    RefreshModeSelectionButton?.IsKeyboardFocusWithin == true ||
-                   RefreshActionButton?.IsKeyboardFocusWithin == true;
+                   RefreshActionButton?.IsKeyboardFocusWithin == true ||
+                   FriendsClearSelectionButton?.IsKeyboardFocusWithin == true;
         }
 
         private bool TrySelectFocusedOverviewGame()
@@ -1007,25 +1090,37 @@ namespace PlayniteAchievements.Views
 
         private IList<UIElement> GetLeftFilterControllerElements()
         {
-            return GetVisibleControllerElements(
-                LeftSearchTextBox,
-                ClearLeftSearchButton,
-                ProviderFilterSelectionButton,
-                CompletenessFilterSelectionButton,
-                PlayStatusFilterSelectionButton);
+            var controlBarElements = GameSummariesGridControl?.GetControlBarControllerElements();
+            if (controlBarElements != null && controlBarElements.Count > 0)
+            {
+                return controlBarElements;
+            }
+
+            return new List<UIElement>();
         }
 
         private IList<UIElement> GetRightFilterControllerElements()
         {
-            return GetVisibleControllerElements(
-                RightSearchTextBox,
-                ClearRightSearchButton,
-                SelectedGameTypeFilterSelectionButton,
-                SelectedGameCategoryFilterSelectionButton,
-                SelectedGameUnlockedFilterCheckBox,
-                SelectedGameLockedFilterCheckBox,
-                SelectedGameHiddenFilterCheckBox,
-                ClearGameSelectionButton);
+            var elements = new List<UIElement>();
+            var recentElements = RecentAchievementsDataGrid?.GetControlBarControllerElements();
+            if (recentElements != null)
+            {
+                elements.AddRange(recentElements);
+            }
+
+            var selectedGameElements = GameAchievementsGrid?.GetControlBarControllerElements();
+            if (selectedGameElements != null)
+            {
+                elements.AddRange(selectedGameElements);
+            }
+
+            elements.AddRange(GetVisibleControllerElements(ClearGameSelectionButton));
+            if (elements.Count > 0)
+            {
+                return elements;
+            }
+
+            return GetVisibleControllerElements(ClearGameSelectionButton);
         }
 
         private static IList<UIElement> GetVisibleControllerElements(params UIElement[] elements)
@@ -1424,6 +1519,7 @@ namespace PlayniteAchievements.Views
             var menu = BuildRowContextMenu(row.DataContext);
             if (menu == null || menu.Items.Count == 0) return false;
 
+            ContextMenuStyleHelper.ApplyAchievementContextMenuStyle(this, menu);
             row.ContextMenu = menu;
             if (useControllerPlacement)
             {
@@ -1444,19 +1540,16 @@ namespace PlayniteAchievements.Views
 
         private ContextMenu BuildGameMenu(object data)
         {
-            var menu = new ContextMenu();
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_RefreshGame",
-                () => ExecuteCommand(_viewModel?.RefreshSingleGameCommand, data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
-                () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ManageAchievements", () => OpenManageAchievements(data)));
-            menu.Items.Add(new Separator());
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ClearData", () => ClearGameData(data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Common_Action_ExcludeFromSummaries", () => ExcludeGameFromSummaries(data)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshes", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: false)));
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ExcludeFromRefreshesAndClearData", () => ExcludeGameFromRefreshes(data, clearDataWhenExcluding: true)));
-
-            return menu;
+            return GameRowContextMenuBuilder.BuildGameMenu(
+                data,
+                this,
+                _viewModel?.RefreshSingleGameCommand,
+                _viewModel?.OpenGameInLibraryCommand,
+                gameId => PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(gameId),
+                _playniteApi,
+                _achievementOverridesService,
+                _cacheManager,
+                _logger);
         }
 
         private ContextMenu BuildAchievementMenu(object data)
@@ -1464,16 +1557,16 @@ namespace PlayniteAchievements.Views
             var menu = new ContextMenu();
             if (data is RecentAchievementItem)
             {
-                menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_ViewAchievements",
-                    () => ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_ViewAchievements",
+                    () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
             }
             else if (!IsCurrentGame(data))
             {
-                menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInOverview",
-                    () => ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
+                menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_OpenGameInOverview",
+                    () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInOverviewCommand, data)));
             }
-            menu.Items.Add(CreateMenuItem("LOCPlayAch_Menu_OpenGameInLibrary",
-                () => ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
+            menu.Items.Add(GameRowContextMenuBuilder.CreateMenuItem(this, "LOCPlayAch_Menu_OpenGameInLibrary",
+                () => GameRowContextMenuBuilder.ExecuteCommand(_viewModel?.OpenGameInLibraryCommand, data)));
             AchievementRowOptionsMenuBuilder.AppendAchievementOptions(
                 menu,
                 data,
@@ -1485,129 +1578,8 @@ namespace PlayniteAchievements.Views
         private bool IsCurrentGame(object data)
         {
             if (_viewModel?.SelectedGame?.PlayniteGameId.HasValue != true) return false;
-            if (!TryGetGameId(data, out var rowGameId)) return false;
+            if (!GameRowContextMenuBuilder.TryGetGameId(data, out var rowGameId)) return false;
             return rowGameId == _viewModel.SelectedGame.PlayniteGameId.Value;
-        }
-
-        private static bool TryGetGameId(object data, out Guid gameId)
-        {
-            switch (data)
-            {
-                case GameSummaryItem game when game.PlayniteGameId.HasValue:
-                    gameId = game.PlayniteGameId.Value; return true;
-                case AchievementDisplayItem ach when ach.PlayniteGameId.HasValue:
-                    gameId = ach.PlayniteGameId.Value; return true;
-                case RecentAchievementItem recent when recent.PlayniteGameId.HasValue:
-                    gameId = recent.PlayniteGameId.Value; return true;
-                case Guid id when id != Guid.Empty:
-                    gameId = id; return true;
-                default:
-                    gameId = Guid.Empty; return false;
-            }
-        }
-
-        private MenuItem CreateMenuItem(string resourceKey, Action onClick)
-        {
-            var text = TryFindResource(resourceKey) as string ?? resourceKey;
-            var item = new MenuItem { Header = text };
-            item.Click += (_, __) => onClick?.Invoke();
-            return item;
-        }
-
-        private static void ExecuteCommand(System.Windows.Input.ICommand command, object parameter)
-        {
-            if (command != null && command.CanExecute(parameter))
-                command.Execute(parameter);
-        }
-
-        private void OpenManageAchievements(object data)
-        {
-            if (TryGetGameId(data, out var gameId))
-            {
-                PlayniteAchievementsPlugin.Instance?.OpenManageAchievementsView(gameId);
-            }
-        }
-
-        private void ClearGameData(object data)
-        {
-            if (!TryGetGameId(data, out var gameId)) return;
-            var game = _playniteApi?.Database?.Games?.Get(gameId);
-            if (game == null) return;
-
-            var result = _playniteApi?.Dialogs?.ShowMessage(
-                string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_ClearData_ConfirmSingle"), game.Name),
-                ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                MessageBoxButton.YesNo, MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-            if (result != MessageBoxResult.Yes) return;
-
-            try
-            {
-                if (_achievementOverridesService != null)
-                {
-                    _achievementOverridesService.ClearGameData(game.Id, game.Name);
-                }
-                else
-                {
-                    _cacheManager.RemoveGameCache(game.Id);
-                }
-
-                _playniteApi?.Dialogs?.ShowMessage(
-                    ResourceProvider.GetString("LOCPlayAch_Status_Succeeded"),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                _logger?.Error(ex, $"Failed to clear data for game '{game.Name}' ({game.Id}).");
-                _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Status_Failed"), ex.Message),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void ExcludeGameFromSummaries(object data)
-        {
-            if (!TryGetGameId(data, out var gameId))
-            {
-                return;
-            }
-
-            _achievementOverridesService?.SetExcludedFromSummaries(gameId, true);
-        }
-
-        private void ExcludeGameFromRefreshes(object data, bool clearDataWhenExcluding)
-        {
-            if (!TryGetGameId(data, out var gameId))
-            {
-                return;
-            }
-
-            var game = _playniteApi?.Database?.Games?.Get(gameId);
-            if (game == null)
-            {
-                return;
-            }
-
-            if (clearDataWhenExcluding)
-            {
-                var result = _playniteApi?.Dialogs?.ShowMessage(
-                    string.Format(ResourceProvider.GetString("LOCPlayAch_Menu_Exclude_ConfirmSingle"), game.Name),
-                    ResourceProvider.GetString("LOCPlayAch_Title_PluginName"),
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning) ?? MessageBoxResult.None;
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            _achievementOverridesService?.SetExcludedByUser(
-                gameId,
-                excluded: true,
-                clearCachedDataWhenExcluding: clearDataWhenExcluding);
         }
 
         #endregion

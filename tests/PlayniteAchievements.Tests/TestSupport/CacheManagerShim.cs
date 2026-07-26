@@ -1,4 +1,5 @@
 using System;
+using PlayniteAchievements.Services.Cache;
 
 namespace PlayniteAchievements.Services
 {

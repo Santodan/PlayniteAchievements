@@ -17,6 +17,23 @@ namespace PlayniteAchievements.Tests.Providers
         }
 
         [TestMethod]
+        public void ExtractBaseTitle_StripsPlainSubsetSuffix()
+        {
+            var title = "Pokemon FireRed Version | Pokemon LeafGreen Version Subset Shiny Pokemon+";
+
+            var baseTitle = RetroAchievementsSubsetTitleResolver.ExtractBaseTitle(title);
+
+            Assert.AreEqual("Pokemon FireRed Version | Pokemon LeafGreen Version", baseTitle);
+        }
+
+        [TestMethod]
+        public void IsSubsetLikeTitle_DetectsPlainSubsetSuffix()
+        {
+            Assert.IsTrue(RetroAchievementsSubsetTitleResolver.IsSubsetLikeTitle(
+                "Pokemon FireRed Version | Pokemon LeafGreen Version Subset Shiny Pokemon+"));
+        }
+
+        [TestMethod]
         public void ExtractAlternateBaseTitleCandidates_SplitsPipeSeparatedAliases()
         {
             var baseTitle = "Pokemon FireRed Version | Pokemon LeafGreen Version";

@@ -95,6 +95,9 @@ namespace PlayniteAchievements.Providers.PSN
 
         public async Task RefreshAuthStatusAsync()
         {
+            SetAuthStatusChecking();
+            SetAuthStatusByKey("LOCPlayAch_Auth_Checking");
+
             var authStateVersion = Volatile.Read(ref _authStateVersion);
             try
             {
@@ -183,6 +186,7 @@ namespace PlayniteAchievements.Providers.PSN
         private async Task CheckPsnAuthAsync(string triggerSource)
         {
             SetAuthBusy(true);
+            SetAuthStatusChecking();
             SetAuthStatusByKey("LOCPlayAch_Auth_Checking");
             var authStateVersion = Volatile.Read(ref _authStateVersion);
 
