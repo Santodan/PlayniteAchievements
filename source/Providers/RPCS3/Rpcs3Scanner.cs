@@ -540,6 +540,11 @@ namespace PlayniteAchievements.Providers.RPCS3
                     AddStrictTrophySource(sources, seen, source, trophyFolderCache);
                 }
 
+                foreach (var source in FindTropdirCollectionSources(candidate.Path, trophyFolderCache))
+                {
+                    AddStrictTrophySource(sources, seen, source, trophyFolderCache);
+                }
+
                 foreach (var source in FindIsoCollectionSourcesForCandidate(candidate, trophyFolderCache, allowRawIsoScan))
                 {
                     AddStrictTrophySource(sources, seen, source, trophyFolderCache);
@@ -648,6 +653,111 @@ namespace PlayniteAchievements.Providers.RPCS3
                     TrpPath = trpPath,
                     SourceTitle = sourceTitle
                 };
+            }
+        }
+
+        /// <summary>
+        /// Finds trophy sources for folder installs whose TROPDIR carries several trophy
+        /// sets under a single PS3_GAME (e.g. The Sly Collection). Only sets RPCS3 has
+        /// created a trophy folder for are returned, mirroring the ISO scan's cache gate;
+        /// a multi-region dump therefore surfaces at most one set and resolution stays on
+        /// the single-source path.
+        /// </summary>
+        private IEnumerable<GameTrophySource> FindTropdirCollectionSources(
+            string candidatePath,
+            Dictionary<string, string> trophyFolderCache)
+        {
+            if (trophyFolderCache == null || trophyFolderCache.Count == 0)
+            {
+                yield break;
+            }
+
+            var current = candidatePath?.Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(current) && File.Exists(current))
+            {
+                current = Path.GetDirectoryName(current);
+            }
+
+            if (string.IsNullOrWhiteSpace(current) || !Directory.Exists(current))
+            {
+                yield break;
+            }
+
+            var directoriesToCheck = new List<string> { current };
+
+            // Playnite may point at USRDIR; TROPDIR is a sibling in the game root.
+            var normalizedPath = TrimTrailingSeparators(current);
+            if (normalizedPath.EndsWith("USRDIR", StringComparison.OrdinalIgnoreCase))
+            {
+                var parentDir = Path.GetDirectoryName(normalizedPath);
+                if (!string.IsNullOrWhiteSpace(parentDir))
+                {
+                    directoriesToCheck.Add(parentDir);
+                }
+            }
+
+            var tropdirs = directoriesToCheck
+                .SelectMany(dir => new[]
+                {
+                    Path.Combine(dir, "TROPDIR"),
+                    Path.Combine(dir, "PS3_GAME", "TROPDIR")
+                })
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var tropdir in tropdirs)
+            {
+                if (!Directory.Exists(tropdir))
+                {
+                    continue;
+                }
+
+                string[] setDirectories;
+                try
+                {
+                    setDirectories = Directory.GetDirectories(tropdir);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                foreach (var setDirectory in setDirectories.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    var trpPath = Path.Combine(setDirectory, "TROPHY.TRP");
+                    if (!File.Exists(trpPath))
+                    {
+                        continue;
+                    }
+
+                    string npCommId = null;
+                    try
+                    {
+                        npCommId = ExtractNpCommIdFromTrpFile(trpPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.Debug(ex, $"[RPCS3] Failed to extract NPWR ID from '{trpPath}'");
+                    }
+
+                    var normalized = Rpcs3MatchIdHelper.Normalize(npCommId);
+                    if (string.IsNullOrWhiteSpace(normalized))
+                    {
+                        continue;
+                    }
+
+                    if (!trophyFolderCache.ContainsKey(normalized))
+                    {
+                        _logger?.Info($"[RPCS3-DIAG] FindTropdirCollectionSources: set '{Path.GetFileName(setDirectory)}' in '{tropdir}' skipped - '{normalized}' not in RPCS3 trophy cache (multi-region duplicate or never booted)");
+                        continue;
+                    }
+
+                    _logger?.Info($"[RPCS3-DIAG] FindTropdirCollectionSources: set '{normalized}' accepted from '{trpPath}' (present in RPCS3 trophy cache)");
+                    yield return new GameTrophySource
+                    {
+                        NpCommId = normalized,
+                        TrpPath = trpPath
+                    };
+                }
             }
         }
 
