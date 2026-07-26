@@ -402,14 +402,7 @@
             <DataGridTemplateColumn Width="*" MinWidth="22" CanUserResize="True" Header="{DynamicResource LOCPlayAch_Progress}" SortMemberPath="Progression" helpers:ColumnVisibilityHelper.ColumnKey="GameSummaryProgression">
                 <DataGridTemplateColumn.CellStyle>
                     <Style TargetType="DataGridCell" BasedOn="{StaticResource GameSummariesGridCellStyle}">
-                        <Setter Property="ToolTip">
-                            <Setter.Value>
-                                <MultiBinding StringFormat="{}{0:N0}/{1:N0}">
-                                    <Binding Path="UnlockedAchievements"/>
-                                    <Binding Path="TotalAchievements"/>
-                                </MultiBinding>
-                            </Setter.Value>
-                        </Setter>
+                        <Setter Property="ToolTip" Value="{Binding ProgressionCountText}"/>
                     </Style>
                 </DataGridTemplateColumn.CellStyle>
                 <DataGridTemplateColumn.CellTemplate>
