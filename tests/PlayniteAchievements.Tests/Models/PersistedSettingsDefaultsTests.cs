@@ -214,22 +214,39 @@ namespace PlayniteAchievements.Models.Tests
         }
 
         [TestMethod]
+        public void Constructor_DefaultsUnlockScreenshotSuffixes()
+        {
+            var settings = new PersistedSettings();
+
+            Assert.AreEqual("clean", settings.UnlockScreenshotSuffixClean);
+            Assert.AreEqual("notification", settings.UnlockScreenshotSuffixWithToast);
+            Assert.AreEqual("framed", settings.UnlockScreenshotSuffixFramed);
+        }
+
+        [TestMethod]
         public void CloneAndCopyFrom_PreserveUnlockScreenshotSettings()
         {
             var source = new PersistedSettings
             {
                 EnableUnlockScreenshots = true,
-                UnlockScreenshotDirectory = @"C:\Shots\PlayniteAchievements"
+                UnlockScreenshotDirectory = @"C:\Shots\PlayniteAchievements",
+                UnlockScreenshotSuffixClean = "raw",
+                UnlockScreenshotSuffixWithToast = "",
+                UnlockScreenshotSuffixFramed = "fancy"
             };
 
             var clone = source.Clone();
             var target = new PersistedSettings();
             target.CopyFrom(source);
 
-            Assert.IsTrue(clone.EnableUnlockScreenshots);
-            Assert.AreEqual(source.UnlockScreenshotDirectory, clone.UnlockScreenshotDirectory);
-            Assert.IsTrue(target.EnableUnlockScreenshots);
-            Assert.AreEqual(source.UnlockScreenshotDirectory, target.UnlockScreenshotDirectory);
+            foreach (var copy in new[] { clone, target })
+            {
+                Assert.IsTrue(copy.EnableUnlockScreenshots);
+                Assert.AreEqual(source.UnlockScreenshotDirectory, copy.UnlockScreenshotDirectory);
+                Assert.AreEqual("raw", copy.UnlockScreenshotSuffixClean);
+                Assert.AreEqual("", copy.UnlockScreenshotSuffixWithToast);
+                Assert.AreEqual("fancy", copy.UnlockScreenshotSuffixFramed);
+            }
         }
 
         [TestMethod]
