@@ -5,6 +5,7 @@ using PlayniteAchievements.Models.Achievements;
 using PlayniteAchievements.Models.ThemeIntegration;
 using PlayniteAchievements.Services;
 using PlayniteAchievements.Services.Achievements;
+using PlayniteAchievements.Services.Summaries;
 using PlayniteAchievements.ViewModels;
 using PlayniteAchievements.ViewModels.Items;
 
@@ -306,9 +307,32 @@ namespace PlayniteAchievements.Views.Helpers
             themeData.TotalUltraRare = new AchievementRarityStats { Unlocked = 1, Locked = 0, Total = 1 };
             themeData.TotalRareAndUltraRare = new AchievementRarityStats { Unlocked = 2, Locked = 0, Total = 2 };
             themeData.TotalOverall = new AchievementRarityStats { Unlocked = 2, Locked = 3, Total = 5 };
+            themeData.SelectedGameSummary = CreatePreviewGameSummary(themeData.AllAchievements);
             PopulateOrderedAchievementLists(themeData);
 
             return themeData;
+        }
+
+        /// <summary>
+        /// Creates the mock game summary row shown above the preview data grid.
+        /// </summary>
+        private static GameSummaryItem CreatePreviewGameSummary(List<AchievementDetail> achievements)
+        {
+            var item = new GameSummaryItem
+            {
+                GameName = "Preview Game",
+                SortingName = "Preview Game",
+                PlatformText = "PC (Windows)",
+                PlaytimeSeconds = 12UL * 3600,
+                LastPlayed = DateTime.Now.AddDays(-1),
+                IsCompleted = false
+            };
+
+            AchievementStatsAccumulator
+                .FromAchievements(achievements)
+                .ApplyTo(item);
+
+            return item;
         }
 
         /// <summary>

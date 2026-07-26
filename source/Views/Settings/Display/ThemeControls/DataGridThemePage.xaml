@@ -68,6 +68,10 @@
                                                         ShowDateModeRow="False"
                                                         ShowRowHeightRow="False"
                                                         ShowMaxRowsRow="False"/>
+                            <TextBlock Text="{DynamicResource LOCPlayAch_Overview_GameSummaries}"
+                                       Style="{StaticResource SubSectionHeaderStyle}"
+                                       Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
+                            <controls:GridOptionsEditor Options="{Binding Persisted.GridOptions.GameSummaries[DesktopTheme]}"/>
                             <TextBlock Text="{DynamicResource LOCPlayAch_Settings_CategoryGrid}"
                                        Style="{StaticResource SubSectionHeaderStyle}"
                                        Margin="{StaticResource PlayAch.Thickness.Top.Md}"/>
