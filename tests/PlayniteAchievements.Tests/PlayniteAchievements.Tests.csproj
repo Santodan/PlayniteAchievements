@@ -146,6 +146,7 @@
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3NpCommIdExtractor.cs" Link="Source\Providers\RPCS3\Rpcs3NpCommIdExtractor.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3ParamSfoReader.cs" Link="Source\Providers\RPCS3\Rpcs3ParamSfoReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3Scanner.cs" Link="Source\Providers\RPCS3\Rpcs3Scanner.cs" />
+    <Compile Include="..\..\source\Providers\RPCS3\Rpcs3SerialNpwrBridge.cs" Link="Source\Providers\RPCS3\Rpcs3SerialNpwrBridge.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3TrophyParser.cs" Link="Source\Providers\RPCS3\Rpcs3TrophyParser.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Rpcs3TrpArchiveReader.cs" Link="Source\Providers\RPCS3\Rpcs3TrpArchiveReader.cs" />
     <Compile Include="..\..\source\Providers\RPCS3\Models\Rpcs3Trophy.cs" Link="Source\Providers\RPCS3\Models\Rpcs3Trophy.cs" />

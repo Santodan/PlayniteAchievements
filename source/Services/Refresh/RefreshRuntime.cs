@@ -1438,6 +1438,29 @@ namespace PlayniteAchievements.Services.Refresh
                 _logger?.Debug(ex, "Failed to backfill provider key on refreshed game data.");
             }
 
+            var key = data.PlayniteGameId.Value.ToString();
+
+            // When a provider reports which source the achievements came from, a changed
+            // key means previously cached icon files (keyed by ApiName) may hold another
+            // game's art; force an overwrite so icons follow the new source.
+            var forceRefreshExistingTargets = forceIconRefresh;
+            if (!forceRefreshExistingTargets && !string.IsNullOrWhiteSpace(data.ProviderGameKey))
+            {
+                try
+                {
+                    var previous = _cacheService.LoadGameData(key);
+                    if (previous != null && HasProviderSourceKeyChanged(previous.ProviderGameKey, data.ProviderGameKey))
+                    {
+                        forceRefreshExistingTargets = true;
+                        _logger?.Info($"Provider source for '{game?.Name}' changed from '{previous.ProviderGameKey ?? "(none)"}' to '{data.ProviderGameKey}'; overwriting cached achievement icons.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.Debug(ex, "Failed to compare provider game key for icon staleness detection.");
+                }
+            }
+
             var unlockedIconOverrides = GameCustomDataLookup.GetAchievementUnlockedIconOverrides(data.PlayniteGameId.Value);
             var lockedIconOverrides = GameCustomDataLookup.GetAchievementLockedIconOverrides(data.PlayniteGameId.Value);
 
@@ -1447,10 +1470,8 @@ namespace PlayniteAchievements.Services.Refresh
                 lockedIconOverrides,
                 cancel,
                 (downloaded, total) => _refreshProgressReporter.ReportIconProgress(game, data, downloaded, total, progressScope),
-                forceRefreshExistingTargets: forceIconRefresh)
+                forceRefreshExistingTargets: forceRefreshExistingTargets)
                 .ConfigureAwait(false);
-
-            var key = data.PlayniteGameId.Value.ToString();
 
             if (!string.IsNullOrWhiteSpace(key))
             {
@@ -1482,6 +1503,21 @@ namespace PlayniteAchievements.Services.Refresh
                 // Fire per-game refresh event for amortized tag syncing
                 try { GameRefreshed?.Invoke(game.Id); } catch (Exception ex) { _logger?.Debug(ex, "GameRefreshed event handler failed."); }
             }
+        }
+
+        /// <summary>
+        /// Reports whether the provider-reported source key for a game's achievements
+        /// differs from the previously persisted one. A missing previous key counts as
+        /// changed so caches poisoned before keys were recorded heal on the next refresh.
+        /// </summary>
+        internal static bool HasProviderSourceKeyChanged(string previous, string current)
+        {
+            if (string.IsNullOrWhiteSpace(current))
+            {
+                return false;
+            }
+
+            return !string.Equals(previous?.Trim(), current.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         // Applies icon overrides for the given achievements against the cached game data without
