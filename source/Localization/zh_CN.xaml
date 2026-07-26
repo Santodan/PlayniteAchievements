@@ -928,11 +928,13 @@ This deletes this game's manual links, capstones, custom icons, ordering, catego
     <sys:String x:Key="LOCPlayAch_Filter_Complete">已完成</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_InProgress">In Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Activity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Ownership</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Games">搜索游戏</sys:String>
     <!-- Filter_Hidden: filter label for hidden (secret) achievements, not hidden games -->
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">已隐藏</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_NoProgress">无进度</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Played">已游玩</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Unowned</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Unplayed">未游玩</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">Visible</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">Capstone</sys:String>
