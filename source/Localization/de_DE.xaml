@@ -937,11 +937,13 @@ Passende Plattform aktivieren oder die Authentifizierungseinstellungen überprü
     <sys:String x:Key="LOCPlayAch_Filter_Complete">Vervollständigt</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_InProgress">Begonnen</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Aktivität</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Ownership</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Games">Spiele filtern...</sys:String>
     <!-- Filter_Hidden: filter label for hidden (secret) achievements, not hidden games -->
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">Verborgen</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_NoProgress">Kein Fortschritt</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Played">Gespielt</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Unowned</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Ungespielt</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">Sichtbar</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">Vollendungserfolg</sys:String>
