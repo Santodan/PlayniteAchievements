@@ -67,11 +67,12 @@ namespace PlayniteAchievements.Services.Overview
         /// is fully selected (all platforms), or the provider is partially selected and the game's
         /// platforms overlap the selected set. An empty selection leaves the games unfiltered.
         /// </summary>
-        public static IEnumerable<GameSummaryItem> ApplyProviderPlatformFilter(
-            IEnumerable<GameSummaryItem> games,
+        public static IEnumerable<TGame> ApplyProviderPlatformFilter<TGame>(
+            IEnumerable<TGame> games,
             IEnumerable<ProviderFilterGroup> providerGroups)
+            where TGame : GameSummaryItem
         {
-            var filtered = games ?? Enumerable.Empty<GameSummaryItem>();
+            var filtered = games ?? Enumerable.Empty<TGame>();
 
             var activeGroups = (providerGroups ?? Enumerable.Empty<ProviderFilterGroup>())
                 .Where(group => group != null && group.HasAnySelected)

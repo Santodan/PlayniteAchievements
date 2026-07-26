@@ -907,11 +907,13 @@
     <sys:String x:Key="LOCPlayAch_Filter_Complete">Complete</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_InProgress">In Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_ActivitySelectorPlaceholder">Activity</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_OwnershipSelectorPlaceholder">Ownership</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Games">Search Games</sys:String>
     <!-- Filter_Hidden: filter label for hidden (secret) achievements, not hidden games -->
     <sys:String x:Key="LOCPlayAch_Filter_Hidden">Hidden</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_NoProgress">No Progress</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Played">Played</sys:String>
+    <sys:String x:Key="LOCPlayAch_Filter_Unowned">Unowned</sys:String>
     <sys:String x:Key="LOCPlayAch_Filter_Unplayed">Unplayed</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Visible">Visible</sys:String>
     <sys:String x:Key="LOCPlayAch_Dynamic_Capstone">Capstone</sys:String>

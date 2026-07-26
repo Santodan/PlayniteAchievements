@@ -167,4 +167,97 @@ namespace PlayniteAchievements.ViewModels.Items
             _onSelectionChanged?.Invoke();
         }
     }
+
+    /// <summary>
+    /// Builds provider filter groups from a set of game summaries: games grouped by provider key,
+    /// distinct platform names sorted per provider, a synthetic provider-named option when a
+    /// provider has no platform metadata, and prior selections/expansion carried over from the
+    /// previous groups.
+    /// </summary>
+    public static class ProviderFilterGroupBuilder
+    {
+        public static ObservableCollection<ProviderFilterGroup> Rebuild(
+            IEnumerable<GameSummaryItem> games,
+            IEnumerable<ProviderFilterGroup> existingGroups,
+            Action onSelectionChanged)
+        {
+            var priorSelections = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var priorExpanded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var existing in existingGroups ?? Enumerable.Empty<ProviderFilterGroup>())
+            {
+                var selected = existing.SelectedPlatformNames.ToList();
+                if (selected.Count > 0)
+                {
+                    priorSelections[existing.ProviderKey] =
+                        new HashSet<string>(selected, StringComparer.OrdinalIgnoreCase);
+                }
+
+                if (existing.IsExpanded)
+                {
+                    priorExpanded.Add(existing.ProviderKey);
+                }
+            }
+
+            var platformsByProvider = new Dictionary<string, SortedSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var game in games ?? Enumerable.Empty<GameSummaryItem>())
+            {
+                var providerKey = game?.ProviderKey;
+                if (string.IsNullOrWhiteSpace(providerKey))
+                {
+                    continue;
+                }
+
+                providerKey = providerKey.Trim();
+                if (!platformsByProvider.TryGetValue(providerKey, out var platforms))
+                {
+                    platforms = new SortedSet<string>(StringComparer.CurrentCultureIgnoreCase);
+                    platformsByProvider[providerKey] = platforms;
+                }
+
+                foreach (var platform in game.Platforms ?? Array.Empty<string>())
+                {
+                    if (!string.IsNullOrWhiteSpace(platform))
+                    {
+                        platforms.Add(platform.Trim());
+                    }
+                }
+            }
+
+            var groups = new List<ProviderFilterGroup>();
+            foreach (var providerKey in platformsByProvider.Keys
+                .OrderBy(GetProviderFilterDisplayName, StringComparer.CurrentCultureIgnoreCase))
+            {
+                var platformNames = platformsByProvider[providerKey].ToList();
+                if (platformNames.Count == 0)
+                {
+                    platformNames.Add(GetProviderFilterDisplayName(providerKey));
+                }
+
+                priorSelections.TryGetValue(providerKey, out var selectedSet);
+                groups.Add(new ProviderFilterGroup(
+                    providerKey,
+                    GetProviderFilterDisplayName(providerKey),
+                    platformNames,
+                    name => selectedSet != null && selectedSet.Contains(name),
+                    onSelectionChanged)
+                {
+                    IsExpanded = priorExpanded.Contains(providerKey)
+                });
+            }
+
+            return new ObservableCollection<ProviderFilterGroup>(groups);
+        }
+
+        private static string GetProviderFilterDisplayName(string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(providerKey))
+            {
+                return string.Empty;
+            }
+
+            var normalized = providerKey.Trim();
+            var localized = PlayniteAchievements.Providers.ProviderRegistry.GetLocalizedName(normalized);
+            return string.IsNullOrWhiteSpace(localized) ? normalized : localized;
+        }
+    }
 }
