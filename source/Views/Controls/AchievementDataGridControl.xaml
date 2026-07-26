@@ -184,8 +184,8 @@
                 <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
                         <Grid Background="Transparent"
-                              helpers:ClippedTextToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
-                              helpers:ClippedTextToolTipHelper.NoteText="{Binding AchievementNote}">
+                              helpers:CellToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
+                              helpers:CellToolTipHelper.NoteText="{Binding AchievementNote}">
                             <TextBlock TextWrapping="Wrap"
                                        FontFamily="{DynamicResource PlayAch.FontFamily.Body}"
                                        VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
@@ -327,7 +327,7 @@
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"
                                    Background="Transparent"
-                                   helpers:ClippedTextToolTipHelper.HeaderText="{Binding FriendName}"
+                                   helpers:CellToolTipHelper.HeaderText="{Binding FriendName}"
                                    Style="{StaticResource WrappedCenteredDataGridTextStyle}"
                                    Foreground="{DynamicResource PlayAch.Brush.Text}"
                                    FontWeight="SemiBold"

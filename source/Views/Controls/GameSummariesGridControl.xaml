@@ -182,7 +182,7 @@
                                             Margin="{StaticResource PlayAch.Thickness.Right.Sm}">
                                     <TextBlock Text="{Binding GameName}"
                                                Background="Transparent"
-                                               helpers:ClippedTextToolTipHelper.HeaderText="{Binding GameName}"
+                                               helpers:CellToolTipHelper.HeaderText="{Binding GameName}"
                                                HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                                                Style="{StaticResource GameSummaryNameTextStyle}"/>
                                     <TextBlock HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"

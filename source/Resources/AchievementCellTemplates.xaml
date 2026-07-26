@@ -456,9 +456,9 @@
         <StackPanel VerticalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellVerticalAlignment)}"
                     HorizontalAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellHorizontalAlignment)}"
                     Background="Transparent"
-                    helpers:ClippedTextToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
-                    helpers:ClippedTextToolTipHelper.BodyText="{Binding DescriptionResolved}"
-                    helpers:ClippedTextToolTipHelper.NoteText="{Binding AchievementNote}">
+                    helpers:CellToolTipHelper.HeaderText="{Binding DisplayNameResolved}"
+                    helpers:CellToolTipHelper.BodyText="{Binding DescriptionResolved}"
+                    helpers:CellToolTipHelper.NoteText="{Binding AchievementNote}">
             <TextBlock FontWeight="SemiBold"
                        TextWrapping="Wrap"
                        TextAlignment="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridCell}}, Path=Column.(helpers:DataGridAlignmentBehavior.CellTextAlignment)}">
